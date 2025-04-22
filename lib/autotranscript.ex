@@ -37,7 +37,7 @@ defmodule Autotranscript do
     # Start watching directory for new files
     case watch_directory() do
       {:ok, pid} ->
-        {:ok, %{watcher_pid: pid}}
+        {:ok, pid}
 
       {:error, reason} ->
         Logger.error("Failed to start directory watcher: #{inspect(reason)}")
@@ -63,11 +63,11 @@ defmodule Autotranscript do
         {:ok, pid} = FileSystem.start_link(dirs: [directory])
         FileSystem.subscribe(pid)
 
-        # Start monitoring files in a separate process
-        spawn(fn -> receive_files() end)
+        Logger.info("Watching: #{directory}")
+        # Start monitoring files
+        receive_files()
 
         {:ok, pid}
-
       false ->
         {:error, :invalid_directory}
     end
@@ -75,8 +75,7 @@ defmodule Autotranscript do
 
   defp receive_files do
     receive do
-      {_pid, {:file_event, path, events}} ->
-        IO.puts("File #{path} had events: #{inspect(events)}")
+      {:file_event, _pid, {path, events}} ->
         # Process new MP4 files here
         if String.ends_with?(path, [".MP4", ".mp4"]) && Enum.member?(events, :created) do
           with :ok <- convert_to_mp3(path),
@@ -91,6 +90,10 @@ defmodule Autotranscript do
           end
         end
 
+        receive_files()
+
+      any ->
+        IO.puts("Received: #{inspect(any)}")
         receive_files()
     end
   end
