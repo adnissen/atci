@@ -21,3 +21,6 @@ autotranscript-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+# Ignore the config file
+/config/config.exs
