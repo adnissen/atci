@@ -1,6 +1,6 @@
 import Config
 
 config :autotranscript,
-  watch_directory: "/Volumes/G-DRIVE ArmorATD/videos",
-  whispercli_path: "/Users/andrewnissen/whisper.cpp/build/bin/whisper-cli",
-  model_path: "/Users/andrewnissen/whisper.cpp/models/ggml-large-v3.bin"
+  watch_directory: "/path/to/your/videos",
+  whispercli_path: "/path/to/whisper-cli",
+  model_path: "/path/to/your/whisper.cpp/model.bin"
