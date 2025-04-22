@@ -23,4 +23,4 @@ autotranscript-*.tar
 /tmp/
 
 # Ignore the config file
-/config/config.exs
+/config/
