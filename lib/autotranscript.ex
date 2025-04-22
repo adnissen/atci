@@ -91,10 +91,6 @@ defmodule Autotranscript do
         end
 
         receive_files()
-
-      any ->
-        IO.puts("Received: #{inspect(any)}")
-        receive_files()
     end
   end
 
