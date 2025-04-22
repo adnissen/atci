@@ -1,21 +1,27 @@
 # Autotranscript
 
-**TODO: Add description**
+Autotranscript is an Elixir application that automatically transcribes video files to text using Whisper. It watches a configured directory for new MP4 files and processes them automatically.
 
-## Installation
+## Description
 
-If [available in Hex](https://hex.pm/docs/publish), the package can be installed
-by adding `autotranscript` to your list of dependencies in `mix.exs`:
+- Monitors a directory for new MP4 video files or videos without a .txt transcript
+- Automatically converts videos to MP3 audio using ffmpeg
+- Transcribes audio to text using Whisper
+- Deletes the MP3 file
+
+## Prerequisites
+
+- Elixir 1.18 or later
+- ffmpeg installed and available in PATH
+- [whisper.cpp](https://github.com/ggerganov/whisper.cpp) compiled and model downloaded
+
+## Configuration
+
+Configure the following in `config/config.exs`:
 
 ```elixir
-def deps do
-  [
-    {:autotranscript, "~> 0.1.0"}
-  ]
-end
+config :autotranscript,
+  watch_directory: "/path/to/your/videos",
+  whispercli_path: "/path/to/whisper-cli",
+  model_path: "/path/to/your/whisper.cpp/model.bin"
 ```
-
-Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
-and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
-be found at <https://hexdocs.pm/autotranscript>.
-
