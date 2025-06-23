@@ -57,4 +57,26 @@ defmodule Autotranscript.Web.TranscriptController do
         |> send_resp(500, "Error reading transcript file '#{filename}': #{reason}")
     end
   end
+
+  def grep(conn, %{"text" => search_text}) do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+
+    # Change to the watch directory and run grep
+    case System.shell("grep -Hli \"" <> search_text <> "\" *.txt", cd: watch_directory) do
+      {output, 0} ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(200, output)
+      {output, exit_code} when exit_code > 1 ->
+        conn
+        |> put_status(:internal_server_error)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(500, "Error running grep: #{output}")
+      {_output, 1} ->
+        # grep returns 1 when no matches found, which is not an error
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(200, "")
+    end
+  end
 end
