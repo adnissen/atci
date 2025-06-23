@@ -27,7 +27,8 @@ defmodule Autotranscript.MixProject do
       {:phoenix_html, "~> 4.0"},
       {:phoenix_live_view, "~> 0.20"},
       {:plug_cowboy, "~> 2.7"},
-      {:gettext, ">= 0.24.0"}
+      {:gettext, ">= 0.24.0"},
+      {:jason, "~> 1.4"}
     ]
   end
 end

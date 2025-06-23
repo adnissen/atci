@@ -21,7 +21,7 @@ defmodule Autotranscript.Web.TranscriptController do
 
             %{
               name: filename,
-              created_at: stat.ctime,
+              created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
               line_count: line_count,
               full_path: file_path
             }
@@ -31,6 +31,7 @@ defmodule Autotranscript.Web.TranscriptController do
       end)
       |> Enum.reject(&is_nil/1)
       |> Enum.sort_by(& &1.created_at, :desc)
+      |> Jason.encode!()
 
     render(conn, :index, txt_files: txt_files)
   end

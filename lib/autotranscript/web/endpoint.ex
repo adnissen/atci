@@ -7,7 +7,7 @@ defmodule Autotranscript.Web.Endpoint do
     at: "/",
     from: :autotranscript,
     gzip: false,
-    only: ~w(css fonts images js favicon.ico robots.txt)
+    only: ~w(index.css index.js index.html fonts images js favicon.ico robots.txt)
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
