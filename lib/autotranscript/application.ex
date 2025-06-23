@@ -4,7 +4,7 @@ defmodule Autotranscript.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      {Autotranscript, []}
+      {Autotranscript.Transcriber, []}
     ]
     opts = [strategy: :one_for_one, name: Autotranscript.Supervisor]
     Supervisor.start_link(children, opts)

@@ -1,4 +1,4 @@
-defmodule Autotranscript do
+defmodule Autotranscript.Transcriber do
   use GenServer
   require Logger
 
