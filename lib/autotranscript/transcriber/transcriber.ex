@@ -37,12 +37,37 @@ defmodule Autotranscript.Transcriber do
     # Start watching directory for new files
     case watch_directory() do
       {:ok, pid} ->
-        {:ok, pid}
+        {:ok, %{file_system_pid: pid}}
 
       {:error, reason} ->
         Logger.error("Failed to start directory watcher: #{inspect(reason)}")
         {:stop, reason}
     end
+  end
+
+  @impl true
+  def handle_info({:file_event, _pid, {path, events}}, state) do
+    # Process new MP4 files here
+    if String.ends_with?(path, [".MP4", ".mp4"]) && Enum.member?(events, :created) do
+      with :ok <- convert_to_mp3(path),
+           mp3_path =
+             String.replace_trailing(path, ".MP4", ".mp3")
+             |> String.replace_trailing(".mp4", ".mp3"),
+           :ok <- transcribe_audio(mp3_path),
+           :ok <- delete_mp3(mp3_path) do
+        IO.puts("Successfully processed #{path}")
+      else
+        error -> IO.puts("Error processing #{path}: #{inspect(error)}")
+      end
+    end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:file_event, _pid, :stop}, state) do
+    Logger.info("File system watcher stopped")
+    {:noreply, state}
   end
 
   @doc """
@@ -64,33 +89,9 @@ defmodule Autotranscript.Transcriber do
         FileSystem.subscribe(pid)
 
         Logger.info("Watching: #{directory}")
-        # Start monitoring files
-        receive_files()
-
         {:ok, pid}
       false ->
         {:error, :invalid_directory}
-    end
-  end
-
-  defp receive_files do
-    receive do
-      {:file_event, _pid, {path, events}} ->
-        # Process new MP4 files here
-        if String.ends_with?(path, [".MP4", ".mp4"]) && Enum.member?(events, :created) do
-          with :ok <- convert_to_mp3(path),
-               mp3_path =
-                 String.replace_trailing(path, ".MP4", ".mp3")
-                 |> String.replace_trailing(".mp4", ".mp3"),
-               :ok <- transcribe_audio(mp3_path),
-               :ok <- delete_mp3(mp3_path) do
-            IO.puts("Successfully processed #{path}")
-          else
-            error -> IO.puts("Error processing #{path}: #{inspect(error)}")
-          end
-        end
-
-        receive_files()
     end
   end
 

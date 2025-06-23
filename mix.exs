@@ -22,7 +22,9 @@ defmodule Autotranscript.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:file_system, "~> 1.0"}
+      {:file_system, "~> 1.0"},
+      {:phoenix, "~> 1.7"},
+      {:plug_cowboy, "~> 2.7"}
     ]
   end
 end
