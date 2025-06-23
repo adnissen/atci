@@ -21,5 +21,6 @@ defmodule Autotranscript.Web.Router do
 
     get "/", PageController, :index
     get "/transcripts", TranscriptController, :index
+    get "/transcripts/:filename", TranscriptController, :show
   end
 end

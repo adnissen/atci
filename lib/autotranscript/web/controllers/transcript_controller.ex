@@ -35,4 +35,26 @@ defmodule Autotranscript.Web.TranscriptController do
 
     render(conn, :index, txt_files: txt_files)
   end
+
+  def show(conn, %{"filename" => filename}) do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    file_path = Path.join(watch_directory, "#{filename}.txt")
+
+    case File.read(file_path) do
+      {:ok, content} ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(200, content)
+      {:error, :enoent} ->
+        conn
+        |> put_status(:not_found)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(404, "Transcript file '#{filename}' not found")
+      {:error, reason} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(500, "Error reading transcript file '#{filename}': #{reason}")
+    end
+  end
 end
