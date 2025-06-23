@@ -20,5 +20,6 @@ defmodule Autotranscript.Web.Router do
     pipe_through :browser
 
     get "/", PageController, :index
+    get "/transcripts", TranscriptController, :index
   end
 end
