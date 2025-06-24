@@ -230,4 +230,78 @@ defmodule Autotranscript.Web.TranscriptController do
       |> send_resp(404, "Video file '#{filename}' not found")
     end
   end
+
+  def frame_at_time(conn, %{"filename" => filename, "time" => time_str}) do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+
+    # Parse and validate the time parameter
+    case Float.parse(time_str) do
+      {time, ""} when time >= 0 ->
+        # Check if the video file exists
+        mp4_path = Path.join(watch_directory, "#{filename}.mp4")
+        mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
+
+        video_file = cond do
+          File.exists?(mp4_path) -> mp4_path
+          File.exists?(mp4_upper_path) -> mp4_upper_path
+          true -> nil
+        end
+
+        case video_file do
+          nil ->
+            conn
+            |> put_status(:not_found)
+            |> put_resp_content_type("text/plain")
+            |> send_resp(404, "Video file '#{filename}' not found")
+
+          file_path ->
+            # Generate a temporary filename for the extracted frame
+            temp_frame_path = Path.join(System.tmp_dir(), "frame_at_time_#{UUID.uuid4()}.jpg")
+
+            # Use ffmpeg to extract a frame at the specified time
+            case System.cmd("ffmpeg", [
+              "-ss", "#{time}",
+              "-i", file_path,
+              "-vframes", "1",
+              "-q:v", "2",
+              "-f", "image2",
+              "-y",
+              temp_frame_path
+            ]) do
+              {_output, 0} ->
+                # Successfully extracted frame, serve it
+                case File.read(temp_frame_path) do
+                  {:ok, image_data} ->
+                    # Clean up temp file
+                    File.rm(temp_frame_path)
+
+                    conn
+                    |> put_resp_content_type("image/jpeg")
+                    |> send_resp(200, image_data)
+
+                  {:error, reason} ->
+                    conn
+                    |> put_status(:internal_server_error)
+                    |> put_resp_content_type("text/plain")
+                    |> send_resp(500, "Error reading extracted frame: #{reason}")
+                end
+
+              {error_output, _exit_code} ->
+                # Clean up temp file if it exists
+                File.rm(temp_frame_path)
+
+                conn
+                |> put_status(:internal_server_error)
+                |> put_resp_content_type("text/plain")
+                |> send_resp(500, "Error extracting frame with ffmpeg: #{error_output}")
+            end
+        end
+
+      _ ->
+        conn
+        |> put_status(:bad_request)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(400, "Invalid time parameter. Must be a non-negative number.")
+    end
+  end
 end

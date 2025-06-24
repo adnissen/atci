@@ -147,151 +147,177 @@ function App() {
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-6">File List</h1>
       
-      {/* Queue Status */}
-      {queue.length > 0 && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
-          <div className="flex items-start">
-            <svg className="w-5 h-5 animate-spin text-blue-600 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <div className="flex-1">
-              {currentProcessingFile && (
-                <p className="text-sm font-medium text-blue-800 mb-1">
-                  Currently processing: <span className="font-semibold">{currentProcessingFile}</span>
-                </p>
+      <div className="flex gap-6">
+        {/* Left Column - File List (takes up most space) */}
+        <div className="flex-1">
+          {/* Search Bar */}
+          <div className="mb-6">
+            <div className="flex gap-2 max-w-md">
+              <input
+                type="text"
+                placeholder="Search in transcripts..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyPress={handleKeyPress}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <button
+                onClick={handleSearch}
+                disabled={isSearching}
+                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSearching ? 'Searching...' : 'Search'}
+              </button>
+            </div>
+            
+            {/* Search Results */}
+            {searchResults.length > 0 && (
+              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
+                <h3 className="text-sm font-medium text-green-800 mb-2">
+                  Found in {searchResults.length - 1} file(s)
+                </h3>
+              </div>
+            )}
+            
+            {searchTerm && searchResults.length === 0 && !isSearching && (
+              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
+                <p className="text-sm text-gray-600">No files found containing "{searchTerm}"</p>
+              </div>
+            )}
+          </div>
+
+          <Table className="table-fixed w-full">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="text-center w-1/5">Filename</TableHead>
+                <TableHead className="text-center w-1/5">Date</TableHead>
+                <TableHead className="text-center w-1/5">Lines</TableHead>
+                <TableHead className="text-center w-1/5">Length</TableHead>
+                <TableHead className="text-center w-1/5">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {files.map((file, index) => {
+                if (searchTerm != '' && !searchResults.includes(file.name)) {
+                  return <></>;
+                }
+                return (
+                <>
+                <TableRow key={index} onClick={() => {
+                  setExpandedFiles(prev => {
+                    const newSet = new Set(prev)
+                    newSet.has(file.name) ? newSet.delete(file.name) : newSet.add(file.name)
+                    return newSet
+                  })
+                }}>
+                  <TableCell className="font-medium w-1/5">
+                    <a 
+                      href={`file://${file.full_path}`}
+                      className="text-blue-600 hover:text-blue-800 underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {file.name}
+                    </a>
+                  </TableCell>
+                  <TableCell className="w-1/5">{file.created_at}</TableCell>
+                  <TableCell className="w-1/5">{file.line_count || 0}</TableCell>
+                  <TableCell className="w-1/5">{file.length || '0:00'}</TableCell>
+                  <TableCell className="w-1/5 text-center">
+                    <div className="flex justify-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          window.open(`/player/${file.name}`, '_blank')
+                        }}
+                        className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                        title="View file"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={(e) => handleRegenerate(file.name, e)}
+                        disabled={regeneratingFiles.has(file.name)}
+                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Regenerate transcript"
+                      >
+                        {regeneratingFiles.has(file.name) ? (
+                          <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  
+                <TableCell colSpan={5} className="p-0">
+                  <TranscriptView
+                    visible={expandedFiles.has(file.name)}
+                    name={file.name}
+                    className="w-full"
+                  />
+                </TableCell>
+                </TableRow>
+                </>
+              )})}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Right Column - Queue */}
+        <div className="w-80 flex-shrink-0">
+          <div className="sticky top-6">
+            <h2 className="text-lg font-semibold mb-4">
+              Queue
+              {queue.length > 0 && (
+                <span className="text-gray-500 font-normal">({queue.length})</span>
               )}
-              <p className="text-sm text-blue-700">
-                {queue.filter(file => file !== currentProcessingFile).length > 0 && (
-                  <>Up next: {queue.filter(file => file !== currentProcessingFile).join(', ')}</>
-                )}
-              </p>
+            </h2>
+            <div className="space-y-4">
+              {queue.length > 0 ? (
+                <>
+                  {/* Currently Processing */}
+                  {currentProcessingFile && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-md">
+                      <div className="flex items-start">
+                        <svg className="w-5 h-5 animate-spin text-blue-600 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm text-blue-700 font-semibold">{currentProcessingFile}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Queue Entries */}
+                  {queue.filter(file => file !== currentProcessingFile).map((file, index) => (
+                    <div key={index} className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+                      <div className="flex items-center">
+                        <span className="text-sm text-gray-800">{file}</span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
+                  <p className="text-sm text-gray-600">Queue is empty</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
-      )}
-      
-      {/* Search Bar */}
-      <div className="mb-6">
-        <div className="flex gap-2 max-w-md">
-          <input
-            type="text"
-            placeholder="Search in transcripts..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyPress={handleKeyPress}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-          <button
-            onClick={handleSearch}
-            disabled={isSearching}
-            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSearching ? 'Searching...' : 'Search'}
-          </button>
-        </div>
-        
-        {/* Search Results */}
-        {searchResults.length > 0 && (
-          <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
-            <h3 className="text-sm font-medium text-green-800 mb-2">
-              Found in {searchResults.length - 1} file(s)
-            </h3>
-          </div>
-        )}
-        
-        {searchTerm && searchResults.length === 0 && !isSearching && (
-          <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
-            <p className="text-sm text-gray-600">No files found containing "{searchTerm}"</p>
-          </div>
-        )}
       </div>
-
-      <Table className="table-fixed w-full">
-        <TableHeader>
-          <TableRow>
-            <TableHead className="text-center w-1/5">Filename</TableHead>
-            <TableHead className="text-center w-1/5">Date</TableHead>
-            <TableHead className="text-center w-1/5">Lines</TableHead>
-            <TableHead className="text-center w-1/5">Length</TableHead>
-            <TableHead className="text-center w-1/5">Actions</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {files.map((file, index) => {
-            if (searchTerm != '' && !searchResults.includes(file.name)) {
-              return <></>;
-            }
-            return (
-            <>
-            <TableRow key={index} onClick={() => {
-              setExpandedFiles(prev => {
-                const newSet = new Set(prev)
-                newSet.has(file.name) ? newSet.delete(file.name) : newSet.add(file.name)
-                return newSet
-              })
-            }}>
-              <TableCell className="font-medium w-1/5">
-                <a 
-                  href={`file://${file.full_path}`}
-                  className="text-blue-600 hover:text-blue-800 underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {file.name}
-                </a>
-              </TableCell>
-              <TableCell className="w-1/5">{file.created_at}</TableCell>
-              <TableCell className="w-1/5">{file.line_count || 0}</TableCell>
-              <TableCell className="w-1/5">{file.length || '0:00'}</TableCell>
-              <TableCell className="w-1/5 text-center">
-                <div className="flex justify-center gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      window.open(`/player/${file.name}`, '_blank')
-                    }}
-                    className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
-                    title="View file"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={(e) => handleRegenerate(file.name, e)}
-                    disabled={regeneratingFiles.has(file.name)}
-                    className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Regenerate transcript"
-                  >
-                    {regeneratingFiles.has(file.name) ? (
-                      <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-              </TableCell>
-            </TableRow>
-            <TableRow>
-              
-            <TableCell colSpan={5} className="p-0">
-              <TranscriptView
-                visible={expandedFiles.has(file.name)}
-                name={file.name}
-                className="w-full"
-              />
-            </TableCell>
-            </TableRow>
-            </>
-          )})}
-        </TableBody>
-      </Table>
     </div>
   )
 }

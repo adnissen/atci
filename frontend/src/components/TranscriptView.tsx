@@ -6,6 +6,14 @@ interface TranscriptViewProps {
   className?: string;
 }
 
+// Extend Window interface for our custom handlers
+declare global {
+  interface Window {
+    handleTimestampHover?: (name: string, timestamp: string) => void;
+    handleTimestampLeave?: () => void;
+  }
+}
+
 const TranscriptView: React.FC<TranscriptViewProps> = ({
   visible = false,
   name,
@@ -18,6 +26,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   const [content, setContent] = React.useState<string>('');
   const [loading, setLoading] = React.useState<boolean>(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [hoveredTimestamp, setHoveredTimestamp] = React.useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = React.useState<string | null>(null);
 
   // Convert timestamp format 00:00:00.000 to seconds
   const timestampToSeconds = (timestamp: string): number => {
@@ -31,6 +41,18 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
   };
 
+  // Handle timestamp link hover
+  const handleTimestampHover = (name: string, timestamp: string) => {
+    const seconds = timestampToSeconds(timestamp);
+    setHoveredTimestamp(timestamp);
+    setThumbnailUrl(`/frame/${encodeURIComponent(name)}/${seconds}`);
+  };
+
+  const handleTimestampLeave = () => {
+    setHoveredTimestamp(null);
+    setThumbnailUrl(null);
+  };
+
   // Process content to replace timestamps with clickable links
   const processContentWithTimestamps = (text: string): string => {
     // Regex to match timestamp format 00:00:00.000
@@ -38,9 +60,24 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     
     return text.replace(timestampRegex, (match) => {
       const seconds = timestampToSeconds(match);
-      return `<a href="/player/${encodeURIComponent(name)}?time=${seconds}" class="text-blue-600 hover:text-blue-800 underline cursor-pointer">${match}</a>`;
+      return `<a href="/player/${encodeURIComponent(name)}?time=${seconds}" 
+                class="text-blue-600 hover:text-blue-800 underline cursor-pointer timestamp-link" 
+                data-timestamp="${match}"
+                onmouseover="window.handleTimestampHover('${name}', '${match}')"
+                onmouseout="window.handleTimestampLeave()">${match}</a>`;
     });
   };
+
+  // Set up global handlers for the dynamically created links
+  React.useEffect(() => {
+    window.handleTimestampHover = handleTimestampHover;
+    window.handleTimestampLeave = handleTimestampLeave;
+
+    return () => {
+      delete window.handleTimestampHover;
+      delete window.handleTimestampLeave;
+    };
+  }, []);
 
   React.useEffect(() => {
     const fetchTranscript = async () => {
@@ -81,11 +118,37 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
           <div className="text-red-600">Error: {error}</div>
         )}
         {!loading && !error && (
-          <div className="text-gray-600 text-left">
+          <div className="text-gray-600 text-left relative">
             <pre 
               className="text-left whitespace-pre-wrap font-mono text-sm leading-relaxed max-w-none overflow-x-auto"
               dangerouslySetInnerHTML={{ __html: processedContent }}
             />
+            
+            {/* Thumbnail overlay */}
+            {hoveredTimestamp && thumbnailUrl && (
+              <div 
+                className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-2"
+                style={{
+                  left: '50%',
+                  top: '20px',
+                  transform: 'translateX(-50%)',
+                  maxWidth: '200px',
+                  maxHeight: '150px'
+                }}
+              >
+                <img 
+                  src={thumbnailUrl} 
+                  alt={`Frame at ${hoveredTimestamp}`}
+                  className="w-full h-auto object-contain"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+                <div className="text-xs text-gray-600 text-center mt-1">
+                  {hoveredTimestamp}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
