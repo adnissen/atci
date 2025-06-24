@@ -6,31 +6,7 @@ defmodule Autotranscript.Web.TranscriptController do
 
     # Get all .txt files in the watch directory
     txt_files =
-      Path.wildcard(Path.join(watch_directory, "*.txt"))
-      |> Enum.map(fn file_path ->
-        case File.stat(file_path) do
-          {:ok, stat} ->
-            filename = Path.basename(file_path, ".txt")
-
-            # Count lines in the file
-            line_count =
-              case File.read(file_path) do
-                {:ok, content} -> length(String.split(content, "\n"))
-                {:error, _} -> 0
-              end
-
-            %{
-              name: filename,
-              created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
-              line_count: line_count,
-              full_path: file_path
-            }
-          {:error, _} ->
-            nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.sort_by(& &1.created_at, :desc)
+      get_txt_files()
       |> Jason.encode!()
 
     render(conn, :index, txt_files: txt_files)
@@ -110,39 +86,62 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def files(conn, _params) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
-
-    # Get all .txt files in the watch directory
-    txt_files =
-      Path.wildcard(Path.join(watch_directory, "*.txt"))
-      |> Enum.map(fn file_path ->
-        case File.stat(file_path) do
-          {:ok, stat} ->
-            filename = Path.basename(file_path, ".txt")
-
-            # Count lines in the file
-            line_count =
-              case File.read(file_path) do
-                {:ok, content} -> length(String.split(content, "\n"))
-                {:error, _} -> 0
-              end
-
-            %{
-              name: filename,
-              created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
-              line_count: line_count,
-              full_path: String.replace_trailing(file_path, ".txt", ".mp4")
-            }
-          {:error, _} ->
-            nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.sort_by(& &1.created_at, :desc)
+    txt_files = get_txt_files()
 
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(200, Jason.encode!(txt_files))
+  end
+
+  defp get_txt_files do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+
+    # Get all .txt files in the watch directory
+    Path.wildcard(Path.join(watch_directory, "*.txt"))
+    |> Enum.map(fn file_path ->
+      case File.stat(file_path) do
+        {:ok, stat} ->
+          filename = Path.basename(file_path, ".txt")
+
+          # Count lines in the file
+          line_count =
+            case File.read(file_path) do
+              {:ok, content} -> length(String.split(content, "\n"))
+              {:error, _} -> 0
+            end
+
+          # Look for corresponding .mp4 or .MP4 file and use its created_at time
+          mp4_path = Path.join(watch_directory, "#{filename}.mp4")
+          mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
+
+          created_at =
+            cond do
+              File.exists?(mp4_path) ->
+                case File.stat(mp4_path) do
+                  {:ok, mp4_stat} -> mp4_stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime()
+                  {:error, _} -> stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime()
+                end
+              File.exists?(mp4_upper_path) ->
+                case File.stat(mp4_upper_path) do
+                  {:ok, mp4_stat} -> mp4_stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime()
+                  {:error, _} -> stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime()
+                end
+              true ->
+                stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime()
+            end
+
+          %{
+            name: filename,
+            created_at: created_at,
+            line_count: line_count,
+            full_path: String.replace_trailing(file_path, ".txt", ".mp4")
+          }
+        {:error, _} ->
+          nil
+      end
+    end)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.sort_by(& &1.created_at, :desc)
   end
 
   def random_frame(conn, _params) do
