@@ -144,4 +144,63 @@ defmodule Autotranscript.Web.TranscriptController do
     |> put_resp_content_type("application/json")
     |> send_resp(200, Jason.encode!(txt_files))
   end
+
+  def random_frame(conn, _params) do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+
+    # Get all MP4 files in the watch directory
+    mp4_files = Path.wildcard(Path.join(watch_directory, "*.{MP4,mp4}"))
+
+    case mp4_files do
+      [] ->
+        conn
+        |> put_status(:not_found)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(404, "No MP4 files found in watch directory")
+
+      files ->
+        # Randomly select an MP4 file
+        selected_file = Enum.random(files)
+
+        # Generate a temporary filename for the extracted frame
+        temp_frame_path = Path.join(System.tmp_dir(), "random_frame_#{:rand.uniform(10000)}.jpg")
+
+        # Use ffmpeg to extract a random frame
+        case System.cmd("ffmpeg", [
+          "-i", selected_file,
+          "-vf", "select='gte(n\\,1)'",
+          "-vframes", "1",
+          "-f", "image2",
+          "-y",
+          temp_frame_path
+        ]) do
+          {_output, 0} ->
+            # Successfully extracted frame, serve it
+            case File.read(temp_frame_path) do
+              {:ok, image_data} ->
+                # Clean up temp file
+                File.rm(temp_frame_path)
+
+                conn
+                |> put_resp_content_type("image/jpeg")
+                |> send_resp(200, image_data)
+
+              {:error, reason} ->
+                conn
+                |> put_status(:internal_server_error)
+                |> put_resp_content_type("text/plain")
+                |> send_resp(500, "Error reading extracted frame: #{reason}")
+            end
+
+          {error_output, _exit_code} ->
+            # Clean up temp file if it exists
+            File.rm(temp_frame_path)
+
+            conn
+            |> put_status(:internal_server_error)
+            |> put_resp_content_type("text/plain")
+            |> send_resp(500, "Error extracting frame with ffmpeg: #{error_output}")
+        end
+    end
+  end
 end
