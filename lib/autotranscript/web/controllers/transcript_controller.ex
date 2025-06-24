@@ -131,7 +131,7 @@ defmodule Autotranscript.Web.TranscriptController do
               name: filename,
               created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
               line_count: line_count,
-              full_path: file_path
+              full_path: String.replace_trailing(file_path, ".txt", ".mp4")
             }
           {:error, _} ->
             nil
