@@ -18,12 +18,54 @@ function App() {
     line_count?: number
     length?: string
   }
-  const files = window.autotranscript_files as FileRow[]
+  const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<string[]>([])
   const [isSearching, setIsSearching] = useState(false)
   const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
+  const [queue, setQueue] = useState<string[]>([])
+  const [currentProcessingFile, setCurrentProcessingFile] = useState<string>('')
+
+  // Poll /queue endpoint every second
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch('/queue')
+        if (response.ok) {
+          const queueData = await response.json()
+          if (queueData.queue && queueData.queue.length > 0) {
+            setCurrentProcessingFile(queueData.current_file || '')
+            setQueue(queueData.queue)
+          } else {
+            setQueue([])
+            setCurrentProcessingFile('')
+          }
+        }
+      } catch (error) {
+        console.error('Error polling queue:', error)
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    // Refresh files list when queue changes or processing completes
+    const refreshFiles = async () => {
+      try {
+        const response = await fetch('/files')
+        if (response.ok) {
+          const filesData = await response.json()
+          setFiles(filesData)
+        }
+      } catch (error) {
+        console.error('Error fetching files:', error)
+      }
+    }
+
+    refreshFiles()
+  }, [currentProcessingFile])
 
   // Clear search results when search term is empty
   useEffect(() => {
@@ -103,6 +145,30 @@ function App() {
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-6">File List</h1>
+      
+      {/* Queue Status */}
+      {queue.length > 0 && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-md">
+          <div className="flex items-start">
+            <svg className="w-5 h-5 animate-spin text-blue-600 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <div className="flex-1">
+              {currentProcessingFile && (
+                <p className="text-sm font-medium text-blue-800 mb-1">
+                  Currently processing: <span className="font-semibold">{currentProcessingFile}</span>
+                </p>
+              )}
+              <p className="text-sm text-blue-700">
+                {queue.filter(file => file !== currentProcessingFile).length > 0 && (
+                  <>Up next: {queue.filter(file => file !== currentProcessingFile).join(', ')}</>
+                )}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Search Bar */}
       <div className="mb-6">

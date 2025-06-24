@@ -14,23 +14,14 @@ defmodule Autotranscript.Transcriber do
   def init(:ok) do
     directory = Application.get_env(:autotranscript, :watch_directory)
 
-    # Get all MP4 files and process them
+    # Get all MP4 files and add them to the processing queue
     Path.wildcard(Path.join(directory, "*.{MP4,mp4}"))
     |> Enum.each(fn video_path ->
       txt_path = String.replace_trailing(video_path, ".MP4", ".txt")
       txt_path = String.replace_trailing(txt_path, ".mp4", ".txt")
 
       unless File.exists?(txt_path) do
-        with :ok <- convert_to_mp3(video_path),
-             mp3_path =
-               String.replace_trailing(video_path, ".MP4", ".mp3")
-               |> String.replace_trailing(".mp4", ".mp3"),
-             :ok <- transcribe_audio(mp3_path),
-             :ok <- delete_mp3(mp3_path) do
-          IO.puts("Successfully processed #{video_path}")
-        else
-          error -> IO.puts("Error processing #{video_path}: #{inspect(error)}")
-        end
+        Autotranscript.VideoProcessor.add_to_queue(video_path)
       end
     end)
 
@@ -49,16 +40,7 @@ defmodule Autotranscript.Transcriber do
   def handle_info({:file_event, _pid, {path, events}}, state) do
     # Process new MP4 files here
     if String.ends_with?(path, [".MP4", ".mp4"]) && Enum.member?(events, :created) do
-      with :ok <- convert_to_mp3(path),
-           mp3_path =
-             String.replace_trailing(path, ".MP4", ".mp3")
-             |> String.replace_trailing(".mp4", ".mp3"),
-           :ok <- transcribe_audio(mp3_path),
-           :ok <- delete_mp3(mp3_path) do
-        IO.puts("Successfully processed #{path}")
-      else
-        error -> IO.puts("Error processing #{path}: #{inspect(error)}")
-      end
+      Autotranscript.VideoProcessor.add_to_queue(path)
     end
 
     IO.inspect(events)
@@ -68,16 +50,7 @@ defmodule Autotranscript.Transcriber do
       video_path = String.replace_trailing(video_path, ".txt", ".MP4")
 
       if File.exists?(video_path) do
-        with :ok <- convert_to_mp3(video_path),
-             mp3_path =
-               String.replace_trailing(video_path, ".MP4", ".mp3")
-               |> String.replace_trailing(".mp4", ".mp3"),
-             :ok <- transcribe_audio(mp3_path),
-             :ok <- delete_mp3(mp3_path) do
-          IO.puts("Successfully reprocessed #{video_path} after txt deletion")
-        else
-          error -> IO.puts("Error reprocessing #{video_path}: #{inspect(error)}")
-        end
+        Autotranscript.VideoProcessor.add_to_queue(video_path)
       end
     end
 
@@ -112,84 +85,6 @@ defmodule Autotranscript.Transcriber do
         {:ok, pid}
       false ->
         {:error, :invalid_directory}
-    end
-  end
-
-  @doc """
-  Converts a video file to MP3 audio using ffmpeg.
-
-  ## Parameters
-    - path: String path to the video file
-
-  ## Examples
-      iex> Autotranscript.convert_to_mp3("video.mp4")
-      :ok
-
-      iex> Autotranscript.convert_to_mp3("not_video.txt")
-      {:error, :invalid_file_type}
-  """
-  def convert_to_mp3(path) do
-    if String.ends_with?(path, [".MP4", ".mp4"]) do
-      output_path = String.replace_trailing(path, ".MP4", ".mp3")
-      output_path = String.replace_trailing(output_path, ".mp4", ".mp3")
-
-      System.cmd("ffmpeg", ["-i", path, "-q:a", "0", "-map", "a", output_path])
-      :ok
-    else
-      {:error, :invalid_file_type}
-    end
-  end
-
-  @doc """
-  Transcribes an MP3 file using Whisper CLI.
-
-  ## Parameters
-    - path: String path to the MP3 file
-
-  ## Examples
-      iex> Autotranscript.transcribe_audio("audio.mp3")
-      :ok
-
-      iex> Autotranscript.transcribe_audio("not_audio.txt")
-      {:error, :invalid_file_type}
-  """
-  def transcribe_audio(path) do
-    if String.ends_with?(path, ".mp3") do
-      whispercli = Application.get_env(:autotranscript, :whispercli_path)
-      model = Application.get_env(:autotranscript, :model_path)
-
-      System.cmd(whispercli, ["-m", model, "-np", "-otxt", "-f", path])
-      txt_path = String.replace_trailing(path, ".mp3", ".txt")
-      File.rename(path <> ".txt", txt_path)
-      :ok
-    else
-      {:error, :invalid_file_type}
-    end
-  end
-
-  @doc """
-  Deletes an MP3 file after transcription is complete.
-
-  ## Parameters
-    - path: String path to the MP3 file to delete
-
-  ## Returns
-    - :ok if the file was deleted successfully
-    - {:error, reason} if the file could not be deleted
-  """
-  def delete_mp3(path) do
-    if String.ends_with?(path, ".mp3") do
-      case File.rm(path) do
-        :ok ->
-          Logger.info("Deleted temporary MP3 file: #{path}")
-          :ok
-
-        {:error, reason} ->
-          Logger.warning("Failed to delete MP3 file #{path}: #{inspect(reason)}")
-          {:error, reason}
-      end
-    else
-      {:error, :invalid_file_type}
     end
   end
 end
