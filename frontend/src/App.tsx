@@ -248,7 +248,7 @@ function App() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      window.open(`/files/${file.name}.MP4`, '_blank')
+                      window.open(`/player/${file.name}`, '_blank')
                     }}
                     className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
                     title="View file"

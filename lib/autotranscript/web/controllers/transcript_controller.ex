@@ -202,4 +202,32 @@ defmodule Autotranscript.Web.TranscriptController do
         end
     end
   end
+
+  def player(conn, %{"filename" => filename} = params) do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+
+    # Check if the video file exists
+    mp4_path = Path.join(watch_directory, "#{filename}.mp4")
+    mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
+
+    video_exists = File.exists?(mp4_path) or File.exists?(mp4_upper_path)
+
+    if video_exists do
+      # Extract and validate the time parameter
+      start_time = case Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params) |> Map.get("time") do
+        time_str when is_binary(time_str) ->
+          case Float.parse(time_str) do
+            {time, ""} when time >= 0 -> time
+            _ -> nil
+          end
+        _ -> nil
+      end
+      render(conn, :player, filename: filename, start_time: start_time)
+    else
+      conn
+      |> put_status(:not_found)
+      |> put_resp_content_type("text/plain")
+      |> send_resp(404, "Video file '#{filename}' not found")
+    end
+  end
 end

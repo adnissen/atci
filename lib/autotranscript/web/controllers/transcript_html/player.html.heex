@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Player - <%= @filename %></title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .video-container {
+            width: 100%;
+            background-color: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+        .title {
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .back-link {
+            color: #4a9eff;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title"><%= @filename %></div>
+        
+        <div class="video-container">
+            <video controls autoplay id="video-player">
+                <source src={"/files/#{@filename}.mp4"} type="video/mp4">
+                <source src={"/files/#{@filename}.MP4"} type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        
+        <div class="controls">
+            <a href="/transcripts" class="back-link">← Back to Transcripts</a>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const video = document.getElementById('video-player');
+            const startTime = <%= if @start_time, do: @start_time, else: "null" %>;
+            
+            if (startTime !== null) {
+                video.addEventListener('loadedmetadata', function() {
+                    video.currentTime = startTime;
+                });
+            }
+        });
+    </script>
+</body>
+</html> 
