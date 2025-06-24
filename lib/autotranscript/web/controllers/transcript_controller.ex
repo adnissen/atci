@@ -79,4 +79,26 @@ defmodule Autotranscript.Web.TranscriptController do
         |> send_resp(200, "")
     end
   end
+
+  def regenerate(conn, %{"filename" => filename}) do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    file_path = Path.join(watch_directory, "#{filename}.txt")
+
+    case File.rm(file_path) do
+      :ok ->
+        conn
+        |> put_resp_content_type("text/plain")
+        |> send_resp(200, "Transcript file '#{filename}.txt' deleted for regeneration")
+      {:error, :enoent} ->
+        conn
+        |> put_status(:not_found)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(404, "Transcript file '#{filename}.txt' not found")
+      {:error, reason} ->
+        conn
+        |> put_status(:internal_server_error)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(500, "Error deleting transcript file '#{filename}.txt': #{reason}")
+    end
+  end
 end

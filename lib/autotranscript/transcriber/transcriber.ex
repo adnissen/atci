@@ -61,6 +61,26 @@ defmodule Autotranscript.Transcriber do
       end
     end
 
+    IO.inspect(events)
+    # Process deleted TXT files - regenerate if corresponding MP4 exists
+    if String.ends_with?(path, [".TXT", ".txt"]) && Enum.member?(events, :removed) do
+      video_path = String.replace_trailing(path, ".TXT", ".MP4")
+      video_path = String.replace_trailing(video_path, ".txt", ".MP4")
+
+      if File.exists?(video_path) do
+        with :ok <- convert_to_mp3(video_path),
+             mp3_path =
+               String.replace_trailing(video_path, ".MP4", ".mp3")
+               |> String.replace_trailing(".mp4", ".mp3"),
+             :ok <- transcribe_audio(mp3_path),
+             :ok <- delete_mp3(mp3_path) do
+          IO.puts("Successfully reprocessed #{video_path} after txt deletion")
+        else
+          error -> IO.puts("Error reprocessing #{video_path}: #{inspect(error)}")
+        end
+      end
+    end
+
     {:noreply, state}
   end
 

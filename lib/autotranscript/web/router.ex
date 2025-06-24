@@ -23,5 +23,6 @@ defmodule Autotranscript.Web.Router do
     get "/transcripts", TranscriptController, :index
     get "/transcripts/:filename", TranscriptController, :show
     get "/transcripts/grep/:text", TranscriptController, :grep
+    post "/transcripts/regenerate/:filename", TranscriptController, :regenerate
   end
 end
