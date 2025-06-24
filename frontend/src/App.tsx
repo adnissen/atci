@@ -279,11 +279,14 @@ function App() {
               </TableCell>
             </TableRow>
             <TableRow>
-            <TranscriptView
-              visible={expandedFiles.has(file.name)}
-              name={file.name}
-              className="w-full"
-            />
+              
+            <TableCell colSpan={5} className="p-0">
+              <TranscriptView
+                visible={expandedFiles.has(file.name)}
+                name={file.name}
+                className="w-full"
+              />
+            </TableCell>
             </TableRow>
             </>
           )})}
