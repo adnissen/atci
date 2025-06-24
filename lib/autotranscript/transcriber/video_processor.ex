@@ -166,9 +166,11 @@ defmodule Autotranscript.VideoProcessor do
       whispercli = Application.get_env(:autotranscript, :whispercli_path)
       model = Application.get_env(:autotranscript, :model_path)
 
-      System.cmd(whispercli, ["-m", model, "-np", "-otxt", "-f", path])
-      txt_path = String.replace_trailing(path, ".mp3", ".txt")
-      File.rename(path <> ".txt", txt_path)
+      System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", path])
+      vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
+
+      txt_path = String.replace_trailing(vtt_path, ".vtt", ".txt")
+      File.rename(path <> ".vtt", txt_path)
       :ok
     else
       {:error, :invalid_file_type}
