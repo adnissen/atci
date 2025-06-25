@@ -90,8 +90,10 @@ function App() {
       if (response.ok) {
         const result = await response.text()
         const files = result.trim() ? result.split('\n') : []
-        setSearchResults(files.map(file => file.replace('.txt', '')))
-        setExpandedFiles(new Set(files.map(file => file.replace('.txt', ''))))
+        const fileNames = files.map(file => file.replace('.txt', ''))
+        setSearchResults(fileNames)
+        // Automatically expand files that contain search results
+        setExpandedFiles(new Set(fileNames))
       } else {
         setSearchResults([])
         setExpandedFiles(new Set())
@@ -104,7 +106,7 @@ function App() {
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = () => {
     handleSearch()
   }
 
@@ -175,7 +177,7 @@ function App() {
             {searchResults.length > 0 && (
               <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
                 <h3 className="text-sm font-medium text-green-800 mb-2">
-                  Found in {searchResults.length - 1} file(s)
+                  Found in {searchResults.length} file(s)
                 </h3>
               </div>
             )}
@@ -190,7 +192,12 @@ function App() {
           <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
-                <TableHead className="text-center w-1/5">Filename</TableHead>
+                <TableHead className="text-center w-1/5">
+                  Filename
+                  {searchTerm && searchResults.length > 0 && (
+                    <span className="text-xs text-green-600 ml-2">(Search Results)</span>
+                  )}
+                </TableHead>
                 <TableHead className="text-center w-1/5">Date</TableHead>
                 <TableHead className="text-center w-1/5">Lines</TableHead>
                 <TableHead className="text-center w-1/5">Length</TableHead>
@@ -294,6 +301,7 @@ function App() {
                     visible={expandedFiles.has(file.name)}
                     name={file.name}
                     className="w-full"
+                    searchTerm={searchTerm}
                   />
                 </TableCell>
                 </TableRow>

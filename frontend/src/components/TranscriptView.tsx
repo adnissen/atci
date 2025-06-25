@@ -4,6 +4,7 @@ interface TranscriptViewProps {
   visible?: boolean;
   name: string;
   className?: string;
+  searchTerm?: string;
 }
 
 // Extend Window interface for our custom handlers
@@ -17,7 +18,8 @@ declare global {
 const TranscriptView: React.FC<TranscriptViewProps> = ({
   visible = false,
   name,
-  className = ''
+  className = '',
+  searchTerm = ''
 }) => {
   if (!visible) {
     return null;
@@ -51,6 +53,44 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   const handleTimestampLeave = () => {
     setHoveredTimestamp(null);
     setThumbnailUrl(null);
+  };
+
+  // Filter content to show only lines with search term and 1 line above
+  const filterContentForSearch = (text: string, searchTerm: string): string => {
+    if (!searchTerm.trim()) {
+      return text;
+    }
+
+    const lines = text.split('\n');
+    const filteredLines: string[] = [];
+    const searchTermLower = searchTerm.toLowerCase();
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const lineLower = line.toLowerCase();
+      
+      // Check if current line contains search term
+      if (lineLower.includes(searchTermLower)) {
+        // Add previous line if it exists and we haven't already added it
+        if (i > 0 && !filteredLines.includes(lines[i - 1])) {
+          filteredLines.push(lines[i - 1]);
+        }
+        // Add current line
+        filteredLines.push(line);
+      }
+    }
+
+    return filteredLines.join('\n');
+  };
+
+  // Highlight search term in text
+  const highlightSearchTerm = (text: string, searchTerm: string): string => {
+    if (!searchTerm.trim()) {
+      return text;
+    }
+
+    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return text.replace(regex, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
   };
 
   // Process content to replace timestamps with clickable links
@@ -105,8 +145,10 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     }
   }, [visible, name]);
 
-  // Process content to add timestamp links
-  const processedContent = processContentWithTimestamps(content);
+  // Process content: filter for search, highlight search term, then add timestamp links
+  const filteredContent = filterContentForSearch(content, searchTerm);
+  const highlightedContent = highlightSearchTerm(filteredContent, searchTerm);
+  const processedContent = processContentWithTimestamps(highlightedContent);
 
   return (
     <div className={`w-full p-6 bg-white ${className}`}>
@@ -119,10 +161,17 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
         )}
         {!loading && !error && (
           <div className="text-gray-600 text-left relative">
-            <pre 
-              className="text-left whitespace-pre-wrap font-mono text-sm leading-relaxed max-w-none overflow-x-auto"
-              dangerouslySetInnerHTML={{ __html: processedContent }}
-            />
+            {searchTerm && filteredContent.trim() === '' && (
+              <div className="text-gray-500 italic">
+                No matches found for "{searchTerm}" in this transcript.
+              </div>
+            )}
+            {filteredContent.trim() !== '' && (
+              <pre 
+                className="text-left whitespace-pre-wrap font-mono text-sm leading-relaxed max-w-none overflow-x-auto"
+                dangerouslySetInnerHTML={{ __html: processedContent }}
+              />
+            )}
             
             {/* Thumbnail overlay */}
             {hoveredTimestamp && thumbnailUrl && (
