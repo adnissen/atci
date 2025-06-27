@@ -265,16 +265,7 @@ defmodule Autotranscript.Web.TranscriptController do
               text ->
                 # Escape special characters in text for ffmpeg
                 escaped_text = text
-                  |> String.replace("\\", "\\\\")
-                  |> String.replace("'", "\\'")
-                  |> String.replace(":", "\\:")
-                  |> String.replace("=", "\\=")
-                  |> String.replace(";", "\\;")
-                  |> String.replace(",", "\\,")
-                  |> String.replace("[", "\\[")
-                  |> String.replace("]", "\\]")
-                  |> String.replace("(", "\\(")
-                  |> String.replace(")", "\\)")
+                  |> :unicode.characters_to_binary(:utf8)
 
                 # Calculate font size based on text length to ensure it fits
                 font_size = cond do
