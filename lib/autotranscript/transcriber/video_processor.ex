@@ -38,16 +38,22 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast({:add_to_queue, video_path}, %{queue: queue, processing: processing, current_file: _current_file} = state) do
-    new_queue = [video_path | queue]
-
-    if not processing do
-      # Start processing if not already processing
-      GenServer.cast(__MODULE__, :process_next)
-      {:noreply, %{state | queue: new_queue, processing: true}}
+  def handle_cast({:add_to_queue, video_path}, %{queue: queue, processing: processing, current_file: current_file} = state) do
+    # Check if the video is already in the queue or currently being processed
+    if video_path in queue or video_path == current_file do
+      # Video is already queued or being processed, don't add it again
+      {:noreply, state}
     else
-      # Just add to queue if already processing
-      {:noreply, %{state | queue: new_queue}}
+      new_queue = [video_path | queue]
+
+      if not processing do
+        # Start processing if not already processing
+        GenServer.cast(__MODULE__, :process_next)
+        {:noreply, %{state | queue: new_queue, processing: true}}
+      else
+        # Just add to queue if already processing
+        {:noreply, %{state | queue: new_queue}}
+      end
     end
   end
 
