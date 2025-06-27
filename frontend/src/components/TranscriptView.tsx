@@ -12,6 +12,8 @@ declare global {
   interface Window {
     handleTimestampHover?: (name: string, timestamp: string) => void;
     handleTimestampLeave?: () => void;
+    handleCameraIconHover?: (name: string, time1: string, time2: string) => void;
+    handleCameraIconLeave?: () => void;
   }
 }
 
@@ -30,6 +32,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   const [error, setError] = React.useState<string | null>(null);
   const [hoveredTimestamp, setHoveredTimestamp] = React.useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = React.useState<string | null>(null);
+  const [hoveredTimeRange, setHoveredTimeRange] = React.useState<{time1: string, time2: string} | null>(null);
 
   // Convert timestamp format 00:00:00.000 to seconds
   const timestampToSeconds = (timestamp: string): number => {
@@ -53,6 +56,24 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   const handleTimestampLeave = () => {
     setHoveredTimestamp(null);
     setThumbnailUrl(null);
+  };
+
+  // Check if a line contains two timestamps in the format "time1 --> time2"
+  const hasTimeRange = (line: string): { hasRange: boolean; time1?: string; time2?: string } => {
+    const timestampRegex = /\d{2}:\d{2}:\d{2}\.\d{3}/g;
+    const timestamps = [...new Set(line.match(timestampRegex))];
+    if (timestamps && timestamps.length >= 2) {
+      // Check if the line contains "-->"
+      if (line.includes('-->')) {
+        return {
+          hasRange: true,
+          time1: timestamps[0],
+          time2: timestamps[1]
+        };
+      }
+    }
+    
+    return { hasRange: false };
   };
 
   // Filter content to show only lines with search term and 1 line above
@@ -100,19 +121,45 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     
     return text.replace(timestampRegex, (match) => {
       const seconds = timestampToSeconds(match);
-      return `<a href="/player/${encodeURIComponent(name)}?time=${seconds}" 
-                class="text-blue-600 hover:text-blue-800 underline cursor-pointer timestamp-link" 
-                data-timestamp="${match}"
-                onmouseover="window.handleTimestampHover('${name}', '${match}')"
-                onmouseout="window.handleTimestampLeave()">${match}</a>`;
+      return `<a href="/player/${encodeURIComponent(name)}?time=${seconds}" class="text-blue-600 hover:text-blue-800 underline cursor-pointer timestamp-link" data-timestamp="${match}" onmouseover="window.handleTimestampHover('${name}', '${match}')" onmouseout="window.handleTimestampLeave()">${match}</a>`;
     });
+  };
+
+  // Process content to add camera icons to lines with time ranges
+  const processContentWithCameraIcons = (text: string): string => {
+    const lines = text.split('\n');
+    const processedLines = lines.map((line, index) => {
+      const timeRangeInfo = hasTimeRange(line);
+      const nextLine = index < lines.length - 1 ? lines[index + 1] : null;
+      
+      if (timeRangeInfo.hasRange && timeRangeInfo.time1 && timeRangeInfo.time2) {
+        const seconds1 = timestampToSeconds(timeRangeInfo.time1); //ie 100
+        const seconds2 = timestampToSeconds(timeRangeInfo.time2); //ie 104
+        const delta = seconds2 - seconds1; //ie 4
+        const middle = seconds1 + (delta / 2.0); //ie 102
+        console.log(seconds1, seconds2, delta, middle);
+        const cameraIcon = `<span 
+          class="inline-flex items-center ml-2 cursor-pointer text-gray-600 hover:text-blue-600 transition-colors"
+          style="vertical-align: text-bottom; display: inline-flex; align-items: baseline;"
+        ><a href="/frame/${encodeURIComponent(name)}/${middle}?text=${nextLine}" target="_blank" class="inline-flex items-baseline">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block" style="vertical-align: text-bottom;">
+            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+            <circle cx="12" cy="13" r="3"/>
+          </svg>
+        </a></span>`;
+        return line + cameraIcon;
+      }
+      
+      return line;
+    });
+    
+    return processedLines.join('\n');
   };
 
   // Set up global handlers for the dynamically created links
   React.useEffect(() => {
     window.handleTimestampHover = handleTimestampHover;
     window.handleTimestampLeave = handleTimestampLeave;
-
     return () => {
       delete window.handleTimestampHover;
       delete window.handleTimestampLeave;
@@ -149,6 +196,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   const filteredContent = filterContentForSearch(content, searchTerm);
   const highlightedContent = highlightSearchTerm(filteredContent, searchTerm);
   const processedContent = processContentWithTimestamps(highlightedContent);
+  const finalContent = processContentWithCameraIcons(processedContent);
 
   return (
     <div className={`w-full p-6 bg-white ${className}`}>
@@ -169,12 +217,12 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
             {filteredContent.trim() !== '' && (
               <pre 
                 className="text-left whitespace-pre-wrap font-mono text-sm leading-relaxed max-w-none overflow-x-auto"
-                dangerouslySetInnerHTML={{ __html: processedContent }}
+                dangerouslySetInnerHTML={{ __html: finalContent }}
               />
             )}
             
             {/* Thumbnail overlay */}
-            {hoveredTimestamp && thumbnailUrl && (
+            {(hoveredTimestamp || hoveredTimeRange) && thumbnailUrl && (
               <div 
                 className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-2"
                 style={{
@@ -187,14 +235,14 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
               >
                 <img 
                   src={thumbnailUrl} 
-                  alt={`Frame at ${hoveredTimestamp}`}
+                  alt={`Frame at ${hoveredTimestamp || hoveredTimeRange?.time1}`}
                   className="w-full h-auto object-contain"
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
                 />
                 <div className="text-xs text-gray-600 text-center mt-1">
-                  {hoveredTimestamp}
+                  {hoveredTimeRange ? `${hoveredTimeRange.time1} → ${hoveredTimeRange.time2}` : hoveredTimestamp}
                 </div>
               </div>
             )}
