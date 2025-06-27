@@ -5,6 +5,9 @@ interface TranscriptViewProps {
   name: string;
   className?: string;
   searchTerm?: string;
+  text?: string;
+  loading?: boolean;
+  error?: string | null;
 }
 
 // Extend Window interface for our custom handlers
@@ -21,15 +24,15 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   visible = false,
   name,
   className = '',
-  searchTerm = ''
+  searchTerm = '',
+  text = '',
+  loading = false,
+  error = null
 }) => {
   if (!visible) {
     return null;
   }
 
-  const [content, setContent] = React.useState<string>('');
-  const [loading, setLoading] = React.useState<boolean>(false);
-  const [error, setError] = React.useState<string | null>(null);
   const [hoveredTimestamp, setHoveredTimestamp] = React.useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = React.useState<string | null>(null);
   const [hoveredTimeRange, setHoveredTimeRange] = React.useState<{time1: string, time2: string} | null>(null);
@@ -178,34 +181,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     };
   }, []);
 
-  React.useEffect(() => {
-    const fetchTranscript = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const response = await fetch(`/transcripts/${encodeURIComponent(name)}`);
-        
-        if (!response.ok) {
-          throw new Error(`Failed to fetch transcript: ${response.status} ${response.statusText}`);
-        }
-        
-        const transcriptContent = await response.text();
-        setContent(transcriptContent);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (visible && name) {
-      fetchTranscript();
-    }
-  }, [visible, name]);
-
   // Process content: filter for search, highlight search term, then add timestamp links
-  const filteredContent = filterContentForSearch(content, searchTerm);
+  const filteredContent = filterContentForSearch(text, searchTerm);
   const highlightedContent = highlightSearchTerm(filteredContent, searchTerm);
   const processedContent = processContentWithTimestamps(highlightedContent);
   const processedWithCameraIcons = processContentWithCameraIcons(processedContent);

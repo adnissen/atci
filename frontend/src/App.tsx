@@ -21,6 +21,13 @@ function App() {
     full_path?: string
     last_generated?: string
   }
+  
+  type TranscriptData = {
+    text: string
+    loading: boolean
+    error: string | null
+  }
+  
   const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
@@ -31,6 +38,7 @@ function App() {
   const [currentProcessingFile, setCurrentProcessingFile] = useState<string>('')
   const [watchDirectory, setWatchDirectory] = useState<string>('')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
+  const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
 
   // Function to format date from YYYY-MM-DD HH:MM:SS to MM-DD-YYYY x:xxpm
   const formatDate = (dateString: string): string => {
@@ -54,6 +62,55 @@ function App() {
     } catch (error) {
       return 'N/A'
     }
+  }
+
+  // Fetch transcript for a specific file
+  const fetchTranscript = async (filename: string) => {
+    // Set loading state
+    setTranscriptData(prev => ({
+      ...prev,
+      [filename]: { text: '', loading: true, error: null }
+    }))
+
+    try {
+      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}`)
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch transcript: ${response.status} ${response.statusText}`)
+      }
+      
+      const transcriptContent = await response.text()
+      
+      // Set success state
+      setTranscriptData(prev => ({
+        ...prev,
+        [filename]: { text: transcriptContent, loading: false, error: null }
+      }))
+    } catch (err) {
+      // Set error state
+      setTranscriptData(prev => ({
+        ...prev,
+        [filename]: { 
+          text: '', 
+          loading: false, 
+          error: err instanceof Error ? err.message : 'An unknown error occurred' 
+        }
+      }))
+    }
+  }
+
+  // Fetch transcripts for all expanded files
+  const fetchExpandedTranscripts = async () => {
+    const expandedArray = Array.from(expandedFiles)
+    
+    // Only fetch for files that don't already have data or are not currently loading
+    const filesToFetch = expandedArray.filter(filename => {
+      const currentData = transcriptData[filename]
+      return !currentData || (!currentData.loading && !currentData.text && !currentData.error)
+    })
+    
+    // Fetch transcripts for each file
+    await Promise.all(filesToFetch.map(filename => fetchTranscript(filename)))
   }
 
   // Fetch watch directory on app load
@@ -100,6 +157,7 @@ function App() {
 
   useEffect(() => {
     refreshFiles()
+    fetchExpandedTranscripts()
   }, [queue])
 
   const refreshFiles = async () => {
@@ -118,6 +176,13 @@ function App() {
     // Refresh files list when queue changes or processing completes
     refreshFiles()
   }, [currentProcessingFile])
+
+  // Fetch transcripts when expanded files change
+  useEffect(() => {
+    if (expandedFiles.size > 0) {
+      fetchExpandedTranscripts()
+    }
+  }, [expandedFiles])
 
   // Clear search results when search term is empty
   useEffect(() => {
@@ -219,19 +284,17 @@ function App() {
       })
       
       if (response.ok) {
-        // Fetch the updated transcript content
-        try {
-          const transcriptResponse = await fetch(`/transcripts/${filename}`)
-          if (transcriptResponse.ok) {
-            // Force a refresh of the files list to update any metadata
-            const filesResponse = await fetch('/files')
-            if (filesResponse.ok) {
-              const filesData = await filesResponse.json()
-              setFiles(filesData)
-            }
-          }
-        } catch (error) {
-          console.error('Error fetching updated transcript:', error)
+        // Update the transcript data with the new content
+        setTranscriptData(prev => ({
+          ...prev,
+          [filename]: { text: newContent, loading: false, error: null }
+        }))
+        
+        // Force a refresh of the files list to update any metadata
+        const filesResponse = await fetch('/files')
+        if (filesResponse.ok) {
+          const filesData = await filesResponse.json()
+          setFiles(filesData)
         }
       } else {
         console.error('Failed to replace transcript')
@@ -353,6 +416,9 @@ function App() {
                 if (searchTerm != '' && !searchResults.includes(file.name)) {
                   return <></>;
                 }
+                
+                const transcriptInfo = transcriptData[file.name] || { text: '', loading: false, error: null }
+                
                 return (
                 <>
                 <TableRow key={index} onClick={() => {
@@ -473,6 +539,9 @@ function App() {
                     name={file.name}
                     className="w-full"
                     searchTerm={searchTerm}
+                    text={transcriptInfo.text}
+                    loading={transcriptInfo.loading}
+                    error={transcriptInfo.error}
                   />
                 </TableCell>
                 </TableRow>
