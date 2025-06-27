@@ -216,7 +216,11 @@ function App() {
                   if (file.transcript) {
                     setExpandedFiles(prev => {
                       const newSet = new Set(prev)
-                      newSet.has(file.name) ? newSet.delete(file.name) : newSet.add(file.name)
+                      if (newSet.has(file.name)) {
+                        newSet.delete(file.name)
+                      } else {
+                        newSet.add(file.name)
+                      }
                       return newSet
                     })
                   }

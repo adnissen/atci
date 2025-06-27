@@ -2,8 +2,6 @@ defmodule Autotranscript.Web.TranscriptController do
   use Autotranscript.Web, :controller
 
   def index(conn, _params) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
-
     # Get all .txt files in the watch directory
     txt_files =
       get_mp4_files()
@@ -191,7 +189,7 @@ defmodule Autotranscript.Web.TranscriptController do
     end
   end
 
-  def player(conn, %{"filename" => filename} = params) do
+  def player(conn, %{"filename" => filename} = _params) do
     watch_directory = Application.get_env(:autotranscript, :watch_directory)
 
     # Check if the video file exists

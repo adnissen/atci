@@ -38,7 +38,7 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast({:add_to_queue, video_path}, %{queue: queue, processing: processing, current_file: current_file} = state) do
+  def handle_cast({:add_to_queue, video_path}, %{queue: queue, processing: processing, current_file: _current_file} = state) do
     new_queue = [video_path | queue]
 
     if not processing do
@@ -58,7 +58,7 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast(:process_next, %{queue: [video_path | rest], processing: _processing, current_file: nil} = state) do
+  def handle_cast(:process_next, %{queue: [video_path | _rest], processing: _processing, current_file: nil} = state) do
     # Start processing the next file in the queue asynchronously
     # Keep the file in the queue until processing is complete
     spawn(fn ->
@@ -76,7 +76,7 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast({:processing_complete, video_path, _result}, %{queue: queue, processing: processing, current_file: current_file} = state) do
+  def handle_cast({:processing_complete, video_path, _result}, %{queue: queue, processing: _processing, current_file: _current_file} = state) do
     # Remove the completed file from the queue
     new_queue = Enum.reject(queue, fn path -> path == video_path end)
 

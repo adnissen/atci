@@ -12,23 +12,12 @@ defmodule Autotranscript.Transcriber do
 
   @impl true
   def init(:ok) do
-    directory = Application.get_env(:autotranscript, :watch_directory)
+    check_for_videos_with_missing_files_and_add_to_queue()
 
-    # Get all MP4 files and add them to the processing queue
-    Path.wildcard(Path.join(directory, "*.{MP4,mp4}"))
-    |> Enum.each(fn video_path ->
-      txt_path = String.replace_trailing(video_path, ".MP4", ".txt")
-      txt_path = String.replace_trailing(txt_path, ".mp4", ".txt")
-
-      unless File.exists?(txt_path) do
-        Autotranscript.VideoProcessor.add_to_queue(video_path)
-      end
-    end)
-
-    # Start watching directory for new files
+    # Start timer to check for new files every 2 seconds
     case watch_directory() do
-      {:ok, pid} ->
-        {:ok, %{file_system_pid: pid}}
+      {:ok, timer_ref} ->
+        {:ok, %{timer_ref: timer_ref}}
 
       {:error, reason} ->
         Logger.error("Failed to start directory watcher: #{inspect(reason)}")
@@ -37,52 +26,52 @@ defmodule Autotranscript.Transcriber do
   end
 
   @impl true
-  def handle_info({:file_event, _pid, {path, events}}, state) do
-    # Process new MP4 files here
-    if String.ends_with?(path, [".MP4", ".mp4"]) && Enum.member?(events, :created) do
-      Autotranscript.VideoProcessor.add_to_queue(path)
-    end
-
-    IO.inspect(events)
-    # Process deleted TXT files - regenerate if corresponding MP4 exists
-    if String.ends_with?(path, [".TXT", ".txt"]) && Enum.member?(events, :removed) do
-      video_path = String.replace_trailing(path, ".TXT", ".MP4")
-      video_path = String.replace_trailing(video_path, ".txt", ".MP4")
-
-      if File.exists?(video_path) do
-        Autotranscript.VideoProcessor.add_to_queue(video_path)
-      end
-    end
-
-    {:noreply, state}
+  def handle_info(:check_directory, state) do
+    check_for_videos_with_missing_files_and_add_to_queue()
+    # Schedule the next check in 2 seconds
+    timer_ref = Process.send_after(self(), :check_directory, 2000)
+    {:noreply, %{state | timer_ref: timer_ref}}
   end
 
-  @impl true
-  def handle_info({:file_event, _pid, :stop}, state) do
-    Logger.info("File system watcher stopped")
-    {:noreply, state}
+  def check_for_videos_with_missing_files_and_add_to_queue do
+    directory = Application.get_env(:autotranscript, :watch_directory)
+    current_time = System.system_time(:second)
+
+    Path.wildcard(Path.join(directory, "*.{MP4,mp4}"))
+    |> Enum.each(fn video_path ->
+      txt_path = String.replace_trailing(video_path, ".MP4", ".txt")
+      txt_path = String.replace_trailing(txt_path, ".mp4", ".txt")
+
+      unless File.exists?(txt_path) do
+        # Check if the video file is at least 3 seconds old
+        case File.stat(video_path, time: :posix) do
+          {:ok, %{mtime: mtime}} ->
+            if current_time - mtime >= 3 do
+              Autotranscript.VideoProcessor.add_to_queue(video_path)
+            end
+          {:error, _reason} ->
+            # If we can't get file stats, skip this file
+            Logger.warning("Could not get file stats for #{video_path}")
+        end
+      end
+    end)
   end
 
   @doc """
-  Watches a directory for file changes.
-
-  ## Parameters
-    - directory: String path to the directory to watch
+  Starts a timer to check the directory for new files every 2 seconds.
 
   ## Examples
-      iex> Autotranscript.watch_directory("path/to/directory")
-      {:ok, pid}
+      iex> Autotranscript.watch_directory()
+      {:ok, timer_ref}
   """
   def watch_directory do
     directory = Application.get_env(:autotranscript, :watch_directory)
 
     case File.dir?(directory) do
       true ->
-        {:ok, pid} = FileSystem.start_link(dirs: [directory])
-        FileSystem.subscribe(pid)
-
-        Logger.info("Watching: #{directory}")
-        {:ok, pid}
+        Logger.info("Watching: #{directory} (checking every 2 seconds)")
+        timer_ref = Process.send_after(self(), :check_directory, 2000)
+        {:ok, timer_ref}
       false ->
         {:error, :invalid_directory}
     end
