@@ -30,6 +30,7 @@ function App() {
   const [queue, setQueue] = useState<string[]>([])
   const [currentProcessingFile, setCurrentProcessingFile] = useState<string>('')
   const [watchDirectory, setWatchDirectory] = useState<string>('')
+  const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
 
   // Function to format date from YYYY-MM-DD HH:MM:SS to MM-DD-YYYY x:xxpm
   const formatDate = (dateString: string): string => {
@@ -82,9 +83,11 @@ function App() {
           if (queueData.queue && queueData.queue.length > 0) {
             setCurrentProcessingFile(queueData.current_file || '')
             setQueue(queueData.queue)
+            setRegeneratingFiles(new Set(queue))
           } else {
             setQueue([])
             setCurrentProcessingFile('')
+            setRegeneratingFiles(new Set())
           }
         }
       } catch (error) {
@@ -96,19 +99,23 @@ function App() {
   }, [])
 
   useEffect(() => {
-    // Refresh files list when queue changes or processing completes
-    const refreshFiles = async () => {
-      try {
-        const response = await fetch('/files')
-        if (response.ok) {
-          const filesData = await response.json()
-          setFiles(filesData)
-        }
-      } catch (error) {
-        console.error('Error fetching files:', error)
-      }
-    }
+    refreshFiles()
+  }, [queue])
 
+  const refreshFiles = async () => {
+    try {
+      const response = await fetch('/files')
+      if (response.ok) {
+        const filesData = await response.json()
+        setFiles(filesData)
+      }
+    } catch (error) {
+      console.error('Error fetching files:', error)
+    }
+  }
+
+  useEffect(() => {
+    // Refresh files list when queue changes or processing completes
     refreshFiles()
   }, [currentProcessingFile])
 
@@ -129,7 +136,7 @@ function App() {
 
     setIsSearching(true)
     try {
-      const response = await fetch(`/transcripts/grep/${encodeURIComponent(searchTerm.trim())}`)
+      const response = await fetch(`/grep/${encodeURIComponent(searchTerm.trim())}`)
       if (response.ok) {
         const result = await response.text()
         const files = result.trim() ? result.split('\n') : []
@@ -161,7 +168,7 @@ function App() {
       // Get CSRF token from meta tag
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
       
-      const response = await fetch(`/transcripts/regenerate/${filename}`, {
+      const response = await fetch(`/transcripts/${filename}/regenerate`, {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -170,7 +177,7 @@ function App() {
       })
       if (response.ok) {
         // Reload the page after successful regeneration
-        window.location.reload()
+        //window.location.reload()
       } else {
         console.error('Failed to regenerate transcript')
         setRegeneratingFiles(prev => {
@@ -182,6 +189,69 @@ function App() {
     } catch (error) {
       console.error('Regeneration error:', error)
       setRegeneratingFiles(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(filename)
+        return newSet
+      })
+    }
+  }
+
+  const handleReplace = async (filename: string, e: React.MouseEvent) => {
+    e.stopPropagation() // Prevent row expansion
+    
+    // Prompt user for new content
+    const newContent = prompt(`Enter new content for ${filename}:`)
+    if (!newContent) return // User cancelled
+    
+    setReplacingFiles(prev => new Set(prev).add(filename))
+    
+    try {
+      // Get CSRF token from meta tag
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+      
+      const response = await fetch(`/transcripts/${filename}/replace`, {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': csrfToken || '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: newContent })
+      })
+      
+      if (response.ok) {
+        // Fetch the updated transcript content
+        try {
+          const transcriptResponse = await fetch(`/transcripts/${filename}`)
+          if (transcriptResponse.ok) {
+            // Force a refresh of the files list to update any metadata
+            const filesResponse = await fetch('/files')
+            if (filesResponse.ok) {
+              const filesData = await filesResponse.json()
+              setFiles(filesData)
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching updated transcript:', error)
+        }
+      } else {
+        console.error('Failed to replace transcript')
+        alert('Failed to replace transcript. Please try again.')
+        setReplacingFiles(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(filename)
+          return newSet
+        })
+      }
+    } catch (error) {
+      console.error('Replacement error:', error)
+      alert('Error replacing transcript. Please try again.')
+      setReplacingFiles(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(filename)
+        return newSet
+      })
+    } finally {
+      setReplacingFiles(prev => {
         const newSet = new Set(prev)
         newSet.delete(filename)
         return newSet
@@ -341,25 +411,45 @@ function App() {
                       
                       {/* Only show regenerate button if transcript exists */}
                       {file.transcript ? (
-                        <button
-                          onClick={(e) => handleRegenerate(file.name, e)}
-                          disabled={regeneratingFiles.has(file.name)}
-                          className={`p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                            currentProcessingFile.includes(file.name) ? 'animate-spin' : ''
-                          }`}
-                          title="Regenerate transcript"
-                        >
-                          {regeneratingFiles.has(file.name) ? (
-                            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                          ) : (
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
-                          )}
-                        </button>
+                        <>
+                          <button
+                            onClick={(e) => handleRegenerate(file.name, e)}
+                            disabled={regeneratingFiles.has(file.name)}
+                            className={`p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                              currentProcessingFile.includes(file.name) ? 'animate-spin' : ''
+                            }`}
+                            title="Regenerate transcript"
+                          >
+                            {regeneratingFiles.has(file.name) ? (
+                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                            )}
+                          </button>
+                          
+                          <button
+                            onClick={(e) => handleReplace(file.name, e)}
+                            disabled={replacingFiles.has(file.name)}
+                            className={`p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                            title="Edit transcript"
+                          >
+                            {replacingFiles.has(file.name) ? (
+                              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            )}
+                          </button>
+                        </>
                       ) : currentProcessingFile.includes(file.name) ? (
                         <button
                           disabled={true}

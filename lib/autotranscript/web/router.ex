@@ -10,26 +10,38 @@ defmodule Autotranscript.Web.Router do
     plug :put_root_layout, html: {Autotranscript.Web.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+    plug Plug.Parsers,
+      parsers: [:urlencoded, :multipart, :json],
+      pass: ["*/*"],
+      json_decoder: Phoenix.json_library()
   end
 
   pipeline :api do
     plug :accepts, ["json"]
+    plug Plug.Parsers,
+      parsers: [:urlencoded, :multipart, :json],
+      pass: ["*/*"],
+      json_decoder: Phoenix.json_library()
   end
 
   scope "/", Autotranscript.Web do
     pipe_through :browser
 
     get "/", PageController, :index
+
     get "/transcripts", TranscriptController, :index
+    get "/transcripts/:filename", TranscriptController, :show
+    post "/transcripts/:filename/replace", TranscriptController, :replace_transcript
+    post "/transcripts/:filename/regenerate", TranscriptController, :regenerate
+
+    get "/grep/:text", TranscriptController, :grep
+    get "/player/:filename", TranscriptController, :player
+    get "/frame/:filename/:time", TranscriptController, :frame_at_time
+
     get "/queue", TranscriptController, :queue
     get "/files", TranscriptController, :files
     get "/random_frame", TranscriptController, :random_frame
     get "/clip", TranscriptController, :clip
-    get "/transcripts/:filename", TranscriptController, :show
-    get "/transcripts/grep/:text", TranscriptController, :grep
-    post "/transcripts/regenerate/:filename", TranscriptController, :regenerate
-    get "/player/:filename", TranscriptController, :player
-    get "/frame/:filename/:time", TranscriptController, :frame_at_time
     get "/watch_directory", TranscriptController, :watch_directory
   end
 end

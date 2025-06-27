@@ -419,4 +419,29 @@ defmodule Autotranscript.Web.TranscriptController do
     |> put_resp_content_type("text/plain")
     |> send_resp(200, watch_directory)
   end
+
+  def replace_transcript(conn, %{"filename" => filename}) do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    file_path = Path.join(watch_directory, "#{filename}.txt")
+    IO.inspect(conn.body_params)
+    case conn.body_params do
+      %{"text" => replacement_text} ->
+        case File.write(file_path, replacement_text) do
+          :ok ->
+            conn
+            |> put_resp_content_type("text/plain")
+            |> send_resp(200, "Transcript file '#{filename}.txt' updated successfully")
+          {:error, reason} ->
+            conn
+            |> put_status(:internal_server_error)
+            |> put_resp_content_type("text/plain")
+            |> send_resp(500, "Error updating transcript file '#{filename}.txt': #{reason}")
+        end
+      _ ->
+        conn
+        |> put_status(:bad_request)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(400, "Missing required 'text' field in request body")
+    end
+  end
 end
