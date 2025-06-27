@@ -241,19 +241,55 @@ defmodule Autotranscript.Web.TranscriptController do
             |> send_resp(404, "Video file '#{filename}' not found")
 
           file_path ->
+            # Extract and validate the text parameter
+            text_param = case Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params) |> Map.get("text") do
+              text when is_binary(text) and text != "" -> text
+              _ -> nil
+            end
+
             # Generate a temporary filename for the extracted frame
             temp_frame_path = Path.join(System.tmp_dir(), "frame_at_time_#{UUID.uuid4()}.jpg")
 
+            # Build ffmpeg command with optional drawtext filter
+            ffmpeg_args = case text_param do
+              nil ->
+                [
+                  "-ss", "#{time}",
+                  "-i", file_path,
+                  "-vframes", "1",
+                  "-q:v", "2",
+                  "-f", "image2",
+                  "-y",
+                  temp_frame_path
+                ]
+              text ->
+                # Escape special characters in text for ffmpeg
+                escaped_text = text
+                  |> String.replace("\\", "\\\\")
+                  |> String.replace("'", "\\'")
+                  |> String.replace(":", "\\:")
+                  |> String.replace("=", "\\=")
+                  |> String.replace(";", "\\;")
+                  |> String.replace(",", "\\,")
+                  |> String.replace("[", "\\[")
+                  |> String.replace("]", "\\]")
+                  |> String.replace("(", "\\(")
+                  |> String.replace(")", "\\)")
+
+                [
+                  "-ss", "#{time}",
+                  "-i", file_path,
+                  "-vf", "drawtext=text='#{escaped_text}':fontcolor=white:fontsize=144:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
+                  "-vframes", "1",
+                  "-q:v", "2",
+                  "-f", "image2",
+                  "-y",
+                  temp_frame_path
+                ]
+            end
+
             # Use ffmpeg to extract a frame at the specified time
-            case System.cmd("ffmpeg", [
-              "-ss", "#{time}",
-              "-i", file_path,
-              "-vframes", "1",
-              "-q:v", "2",
-              "-f", "image2",
-              "-y",
-              temp_frame_path
-            ]) do
+            case System.cmd("ffmpeg", ffmpeg_args) do
               {_output, 0} ->
                 # Successfully extracted frame, serve it
                 case File.read(temp_frame_path) do
