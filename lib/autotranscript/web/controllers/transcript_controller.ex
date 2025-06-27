@@ -334,4 +334,85 @@ defmodule Autotranscript.Web.TranscriptController do
         |> send_resp(400, "Invalid time parameter. Must be a non-negative number.")
     end
   end
+
+  def clip(conn, _params) do
+    query_params = Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params)
+    filename = query_params["filename"]
+    start_time_str = query_params["start_time"]
+    end_time_str = query_params["end_time"]
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+
+    # Parse and validate the time parameters
+    case {Float.parse(start_time_str || ""), Float.parse(end_time_str || "")} do
+      {{start_time, ""}, {end_time, ""}} when start_time >= 0 and end_time > start_time ->
+        # Check if the video file exists
+        mp4_path = Path.join(watch_directory, "#{filename}.mp4")
+        mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
+
+        video_file = cond do
+          File.exists?(mp4_path) -> mp4_path
+          File.exists?(mp4_upper_path) -> mp4_upper_path
+          true -> nil
+        end
+
+        case video_file do
+          nil ->
+            conn
+            |> put_status(:not_found)
+            |> put_resp_content_type("text/plain")
+            |> send_resp(404, "Video file '#{filename}' not found")
+
+          file_path ->
+            # Calculate duration
+            duration = end_time - start_time
+
+            # Generate a temporary filename for the clipped video
+            temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}.mp4")
+
+            # Use ffmpeg to extract the video clip
+            case System.cmd("ffmpeg", [
+              "-ss", "#{start_time}",
+              "-i", file_path,
+              "-t", "#{duration}",
+              "-c", "copy",
+              "-avoid_negative_ts", "make_zero",
+              "-y",
+              temp_clip_path
+            ]) do
+              {_output, 0} ->
+                # Successfully created clip, serve it
+                case File.read(temp_clip_path) do
+                  {:ok, video_data} ->
+                    # Clean up temp file
+                    File.rm(temp_clip_path)
+
+                    conn
+                    |> put_resp_content_type("video/mp4")
+                    |> send_resp(200, video_data)
+
+                  {:error, reason} ->
+                    conn
+                    |> put_status(:internal_server_error)
+                    |> put_resp_content_type("text/plain")
+                    |> send_resp(500, "Error reading clipped video: #{reason}")
+                end
+
+              {error_output, _exit_code} ->
+                # Clean up temp file if it exists
+                File.rm(temp_clip_path)
+
+                conn
+                |> put_status(:internal_server_error)
+                |> put_resp_content_type("text/plain")
+                |> send_resp(500, "Error creating video clip with ffmpeg: #{error_output}")
+            end
+        end
+
+      _ ->
+        conn
+        |> put_status(:bad_request)
+        |> put_resp_content_type("text/plain")
+        |> send_resp(400, "Invalid time parameters. Start time must be non-negative and end time must be greater than start time.")
+    end
+  end
 end

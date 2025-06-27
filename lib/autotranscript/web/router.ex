@@ -24,6 +24,7 @@ defmodule Autotranscript.Web.Router do
     get "/queue", TranscriptController, :queue
     get "/files", TranscriptController, :files
     get "/random_frame", TranscriptController, :random_frame
+    get "/clip", TranscriptController, :clip
     get "/transcripts/:filename", TranscriptController, :show
     get "/transcripts/grep/:text", TranscriptController, :grep
     post "/transcripts/regenerate/:filename", TranscriptController, :regenerate

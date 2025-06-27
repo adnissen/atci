@@ -110,8 +110,9 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
       return text;
     }
 
+    // temporarily turn off highlighting until we move to a real "block" system for displaying the transcripts
     const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    return text.replace(regex, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
+    return text;
   };
 
   // Process content to replace timestamps with clickable links
@@ -137,17 +138,28 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
         const seconds2 = timestampToSeconds(timeRangeInfo.time2); //ie 104
         const delta = seconds2 - seconds1; //ie 4
         const middle = seconds1 + (delta / 2.0); //ie 102
-        console.log(seconds1, seconds2, delta, middle);
-        const cameraIcon = `<span 
-          class="inline-flex items-center ml-2 cursor-pointer text-gray-600 hover:text-blue-600 transition-colors"
-          style="vertical-align: text-bottom; display: inline-flex; align-items: baseline;"
-        ><a href="/frame/${encodeURIComponent(name)}/${middle}?text=${nextLine}" target="_blank" class="inline-flex items-baseline">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block" style="vertical-align: text-bottom;">
-            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
-            <circle cx="12" cy="13" r="3"/>
-          </svg>
-        </a></span>`;
+        const cameraIcon = `<span class="inline-flex items-center ml-2 cursor-pointer text-gray-600 hover:text-blue-600 transition-colors" style="vertical-align: text-bottom; display: inline-flex; align-items: baseline;"><a href="/frame/${encodeURIComponent(name)}/${middle}?text=${nextLine}" target="_blank" class="inline-flex items-baseline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block" style="vertical-align: text-bottom;"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></a></span>`;
         return line + cameraIcon;
+      }
+      
+      return line;
+    });
+    
+    return processedLines.join('\n');
+  };
+
+  // Process content to add video camera icons to lines with time ranges
+  const processContentWithVideoIcons = (text: string): string => {
+    const lines = text.split('\n');
+    const processedLines = lines.map((line, index) => {
+      const timeRangeInfo = hasTimeRange(line);
+      const nextLine = index < lines.length - 1 ? lines[index + 1] : null;
+      
+      if (timeRangeInfo.hasRange && timeRangeInfo.time1 && timeRangeInfo.time2) {
+        const seconds1 = timestampToSeconds(timeRangeInfo.time1);
+        const seconds2 = timestampToSeconds(timeRangeInfo.time2);
+        const videoIcon = `<span class="inline-flex items-center ml-2 cursor-pointer text-gray-600 hover:text-blue-600 transition-colors" style="vertical-align: text-bottom; display: inline-flex; align-items: baseline;"><a href="/clip?filename=${encodeURIComponent(name)}&start_time=${seconds1}&end_time=${seconds2}" target="_blank" class="inline-flex items-baseline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block" style="vertical-align: text-bottom;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></a></span>`;
+        return line + videoIcon;
       }
       
       return line;
@@ -196,7 +208,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   const filteredContent = filterContentForSearch(content, searchTerm);
   const highlightedContent = highlightSearchTerm(filteredContent, searchTerm);
   const processedContent = processContentWithTimestamps(highlightedContent);
-  const finalContent = processContentWithCameraIcons(processedContent);
+  const processedWithCameraIcons = processContentWithCameraIcons(processedContent);
+  const finalContent = processContentWithVideoIcons(processedWithCameraIcons);
 
   return (
     <div className={`w-full p-6 bg-white ${className}`}>
