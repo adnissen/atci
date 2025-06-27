@@ -406,4 +406,11 @@ defmodule Autotranscript.Web.TranscriptController do
         |> send_resp(400, "Invalid time parameters. Start time must be non-negative and end time must be greater than start time.")
     end
   end
+
+  def watch_directory(conn, _params) do
+    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    conn
+    |> put_resp_content_type("text/plain")
+    |> send_resp(200, watch_directory)
+  end
 end

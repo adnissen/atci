@@ -30,5 +30,6 @@ defmodule Autotranscript.Web.Router do
     post "/transcripts/regenerate/:filename", TranscriptController, :regenerate
     get "/player/:filename", TranscriptController, :player
     get "/frame/:filename/:time", TranscriptController, :frame_at_time
+    get "/watch_directory", TranscriptController, :watch_directory
   end
 end
