@@ -105,14 +105,19 @@ defmodule Autotranscript.Web.TranscriptController do
           # Check if transcript exists
           transcript_exists = File.exists?(txt_path)
 
-          # If transcript exists, get line count
-          line_count = if transcript_exists do
+          # If transcript exists, get line count and last modified time
+          {line_count, last_generated} = if transcript_exists do
             case File.read(txt_path) do
-              {:ok, content} -> length(String.split(content, "\n"))
-              {:error, _} -> 0
+              {:ok, content} ->
+                line_count = length(String.split(content, "\n"))
+                case File.stat(txt_path) do
+                  {:ok, txt_stat} -> {line_count, txt_stat.mtime |> Autotranscript.Web.TranscriptHTML.format_datetime()}
+                  {:error, _} -> {line_count, nil}
+                end
+              {:error, _} -> {0, nil}
             end
           else
-            0
+            {0, nil}
           end
 
           %{
@@ -120,7 +125,8 @@ defmodule Autotranscript.Web.TranscriptController do
             created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
             line_count: line_count,
             full_path: file_path,
-            transcript: transcript_exists
+            transcript: transcript_exists,
+            last_generated: last_generated
           }
         {:error, _} ->
           nil

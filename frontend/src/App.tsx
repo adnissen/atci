@@ -19,6 +19,7 @@ function App() {
     line_count?: number
     length?: string
     full_path?: string
+    last_generated?: string
   }
   const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
@@ -29,6 +30,30 @@ function App() {
   const [queue, setQueue] = useState<string[]>([])
   const [currentProcessingFile, setCurrentProcessingFile] = useState<string>('')
   const [watchDirectory, setWatchDirectory] = useState<string>('')
+
+  // Function to format date from YYYY-MM-DD HH:MM:SS to MM-DD-YYYY x:xxpm
+  const formatDate = (dateString: string): string => {
+    if (!dateString || dateString === 'N/A') return 'N/A'
+    
+    try {
+      const date = new Date(dateString.replace(' ', 'T'))
+      if (isNaN(date.getTime())) return 'N/A'
+      
+      const month = (date.getMonth() + 1).toString().padStart(2, '0')
+      const day = date.getDate().toString().padStart(2, '0')
+      const year = date.getFullYear()
+      
+      let hours = date.getHours()
+      const minutes = date.getMinutes().toString().padStart(2, '0')
+      const ampm = hours >= 12 ? 'pm' : 'am'
+      hours = hours % 12
+      hours = hours ? hours : 12 // the hour '0' should be '12'
+      
+      return `${month}-${day}-${year} ${hours}:${minutes}${ampm}`
+    } catch (error) {
+      return 'N/A'
+    }
+  }
 
   // Fetch watch directory on app load
   useEffect(() => {
@@ -221,16 +246,17 @@ function App() {
             <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="text-center w-1/5">
+                  <TableHead className="text-center w-1/6">
                     Filename
                     {searchTerm && searchResults.length > 0 && (
                       <span className="text-xs text-green-600 ml-2">(Search Results)</span>
                     )}
                   </TableHead>
-                  <TableHead className="text-center w-1/5">Date</TableHead>
-                  <TableHead className="text-center w-1/5">Lines</TableHead>
-                  <TableHead className="text-center w-1/5">Length</TableHead>
-                  <TableHead className="text-center w-1/5">Actions</TableHead>
+                  <TableHead className="text-center w-1/6">Date</TableHead>
+                  <TableHead className="text-center w-1/6 pl-14">Last Generated</TableHead>
+                  <TableHead className="text-center w-1/6">Lines</TableHead>
+                  <TableHead className="text-center w-1/6">Length</TableHead>
+                  <TableHead className="text-center w-1/6">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -254,19 +280,22 @@ function App() {
                       })
                     }
                   }}>
-                    <TableCell className="font-medium w-1/5">
+                    <TableCell className="font-medium w-1/6">
                       <a 
-                        href={`file://${file.full_path}`}
+                        href={`/player/${file.name}`}
                         className="text-blue-600 hover:text-blue-800 underline"
                         onClick={(e) => e.stopPropagation()}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
                         {file.name}
                       </a>
                     </TableCell>
-                    <TableCell className="w-1/5">{file.created_at}</TableCell>
-                    <TableCell className="w-1/5">{file.line_count || 0}</TableCell>
-                    <TableCell className="w-1/5">{file.length || '0:00'}</TableCell>
-                    <TableCell className="w-1/5 text-center">
+                    <TableCell className="w-1/6 pr-10">{formatDate(file.created_at)}</TableCell>
+                    <TableCell className="w-1/6 pl-10">{formatDate(file.last_generated || '')}</TableCell>
+                    <TableCell className="w-1/6">{file.line_count || 0}</TableCell>
+                    <TableCell className="w-1/6">{file.length || '0:00'}</TableCell>
+                    <TableCell className="w-1/6 text-center">
                       <div className="flex justify-center gap-2">
                         <button
                           onClick={(e) => {
@@ -329,7 +358,7 @@ function App() {
                   </TableRow>
                   <TableRow>
                     
-                  <TableCell colSpan={5} className="p-0">
+                  <TableCell colSpan={6} className="p-0">
                     <TranscriptView
                       visible={expandedFiles.has(file.name)}
                       name={file.name}
