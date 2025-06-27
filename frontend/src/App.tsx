@@ -177,7 +177,7 @@ function App() {
             {searchResults.length > 0 && (
               <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
                 <h3 className="text-sm font-medium text-green-800 mb-2">
-                  Found in {searchResults.length} file(s)
+                  Found in {searchResults.length - 1} file(s)
                 </h3>
               </div>
             )}
