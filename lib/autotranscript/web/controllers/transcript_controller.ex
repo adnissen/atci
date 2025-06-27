@@ -276,10 +276,18 @@ defmodule Autotranscript.Web.TranscriptController do
                   |> String.replace("(", "\\(")
                   |> String.replace(")", "\\)")
 
+                # Calculate font size based on text length to ensure it fits
+                font_size = cond do
+                  String.length(text) > 100 -> 48  # Very long text
+                  String.length(text) > 50 -> 72   # Long text
+                  String.length(text) > 25 -> 96   # Medium text
+                  true -> 144                      # Short text
+                end
+
                 [
                   "-ss", "#{time}",
                   "-i", file_path,
-                  "-vf", "drawtext=text='#{escaped_text}':fontcolor=white:fontsize=144:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
+                  "-vf", "drawtext=text='#{escaped_text}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
                   "-vframes", "1",
                   "-q:v", "2",
                   "-f", "image2",
