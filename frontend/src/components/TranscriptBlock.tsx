@@ -49,7 +49,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   // Process the text content (only timestamps, no icons)
   const processedText = processContentWithTimestamps(text);
 
-  if (startTime === endTime) {
+  // Only return early if we have both start and end times and they're equal
+  if (startTime && endTime && startTime === endTime) {
     return <></>;
   }
 

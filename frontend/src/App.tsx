@@ -112,7 +112,6 @@ function App() {
   const expandContext = (filename: string, direction: "up" | "down", line: number) => {
     // Get the line numbers for the file
     const fileLineNumbers = searchLineNumbers[filename]
-    console.log(fileLineNumbers, line);
     if (!fileLineNumbers || !fileLineNumbers.includes(line)) {
       return
     }

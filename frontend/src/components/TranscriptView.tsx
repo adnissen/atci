@@ -101,50 +101,33 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
     // First pass: create all blocks with their original indices and line numbers
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
+      const line = lines[i];
 
       const timeRangeInfo = hasTimeRange(line);
       
       if (timeRangeInfo.hasRange && timeRangeInfo.time1 && timeRangeInfo.time2) {
         // Check if start and end times are different
         // This is a timestamp line, get the next line as text
-        const nextLine = i < lines.length - 1 ? lines[i + 1].trim() : '';
-        if (nextLine) {
-          const textLower = nextLine.toLowerCase();
-          const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
-          const lineNumbers = [i + 1, i + 2]; // Timestamp line and text line
-          const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
-          
-          allBlocks.push({
-            startTime: timeRangeInfo.time1,
-            endTime: timeRangeInfo.time2,
-            text: nextLine,
-            visible: isVisible,
-            isSearchResult,
-            originalIndex: allBlocks.length,
-            lineNumbers
-          });
-          
-          // Skip the next line since we've already processed it
-          i++;
-        } else {
-          // Same start and end time, treat as regular text
-          const textLower = line.toLowerCase();
-          const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
-          const lineNumbers = [i + 1];
-          const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
-          
-          allBlocks.push({
-            text: line,
-            visible: isVisible,
-            isSearchResult,
-            originalIndex: allBlocks.length,
-            lineNumbers
-          });
-        }
+        const nextLine = i < lines.length - 1 ? lines[i + 1] : '';
+        const textLower = nextLine.toLowerCase();
+        const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
+        const lineNumbers = [i + 1, i + 2]; // Timestamp line and text line
+        const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
+        
+        allBlocks.push({
+          startTime: timeRangeInfo.time1,
+          endTime: timeRangeInfo.time2,
+          text: nextLine,
+          visible: isVisible,
+          isSearchResult,
+          originalIndex: allBlocks.length,
+          lineNumbers
+        });
+        
+        // Skip the next line since we've already processed it
+        i++;
       } else {
-        // Regular text line
+        // Regular text line (including empty lines)
         const textLower = line.toLowerCase();
         const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
         const lineNumbers = [i + 1];
