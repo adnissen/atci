@@ -1,4 +1,5 @@
 import React from 'react';
+import TranscriptBlock from './TranscriptBlock';
 
 interface TranscriptViewProps {
   visible?: boolean;
@@ -18,6 +19,13 @@ declare global {
     handleCameraIconHover?: (name: string, time1: string, time2: string) => void;
     handleCameraIconLeave?: () => void;
   }
+}
+
+interface TranscriptBlockData {
+  startTime?: string;
+  endTime?: string;
+  text: string;
+  visible: boolean;
 }
 
 const TranscriptView: React.FC<TranscriptViewProps> = ({
@@ -79,96 +87,60 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     return { hasRange: false };
   };
 
-  // Filter content to show only lines with search term and 1 line above
-  const filterContentForSearch = (text: string, searchTerm: string): string => {
-    if (!searchTerm.trim()) {
-      return text;
-    }
-
+  // Parse text into transcript blocks
+  const parseTranscriptBlocks = (text: string, searchTerm: string): TranscriptBlockData[] => {
     const lines = text.split('\n');
-    const filteredLines: string[] = [];
+    const blocks: TranscriptBlockData[] = [];
     const searchTermLower = searchTerm.toLowerCase();
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const lineLower = line.toLowerCase();
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const timeRangeInfo = hasTimeRange(line);
       
-      // Check if current line contains search term
-      if (lineLower.includes(searchTermLower)) {
-        // Add previous line if it exists and we haven't already added it
-        if (i > 0 && !filteredLines.includes(lines[i - 1])) {
-          filteredLines.push(lines[i - 1]);
+      if (timeRangeInfo.hasRange && timeRangeInfo.time1 && timeRangeInfo.time2) {
+        // Check if start and end times are different
+        if (timeRangeInfo.time1 !== timeRangeInfo.time2) {
+          // This is a timestamp line, get the next line as text
+          const nextLine = i < lines.length - 1 ? lines[i + 1].trim() : '';
+          if (nextLine) {
+            const textLower = nextLine.toLowerCase();
+            const isVisible = !searchTerm || textLower.includes(searchTermLower);
+            
+            blocks.push({
+              startTime: timeRangeInfo.time1,
+              endTime: timeRangeInfo.time2,
+              text: nextLine,
+              visible: isVisible
+            });
+            
+            // Skip the next line since we've already processed it
+            i++;
+          }
+        } else {
+          // Same start and end time, treat as regular text
+          const textLower = line.toLowerCase();
+          const isVisible = !searchTerm || textLower.includes(searchTermLower);
+          
+          blocks.push({
+            text: line,
+            visible: isVisible
+          });
         }
-        // Add current line
-        filteredLines.push(line);
+      } else {
+        // Regular text line
+        const textLower = line.toLowerCase();
+        const isVisible = !searchTerm || textLower.includes(searchTermLower);
+        
+        blocks.push({
+          text: line,
+          visible: isVisible
+        });
       }
     }
 
-    return filteredLines.join('\n');
-  };
-
-  // Highlight search term in text
-  const highlightSearchTerm = (text: string, searchTerm: string): string => {
-    if (!searchTerm.trim()) {
-      return text;
-    }
-
-    // temporarily turn off highlighting until we move to a real "block" system for displaying the transcripts
-    const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-    return text;
-  };
-
-  // Process content to replace timestamps with clickable links
-  const processContentWithTimestamps = (text: string): string => {
-    // Regex to match timestamp format 00:00:00.000
-    const timestampRegex = /(\d{2}:\d{2}:\d{2}\.\d{3})/g;
-    
-    return text.replace(timestampRegex, (match) => {
-      const seconds = timestampToSeconds(match);
-      return `<a href="/player/${encodeURIComponent(name)}?time=${seconds}" class="text-blue-600 hover:text-blue-800 underline cursor-pointer timestamp-link" data-timestamp="${match}" onmouseover="window.handleTimestampHover('${name}', '${match}')" onmouseout="window.handleTimestampLeave()">${match}</a>`;
-    });
-  };
-
-  // Process content to add camera icons to lines with time ranges
-  const processContentWithCameraIcons = (text: string): string => {
-    const lines = text.split('\n');
-    const processedLines = lines.map((line, index) => {
-      const timeRangeInfo = hasTimeRange(line);
-      const nextLine = index < lines.length - 1 ? lines[index + 1] : null;
-      
-      if (timeRangeInfo.hasRange && timeRangeInfo.time1 && timeRangeInfo.time2) {
-        const seconds1 = timestampToSeconds(timeRangeInfo.time1); //ie 100
-        const seconds2 = timestampToSeconds(timeRangeInfo.time2); //ie 104
-        const delta = seconds2 - seconds1; //ie 4
-        const middle = seconds1 + (delta / 2.0); //ie 102
-        const cameraIcon = `<span class="inline-flex items-center ml-2 cursor-pointer text-gray-600 hover:text-blue-600 transition-colors" style="vertical-align: text-bottom; display: inline-flex; align-items: baseline;"><a href="/frame/${encodeURIComponent(name)}/${middle}?text=${nextLine}" target="_blank" class="inline-flex items-baseline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block" style="vertical-align: text-bottom;"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></a></span>`;
-        return line + cameraIcon;
-      }
-      
-      return line;
-    });
-    
-    return processedLines.join('\n');
-  };
-
-  // Process content to add video camera icons to lines with time ranges
-  const processContentWithVideoIcons = (text: string): string => {
-    const lines = text.split('\n');
-    const processedLines = lines.map((line, index) => {
-      const timeRangeInfo = hasTimeRange(line);
-      const nextLine = index < lines.length - 1 ? lines[index + 1] : null;
-      
-      if (timeRangeInfo.hasRange && timeRangeInfo.time1 && timeRangeInfo.time2) {
-        const seconds1 = timestampToSeconds(timeRangeInfo.time1);
-        const seconds2 = timestampToSeconds(timeRangeInfo.time2);
-        const videoIcon = `<span class="inline-flex items-center ml-2 cursor-pointer text-gray-600 hover:text-blue-600 transition-colors" style="vertical-align: text-bottom; display: inline-flex; align-items: baseline;"><a href="/clip?filename=${encodeURIComponent(name)}&start_time=${seconds1}&end_time=${seconds2}" target="_blank" class="inline-flex items-baseline"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="inline-block" style="vertical-align: text-bottom;"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg></a></span>`;
-        return line + videoIcon;
-      }
-      
-      return line;
-    });
-    
-    return processedLines.join('\n');
+    return blocks;
   };
 
   // Set up global handlers for the dynamically created links
@@ -181,12 +153,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     };
   }, []);
 
-  // Process content: filter for search, highlight search term, then add timestamp links
-  const filteredContent = filterContentForSearch(text, searchTerm);
-  const highlightedContent = highlightSearchTerm(filteredContent, searchTerm);
-  const processedContent = processContentWithTimestamps(highlightedContent);
-  const processedWithCameraIcons = processContentWithCameraIcons(processedContent);
-  const finalContent = processContentWithVideoIcons(processedWithCameraIcons);
+  // Parse the transcript into blocks
+  const transcriptBlocks = parseTranscriptBlocks(text, searchTerm);
 
   return (
     <div className={`w-full p-6 bg-white ${className}`}>
@@ -199,16 +167,24 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
         )}
         {!loading && !error && (
           <div className="text-gray-600 text-left relative">
-            {searchTerm && filteredContent.trim() === '' && (
+            {searchTerm && transcriptBlocks.filter(block => block.visible).length === 0 && (
               <div className="text-gray-500 italic">
                 No matches found for "{searchTerm}" in this transcript.
               </div>
             )}
-            {filteredContent.trim() !== '' && (
-              <pre 
-                className="text-left whitespace-pre-wrap font-mono text-sm leading-relaxed max-w-none overflow-x-auto"
-                dangerouslySetInnerHTML={{ __html: finalContent }}
-              />
+            {transcriptBlocks.filter(block => block.visible).length > 0 && (
+              <div className="space-y-2">
+                {transcriptBlocks.map((block, index) => (
+                  <TranscriptBlock
+                    key={index}
+                    startTime={block.startTime}
+                    endTime={block.endTime}
+                    visible={block.visible}
+                    text={block.text}
+                    name={name}
+                  />
+                ))}
+              </div>
             )}
             
             {/* Thumbnail overlay */}
