@@ -31,7 +31,6 @@ function App() {
   const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
-  const [searchResults, setSearchResults] = useState<string[]>([])
   const [searchLineNumbers, setSearchLineNumbers] = useState<Record<string, number[]>>({})
   const [isSearching, setIsSearching] = useState(false)
   const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
@@ -40,6 +39,11 @@ function App() {
   const [watchDirectory, setWatchDirectory] = useState<string>('')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
+
+  // Calculate search results from search line numbers
+  const searchResults = Object.keys(searchLineNumbers).filter(filename => 
+    searchLineNumbers[filename] && searchLineNumbers[filename].length > 0
+  )
 
   // Function to format date from YYYY-MM-DD HH:MM:SS to MM-DD-YYYY x:xxpm
   const formatDate = (dateString: string): string => {
@@ -188,15 +192,15 @@ function App() {
   // Clear search results when search term is empty
   useEffect(() => {
     if (!searchTerm.trim()) {
-      setSearchResults([])
       setSearchLineNumbers({})
       setExpandedFiles(new Set())
+    } else {
+      handleSearch()
     }
   }, [searchTerm])
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
-      setSearchResults([])
       setSearchLineNumbers({})
       setExpandedFiles(new Set())
       return
@@ -204,34 +208,26 @@ function App() {
 
     setIsSearching(true)
     try {
-      // First get the files that contain the search term
-      const response = await fetch(`/grep/${encodeURIComponent(searchTerm.trim())}`)
-      if (response.ok) {
-        const result = await response.text()
-        const files = result.trim() ? result.split('\n') : []
-        const fileNames = files.map(file => file.replace('.txt', ''))
-        setSearchResults(fileNames)
-        
-        // Now get the line numbers for each file
-        const lineNumbersResponse = await fetch(`/grep/${encodeURIComponent(searchTerm.trim())}`)
-        if (lineNumbersResponse.ok) {
-          const lineNumbersData = await lineNumbersResponse.json()
-          setSearchLineNumbers(lineNumbersData)
-        } else {
-          setSearchLineNumbers({})
-        }
+      // Get the line numbers for each file that contains the search term
+      const lineNumbersResponse = await fetch(`/grep/${encodeURIComponent(searchTerm.trim())}`)
+      if (lineNumbersResponse.ok) {
+        const lineNumbersData = await lineNumbersResponse.json()
+        console.log(lineNumbersData)
+        setSearchLineNumbers(lineNumbersData)
         
         // Automatically expand files that contain search results
-        setExpandedFiles(new Set(fileNames))
+        const filesWithResults = Object.keys(lineNumbersData).filter(filename => 
+          lineNumbersData[filename] && lineNumbersData[filename].length > 0
+        )
+        setExpandedFiles(new Set(filesWithResults))
       } else {
-        setSearchResults([])
         setSearchLineNumbers({})
         setExpandedFiles(new Set())
       }
     } catch (error) {
       console.error('Search error:', error)
-      setSearchResults([])
       setSearchLineNumbers({})
+      setExpandedFiles(new Set())
     } finally {
       setIsSearching(false)
     }
@@ -383,7 +379,6 @@ function App() {
                 placeholder="Search in transcripts..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyPress={handleKeyPress}
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <button
@@ -399,7 +394,7 @@ function App() {
             {searchResults.length > 0 && (
               <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
                 <h3 className="text-sm font-medium text-green-800 mb-2">
-                  Found in {searchResults.length - 1} file(s)
+                  Found in {searchResults.length} file(s)
                 </h3>
               </div>
             )}

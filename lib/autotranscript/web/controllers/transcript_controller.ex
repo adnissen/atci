@@ -35,7 +35,7 @@ defmodule Autotranscript.Web.TranscriptController do
     watch_directory = Application.get_env(:autotranscript, :watch_directory)
 
     # Change to the watch directory and run grep with line numbers
-    case System.shell("grep -Hn \"" <> search_text <> "\" *.txt", cd: watch_directory) do
+    case System.shell("grep -Hni \"" <> search_text <> "\" *.txt", cd: watch_directory) do
       {output, 0} ->
         # Parse the output to extract filename and line numbers
         results = parse_grep_output(output)
