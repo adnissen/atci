@@ -6,6 +6,7 @@ interface TranscriptBlockProps {
   visible: boolean;
   text: string;
   name: string;
+  isSearchResult?: boolean;
 }
 
 const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
@@ -13,7 +14,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   endTime,
   visible,
   text,
-  name
+  name,
+  isSearchResult = false
 }) => {
   if (!visible || text === "WEBVTT") {
     return null;
@@ -46,7 +48,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const processedText = processContentWithTimestamps(text);
 
   return (
-    <div className="mb-2">
+    <div className={`mb-2 ${isSearchResult ? 'bg-yellow-50 border-l-4 border-yellow-400 pl-2' : ''}`}>
       {startTime && endTime && (
         <div className="text-gray-500 text-sm font-mono flex items-center gap-2">
           <span>
