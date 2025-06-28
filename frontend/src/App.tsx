@@ -32,6 +32,7 @@ function App() {
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState<string[]>([])
+  const [searchLineNumbers, setSearchLineNumbers] = useState<Record<string, number[]>>({})
   const [isSearching, setIsSearching] = useState(false)
   const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
   const [queue, setQueue] = useState<string[]>([])
@@ -188,6 +189,7 @@ function App() {
   useEffect(() => {
     if (!searchTerm.trim()) {
       setSearchResults([])
+      setSearchLineNumbers({})
       setExpandedFiles(new Set())
     }
   }, [searchTerm])
@@ -195,27 +197,41 @@ function App() {
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
       setSearchResults([])
+      setSearchLineNumbers({})
       setExpandedFiles(new Set())
       return
     }
 
     setIsSearching(true)
     try {
+      // First get the files that contain the search term
       const response = await fetch(`/grep/${encodeURIComponent(searchTerm.trim())}`)
       if (response.ok) {
         const result = await response.text()
         const files = result.trim() ? result.split('\n') : []
         const fileNames = files.map(file => file.replace('.txt', ''))
         setSearchResults(fileNames)
+        
+        // Now get the line numbers for each file
+        const lineNumbersResponse = await fetch(`/grep/${encodeURIComponent(searchTerm.trim())}`)
+        if (lineNumbersResponse.ok) {
+          const lineNumbersData = await lineNumbersResponse.json()
+          setSearchLineNumbers(lineNumbersData)
+        } else {
+          setSearchLineNumbers({})
+        }
+        
         // Automatically expand files that contain search results
         setExpandedFiles(new Set(fileNames))
       } else {
         setSearchResults([])
+        setSearchLineNumbers({})
         setExpandedFiles(new Set())
       }
     } catch (error) {
       console.error('Search error:', error)
       setSearchResults([])
+      setSearchLineNumbers({})
     } finally {
       setIsSearching(false)
     }
@@ -542,6 +558,7 @@ function App() {
                     text={transcriptInfo.text}
                     loading={transcriptInfo.loading}
                     error={transcriptInfo.error}
+                    visibleLines={searchLineNumbers[file.name] || []}
                   />
                 </TableCell>
                 </TableRow>

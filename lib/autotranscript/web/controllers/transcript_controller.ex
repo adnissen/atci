@@ -31,27 +31,48 @@ defmodule Autotranscript.Web.TranscriptController do
         |> send_resp(500, "Error reading transcript file '#{filename}': #{reason}")
     end
   end
-
   def grep(conn, %{"text" => search_text}) do
     watch_directory = Application.get_env(:autotranscript, :watch_directory)
 
-    # Change to the watch directory and run grep
-    case System.shell("grep -Hli \"" <> search_text <> "\" *.txt", cd: watch_directory) do
+    # Change to the watch directory and run grep with line numbers
+    case System.shell("grep -Hn \"" <> search_text <> "\" *.txt", cd: watch_directory) do
       {output, 0} ->
+        # Parse the output to extract filename and line numbers
+        results = parse_grep_output(output)
         conn
-        |> put_resp_content_type("text/plain")
-        |> send_resp(200, output)
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(results))
       {output, exit_code} when exit_code > 1 ->
         conn
         |> put_status(:internal_server_error)
-        |> put_resp_content_type("text/plain")
-        |> send_resp(500, "Error running grep: #{output}")
+        |> put_resp_content_type("application/json")
+        |> send_resp(500, Jason.encode!(%{error: "Error running grep: #{output}"}))
       {_output, 1} ->
         # grep returns 1 when no matches found, which is not an error
         conn
-        |> put_resp_content_type("text/plain")
-        |> send_resp(200, "")
+        |> put_resp_content_type("application/json")
+        |> send_resp(200, Jason.encode!(%{}))
     end
+  end
+
+  defp parse_grep_output(output) do
+    output
+    |> String.split("\n")
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.reduce(%{}, fn line, acc ->
+      case Regex.run(~r/([^:]+)\.txt:(\d+):(.+)/, line) do
+        [_, filename, line_num, _content] ->
+          filename = String.trim(filename)
+          line_num = String.to_integer(line_num)
+
+          Map.update(acc, filename, [line_num], fn existing_lines ->
+            [line_num | existing_lines]
+          end)
+        _ ->
+          acc
+      end
+    end)
+    |> Map.new(fn {filename, lines} -> {filename, Enum.sort(Enum.uniq(lines))} end)
   end
 
   def regenerate(conn, %{"filename" => filename}) do

@@ -9,6 +9,7 @@ interface TranscriptViewProps {
   text?: string;
   loading?: boolean;
   error?: string | null;
+  visibleLines?: number[];
 }
 
 // Extend Window interface for our custom handlers
@@ -27,11 +28,8 @@ interface TranscriptBlockData {
   text: string;
   visible: boolean;
   isSearchResult?: boolean;
-  contextBefore?: number;
-  contextAfter?: number;
   originalIndex?: number;
-  hasMoreBefore?: boolean;
-  hasMoreAfter?: boolean;
+  lineNumbers: number[];
 }
 
 const TranscriptView: React.FC<TranscriptViewProps> = ({
@@ -41,7 +39,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   searchTerm = '',
   text = '',
   loading = false,
-  error = null
+  error = null,
+  visibleLines = []
 }) => {
   if (!visible) {
     return null;
@@ -49,7 +48,6 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
   const [hoveredTimestamp, setHoveredTimestamp] = React.useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = React.useState<string | null>(null);
-  const [expandedContext, setExpandedContext] = React.useState<Record<number, {before: number, after: number}>>({});
 
   // Convert timestamp format 00:00:00.000 to seconds
   const timestampToSeconds = (timestamp: string): number => {
@@ -75,22 +73,6 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     setThumbnailUrl(null);
   };
 
-  // Handle context expansion
-  const handleExpandContext = (blockIndex: number, direction: 'before' | 'after') => {
-    setExpandedContext(prev => {
-      const current = prev[blockIndex] || { before: 0, after: 0 };
-      const newContext = { ...current };
-      
-      if (direction === 'before') {
-        newContext.before = Math.min(newContext.before + 5, 20); // Max 20 lines before
-      } else {
-        newContext.after = Math.min(newContext.after + 5, 20); // Max 20 lines after
-      }
-      
-      return { ...prev, [blockIndex]: newContext };
-    });
-  };
-
   // Check if a line contains two timestamps in the format "time1 --> time2"
   const hasTimeRange = (line: string): { hasRange: boolean; time1?: string; time2?: string } => {
     const timestampRegex = /\d{2}:\d{2}:\d{2}\.\d{3}/g;
@@ -110,12 +92,12 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   };
 
   // Parse text into transcript blocks
-  const parseTranscriptBlocks = (text: string, searchTerm: string): TranscriptBlockData[] => {
+  const parseTranscriptBlocks = (text: string, visibleLines: number[]): TranscriptBlockData[] => {
     const lines = text.split('\n');
     const allBlocks: TranscriptBlockData[] = [];
     const searchTermLower = searchTerm.toLowerCase();
 
-    // First pass: create all blocks with their original indices
+    // First pass: create all blocks with their original indices and line numbers
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
@@ -130,14 +112,17 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
           if (nextLine) {
             const textLower = nextLine.toLowerCase();
             const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
+            const lineNumbers = [i + 1, i + 2]; // Timestamp line and text line
+            const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
             
             allBlocks.push({
               startTime: timeRangeInfo.time1,
               endTime: timeRangeInfo.time2,
               text: nextLine,
-              visible: !searchTerm || isSearchResult,
+              visible: isVisible,
               isSearchResult,
-              originalIndex: allBlocks.length
+              originalIndex: allBlocks.length,
+              lineNumbers
             });
             
             // Skip the next line since we've already processed it
@@ -147,80 +132,36 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
           // Same start and end time, treat as regular text
           const textLower = line.toLowerCase();
           const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
+          const lineNumbers = [i + 1];
+          const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
           
           allBlocks.push({
             text: line,
-            visible: !searchTerm || isSearchResult,
+            visible: isVisible,
             isSearchResult,
-            originalIndex: allBlocks.length
+            originalIndex: allBlocks.length,
+            lineNumbers
           });
         }
       } else {
         // Regular text line
         const textLower = line.toLowerCase();
         const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
+        const lineNumbers = [i + 1];
+        const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
         
         allBlocks.push({
           text: line,
-          visible: !searchTerm || isSearchResult,
+          visible: isVisible,
           isSearchResult,
-          originalIndex: allBlocks.length
+          originalIndex: allBlocks.length,
+          lineNumbers
         });
       }
     }
 
-    // If no search term, return all blocks as visible
-    if (!searchTerm) {
-      return allBlocks;
-    }
-
-    // Second pass: add context blocks around search results
-    const resultBlocks: TranscriptBlockData[] = [];
-
-    for (let i = 0; i < allBlocks.length; i++) {
-      const block = allBlocks[i];
-      
-      if (block.isSearchResult) {
-        const contextBefore = expandedContext[block.originalIndex!]?.before || 0;
-        const contextAfter = expandedContext[block.originalIndex!]?.after || 0;
-        
-        // Check if there are more blocks available before the current context
-        // When no context is expanded, check if there are any blocks before this search result
-        const hasMoreBefore = contextBefore > 0 ? i > contextBefore : i > 1;
-        
-        // Check if there are more blocks available after the current context
-        // When no context is expanded, check if there are any blocks after this search result
-        const hasMoreAfter = contextAfter > 0 ? i + contextAfter + 1 < allBlocks.length : i + 1 < allBlocks.length;
-        
-        // Add context blocks before this search result
-        if (contextBefore > 0) {
-          const startIndex = Math.max(0, i - contextBefore);
-          for (let j = startIndex; j < i; j++) {
-            const contextBlock = { ...allBlocks[j], visible: true, isSearchResult: false };
-            resultBlocks.push(contextBlock);
-          }
-        }
-        
-        // Add the search result block with context availability info
-        const searchResultBlock = {
-          ...block,
-          hasMoreBefore,
-          hasMoreAfter
-        };
-        resultBlocks.push(searchResultBlock);
-        
-        // Add context blocks after this search result
-        if (contextAfter > 0) {
-          const endIndex = Math.min(allBlocks.length, i + contextAfter + 1);
-          for (let j = i + 1; j < endIndex; j++) {
-            const contextBlock = { ...allBlocks[j], visible: true, isSearchResult: false };
-            resultBlocks.push(contextBlock);
-          }
-        }
-      }
-    }
-
-    return resultBlocks;
+    // Return all blocks - visibility is handled by the visible property
+    return allBlocks;
   };
 
   // Set up global handlers for the dynamically created links
@@ -235,8 +176,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
   // Parse the transcript into blocks
   const transcriptBlocks = React.useMemo(() => 
-    parseTranscriptBlocks(text, searchTerm), 
-    [text, searchTerm, expandedContext]
+    parseTranscriptBlocks(text, visibleLines), 
+    [text, visibleLines]
   );
 
   return (
@@ -259,85 +200,18 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
           {transcriptBlocks.length > 0 && (<div className="space-y-2">
             {transcriptBlocks.map((block, index) => (
               <div key={`${block.originalIndex}-${index}`}>
-                {/* Up caret for expanding context before */}
-                {block.isSearchResult && block.hasMoreBefore && (
-                      <div className="flex justify-center mb-2">
-                        <button
-                          onClick={() => handleExpandContext(block.originalIndex!, 'before')}
-                          className="text-gray-500 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-50"
-                          title="Show more context above"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    )}
-                    
-                    {/* Show indicator when no more context above */}
-                    {block.isSearchResult && !block.hasMoreBefore && (
-                      <div className="flex justify-center mb-2">
-                        <div className="text-xs text-gray-400 px-2 py-1 bg-gray-50 rounded-full">
-                          Beginning of transcript
-                        </div>
-                      </div>
-                    )}
+                <TranscriptBlock
+                  startTime={block.startTime}
+                  endTime={block.endTime}
+                  visible={block.visible}
+                  text={block.text}
+                  name={name}
+                  isSearchResult={block.isSearchResult}
+                />
               </div>
             ))}
           </div>)}
 
-            {transcriptBlocks.length > 0 && (
-              <div className="space-y-2">
-                {transcriptBlocks.map((block, index) => (
-                  <div key={`${block.originalIndex}-${index}`}>
-                    
-                    
-                    <TranscriptBlock
-                      startTime={block.startTime}
-                      endTime={block.endTime}
-                      visible={block.visible}
-                      text={block.text}
-                      name={name}
-                      isSearchResult={block.isSearchResult}
-                    />
-                    
-                    
-                  </div>
-                ))}
-              </div>
-            )}
-
-
-          {transcriptBlocks.length > 0 && (<div className="space-y-2">
-            {transcriptBlocks.map((block, index) => (
-              <div key={`${block.originalIndex}-${index}`}>
-                {/* Show indicator when no more context below */}
-                    {block.isSearchResult && !block.hasMoreAfter && (
-                      <div className="flex justify-center mt-2">
-                        <div className="text-xs text-gray-400 px-2 py-1 bg-gray-50 rounded-full">
-                          End of transcript
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Down caret for expanding context after */}
-                    {block.isSearchResult && block.hasMoreAfter && (
-                      <div className="flex justify-center mt-2">
-                        <button
-                          onClick={() => handleExpandContext(block.originalIndex!, 'after')}
-                          className="text-gray-500 hover:text-blue-600 transition-colors p-2 rounded-full hover:bg-blue-50"
-                          title="Show more context below"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                      </div>
-                    )}
-              </div>
-            ))}
-          </div>)}
-            
             {/* Thumbnail overlay */}
             {(hoveredTimestamp) && thumbnailUrl && (
               <div 
