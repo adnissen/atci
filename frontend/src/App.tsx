@@ -110,10 +110,9 @@ function App() {
   })
 
   const expandContext = (filename: string, direction: "up" | "down", line: number) => {
-    console.log(filename, direction, line);
     // Get the line numbers for the file
     const fileLineNumbers = searchLineNumbers[filename]
-    
+    console.log(fileLineNumbers, line);
     if (!fileLineNumbers || !fileLineNumbers.includes(line)) {
       return
     }
@@ -122,7 +121,7 @@ function App() {
 
     if (direction === "up") {
       // Add 5 descending line numbers
-      for (let i = 1; i <= 8; i++) {
+      for (let i = 1; i <= 16; i++) {
         const prevLine = line - i
         if (prevLine > 0 && !newLineNumbers.includes(prevLine)) {
           newLineNumbers.push(prevLine)
@@ -130,7 +129,7 @@ function App() {
       }
     } else {
       // Add 5 ascending line numbers
-      for (let i = 1; i <= 5; i++) {
+      for (let i = 1; i <= 16; i++) {
         const nextLine = line + i
         if (!newLineNumbers.includes(nextLine)) {
           newLineNumbers.push(nextLine)

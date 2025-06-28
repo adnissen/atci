@@ -211,10 +211,11 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
     // If there are hidden blocks at the end, add a final message
     if (hiddenCount > 0) {
-      // Get the last visible block to determine the line number for the final message
-      const lastVisibleBlock = transcriptBlocks.slice().reverse().find(block => block.visible);
-      const lastVisibleLine = lastVisibleBlock?.lineNumbers[lastVisibleBlock.lineNumbers.length - 1] || transcriptBlocks[transcriptBlocks.length - 1].lineNumbers[0];
-      result.push({ type: 'message', data: { count: hiddenCount, line: lastVisibleLine, direction: "down" } });
+      // For "down" expansion, use a line number that's guaranteed to be in the current visible lines
+      // Use the last line number from the sorted visible lines array
+      const sortedVisibleLines = [...visibleLines].sort((a, b) => b - a); // Sort descending
+      const downExpansionLine = sortedVisibleLines.length > 0 ? sortedVisibleLines[0] : transcriptBlocks[transcriptBlocks.length - 1].lineNumbers[0];
+      result.push({ type: 'message', data: { count: hiddenCount, line: downExpansionLine, direction: "down" } });
     }
 
     return result;
