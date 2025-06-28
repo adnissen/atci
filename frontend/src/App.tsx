@@ -109,6 +109,42 @@ function App() {
     }
   })
 
+  const expandContext = (filename: string, direction: "up" | "down", line: number) => {
+    console.log(filename, direction, line);
+    // Get the line numbers for the file
+    const fileLineNumbers = searchLineNumbers[filename]
+    
+    if (!fileLineNumbers || !fileLineNumbers.includes(line)) {
+      return
+    }
+
+    const newLineNumbers = [...fileLineNumbers]
+
+    if (direction === "up") {
+      // Add 5 descending line numbers
+      for (let i = 1; i <= 8; i++) {
+        const prevLine = line - i
+        if (prevLine > 0 && !newLineNumbers.includes(prevLine)) {
+          newLineNumbers.push(prevLine)
+        }
+      }
+    } else {
+      // Add 5 ascending line numbers
+      for (let i = 1; i <= 5; i++) {
+        const nextLine = line + i
+        if (!newLineNumbers.includes(nextLine)) {
+          newLineNumbers.push(nextLine)
+        }
+      }
+    }
+
+    // Update the search line numbers
+    setSearchLineNumbers(prev => ({
+      ...prev,
+      [filename]: newLineNumbers
+    }))
+  }
+
   // Handle sort column click
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -692,6 +728,7 @@ function App() {
                     loading={transcriptInfo.loading}
                     error={transcriptInfo.error}
                     visibleLines={searchLineNumbers[file.name] || []}
+                    expandContext={expandContext}
                   />
                 </TableCell>
                 </TableRow>

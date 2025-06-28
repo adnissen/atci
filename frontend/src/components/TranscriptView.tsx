@@ -10,6 +10,7 @@ interface TranscriptViewProps {
   loading?: boolean;
   error?: string | null;
   visibleLines?: number[];
+  expandContext: (filename: string, direction: "up" | "down", line: number) => void;
 }
 
 // Extend Window interface for our custom handlers
@@ -40,7 +41,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   text = '',
   loading = false,
   error = null,
-  visibleLines = []
+  visibleLines = [],
+  expandContext
 }) => {
   if (!visible) {
     return null;
@@ -180,6 +182,48 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     [text, visibleLines]
   );
 
+  // Process blocks to add "x lines..." messages between visible blocks
+  const processedBlocks = React.useMemo(() => {
+    if (visibleLines.length === 0) {
+      // If no visible lines filter, return all blocks as is
+      return transcriptBlocks.map(block => ({ type: 'block' as const, data: block }));
+    }
+
+    const result: Array<{ type: 'block' | 'message'; data: TranscriptBlockData | { count: number, line: number, direction: "up" | "down" } }> = [];
+    let hiddenCount = 0;
+
+    for (let i = 0; i < transcriptBlocks.length; i++) {
+      const block = transcriptBlocks[i];
+      
+      if (block.visible) {
+        // If we have accumulated hidden blocks, add a message
+        if (hiddenCount > 0) {
+          result.push({ type: 'message', data: { count: hiddenCount, line: block.lineNumbers[block.lineNumbers.length - 1], direction: "up" } });
+          hiddenCount = 0;
+        }
+        // Add the visible block
+        result.push({ type: 'block', data: block });
+      } else {
+        // Count hidden blocks
+        hiddenCount += block.lineNumbers.length;
+      }
+    }
+
+    // If there are hidden blocks at the end, add a final message
+    if (hiddenCount > 0) {
+      // Get the last visible block to determine the line number for the final message
+      const lastVisibleBlock = transcriptBlocks.slice().reverse().find(block => block.visible);
+      const lastVisibleLine = lastVisibleBlock?.lineNumbers[lastVisibleBlock.lineNumbers.length - 1] || transcriptBlocks[transcriptBlocks.length - 1].lineNumbers[0];
+      result.push({ type: 'message', data: { count: hiddenCount, line: lastVisibleLine, direction: "down" } });
+    }
+
+    return result;
+  }, [transcriptBlocks, visibleLines]);
+
+  const handleExpandClick = (line: number, direction: "up" | "down") => {
+    expandContext(name, direction, line);
+  }
+
   return (
     <div className={`w-full p-6 bg-white ${className}`}>
       <div className="space-y-4">
@@ -198,16 +242,22 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
             )}
 
           {transcriptBlocks.length > 0 && (<div className="space-y-2">
-            {transcriptBlocks.map((block, index) => (
-              <div key={`${block.originalIndex}-${index}`}>
-                <TranscriptBlock
-                  startTime={block.startTime}
-                  endTime={block.endTime}
-                  visible={block.visible}
-                  text={block.text}
-                  name={name}
-                  isSearchResult={block.isSearchResult}
-                />
+            {processedBlocks.map((item, index) => (
+              <div key={item.type === 'block' ? `${(item.data as TranscriptBlockData).originalIndex}-${index}` : `message-${index}`}>
+                {item.type === 'block' ? (
+                  <TranscriptBlock
+                    startTime={(item.data as TranscriptBlockData).startTime}
+                    endTime={(item.data as TranscriptBlockData).endTime}
+                    visible={(item.data as TranscriptBlockData).visible}
+                    text={(item.data as TranscriptBlockData).text}
+                    name={name}
+                    isSearchResult={(item.data as TranscriptBlockData).isSearchResult}
+                  />
+                ) : (
+                  <div className="text-gray-500 italic" onClick={() => handleExpandClick((item.data as { count: number, line: number, direction: "up" | "down" }).line, (item.data as { count: number, line: number, direction: "up" | "down" }).direction)}>
+                    {(item.data as { count: number, line: number, direction: "up" | "down" }).count} lines hidden
+                  </div>
+                )}
               </div>
             ))}
           </div>)}
