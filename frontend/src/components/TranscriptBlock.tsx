@@ -91,7 +91,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
         </div>
       )}
       <div 
-        className="text-gray-800 font-mono text-sm leading-relaxed"
+        className="text-gray-800 font-mono text-sm leading-relaxed whitespace-pre-wrap break-words"
         dangerouslySetInnerHTML={{ __html: processedText }}
       />
     </div>

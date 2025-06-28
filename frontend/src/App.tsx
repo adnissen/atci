@@ -28,6 +28,9 @@ function App() {
     error: string | null
   }
   
+  type SortColumn = 'created_at' | 'last_generated' | 'name' | 'line_count' | 'length'
+  type SortDirection = 'asc' | 'desc'
+  
   const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
@@ -39,11 +42,109 @@ function App() {
   const [watchDirectory, setWatchDirectory] = useState<string>('')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
+  const [sortColumn, setSortColumn] = useState<SortColumn>('created_at')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
   // Calculate search results from search line numbers
   const searchResults = Object.keys(searchLineNumbers).filter(filename => 
     searchLineNumbers[filename] && searchLineNumbers[filename].length > 0
   )
+
+  // Sort files based on current sort column and direction
+  const sortedFiles = [...files].sort((a, b) => {
+    let aValue: any
+    let bValue: any
+    
+    switch (sortColumn) {
+      case 'created_at':
+        aValue = a.created_at || ''
+        bValue = b.created_at || ''
+        break
+      case 'last_generated':
+        aValue = a.last_generated || ''
+        bValue = b.last_generated || ''
+        break
+      case 'name':
+        aValue = a.name || ''
+        bValue = b.name || ''
+        break
+      case 'line_count':
+        aValue = a.line_count || 0
+        bValue = b.line_count || 0
+        break
+      case 'length':
+        aValue = a.length || '0:00'
+        bValue = b.length || '0:00'
+        break
+      default:
+        return 0
+    }
+    
+    // Handle date sorting
+    if (sortColumn === 'created_at' || sortColumn === 'last_generated') {
+      const dateA = new Date(aValue.replace(' ', 'T')).getTime()
+      const dateB = new Date(bValue.replace(' ', 'T')).getTime()
+      
+      if (sortDirection === 'asc') {
+        return dateA - dateB
+      } else {
+        return dateB - dateA
+      }
+    }
+    
+    // Handle string sorting
+    if (typeof aValue === 'string' && typeof bValue === 'string') {
+      if (sortDirection === 'asc') {
+        return aValue.localeCompare(bValue)
+      } else {
+        return bValue.localeCompare(aValue)
+      }
+    }
+    
+    // Handle number sorting
+    if (sortDirection === 'asc') {
+      return aValue - bValue
+    } else {
+      return bValue - aValue
+    }
+  })
+
+  // Handle sort column click
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      // Toggle direction if same column
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      // Set new column with default direction
+      setSortColumn(column)
+      setSortDirection('asc')
+    }
+  }
+
+  // Get sort indicator for header
+  const getSortIndicator = (column: SortColumn) => {
+    if (sortColumn !== column) {
+      return (
+        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      )
+    }
+    
+    if (sortDirection === 'asc') {
+      return (
+        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+        </svg>
+      )
+    } else {
+      return (
+        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      )
+    }
+  }
 
   // Function to format date from YYYY-MM-DD HH:MM:SS to MM-DD-YYYY x:xxpm
   const formatDate = (dateString: string): string => {
@@ -212,7 +313,6 @@ function App() {
       const lineNumbersResponse = await fetch(`/grep/${encodeURIComponent(searchTerm.trim())}`)
       if (lineNumbersResponse.ok) {
         const lineNumbersData = await lineNumbersResponse.json()
-        console.log(lineNumbersData)
         setSearchLineNumbers(lineNumbersData)
         
         // Automatically expand files that contain search results
@@ -409,21 +509,59 @@ function App() {
           <Table className="table-fixed w-full">
             <TableHeader>
               <TableRow>
-                <TableHead className="text-center w-1/6">
-                  Filename
+                <TableHead 
+                  className="text-center w-1/6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => handleSort('name')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Filename
+                    {getSortIndicator('name')}
+                  </div>
                   {searchTerm && searchResults.length > 0 && (
                     <span className="text-xs text-green-600 ml-2">(Search Results)</span>
                   )}
                 </TableHead>
-                <TableHead className="text-center w-1/6">Date</TableHead>
-                <TableHead className="text-center w-1/6 pl-14">Last Generated</TableHead>
-                <TableHead className="text-center w-1/6">Lines</TableHead>
-                <TableHead className="text-center w-1/6">Length</TableHead>
+                <TableHead 
+                  className="text-center w-1/6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => handleSort('created_at')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Date
+                    {getSortIndicator('created_at')}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-center w-1/6 pl-14 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => handleSort('last_generated')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Last Generated
+                    {getSortIndicator('last_generated')}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-center w-1/6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => handleSort('line_count')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Lines
+                    {getSortIndicator('line_count')}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="text-center w-1/6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => handleSort('length')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Length
+                    {getSortIndicator('length')}
+                  </div>
+                </TableHead>
                 <TableHead className="text-center w-1/6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {files.map((file, index) => {
+              {sortedFiles.map((file, index) => {
                 if (searchTerm != '' && !searchResults.includes(file.name)) {
                   return <></>;
                 }
