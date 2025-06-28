@@ -78,7 +78,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   // Check if a line contains two timestamps in the format "time1 --> time2"
   const hasTimeRange = (line: string): { hasRange: boolean; time1?: string; time2?: string } => {
     const timestampRegex = /\d{2}:\d{2}:\d{2}\.\d{3}/g;
-    const timestamps = [...new Set(line.match(timestampRegex))];
+    const timestamps = line.match(timestampRegex);
     if (timestamps && timestamps.length >= 2) {
       // Check if the line contains "-->"
       if (line.includes('-->')) {
@@ -108,28 +108,26 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
       
       if (timeRangeInfo.hasRange && timeRangeInfo.time1 && timeRangeInfo.time2) {
         // Check if start and end times are different
-        if (timeRangeInfo.time1 !== timeRangeInfo.time2) {
-          // This is a timestamp line, get the next line as text
-          const nextLine = i < lines.length - 1 ? lines[i + 1].trim() : '';
-          if (nextLine) {
-            const textLower = nextLine.toLowerCase();
-            const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
-            const lineNumbers = [i + 1, i + 2]; // Timestamp line and text line
-            const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
-            
-            allBlocks.push({
-              startTime: timeRangeInfo.time1,
-              endTime: timeRangeInfo.time2,
-              text: nextLine,
-              visible: isVisible,
-              isSearchResult,
-              originalIndex: allBlocks.length,
-              lineNumbers
-            });
-            
-            // Skip the next line since we've already processed it
-            i++;
-          }
+        // This is a timestamp line, get the next line as text
+        const nextLine = i < lines.length - 1 ? lines[i + 1].trim() : '';
+        if (nextLine) {
+          const textLower = nextLine.toLowerCase();
+          const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
+          const lineNumbers = [i + 1, i + 2]; // Timestamp line and text line
+          const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
+          
+          allBlocks.push({
+            startTime: timeRangeInfo.time1,
+            endTime: timeRangeInfo.time2,
+            text: nextLine,
+            visible: isVisible,
+            isSearchResult,
+            originalIndex: allBlocks.length,
+            lineNumbers
+          });
+          
+          // Skip the next line since we've already processed it
+          i++;
         } else {
           // Same start and end time, treat as regular text
           const textLower = line.toLowerCase();
@@ -253,6 +251,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     text={(item.data as TranscriptBlockData).text}
                     name={name}
                     isSearchResult={(item.data as TranscriptBlockData).isSearchResult}
+                    lineNumbers={(item.data as TranscriptBlockData).lineNumbers}
                   />
                 ) : (
                   <div className="text-gray-500 italic" onClick={() => handleExpandClick((item.data as { count: number, line: number, direction: "up" | "down" }).line, (item.data as { count: number, line: number, direction: "up" | "down" }).direction)}>
