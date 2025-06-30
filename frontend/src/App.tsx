@@ -9,6 +9,7 @@ import {
 import './App.css'
 import TranscriptView from './components/TranscriptView'
 import ConfigSetup from './components/ConfigSetup'
+import ConfigEditor from './components/ConfigEditor'
 import { useEffect, useState } from 'react'
 
 function App() {
@@ -34,6 +35,7 @@ function App() {
   
   // Configuration state
   const [configComplete, setConfigComplete] = useState<boolean | null>(null) // null = loading, false = incomplete, true = complete
+  const [isConfigEditorOpen, setIsConfigEditorOpen] = useState(false)
   
   const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
@@ -403,9 +405,7 @@ function App() {
     }
   }
 
-  const handleKeyPress = () => {
-    handleSearch()
-  }
+
 
   const handleRegenerate = async (filename: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent row expansion
@@ -508,6 +508,19 @@ function App() {
     setConfigComplete(true)
   }
 
+  const handleConfigUpdate = async () => {
+    // Refresh the watch directory after config update
+    try {
+      const response = await fetch('/watch_directory')
+      if (response.ok) {
+        const data = await response.text()
+        setWatchDirectory(data)
+      }
+    } catch (error) {
+      console.error('Error fetching updated watch directory:', error)
+    }
+  }
+
   // Show loading while checking configuration
   if (configComplete === null) {
     return (
@@ -529,15 +542,24 @@ function App() {
       {/* Watch Directory Bar - Fixed to top */}
       {watchDirectory && (
         <div className="fixed top-0 left-0 right-0 bg-gray-100 border-b border-gray-200 px-4 py-2 z-10">
-          <div className="container mx-auto">
-            <div className="flex gap-6 justify-between items-center">
-              <div className="flex-1">
-                <div className="flex gap-2 max-w-md">
-                  <div className="text-sm text-gray-700 font-medium text-left">
-                    Directory: {watchDirectory}
+                      <div className="container mx-auto">
+              <div className="flex gap-6 justify-between items-center">
+                <div className="flex-1">
+                  <div className="flex gap-2 items-center max-w-md">
+                    <button
+                      onClick={() => setIsConfigEditorOpen(true)}
+                      className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                      title="Edit configuration"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </button>
+                    <div className="text-sm text-gray-700 font-medium text-left">
+                      Directory: {watchDirectory}
+                    </div>
                   </div>
                 </div>
-              </div>
               <div className="flex gap-4 items-center">
                 {currentProcessingFile && (
                   <div className="text-sm text-blue-700 font-medium">
@@ -792,6 +814,13 @@ function App() {
           </Table>
         </div>
       </div>
+
+      {/* Config Editor Modal */}
+      <ConfigEditor
+        isOpen={isConfigEditorOpen}
+        onClose={() => setIsConfigEditorOpen(false)}
+        onConfigUpdate={handleConfigUpdate}
+      />
     </div>
   )
 }
