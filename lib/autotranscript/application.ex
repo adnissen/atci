@@ -6,7 +6,8 @@ defmodule Autotranscript.Application do
     children = [
       {Autotranscript.VideoProcessor, []},
       {Autotranscript.Transcriber, []},
-      {Autotranscript.Web.Endpoint, []}
+      {Autotranscript.Web.Endpoint, []},
+      {Cachex, [:config_cache]}
     ]
     opts = [strategy: :one_for_one, name: Autotranscript.Supervisor]
     Supervisor.start_link(children, opts)
