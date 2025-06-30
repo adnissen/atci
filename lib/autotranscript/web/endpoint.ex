@@ -1,6 +1,6 @@
 defmodule Autotranscript.Web.Endpoint do
   use Phoenix.Endpoint, otp_app: :autotranscript,
-    render_errors: [formats: [html: Autotranscript.ErrorView], layout: false]
+    render_errors: [formats: [html: Autotranscript.Web.ErrorView], layout: false]
 
   # Serve static files from "/priv/static" at "/"
   plug Plug.Static,

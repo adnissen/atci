@@ -1,4 +1,4 @@
-defmodule Autotranscript.ErrorView do
+defmodule Autotranscript.Web.ErrorView do
   use Autotranscript.Web, :html
 
   # If you want to customize the layout for error pages, you can specify it here.
@@ -63,7 +63,16 @@ defmodule Autotranscript.ErrorView do
     """
   end
 
-  # Optionally, handle other status codes (404, etc.)
+  # Handle JSON error responses
+  def render("404.json", _assigns) do
+    %{error: "Not found"}
+  end
+
+  def render("500.json", _assigns) do
+    %{error: "Internal server error"}
+  end
+
+  # Fallback for other templates
   def render(template, _assigns) do
     Phoenix.Controller.status_message_from_template(template)
   end
