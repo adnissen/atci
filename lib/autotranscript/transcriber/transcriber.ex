@@ -10,6 +10,14 @@ defmodule Autotranscript.Transcriber do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
+  @doc """
+  Starts directory watching after configuration is available.
+  Called when configuration is set through the web interface.
+  """
+  def start_watching do
+    GenServer.call(__MODULE__, :start_watching)
+  end
+
   @impl true
   def init(:ok) do
     check_for_videos_with_missing_files_and_add_to_queue()
@@ -20,17 +28,38 @@ defmodule Autotranscript.Transcriber do
         {:ok, %{timer_ref: timer_ref}}
 
       {:error, reason} ->
-        Logger.error("Failed to start directory watcher: #{inspect(reason)}")
-        {:stop, reason}
+        Logger.warning("Directory watcher not started: #{inspect(reason)}. Waiting for configuration.")
+        # Don't stop the GenServer, just start without a timer
+        # The web app needs to be available for configuration
+        {:ok, %{timer_ref: nil}}
     end
   end
 
   @impl true
   def handle_info(:check_directory, state) do
     check_for_videos_with_missing_files_and_add_to_queue()
-    # Schedule the next check in 2 seconds
-    timer_ref = Process.send_after(self(), :check_directory, 2000)
-    {:noreply, %{state | timer_ref: timer_ref}}
+    
+    # Only schedule the next check if we have a valid configuration
+    case watch_directory() do
+      {:ok, timer_ref} when timer_ref != nil ->
+        {:noreply, %{state | timer_ref: timer_ref}}
+      _ ->
+        # Configuration not available, don't schedule next check
+        {:noreply, %{state | timer_ref: nil}}
+    end
+  end
+
+  @impl true
+  def handle_call(:start_watching, _from, state) do
+    # Try to start directory watching
+    case watch_directory() do
+      {:ok, timer_ref} ->
+        Logger.info("Directory watching started after configuration update")
+        {:reply, :ok, %{state | timer_ref: timer_ref}}
+      {:error, reason} ->
+        Logger.warning("Failed to start directory watching: #{inspect(reason)}")
+        {:reply, {:error, reason}, state}
+    end
   end
 
   def check_for_videos_with_missing_files_and_add_to_queue do

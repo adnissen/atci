@@ -1,5 +1,6 @@
 defmodule Autotranscript.Web.ConfigController do
   use Autotranscript.Web, :controller
+  require Logger
   
   alias Autotranscript.ConfigManager
   
@@ -33,25 +34,33 @@ defmodule Autotranscript.Web.ConfigController do
     
     # Validate the parameters
     case validate_config(config_params) do
-      {:ok, validated_config} ->
-        case ConfigManager.save_config(validated_config) do
-          {:ok, _config_path} ->
-            conn
-            |> put_resp_content_type("application/json")
-            |> send_resp(200, Jason.encode!(%{
-              success: true,
-              message: "Configuration saved successfully",
-              config: validated_config
-            }))
-          {:error, reason} ->
-            conn
-            |> put_status(:internal_server_error)
-            |> put_resp_content_type("application/json")
-            |> send_resp(500, Jason.encode!(%{
-              success: false,
-              message: "Failed to save configuration: #{inspect(reason)}"
-            }))
-        end
+        {:ok, validated_config} ->
+          case ConfigManager.save_config(validated_config) do
+            {:ok, _config_path} ->
+              # Try to start directory watching now that configuration is available
+              case Autotranscript.Transcriber.start_watching() do
+                :ok ->
+                  Logger.info("Directory watching started after configuration update")
+                {:error, reason} ->
+                  Logger.warning("Could not start directory watching: #{inspect(reason)}")
+              end
+              
+              conn
+              |> put_resp_content_type("application/json")
+              |> send_resp(200, Jason.encode!(%{
+                success: true,
+                message: "Configuration saved successfully",
+                config: validated_config
+              }))
+            {:error, reason} ->
+              conn
+              |> put_status(:internal_server_error)
+              |> put_resp_content_type("application/json")
+              |> send_resp(500, Jason.encode!(%{
+                success: false,
+                message: "Failed to save configuration: #{inspect(reason)}"
+              }))
+          end
       {:error, errors} ->
         conn
         |> put_status(:bad_request)
