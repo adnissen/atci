@@ -518,6 +518,8 @@ function App() {
     } catch (error) {
       console.error('Error fetching updated watch directory:', error)
     }
+    // Close the config editor
+    setIsConfigEditorOpen(false)
   }
 
   // Show loading while checking configuration
@@ -534,6 +536,11 @@ function App() {
   // Show configuration setup if not complete
   if (configComplete === false) {
     return <ConfigSetup onConfigComplete={handleConfigComplete} />
+  }
+
+  // Show configuration editor if requested
+  if (isConfigEditorOpen) {
+    return <ConfigSetup onConfigComplete={handleConfigUpdate} isEditMode={true} />
   }
 
   return (
@@ -814,14 +821,7 @@ function App() {
         </div>
       </div>
 
-      {/* Config Editor Modal */}
-      {isConfigEditorOpen && (
-        <ConfigSetup
-          onConfigComplete={handleConfigUpdate}
-          isModal={true}
-          onClose={() => setIsConfigEditorOpen(false)}
-        />
-      )}
+      
     </div>
   )
 }

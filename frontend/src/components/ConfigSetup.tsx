@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 interface ConfigSetupProps {
   onConfigComplete: () => void;
-  isModal?: boolean;
-  onClose?: () => void;
+  isEditMode?: boolean;
 }
 
 interface ConfigData {
@@ -12,7 +11,7 @@ interface ConfigData {
   model_path: string;
 }
 
-const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isModal = false, onClose }) => {
+const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode = false }) => {
   const [config, setConfig] = useState<ConfigData>({
     watch_directory: '',
     whispercli_path: '',
@@ -23,12 +22,12 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isModal = f
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // Fetch existing configuration when in modal mode
+  // Fetch existing configuration when in edit mode
   useEffect(() => {
-    if (isModal) {
+    if (isEditMode) {
       fetchCurrentConfig();
     }
-  }, [isModal]);
+  }, [isEditMode]);
 
   const fetchCurrentConfig = async () => {
     setIsLoading(true);
@@ -78,31 +77,20 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isModal = f
       const result = await response.json();
 
       if (response.ok && result.success) {
-        const message = isModal ? 'Configuration updated successfully!' : 'Configuration saved successfully!';
+        const message = isEditMode ? 'Configuration updated successfully!' : 'Configuration saved successfully!';
         setSuccessMessage(message);
         setTimeout(() => {
           onConfigComplete();
-          if (isModal && onClose) {
-            onClose();
-          }
         }, 1500);
       } else {
-        const errorMessage = isModal ? 'Failed to update configuration' : 'Failed to save configuration';
+        const errorMessage = isEditMode ? 'Failed to update configuration' : 'Failed to save configuration';
         setErrors(result.errors || [result.message || errorMessage]);
       }
     } catch {
-      const errorMessage = isModal ? 'Network error: Failed to update configuration' : 'Network error: Failed to save configuration';
+      const errorMessage = isEditMode ? 'Network error: Failed to update configuration' : 'Network error: Failed to save configuration';
       setErrors([errorMessage]);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleClose = () => {
-    if (onClose) {
-      setErrors([]);
-      setSuccessMessage('');
-      onClose();
     }
   };
 
@@ -182,80 +170,36 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isModal = f
         </div>
       )}
 
-      {isModal ? (
-        <div className="flex gap-3 pt-4">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      ) : (
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? 'Saving...' : 'Save Configuration'}
-        </button>
-      )}
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isSubmitting ? 'Saving...' : (isEditMode ? 'Update Configuration' : 'Save Configuration')}
+      </button>
     </form>
   );
 
-  // Modal wrapper for editing mode
-  if (isModal) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center px-4 z-50">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-gray-900">
-              Edit Configuration
-            </h2>
-            <button
-              onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {isLoading ? (
-            <div className="text-center py-8">
-              <div className="text-gray-600">Loading configuration...</div>
-            </div>
-          ) : (
-            renderForm()
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  // Full-screen setup mode
+  // Always render in full-screen mode
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-md p-6">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Autotranscript Setup
+            {isEditMode ? 'Edit Configuration' : 'Autotranscript Setup'}
           </h1>
           <p className="text-gray-600">
-            Configure the required paths to get started
+            {isEditMode ? 'Update your configuration settings' : 'Configure the required paths to get started'}
           </p>
         </div>
 
-        {renderForm()}
+        {isLoading ? (
+          <div className="text-center py-8">
+            <div className="text-gray-600">Loading configuration...</div>
+          </div>
+        ) : (
+          renderForm()
+        )}
 
         <div className="mt-6 text-center">
           <p className="text-xs text-gray-500">
