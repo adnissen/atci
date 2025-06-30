@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 
 interface ConfigSetupProps {
   onConfigComplete: () => void;
+  isModal?: boolean;
+  onClose?: () => void;
+  existingConfig?: ConfigData;
 }
 
 interface ConfigData {
