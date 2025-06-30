@@ -131,7 +131,7 @@ defmodule Autotranscript.Web.ConfigController do
             child_spec = case child_id do
               Autotranscript.VideoProcessor -> {Autotranscript.VideoProcessor, [atconfig: new_config]}
               Autotranscript.Transcriber -> {Autotranscript.Transcriber, [atconfig: new_config]}
-              Autotranscript.Web.Endpoint -> {Autotranscript.Web.Endpoint, [atconfig: new_config]}
+              Autotranscript.Web.Endpoint -> {Autotranscript.Web.Endpoint, []}
               _ -> {:error, :unknown_child}
             end
             
