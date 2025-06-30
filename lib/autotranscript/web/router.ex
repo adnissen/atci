@@ -43,5 +43,9 @@ defmodule Autotranscript.Web.Router do
     get "/random_frame", TranscriptController, :random_frame
     get "/clip", TranscriptController, :clip
     get "/watch_directory", TranscriptController, :watch_directory
+    
+    # Configuration endpoints
+    get "/config", ConfigController, :show
+    post "/config", ConfigController, :update
   end
 end

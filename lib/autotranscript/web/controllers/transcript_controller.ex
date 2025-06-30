@@ -11,31 +11,45 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def show(conn, %{"filename" => filename}) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
-    file_path = Path.join(watch_directory, "#{filename}.txt")
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("text/plain")
+      |> send_resp(503, "Watch directory not configured. Please configure the application first.")
+    else
+      file_path = Path.join(watch_directory, "#{filename}.txt")
 
-    case File.read(file_path) do
-      {:ok, content} ->
-        conn
-        |> put_resp_content_type("text/plain")
-        |> send_resp(200, content)
-      {:error, :enoent} ->
-        conn
-        |> put_status(:not_found)
-        |> put_resp_content_type("text/plain")
-        |> send_resp(404, "Transcript file '#{filename}' not found")
-      {:error, reason} ->
-        conn
-        |> put_status(:internal_server_error)
-        |> put_resp_content_type("text/plain")
-        |> send_resp(500, "Error reading transcript file '#{filename}': #{reason}")
+          case File.read(file_path) do
+        {:ok, content} ->
+          conn
+          |> put_resp_content_type("text/plain")
+          |> send_resp(200, content)
+        {:error, :enoent} ->
+          conn
+          |> put_status(:not_found)
+          |> put_resp_content_type("text/plain")
+          |> send_resp(404, "Transcript file '#{filename}' not found")
+        {:error, reason} ->
+          conn
+          |> put_status(:internal_server_error)
+          |> put_resp_content_type("text/plain")
+          |> send_resp(500, "Error reading transcript file '#{filename}': #{reason}")
+      end
     end
   end
   def grep(conn, %{"text" => search_text}) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
-
-    # Change to the watch directory and run grep with line numbers
-    case System.shell("grep -Hni \"" <> search_text <> "\" *.txt", cd: watch_directory) do
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("application/json")
+      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+    else
+      # Change to the watch directory and run grep with line numbers
+      case System.shell("grep -Hni \"" <> search_text <> "\" *.txt", cd: watch_directory) do
       {output, 0} ->
         # Parse the output to extract filename and line numbers
         results = parse_grep_output(output)
@@ -52,6 +66,7 @@ defmodule Autotranscript.Web.TranscriptController do
         conn
         |> put_resp_content_type("application/json")
         |> send_resp(200, Jason.encode!(%{}))
+      end
     end
   end
 
@@ -76,7 +91,7 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def regenerate(conn, %{"filename" => filename}) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
     file_path = Path.join(watch_directory, "#{filename}.txt")
 
     case File.rm(file_path) do
@@ -113,11 +128,14 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   defp get_mp4_files do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
-
-    # Get all .mp4 and .MP4 files in the watch directory
-    Path.wildcard(Path.join(watch_directory, "*.{mp4,MP4}"))
-    |> Enum.map(fn file_path ->
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    
+    if watch_directory == nil or watch_directory == "" do
+      []
+    else
+      # Get all .mp4 and .MP4 files in the watch directory
+      Path.wildcard(Path.join(watch_directory, "*.{mp4,MP4}"))
+      |> Enum.map(fn file_path ->
       case File.stat(file_path) do
         {:ok, stat} ->
           filename = Path.basename(file_path, Path.extname(file_path))
@@ -152,16 +170,23 @@ defmodule Autotranscript.Web.TranscriptController do
         {:error, _} ->
           nil
       end
-    end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.sort_by(& &1.created_at, :desc)
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.sort_by(& &1.created_at, :desc)
+    end
   end
 
   def random_frame(conn, _params) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
-
-    # Get all MP4 files in the watch directory
-    mp4_files = Path.wildcard(Path.join(watch_directory, "*.{MP4,mp4}"))
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("text/plain")
+      |> send_resp(503, "Watch directory not configured. Please configure the application first.")
+    else
+      # Get all MP4 files in the watch directory
+      mp4_files = Path.wildcard(Path.join(watch_directory, "*.{MP4,mp4}"))
 
     case mp4_files do
       [] ->
@@ -213,11 +238,12 @@ defmodule Autotranscript.Web.TranscriptController do
             |> put_resp_content_type("text/plain")
             |> send_resp(500, "Error extracting frame with ffmpeg: #{error_output}")
         end
+      end
     end
   end
 
   def player(conn, %{"filename" => filename} = _params) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Check if the video file exists
     mp4_path = Path.join(watch_directory, "#{filename}.mp4")
@@ -245,7 +271,7 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def frame_at_time(conn, %{"filename" => filename, "time" => time_str}) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Parse and validate the time parameter
     case Float.parse(time_str) do
@@ -358,7 +384,7 @@ defmodule Autotranscript.Web.TranscriptController do
     filename = query_params["filename"]
     start_time_str = query_params["start_time"]
     end_time_str = query_params["end_time"]
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Parse and validate the time parameters
     case {Float.parse(start_time_str || ""), Float.parse(end_time_str || "")} do
@@ -435,14 +461,14 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def watch_directory(conn, _params) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
     conn
     |> put_resp_content_type("text/plain")
-    |> send_resp(200, watch_directory)
+    |> send_resp(200, watch_directory || "")
   end
 
   def replace_transcript(conn, %{"filename" => filename}) do
-    watch_directory = Application.get_env(:autotranscript, :watch_directory)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
     file_path = Path.join(watch_directory, "#{filename}.txt")
     IO.inspect(conn.body_params)
     case conn.body_params do
