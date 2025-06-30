@@ -262,7 +262,12 @@ function App() {
     const checkConfiguration = async () => {
       console.log('Checking configuration...')
       try {
-        const response = await fetch('/config')
+        const response = await fetch('/config', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        })
         console.log('Config response status:', response.status)
         if (response.ok) {
           const data = await response.json()
