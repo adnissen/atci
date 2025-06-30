@@ -1,0 +1,5 @@
+{
+  "watch_directory": "/home/user/videos",
+  "whispercli_path": "/usr/local/bin/whisper",
+  "model_path": "/home/user/models/ggml-base.bin"
+}

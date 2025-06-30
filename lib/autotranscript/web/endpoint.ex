@@ -1,6 +1,6 @@
 defmodule Autotranscript.Web.Endpoint do
   use Phoenix.Endpoint, otp_app: :autotranscript,
-    render_errors: [formats: [html: Autotranscript.ErrorView], layout: false]
+    render_errors: [formats: [html: Autotranscript.Web.ErrorView], layout: false]
 
   # Serve static files from "/priv/static" at "/"
   plug Plug.Static,
@@ -10,10 +10,8 @@ defmodule Autotranscript.Web.Endpoint do
     only: ~w(index.css index.js index.html fonts images js favicon.ico robots.txt)
 
   # Serve MP4 files from watch directory at "/files/"
-  plug Plug.Static,
-    at: "/files",
-    from: Application.compile_env(:autotranscript, :watch_directory),
-    gzip: false
+  # Note: This will be dynamically handled since we moved away from compile-time config
+  # The watch directory serving will need to be handled differently
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.

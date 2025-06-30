@@ -169,15 +169,31 @@ defmodule Autotranscript.VideoProcessor do
   """
   def transcribe_audio(path) do
     if String.ends_with?(path, ".mp3") do
-      whispercli = Application.get_env(:autotranscript, :whispercli_path)
-      model = Application.get_env(:autotranscript, :model_path)
+      whispercli = Autotranscript.ConfigManager.get_config_value("whispercli_path")
+      model = Autotranscript.ConfigManager.get_config_value("model_path")
+      
+      cond do
+        whispercli == nil or whispercli == "" ->
+          Logger.error("Whisper CLI path not configured")
+          {:error, :whispercli_not_configured}
+        model == nil or model == "" ->
+          Logger.error("Model path not configured")
+          {:error, :model_not_configured}
+        not File.exists?(whispercli) ->
+          Logger.error("Whisper CLI not found at: #{whispercli}")
+          {:error, :whispercli_not_found}
+        not File.exists?(model) ->
+          Logger.error("Model file not found at: #{model}")
+          {:error, :model_not_found}
+        true ->
+          System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", path])
+          vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
+    
+          txt_path = String.replace_trailing(vtt_path, ".vtt", ".txt")
+          File.rename(path <> ".vtt", txt_path)
+          :ok
+      end
 
-      System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", path])
-      vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
-
-      txt_path = String.replace_trailing(vtt_path, ".vtt", ".txt")
-      File.rename(path <> ".vtt", txt_path)
-      :ok
     else
       {:error, :invalid_file_type}
     end

@@ -8,6 +8,7 @@ import {
 } from './components/ui/table'
 import './App.css'
 import TranscriptView from './components/TranscriptView'
+import ConfigSetup from './components/ConfigSetup'
 import { useEffect, useState } from 'react'
 
 function App() {
@@ -30,6 +31,9 @@ function App() {
   
   type SortColumn = 'created_at' | 'last_generated' | 'name' | 'line_count' | 'length'
   type SortDirection = 'asc' | 'desc'
+  
+  // Configuration state
+  const [configComplete, setConfigComplete] = useState<boolean | null>(null) // null = loading, false = incomplete, true = complete
   
   const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
@@ -253,25 +257,57 @@ function App() {
     await Promise.all(filesToFetch.map(filename => fetchTranscript(filename)))
   }
 
-  // Fetch watch directory on app load
+  // Check configuration status on app load
   useEffect(() => {
-    const fetchWatchDirectory = async () => {
+    const checkConfiguration = async () => {
       try {
-        const response = await fetch('/watch_directory')
+        const response = await fetch('/config', {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        })
         if (response.ok) {
-          const data = await response.text()
-          setWatchDirectory(data)
+          const data = await response.json()
+          setConfigComplete(data.is_complete)
+          if (data.is_complete && data.config.watch_directory) {
+            setWatchDirectory(data.config.watch_directory)
+          }
+        } else {
+          setConfigComplete(false)
         }
       } catch (error) {
-        console.error('Error fetching watch directory:', error)
+        console.error('Error checking configuration:', error)
+        setConfigComplete(false)
       }
     }
 
-    fetchWatchDirectory()
+    checkConfiguration()
   }, [])
 
-  // Poll /queue endpoint every second
+  // Fetch watch directory when config is complete
   useEffect(() => {
+    if (configComplete) {
+      const fetchWatchDirectory = async () => {
+        try {
+          const response = await fetch('/watch_directory')
+          if (response.ok) {
+            const data = await response.text()
+            setWatchDirectory(data)
+          }
+        } catch (error) {
+          console.error('Error fetching watch directory:', error)
+        }
+      }
+
+      fetchWatchDirectory()
+    }
+  }, [configComplete])
+
+  // Poll /queue endpoint every second (only when config is complete)
+  useEffect(() => {
+    if (!configComplete) return
+
     const interval = setInterval(async () => {
       try {
         const response = await fetch('/queue')
@@ -293,7 +329,7 @@ function App() {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [])
+  }, [configComplete])
 
   useEffect(() => {
     refreshFiles()
@@ -466,6 +502,26 @@ function App() {
         return newSet
       })
     }
+  }
+
+  const handleConfigComplete = () => {
+    setConfigComplete(true)
+  }
+
+  // Show loading while checking configuration
+  if (configComplete === null) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg text-gray-600">Loading...</div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show configuration setup if not complete
+  if (configComplete === false) {
+    return <ConfigSetup onConfigComplete={handleConfigComplete} />
   }
 
   return (

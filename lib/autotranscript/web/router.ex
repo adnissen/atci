@@ -24,6 +24,18 @@ defmodule Autotranscript.Web.Router do
       json_decoder: Phoenix.json_library()
   end
 
+  pipeline :config do
+    plug :accepts, ["html", "json"]
+    plug :fetch_session
+    plug :put_root_layout, html: {Autotranscript.Web.Layouts, :root}
+    plug :put_secure_browser_headers
+    plug Plug.Parsers,
+      parsers: [:urlencoded, :multipart, :json],
+      pass: ["*/*"],
+      json_decoder: Phoenix.json_library()
+    # Note: No CSRF protection for config endpoints
+  end
+
   scope "/", Autotranscript.Web do
     pipe_through :browser
 
@@ -43,5 +55,13 @@ defmodule Autotranscript.Web.Router do
     get "/random_frame", TranscriptController, :random_frame
     get "/clip", TranscriptController, :clip
     get "/watch_directory", TranscriptController, :watch_directory
+  end
+
+  scope "/", Autotranscript.Web do
+    pipe_through :config
+
+    # Configuration endpoints (no CSRF protection, accepts both HTML and JSON)
+    get "/config", ConfigController, :show
+    post "/config", ConfigController, :update
   end
 end
