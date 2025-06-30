@@ -260,7 +260,6 @@ function App() {
   // Check configuration status on app load
   useEffect(() => {
     const checkConfiguration = async () => {
-      console.log('Checking configuration...')
       try {
         const response = await fetch('/config', {
           headers: {
@@ -268,16 +267,13 @@ function App() {
             'Content-Type': 'application/json'
           }
         })
-        console.log('Config response status:', response.status)
         if (response.ok) {
           const data = await response.json()
-          console.log('Config response data:', data)
           setConfigComplete(data.is_complete)
           if (data.is_complete && data.config.watch_directory) {
             setWatchDirectory(data.config.watch_directory)
           }
         } else {
-          console.log('Config response not ok, setting configComplete to false')
           setConfigComplete(false)
         }
       } catch (error) {
@@ -514,7 +510,6 @@ function App() {
 
   // Show loading while checking configuration
   if (configComplete === null) {
-    console.log('Showing loading screen, configComplete is null')
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -526,11 +521,8 @@ function App() {
 
   // Show configuration setup if not complete
   if (configComplete === false) {
-    console.log('Showing config setup, configComplete is false')
     return <ConfigSetup onConfigComplete={handleConfigComplete} />
   }
-
-  console.log('Showing main app, configComplete is:', configComplete)
 
   return (
     <div className="min-h-screen">
