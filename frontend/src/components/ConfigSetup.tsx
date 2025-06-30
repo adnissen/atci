@@ -51,11 +51,22 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
     }
   };
 
+  // Check if all config values are present (not empty)
+  const hasAllConfigValues = () => {
+    return config.watch_directory.trim() !== '' && 
+           config.whispercli_path.trim() !== '' && 
+           config.model_path.trim() !== '';
+  };
+
   const handleInputChange = (field: keyof ConfigData, value: string) => {
     setConfig(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleCancel = () => {
+    onConfigComplete();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -170,13 +181,26 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isSubmitting ? 'Saving...' : (isEditMode ? 'Update Configuration' : 'Save Configuration')}
-      </button>
+      <div className="flex space-x-3">
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isSubmitting ? 'Saving...' : (isEditMode ? 'Update Configuration' : 'Save Configuration')}
+        </button>
+        
+        {hasAllConfigValues() && (
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={isSubmitting}
+            className="flex-1 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   );
 
