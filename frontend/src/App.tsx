@@ -9,7 +9,6 @@ import {
 import './App.css'
 import TranscriptView from './components/TranscriptView'
 import ConfigSetup from './components/ConfigSetup'
-import ConfigEditor from './components/ConfigEditor'
 import { useEffect, useState } from 'react'
 
 function App() {
@@ -816,11 +815,13 @@ function App() {
       </div>
 
       {/* Config Editor Modal */}
-      <ConfigEditor
-        isOpen={isConfigEditorOpen}
-        onClose={() => setIsConfigEditorOpen(false)}
-        onConfigUpdate={handleConfigUpdate}
-      />
+      {isConfigEditorOpen && (
+        <ConfigSetup
+          onConfigComplete={handleConfigUpdate}
+          isModal={true}
+          onClose={() => setIsConfigEditorOpen(false)}
+        />
+      )}
     </div>
   )
 }
