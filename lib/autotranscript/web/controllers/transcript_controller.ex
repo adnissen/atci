@@ -2,7 +2,7 @@ defmodule Autotranscript.Web.TranscriptController do
   use Autotranscript.Web, :controller
 
   def index(conn, _params) do
-    # Get all .txt files in the watch directory
+    # Get all .txt files in the watch directory (will be empty array if no config)
     txt_files =
       get_mp4_files()
       |> Jason.encode!()
