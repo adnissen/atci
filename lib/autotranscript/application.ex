@@ -4,6 +4,7 @@ defmodule Autotranscript.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      {Autotranscript.ConfigManager, []},
       {Autotranscript.VideoProcessor, []},
       {Autotranscript.Transcriber, []},
       {Autotranscript.Web.Endpoint, []}
