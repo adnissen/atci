@@ -95,12 +95,6 @@ defmodule Autotranscript.ConfigManager do
     |> Map.get(key)
   end
   
-  @doc """
-  Finds the configuration file path.
-  
-  Looks in current directory first, then home directory.
-  Returns {:ok, path} or {:error, :not_found}.
-  """
   defp find_config_file do
     current_dir_config = Path.join(File.cwd!(), @config_filename)
     home_dir_config = Path.expand(Path.join("~", @config_filename))

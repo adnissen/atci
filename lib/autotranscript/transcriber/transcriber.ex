@@ -38,8 +38,13 @@ defmodule Autotranscript.Transcriber do
     
     if directory == nil or directory == "" do
       Logger.warning("Watch directory not configured, skipping video check")
-      return
+      :ok
+    else
+      do_check_for_videos(directory)
     end
+  end
+  
+  defp do_check_for_videos(directory) do
     
     current_time = System.system_time(:second)
 
