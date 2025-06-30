@@ -9,7 +9,7 @@ defmodule Autotranscript.Application do
       {Autotranscript.Transcriber, []},
       {Autotranscript.Web.Endpoint, []}
     ]
-    opts = [strategy: :one_for_one, name: Autotranscript.Supervisor]
+    opts = [strategy: :rest_for_one, name: Autotranscript.Supervisor]
     Supervisor.start_link(children, opts)
   end
 end

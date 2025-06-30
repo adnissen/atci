@@ -2,6 +2,21 @@ defmodule Autotranscript.Web.Endpoint do
   use Phoenix.Endpoint, otp_app: :autotranscript,
     render_errors: [formats: [html: Autotranscript.Web.ErrorView], layout: false]
 
+  require Logger
+
+  @impl Phoenix.Endpoint
+  def init(_key, config) do
+    # Ensure ConfigManager is available before starting
+    case GenServer.whereis(Autotranscript.ConfigManager) do
+      nil ->
+        Logger.error("ConfigManager is not available. Endpoint cannot start.")
+        {:error, :config_manager_unavailable}
+      _pid ->
+        Logger.info("ConfigManager dependency satisfied. Starting Endpoint.")
+        {:ok, config}
+    end
+  end
+
   # Serve static files from "/priv/static" at "/"
   plug Plug.Static,
     at: "/",
@@ -9,9 +24,8 @@ defmodule Autotranscript.Web.Endpoint do
     gzip: false,
     only: ~w(index.css index.js index.html fonts images js favicon.ico robots.txt)
 
-  # Serve MP4 files from watch directory at "/files/"
-  # Note: This will be dynamically handled since we moved away from compile-time config
-  # The watch directory serving will need to be handled differently
+  # Dynamically serve files from the configured watch directory at "/files/"
+  plug Autotranscript.Web.Plugs.DynamicStatic
 
   # Code reloading can be explicitly enabled under the
   # :code_reloader configuration of your endpoint.
