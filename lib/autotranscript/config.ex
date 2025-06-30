@@ -18,12 +18,12 @@ defmodule Autotranscript.Config do
   Checks in this order:
   1. .atconfig file in current directory
   2. .atconfig file in home directory  
-  3. Application config
-  4. Default value (if provided)
+  
+  Returns nil if no configuration is found.
   """
   def get(key, default \\ nil) do
     case get_from_config_file(key) do
-      nil -> Application.get_env(:autotranscript, key, default)
+      nil -> default
       value -> value
     end
   end

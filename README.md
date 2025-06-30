@@ -15,17 +15,21 @@ Autotranscript is an Elixir application that automatically transcribes video fil
 - ffmpeg installed and available in PATH
 - [whisper.cpp](https://github.com/ggerganov/whisper.cpp) compiled and model downloaded
 
+## Quick Start
+
+📋 **New to Autotranscript?** See [GETTING_STARTED.md](GETTING_STARTED.md) for a step-by-step setup guide.
+
 ## Configuration
 
-Autotranscript can be configured in two ways:
+**Configuration is required** - Autotranscript will not start without a valid `.atconfig` file.
 
-### Option 1: Configuration File (Recommended)
+### Option 1: Configuration File
 
 Create a `.atconfig` file in either:
 - The directory where you run the application (takes precedence), or
 - Your home directory (`~/.atconfig`)
 
-The `.atconfig` file should contain:
+The `.atconfig` file must contain all three required settings:
 
 ```
 # Directory where video files are stored and transcripts will be saved
@@ -40,26 +44,14 @@ model_path=/path/to/your/whisper.cpp/model.bin
 
 ### Option 2: Web Interface
 
-If no configuration file is found, the web interface will prompt you to configure these settings when you first access the application. The configuration will be saved to a `.atconfig` file in the current directory.
-
-### Option 3: Manual Configuration (Legacy)
-
-You can also configure the application by editing `config/config.exs`:
-
-```elixir
-config :autotranscript,
-  watch_directory: "/path/to/your/videos",
-  whispercli_path: "/path/to/whisper-cli",
-  model_path: "/path/to/your/whisper.cpp/model.bin"
-```
-
-**Note:** Configuration files (`.atconfig`) take precedence over the config.exs settings.
+If no valid configuration file is found, the web interface will prompt you to configure these settings when you first access the application. The configuration will be saved to a `.atconfig` file in the current directory.
 
 ### Configuration Priority
 
-1. `.atconfig` file in current directory
+1. `.atconfig` file in current directory (highest priority)
 2. `.atconfig` file in home directory
-3. `config/config.exs` settings
+
+**Note:** All three configuration values (`watch_directory`, `whispercli_path`, `model_path`) are required for the application to function.
 
 ## API Endpoints
 

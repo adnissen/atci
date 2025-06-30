@@ -31,6 +31,10 @@ Successfully implemented a flexible configuration system that moves `watch_direc
    - Updated in transcript_controller.ex, video_processor.ex, transcriber.ex
    - Updated endpoint.ex to use dynamic static serving
 
+6. **Removed Default Values**
+   - Removed all default configuration values from `config/config.exs`
+   - Users must now create a `.atconfig` file to use the application
+
 ### Frontend (React)
 
 1. **New Configuration Component** (`frontend/src/components/ConfigurationForm.tsx`)
@@ -56,9 +60,10 @@ Successfully implemented a flexible configuration system that moves `watch_direc
 
 ## Configuration Priority
 
-1. `.atconfig` file in current directory (highest priority)
+1. `.atconfig` file in current directory (highest priority)  
 2. `.atconfig` file in home directory
-3. `config/config.exs` settings (fallback)
+
+**Note:** No default values are provided - users must create a `.atconfig` file to use the application.
 
 ## Usage
 
@@ -73,6 +78,7 @@ Successfully implemented a flexible configuration system that moves `watch_direc
 - Use new `Autotranscript.Config.get(:key)` instead of `Application.get_env`
 - Configuration is validated and can be checked with `Config.valid?()`
 - API endpoints available for configuration management
+- **Breaking change**: No default values - `.atconfig` file is required
 
 ## File Format
 
@@ -91,6 +97,7 @@ Comments start with `#` and empty lines are ignored.
 - ✅ No need to modify source code for configuration
 - ✅ Easy per-environment configuration
 - ✅ User-friendly web interface for setup
-- ✅ Backward compatible with existing config.exs
+- ✅ Forces proper configuration (no placeholder values)
 - ✅ Runtime configuration changes
 - ✅ Configuration validation
+- ⚠️ **Breaking change**: Requires `.atconfig` file creation for existing users
