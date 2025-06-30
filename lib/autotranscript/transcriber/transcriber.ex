@@ -6,8 +6,9 @@ defmodule Autotranscript.Transcriber do
   Documentation for `Autotranscript`.
   """
 
-  def start_link(_opts) do
-    GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
+  def start_link(opts) do
+    atconfig = Keyword.get(opts, :atconfig, %{})
+    GenServer.start_link(__MODULE__, atconfig, name: __MODULE__)
   end
 
   @doc """
@@ -26,26 +27,26 @@ defmodule Autotranscript.Transcriber do
   end
 
   @impl true
-  def init(:ok) do
+  def init(atconfig) do
     # Check if configuration is already available
-    case watch_directory() do
+    case watch_directory(atconfig) do
       {:ok, timer_ref} when timer_ref != nil ->
         # Configuration is available, start directory watching
-        check_for_videos_with_missing_files_and_add_to_queue()
+        check_for_videos_with_missing_files_and_add_to_queue(atconfig)
         Logger.info("Configuration found, directory watching started")
-        {:ok, %{timer_ref: timer_ref, config_timer_ref: nil, watching: true}}
+        {:ok, %{timer_ref: timer_ref, config_timer_ref: nil, watching: true, atconfig: atconfig}}
 
       _ ->
         # Configuration not available, start checking for configuration
         Logger.info("No configuration found, will check every 5 seconds until available")
         config_timer_ref = Process.send_after(self(), :check_config, 5000)
-        {:ok, %{timer_ref: nil, config_timer_ref: config_timer_ref, watching: false}}
+        {:ok, %{timer_ref: nil, config_timer_ref: config_timer_ref, watching: false, atconfig: atconfig}}
     end
   end
 
   @impl true
-  def handle_info(:check_directory, %{watching: true} = state) do
-    check_for_videos_with_missing_files_and_add_to_queue()
+  def handle_info(:check_directory, %{watching: true, atconfig: atconfig} = state) do
+    check_for_videos_with_missing_files_and_add_to_queue(atconfig)
     
     # Schedule the next directory check in 2 seconds
     timer_ref = Process.send_after(self(), :check_directory, 2000)
@@ -53,12 +54,12 @@ defmodule Autotranscript.Transcriber do
   end
 
   @impl true
-  def handle_info(:check_config, %{watching: false} = state) do
+  def handle_info(:check_config, %{watching: false, atconfig: atconfig} = state) do
     # Try to start directory watching
-    case watch_directory() do
+    case watch_directory(atconfig) do
       {:ok, timer_ref} when timer_ref != nil ->
         # Configuration is now available, start directory watching
-        check_for_videos_with_missing_files_and_add_to_queue()
+        check_for_videos_with_missing_files_and_add_to_queue(atconfig)
         Logger.info("Configuration became available, directory watching started")
         
         # Cancel the config checking timer if it exists
@@ -88,9 +89,9 @@ defmodule Autotranscript.Transcriber do
   end
 
   @impl true
-  def handle_call(:start_watching, _from, state) do
+  def handle_call(:start_watching, _from, %{atconfig: atconfig} = state) do
     # Try to start directory watching
-    case watch_directory() do
+    case watch_directory(atconfig) do
       {:ok, timer_ref} when timer_ref != nil ->
         Logger.info("Directory watching started after configuration update")
         
@@ -100,7 +101,7 @@ defmodule Autotranscript.Transcriber do
         end
         
         # Start the initial directory check and video processing
-        check_for_videos_with_missing_files_and_add_to_queue()
+        check_for_videos_with_missing_files_and_add_to_queue(atconfig)
         
         {:reply, :ok, %{state | timer_ref: timer_ref, config_timer_ref: nil, watching: true}}
       
@@ -124,8 +125,8 @@ defmodule Autotranscript.Transcriber do
     {:reply, status, state}
   end
 
-  def check_for_videos_with_missing_files_and_add_to_queue do
-    directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+  def check_for_videos_with_missing_files_and_add_to_queue(atconfig \\ %{}) do
+    directory = Map.get(atconfig, "watch_directory")
     
     if directory == nil or directory == "" do
       Logger.warning("Watch directory not configured, skipping video check")
@@ -166,8 +167,8 @@ defmodule Autotranscript.Transcriber do
       iex> Autotranscript.watch_directory()
       {:ok, timer_ref}
   """
-  def watch_directory do
-    directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+  def watch_directory(atconfig \\ %{}) do
+    directory = Map.get(atconfig, "watch_directory")
     
     case directory do
       nil ->

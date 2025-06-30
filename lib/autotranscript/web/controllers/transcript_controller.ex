@@ -1,6 +1,10 @@
 defmodule Autotranscript.Web.TranscriptController do
   use Autotranscript.Web, :controller
 
+  defp get_atconfig do
+    Application.get_env(:autotranscript, :atconfig, %{})
+  end
+
   def index(conn, _params) do
     # Get all .txt files in the watch directory (will be empty array if no config)
     txt_files =
@@ -11,7 +15,8 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def show(conn, %{"filename" => filename}) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
     
     if watch_directory == nil or watch_directory == "" do
       conn
@@ -40,7 +45,8 @@ defmodule Autotranscript.Web.TranscriptController do
     end
   end
   def grep(conn, %{"text" => search_text}) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
     
     if watch_directory == nil or watch_directory == "" do
       conn
@@ -91,7 +97,8 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def regenerate(conn, %{"filename" => filename}) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
     file_path = Path.join(watch_directory, "#{filename}.txt")
 
     case File.rm(file_path) do
@@ -128,7 +135,8 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   defp get_mp4_files do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
     
     if watch_directory == nil or watch_directory == "" do
       []
@@ -177,7 +185,8 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def random_frame(conn, _params) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
     
     if watch_directory == nil or watch_directory == "" do
       conn
@@ -243,7 +252,8 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def player(conn, %{"filename" => filename} = _params) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
 
     # Check if the video file exists
     mp4_path = Path.join(watch_directory, "#{filename}.mp4")
@@ -271,7 +281,8 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def frame_at_time(conn, %{"filename" => filename, "time" => time_str}) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
 
     # Parse and validate the time parameter
     case Float.parse(time_str) do
@@ -384,7 +395,8 @@ defmodule Autotranscript.Web.TranscriptController do
     filename = query_params["filename"]
     start_time_str = query_params["start_time"]
     end_time_str = query_params["end_time"]
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
 
     # Parse and validate the time parameters
     case {Float.parse(start_time_str || ""), Float.parse(end_time_str || "")} do
@@ -461,14 +473,16 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def watch_directory(conn, _params) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
     conn
     |> put_resp_content_type("text/plain")
     |> send_resp(200, watch_directory || "")
   end
 
   def replace_transcript(conn, %{"filename" => filename}) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    atconfig = get_atconfig()
+    watch_directory = Map.get(atconfig, "watch_directory")
     file_path = Path.join(watch_directory, "#{filename}.txt")
     IO.inspect(conn.body_params)
     case conn.body_params do

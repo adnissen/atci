@@ -7,13 +7,14 @@ defmodule Autotranscript.VideoProcessor do
   Processes files one at a time to avoid overwhelming the system.
   """
 
-  def start_link(_opts) do
-    GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
+  def start_link(opts) do
+    atconfig = Keyword.get(opts, :atconfig, %{})
+    GenServer.start_link(__MODULE__, atconfig, name: __MODULE__)
   end
 
   @impl true
-  def init(:ok) do
-    {:ok, %{queue: [], processing: false, current_file: nil}}
+  def init(atconfig) do
+    {:ok, %{queue: [], processing: false, current_file: nil, atconfig: atconfig}}
   end
 
   @doc """
@@ -64,11 +65,11 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast(:process_next, %{queue: [video_path | _rest], processing: _processing, current_file: nil} = state) do
+  def handle_cast(:process_next, %{queue: [video_path | _rest], processing: _processing, current_file: nil, atconfig: atconfig} = state) do
     # Start processing the next file in the queue asynchronously
     # Keep the file in the queue until processing is complete
     spawn(fn ->
-      case process_video_file(video_path) do
+      case process_video_file(video_path, atconfig) do
         :ok ->
           IO.puts("Successfully processed #{video_path}")
           GenServer.cast(__MODULE__, {:processing_complete, video_path, :ok})
@@ -118,12 +119,12 @@ defmodule Autotranscript.VideoProcessor do
       iex> Autotranscript.VideoProcessor.process_video_file("not_video.txt")
       {:error, :invalid_file_type}
   """
-  def process_video_file(video_path) do
+  def process_video_file(video_path, atconfig \\ %{}) do
     with :ok <- convert_to_mp3(video_path),
          mp3_path =
            String.replace_trailing(video_path, ".MP4", ".mp3")
            |> String.replace_trailing(".mp4", ".mp3"),
-         :ok <- transcribe_audio(mp3_path),
+         :ok <- transcribe_audio(mp3_path, atconfig),
          :ok <- delete_mp3(mp3_path) do
       :ok
     end
@@ -167,10 +168,10 @@ defmodule Autotranscript.VideoProcessor do
       iex> Autotranscript.VideoProcessor.transcribe_audio("not_audio.txt")
       {:error, :invalid_file_type}
   """
-  def transcribe_audio(path) do
+  def transcribe_audio(path, atconfig \\ %{}) do
     if String.ends_with?(path, ".mp3") do
-      whispercli = Autotranscript.ConfigManager.get_config_value("whispercli_path")
-      model = Autotranscript.ConfigManager.get_config_value("model_path")
+      whispercli = Map.get(atconfig, "whispercli_path")
+      model = Map.get(atconfig, "model_path")
       
       cond do
         whispercli == nil or whispercli == "" ->

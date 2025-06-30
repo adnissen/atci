@@ -2,6 +2,13 @@ defmodule Autotranscript.Web.Endpoint do
   use Phoenix.Endpoint, otp_app: :autotranscript,
     render_errors: [formats: [html: Autotranscript.Web.ErrorView], layout: false]
 
+  def start_link(opts) do
+    atconfig = Keyword.get(opts, :atconfig, %{})
+    # Store the atconfig for later use
+    Application.put_env(:autotranscript, :atconfig, atconfig)
+    super(opts)
+  end
+
   # Serve static files from "/priv/static" at "/"
   plug Plug.Static,
     at: "/",
