@@ -43,8 +43,12 @@ defmodule Autotranscript.Web.Router do
     get "/random_frame", TranscriptController, :random_frame
     get "/clip", TranscriptController, :clip
     get "/watch_directory", TranscriptController, :watch_directory
-    
-    # Configuration endpoints
+  end
+
+  scope "/", Autotranscript.Web do
+    pipe_through :api
+
+    # Configuration endpoints (API-only, no CSRF protection needed)
     get "/config", ConfigController, :show
     post "/config", ConfigController, :update
   end
