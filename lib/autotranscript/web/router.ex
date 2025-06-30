@@ -44,4 +44,12 @@ defmodule Autotranscript.Web.Router do
     get "/clip", TranscriptController, :clip
     get "/watch_directory", TranscriptController, :watch_directory
   end
+
+  scope "/api", Autotranscript.Web do
+    pipe_through :api
+
+    get "/config", ConfigController, :show
+    post "/config", ConfigController, :update
+    get "/config/status", ConfigController, :status
+  end
 end

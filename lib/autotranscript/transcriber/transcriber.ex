@@ -34,7 +34,7 @@ defmodule Autotranscript.Transcriber do
   end
 
   def check_for_videos_with_missing_files_and_add_to_queue do
-    directory = Application.get_env(:autotranscript, :watch_directory)
+    directory = Autotranscript.Config.get(:watch_directory)
     current_time = System.system_time(:second)
 
     Path.wildcard(Path.join(directory, "*.{MP4,mp4}"))
@@ -65,7 +65,7 @@ defmodule Autotranscript.Transcriber do
       {:ok, timer_ref}
   """
   def watch_directory do
-    directory = Application.get_env(:autotranscript, :watch_directory)
+    directory = Autotranscript.Config.get(:watch_directory)
 
     case File.dir?(directory) do
       true ->

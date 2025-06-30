@@ -8,6 +8,7 @@ import {
 } from './components/ui/table'
 import './App.css'
 import TranscriptView from './components/TranscriptView'
+import ConfigurationForm from './components/ConfigurationForm'
 import { useEffect, useState } from 'react'
 
 function App() {
@@ -44,6 +45,8 @@ function App() {
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
   const [sortColumn, setSortColumn] = useState<SortColumn>('created_at')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [configValid, setConfigValid] = useState<boolean | null>(null) // null = loading, false = invalid, true = valid
+  const [showConfigForm, setShowConfigForm] = useState(false)
 
   // Calculate search results from search line numbers
   const searchResults = Object.keys(searchLineNumbers).filter(filename => 
@@ -253,22 +256,43 @@ function App() {
     await Promise.all(filesToFetch.map(filename => fetchTranscript(filename)))
   }
 
-  // Fetch watch directory on app load
+  // Check configuration status on app load
   useEffect(() => {
-    const fetchWatchDirectory = async () => {
+    const checkConfiguration = async () => {
       try {
-        const response = await fetch('/watch_directory')
+        const response = await fetch('/api/config/status')
         if (response.ok) {
-          const data = await response.text()
-          setWatchDirectory(data)
+          const configData = await response.json()
+          setConfigValid(configData.valid)
+          
+          if (configData.valid) {
+            // If config is valid, fetch watch directory for display
+            setWatchDirectory(configData.config.watch_directory || '')
+          } else {
+            setShowConfigForm(true)
+          }
+        } else {
+          console.error('Failed to fetch configuration status')
+          setConfigValid(false)
+          setShowConfigForm(true)
         }
       } catch (error) {
-        console.error('Error fetching watch directory:', error)
+        console.error('Error checking configuration:', error)
+        setConfigValid(false)
+        setShowConfigForm(true)
       }
     }
 
-    fetchWatchDirectory()
+    checkConfiguration()
   }, [])
+
+  // Handle configuration completion
+  const handleConfigComplete = () => {
+    setShowConfigForm(false)
+    setConfigValid(true)
+    // Reload the page to reinitialize with new config
+    window.location.reload()
+  }
 
   // Poll /queue endpoint every second
   useEffect(() => {
@@ -466,6 +490,23 @@ function App() {
         return newSet
       })
     }
+  }
+
+  // Show loading state while checking configuration
+  if (configValid === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show configuration form if configuration is invalid
+  if (!configValid || showConfigForm) {
+    return <ConfigurationForm onConfigComplete={handleConfigComplete} />
   }
 
   return (

@@ -169,8 +169,8 @@ defmodule Autotranscript.VideoProcessor do
   """
   def transcribe_audio(path) do
     if String.ends_with?(path, ".mp3") do
-      whispercli = Application.get_env(:autotranscript, :whispercli_path)
-      model = Application.get_env(:autotranscript, :model_path)
+          whispercli = Autotranscript.Config.get(:whispercli_path)
+    model = Autotranscript.Config.get(:model_path)
 
       System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", path])
       vtt_path = String.replace_trailing(path, ".mp3", ".vtt")

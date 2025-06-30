@@ -1,6 +1,7 @@
 import Config
 
+# Default configuration values - these will be overridden by .atconfig files
 config :autotranscript,
   watch_directory: "/path/to/your/videos",
-  whispercli_path: "/path/to/whisper-cli",
+  whispercli_path: "/path/to/whisper-cli", 
   model_path: "/path/to/your/whisper.cpp/model.bin"

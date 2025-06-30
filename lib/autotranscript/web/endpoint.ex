@@ -10,9 +10,8 @@ defmodule Autotranscript.Web.Endpoint do
     only: ~w(index.css index.js index.html fonts images js favicon.ico robots.txt)
 
   # Serve MP4 files from watch directory at "/files/"
-  plug Plug.Static,
+  plug Autotranscript.Web.Plugs.DynamicStatic,
     at: "/files",
-    from: Application.compile_env(:autotranscript, :watch_directory),
     gzip: false
 
   # Code reloading can be explicitly enabled under the

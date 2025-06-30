@@ -1,0 +1,12 @@
+# Autotranscript Configuration File
+# Copy this file to .atconfig in your working directory or home directory
+# Lines starting with # are comments and will be ignored
+
+# Directory where video files are stored and transcripts will be saved
+watch_directory=/path/to/your/videos
+
+# Path to the whisper-cli executable
+whispercli_path=/usr/local/bin/whisper-cli
+
+# Path to the Whisper model file (.bin)
+model_path=/path/to/your/whisper.cpp/model.bin
