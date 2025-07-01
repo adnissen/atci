@@ -101,6 +101,9 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     const allBlocks: TranscriptBlockData[] = [];
     const searchTermLower = searchTerm.toLowerCase();
 
+    // Check if we should show all lines (visibleLines is [-1] or [])
+    const showAllLines = (visibleLines.length === 1 && visibleLines[0] === -1) || visibleLines.length === 0;
+
     // First pass: create all blocks with their original indices and line numbers
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
@@ -114,7 +117,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
         const textLower = nextLine.toLowerCase();
         const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
         const lineNumbers = [i + 1, i + 2]; // Timestamp line and text line
-        const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
+        const isVisible = showAllLines || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
         
         allBlocks.push({
           startTime: timeRangeInfo.time1,
@@ -133,7 +136,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
         const textLower = line.toLowerCase();
         const isSearchResult = searchTerm ? textLower.includes(searchTermLower) : false;
         const lineNumbers = [i + 1];
-        const isVisible = visibleLines.length === 0 || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
+        const isVisible = showAllLines || lineNumbers.some(lineNum => visibleLines.includes(lineNum));
         
         allBlocks.push({
           text: line,
@@ -167,8 +170,11 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
   // Process blocks to add "x lines..." messages between visible blocks
   const processedBlocks = React.useMemo(() => {
-    if (visibleLines.length === 0) {
-      // If no visible lines filter, return all blocks as is
+    // Check if we should show all lines (visibleLines is [-1])
+    const showAllLines = visibleLines.length === 1 && visibleLines[0] === -1;
+    
+    if (visibleLines.length === 0 || showAllLines) {
+      // If no visible lines filter or showAllLines is true, return all blocks as is
       return transcriptBlocks.map(block => ({ type: 'block' as const, data: block }));
     }
 

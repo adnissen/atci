@@ -52,7 +52,7 @@ function App() {
 
   // Calculate search results from search line numbers
   const searchResults = Object.keys(searchLineNumbers).filter(filename => 
-    searchLineNumbers[filename] && searchLineNumbers[filename].length > 0
+    searchLineNumbers[filename] && (searchLineNumbers[filename].length > 0)
   )
 
   // Sort files based on current sort column and direction
@@ -149,10 +149,12 @@ function App() {
   }
 
   const expandAll = (filename: string) => {
-    // Clear the visible lines filter for this file, which will show all lines
+    // [-1] and [] are slightly different:
+    // [] + a search term means there were no results at all in the file, so don't display the transcript at all
+    // [-1] + a search term means there were results, and now we want to show the whole file
     setSearchLineNumbers(prev => ({
       ...prev,
-      [filename]: []
+      [filename]: [-1]
     }))
   }
 
