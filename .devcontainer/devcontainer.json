@@ -1,0 +1,30 @@
+{
+  "name": "Autotranscript Development Environment",
+  "image": "mcr.microsoft.com/devcontainers/elixir:1.15-phoenix-1.7",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "postCreateCommand": "mix deps.get && cd frontend && npm install",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "phoenixframework.phoenix",
+        "elixir-lsp.elixir-ls",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  },
+  "forwardPorts": [4000, 5173],
+  "portsAttributes": {
+    "4000": {
+      "label": "Phoenix Server",
+      "onAutoForward": "openBrowser"
+    },
+    "5173": {
+      "label": "Vite Dev Server",
+      "onAutoForward": "openBrowser"
+    }
+  }
+}
