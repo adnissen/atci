@@ -481,6 +481,48 @@ defmodule Autotranscript.Web.TranscriptController do
     |> send_resp(200, watch_directory || "")
   end
 
+  def regenerate_meta(conn, %{"filename" => filename}) do
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("application/json")
+      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+    else
+      # Check if the video file exists
+      mp4_path = Path.join(watch_directory, "#{filename}.mp4")
+      mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
+
+      video_file = cond do
+        File.exists?(mp4_path) -> mp4_path
+        File.exists?(mp4_upper_path) -> mp4_upper_path
+        true -> nil
+      end
+
+      case video_file do
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> put_resp_content_type("application/json")
+          |> send_resp(404, Jason.encode!(%{error: "Video file '#{filename}' not found"}))
+
+        file_path ->
+          case Autotranscript.VideoProcessor.save_video_length(file_path) do
+            :ok ->
+              conn
+              |> put_resp_content_type("application/json")
+              |> send_resp(200, Jason.encode!(%{message: "Meta file for '#{filename}' regenerated successfully"}))
+            {:error, reason} ->
+              conn
+              |> put_status(:internal_server_error)
+              |> put_resp_content_type("application/json")
+              |> send_resp(500, Jason.encode!(%{error: "Error regenerating meta file for '#{filename}': #{inspect(reason)}"}))
+          end
+      end
+    end
+  end
+
   def replace_transcript(conn, %{"filename" => filename}) do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
     file_path = Path.join(watch_directory, "#{filename}.txt")
