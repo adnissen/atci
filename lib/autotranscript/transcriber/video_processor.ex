@@ -124,7 +124,8 @@ defmodule Autotranscript.VideoProcessor do
            String.replace_trailing(video_path, ".MP4", ".mp3")
            |> String.replace_trailing(".mp4", ".mp3"),
          :ok <- transcribe_audio(mp3_path),
-         :ok <- delete_mp3(mp3_path) do
+         :ok <- delete_mp3(mp3_path),
+         :ok <- save_video_length(video_path) do
       :ok
     end
   end
@@ -222,6 +223,69 @@ defmodule Autotranscript.VideoProcessor do
       end
     else
       {:error, :invalid_file_type}
+    end
+  end
+
+  @doc """
+  Gets the length of a video file using ffmpeg and saves it to a meta file.
+
+  ## Parameters
+    - video_path: String path to the video file
+
+  ## Returns
+    - :ok if the length was successfully determined and saved
+    - {:error, reason} if any step failed
+  """
+  def save_video_length(video_path) do
+    if String.ends_with?(video_path, [".MP4", ".mp4"]) do
+      case get_video_length(video_path) do
+        {:ok, length} ->
+          meta_path = String.replace_trailing(video_path, ".MP4", ".meta")
+          meta_path = String.replace_trailing(meta_path, ".mp4", ".meta")
+          
+          case File.write(meta_path, length) do
+            :ok ->
+              Logger.info("Saved video length #{length} to #{meta_path}")
+              :ok
+            {:error, reason} ->
+              Logger.warning("Failed to write meta file #{meta_path}: #{inspect(reason)}")
+              {:error, reason}
+          end
+        {:error, reason} ->
+          Logger.warning("Failed to get video length for #{video_path}: #{inspect(reason)}")
+          {:error, reason}
+      end
+    else
+      {:error, :invalid_file_type}
+    end
+  end
+
+  @doc """
+  Gets the length of a video file using ffmpeg.
+
+  ## Parameters
+    - video_path: String path to the video file
+
+  ## Returns
+    - {:ok, length} where length is a string in format "hh:mm:ss"
+    - {:error, reason} if ffmpeg fails
+  """
+  def get_video_length(video_path) do
+    case System.cmd("ffmpeg", [
+      "-i", video_path,
+      "-f", "null",
+      "-"
+    ], stderr_to_stdout: true) do
+      {output, _exit_code} ->
+        # Parse the duration from ffmpeg output
+        case Regex.run(~r/Duration: (\d{2}:\d{2}:\d{2}\.\d{2})/, output) do
+          [_, duration_with_ms] ->
+            # Remove milliseconds to get hh:mm:ss format
+            length = duration_with_ms |> String.split(".") |> List.first()
+            {:ok, length}
+          nil ->
+            {:error, "Could not parse duration from ffmpeg output"}
+        end
     end
   end
 end

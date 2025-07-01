@@ -159,13 +159,25 @@ defmodule Autotranscript.Web.TranscriptController do
             {0, nil}
           end
 
+          # If transcript exists, try to read video length from meta file
+          length = if transcript_exists do
+            meta_path = Path.join(watch_directory, "#{filename}.meta")
+            case File.read(meta_path) do
+              {:ok, length_content} -> String.trim(length_content)
+              {:error, _} -> nil
+            end
+          else
+            nil
+          end
+
           %{
             name: filename,
             created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
             line_count: line_count,
             full_path: file_path,
             transcript: transcript_exists,
-            last_generated: last_generated
+            last_generated: last_generated,
+            length: length
           }
         {:error, _} ->
           nil
