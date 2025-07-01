@@ -148,6 +148,14 @@ function App() {
     }))
   }
 
+  const expandAll = (filename: string) => {
+    // Clear the visible lines filter for this file, which will show all lines
+    setSearchLineNumbers(prev => ({
+      ...prev,
+      [filename]: []
+    }))
+  }
+
   // Handle sort column click
   const handleSort = (column: SortColumn) => {
     if (sortColumn === column) {
@@ -825,6 +833,7 @@ function App() {
                     error={transcriptInfo.error}
                     visibleLines={searchLineNumbers[file.name] || []}
                     expandContext={expandContext}
+                    expandAll={expandAll}
                   />
                 </TableCell>
                 </TableRow>
