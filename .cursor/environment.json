@@ -8,7 +8,7 @@
     },
     {
       "name": "Vite Build Watch",
-      "command": "npm vite build --watch"
+      "command": "cd frontend && npm vite build --watch"
     }
   ]
 }
