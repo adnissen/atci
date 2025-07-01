@@ -11,7 +11,7 @@ defmodule Autotranscript.Web.Plugs.DynamicStatic do
 
   def init(opts), do: opts
 
-  def call(%Plug.Conn{path_info: ["files" | path]} = conn, _opts) do
+  def call(%Plug.Conn{path_info: ["files" | path]} = conn, _opts) when length(path) > 0 do
     # Get the watch directory from ConfigManager
     case Autotranscript.ConfigManager.get_config_value("watch_directory") do
       nil ->

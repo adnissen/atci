@@ -537,7 +537,7 @@ function App() {
     
     // Refresh the file list to show files from the new directory
     try {
-      await refreshFiles()
+      refreshFiles()
     } catch (error) {
       console.error('Error refreshing files from new directory:', error)
     }
@@ -740,7 +740,7 @@ function App() {
                   <TableCell className="w-1/6 pr-10">{formatDate(file.created_at)}</TableCell>
                   <TableCell className="w-1/6 pl-10">{formatDate(file.last_generated || '')}</TableCell>
                   <TableCell className="w-1/6">{file.line_count || 0}</TableCell>
-                  <TableCell className="w-1/6">{file.length || '0:00'}</TableCell>
+                  <TableCell className="w-1/6">{file.length || '--:--:--'}</TableCell>
                   <TableCell className="w-1/6 text-center">
                     <div className="flex justify-center gap-2">
                       <button
