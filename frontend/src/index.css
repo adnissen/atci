@@ -118,3 +118,18 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .animate-reverse-spin {
+    animation: reverse-spin 1s linear infinite;
+  }
+  
+  @keyframes reverse-spin {
+    from {
+      transform: rotate(360deg);
+    }
+    to {
+      transform: rotate(0deg);
+    }
+  }
+}
