@@ -734,7 +734,7 @@ function App() {
                       target="_blank"
                       rel="noopener noreferrer"
                     >
-                      {file.name}
+                      {file.name.split('.').pop() || file.name}
                     </a>
                   </TableCell>
                   <TableCell className="w-1/6 pr-10 text-foreground">{formatDate(file.created_at)}</TableCell>
