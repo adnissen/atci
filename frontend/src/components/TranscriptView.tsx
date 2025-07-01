@@ -221,18 +221,18 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   }
 
   return (
-    <div className={`w-full p-6 bg-white ${className}`}>
+    <div className={`w-full p-6 bg-white dark:bg-gray-800 ${className}`}>
       <div className="space-y-4">
         {loading && (
-          <div className="text-gray-600">Loading transcript...</div>
+          <div className="text-gray-600 dark:text-gray-400">Loading transcript...</div>
         )}
         {error && (
-          <div className="text-red-600">Error: {error}</div>
+          <div className="text-red-600 dark:text-red-400">Error: {error}</div>
         )}
         {!loading && !error && (
-          <div className="text-gray-600 text-left relative">
+          <div className="text-gray-600 dark:text-gray-400 text-left relative">
             {searchTerm && transcriptBlocks.filter(block => block.isSearchResult).length === 0 && (
-              <div className="text-gray-500 italic">
+              <div className="text-gray-500 dark:text-gray-500 italic">
                 No matches found for "{searchTerm}" in this transcript.
               </div>
             )}
@@ -251,16 +251,16 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     lineNumbers={(item.data as TranscriptBlockData).lineNumbers}
                   />
                 ) : (
-                  <div className="text-gray-500 italic">
+                  <div className="text-gray-500 dark:text-gray-500 italic">
                     <span 
-                      className="cursor-pointer hover:text-blue-600 hover:underline"
+                      className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
                       onClick={() => handleExpandClick((item.data as { count: number, line: number, direction: "up" | "down" }).line, (item.data as { count: number, line: number, direction: "up" | "down" }).direction)}
                     >
                       [{(item.data as { count: number, line: number, direction: "up" | "down" }).count} lines {(item.data as { count: number, line: number, direction: "up" | "down" }).direction === "up" ? "above" : "below"}]
                     </span>
                     {" or "}
                     <span 
-                      className="cursor-pointer hover:text-blue-600 hover:underline"
+                      className="cursor-pointer hover:text-blue-600 dark:hover:text-blue-400 hover:underline"
                       onClick={handleExpandAll}
                     >
                       [expand all]
@@ -274,7 +274,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
             {/* Thumbnail overlay */}
             {(hoveredTimestamp) && thumbnailUrl && (
               <div 
-                className="fixed z-50 bg-white border border-gray-300 rounded-lg shadow-lg p-2"
+                className="fixed z-50 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-2"
                 style={{
                   left: '50%',
                   top: '20px',
@@ -291,7 +291,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     e.currentTarget.style.display = 'none';
                   }}
                 />
-                <div className="text-xs text-gray-600 text-center mt-1">
+                <div className="text-xs text-gray-600 dark:text-gray-400 text-center mt-1">
                   {hoveredTimestamp}
                 </div>
               </div>
