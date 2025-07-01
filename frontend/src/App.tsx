@@ -15,6 +15,7 @@ function App() {
   // Sample data for the table
   type FileRow = {
     name: string
+    base_name: string
     created_at: string
     transcript: boolean
     line_count?: number
@@ -704,11 +705,11 @@ function App() {
             </TableHeader>
             <TableBody>
               {sortedFiles.map((file, index) => {
-                if (searchTerm != '' && !searchResults.includes(file.name)) {
+                if (searchTerm != '' && !searchResults.includes(file.base_name)) {
                   return <></>;
                 }
                 
-                const transcriptInfo = transcriptData[file.name] || { text: '', loading: false, error: null }
+                const transcriptInfo = transcriptData[file.base_name] || { text: '', loading: false, error: null }
                 
                 return (
                 <>
@@ -717,10 +718,10 @@ function App() {
                   if (file.transcript) {
                     setExpandedFiles(prev => {
                       const newSet = new Set(prev)
-                      if (newSet.has(file.name)) {
-                        newSet.delete(file.name)
+                      if (newSet.has(file.base_name)) {
+                        newSet.delete(file.base_name)
                       } else {
-                        newSet.add(file.name)
+                        newSet.add(file.base_name)
                       }
                       return newSet
                     })
@@ -728,7 +729,7 @@ function App() {
                 }}>
                   <TableCell className="font-medium w-1/6">
                     <a 
-                      href={`/player/${file.name}`}
+                      href={`/player/${file.base_name}`}
                       className="text-sky-700 hover:text-sky-600 underline"
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
@@ -746,7 +747,7 @@ function App() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          window.open(`/player/${file.name}`, '_blank')
+                          window.open(`/player/${file.base_name}`, '_blank')
                         }}
                         className="p-2 text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-md transition-colors"
                         title="View file"
@@ -758,7 +759,7 @@ function App() {
                       </button>
                       
                       {/* Warning icon for files without transcript */}
-                      {!file.transcript && !currentProcessingFile.includes(file.name) && (
+                      {!file.transcript && !currentProcessingFile.includes(file.base_name) && (
                         <div className="p-2 text-destructive" title="No transcript available">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -770,14 +771,14 @@ function App() {
                       {file.transcript ? (
                         <>
                           <button
-                            onClick={(e) => handleRegenerate(file.name, e)}
-                            disabled={regeneratingFiles.has(file.name)}
+                            onClick={(e) => handleRegenerate(file.base_name, e)}
+                            disabled={regeneratingFiles.has(file.base_name)}
                             className={`p-2 text-muted-foreground hover:text-primary hover:bg-accent rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                              currentProcessingFile.includes(file.name) ? 'animate-reverse-spin' : ''
+                              currentProcessingFile.includes(file.base_name) ? 'animate-reverse-spin' : ''
                             }`}
                             title="Regenerate transcript"
                           >
-                            {regeneratingFiles.has(file.name) ? (
+                            {regeneratingFiles.has(file.base_name) ? (
                               <svg className="w-5 h-5 animate-reverse-spin" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -790,12 +791,12 @@ function App() {
                           </button>
                           
                           <button
-                            onClick={(e) => handleReplace(file.name, e)}
-                            disabled={replacingFiles.has(file.name)}
+                            onClick={(e) => handleReplace(file.base_name, e)}
+                            disabled={replacingFiles.has(file.base_name)}
                             className={`p-2 text-muted-foreground hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                             title="Edit transcript"
                           >
-                            {replacingFiles.has(file.name) ? (
+                            {replacingFiles.has(file.base_name) ? (
                               <svg className="w-5 h-5 animate-reverse-spin" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -807,7 +808,7 @@ function App() {
                             )}
                           </button>
                         </>
-                      ) : currentProcessingFile.includes(file.name) ? (
+                      ) : currentProcessingFile.includes(file.base_name) ? (
                         <button
                           disabled={true}
                           className="p-2 text-muted-foreground opacity-50 cursor-not-allowed rounded-md"
@@ -826,14 +827,14 @@ function App() {
                   
                 <TableCell colSpan={6} className="p-0">
                   <TranscriptView
-                    visible={expandedFiles.has(file.name)}
-                    name={file.name}
+                    visible={expandedFiles.has(file.base_name)}
+                    name={file.base_name}
                     className="w-full"
                     searchTerm={searchTerm}
                     text={transcriptInfo.text}
                     loading={transcriptInfo.loading}
                     error={transcriptInfo.error}
-                    visibleLines={searchLineNumbers[file.name] || []}
+                    visibleLines={searchLineNumbers[file.base_name] || []}
                     expandContext={expandContext}
                     expandAll={expandAll}
                   />

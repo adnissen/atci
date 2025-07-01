@@ -139,6 +139,7 @@ defmodule Autotranscript.Web.TranscriptController do
       case File.stat(file_path) do
         {:ok, stat} ->
           filename = Path.basename(file_path, Path.extname(file_path))
+          display_name = Path.basename(file_path)
           txt_path = Path.join(watch_directory, "#{filename}.txt")
 
           # Check if transcript exists
@@ -171,7 +172,8 @@ defmodule Autotranscript.Web.TranscriptController do
           end
 
           %{
-            name: filename,
+            name: display_name,
+            base_name: filename,
             created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
             line_count: line_count,
             full_path: file_path,
