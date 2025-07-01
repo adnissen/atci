@@ -19,7 +19,7 @@
     },
     {
       "name": "Vite Build Watch",
-      "command": "npm run build -- --watch",
+      "command": "npm vite build --watch",
       "workingDirectory": "./frontend"
     }
   ]
