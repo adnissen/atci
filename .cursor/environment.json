@@ -1,16 +1,14 @@
 {
-  "snapshot": "snapshot-20250701-a8d10f13-5b35-4d20-b6e0-bb36dde7f4c8",
+  "snapshot": "snapshot-20250701-fed29f02-eb19-4d4f-a7e3-88d215b01c39",
   "install": "mix deps.get && cd frontend && npm install",
   "terminals": [
     {
       "name": "Phoenix Server",
-      "command": "iex -S mix phx.server",
-      "workingDirectory": "."
+      "command": "iex -S mix phx.server"
     },
     {
       "name": "Vite Build Watch",
-      "command": "npm vite build --watch",
-      "workingDirectory": "./frontend"
+      "command": "npm vite build --watch"
     }
   ]
 }
