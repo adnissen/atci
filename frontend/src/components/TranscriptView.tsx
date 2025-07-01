@@ -11,6 +11,7 @@ interface TranscriptViewProps {
   error?: string | null;
   visibleLines?: number[];
   expandContext: (filename: string, direction: "up" | "down", line: number) => void;
+  expandAll?: ((filename: string) => void) | undefined;
 }
 
 // Extend Window interface for our custom handlers
@@ -42,7 +43,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   loading = false,
   error = null,
   visibleLines = [],
-  expandContext
+  expandContext,
+  expandAll = undefined
 }) => {
   if (!visible) {
     return null;
@@ -206,6 +208,12 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     expandContext(name, direction, line);
   }
 
+  const handleExpandAll = () => {
+    if (expandAll) {
+      expandAll(name);
+    }
+  }
+
   return (
     <div className={`w-full p-6 bg-white ${className}`}>
       <div className="space-y-4">
@@ -237,8 +245,20 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     lineNumbers={(item.data as TranscriptBlockData).lineNumbers}
                   />
                 ) : (
-                  <div className="text-gray-500 italic" onClick={() => handleExpandClick((item.data as { count: number, line: number, direction: "up" | "down" }).line, (item.data as { count: number, line: number, direction: "up" | "down" }).direction)}>
-                    {(item.data as { count: number, line: number, direction: "up" | "down" }).count} lines hidden
+                  <div className="text-gray-500 italic">
+                    <span 
+                      className="cursor-pointer hover:text-blue-600 hover:underline"
+                      onClick={() => handleExpandClick((item.data as { count: number, line: number, direction: "up" | "down" }).line, (item.data as { count: number, line: number, direction: "up" | "down" }).direction)}
+                    >
+                      [{(item.data as { count: number, line: number, direction: "up" | "down" }).count} lines {(item.data as { count: number, line: number, direction: "up" | "down" }).direction === "up" ? "above" : "below"}]
+                    </span>
+                    {" or "}
+                    <span 
+                      className="cursor-pointer hover:text-blue-600 hover:underline"
+                      onClick={handleExpandAll}
+                    >
+                      [expand all]
+                    </span>
                   </div>
                 )}
               </div>
