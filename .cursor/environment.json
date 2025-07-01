@@ -1,0 +1,26 @@
+{
+  "startCommands": [
+    {
+      "name": "Install Elixir Dependencies",
+      "command": "mix deps.get",
+      "workingDirectory": "."
+    },
+    {
+      "name": "Install Frontend Dependencies", 
+      "command": "npm install",
+      "workingDirectory": "./frontend"
+    }
+  ],
+  "terminalCommands": [
+    {
+      "name": "Phoenix Server",
+      "command": "mix phx.server",
+      "workingDirectory": "."
+    },
+    {
+      "name": "Vite Build Watch",
+      "command": "npm vite build --watch",
+      "workingDirectory": "./frontend"
+    }
+  ]
+}
