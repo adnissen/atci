@@ -518,6 +518,20 @@ function App() {
     } catch (error) {
       console.error('Error fetching updated watch directory:', error)
     }
+    
+    // Clear search state and transcript data from old directory
+    setSearchTerm('')
+    setSearchLineNumbers({})
+    setExpandedFiles(new Set())
+    setTranscriptData({})
+    
+    // Refresh the file list to show files from the new directory
+    try {
+      await refreshFiles()
+    } catch (error) {
+      console.error('Error refreshing files from new directory:', error)
+    }
+    
     // Close the config editor
     setIsConfigEditorOpen(false)
   }
