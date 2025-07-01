@@ -174,7 +174,7 @@ function App() {
   const getSortIndicator = (column: SortColumn) => {
     if (sortColumn !== column) {
       return (
-        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
         </svg>
       )
@@ -182,13 +182,13 @@ function App() {
     
     if (sortDirection === 'asc') {
       return (
-        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
         </svg>
       )
     } else {
       return (
-        <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       )
@@ -549,9 +549,9 @@ function App() {
   // Show loading while checking configuration
   if (configComplete === null) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <div className="text-lg text-gray-600">Loading...</div>
+          <div className="text-lg text-muted-foreground">Loading...</div>
         </div>
       </div>
     )
@@ -568,36 +568,36 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-background">
       {/* Watch Directory Bar - Fixed to top */}
       {watchDirectory && (
-        <div className="fixed top-0 left-0 right-0 bg-gray-100 border-b border-gray-200 px-4 py-2 z-10">
-                      <div className="container mx-auto">
-              <div className="flex gap-6 justify-between items-center">
-                <div className="flex-1">
-                  <div className="flex gap-2 items-center max-w-md">
-                    <div className="text-sm text-gray-700 font-medium text-left">
-                      Directory: {watchDirectory}
-                    </div>
-                    <button
-                      onClick={() => setIsConfigEditorOpen(true)}
-                      className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                      title="Edit configuration"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
+        <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-4 py-2 z-10 backdrop-blur-sm">
+          <div className="container mx-auto">
+            <div className="flex gap-6 justify-between items-center">
+              <div className="flex-1">
+                <div className="flex gap-2 items-center max-w-md">
+                  <div className="text-sm text-foreground font-medium text-left">
+                    Directory: {watchDirectory}
                   </div>
+                  <button
+                    onClick={() => setIsConfigEditorOpen(true)}
+                    className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
+                    title="Edit configuration"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
                 </div>
+              </div>
               <div className="flex gap-4 items-center">
                 {currentProcessingFile && (
-                  <div className="text-sm text-blue-700 font-medium">
+                  <div className="text-sm text-primary font-medium">
                     Processing: {currentProcessingFile}
                   </div>
                 )}
                 <div className="relative group">
-                  <div className="text-sm text-gray-700 font-medium">
+                  <div className="text-sm text-foreground font-medium">
                     Queue: {queue.length}
                   </div>
                 </div>
@@ -609,7 +609,7 @@ function App() {
 
       {/* Main content with top padding to account for fixed header */}
       <div className={`container mx-auto py-10 ${watchDirectory ? 'pt-16' : ''}`}>
-        <h1 className="text-2xl font-bold mb-6">File List</h1>
+        <h1 className="text-2xl font-bold mb-6 text-foreground">File List</h1>
         
         {/* File List - Full Width */}
         <div>
@@ -621,12 +621,12 @@ function App() {
                 placeholder="Search in transcripts..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="flex-1 px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
               />
               <button
                 onClick={handleSearch}
                 disabled={isSearching}
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSearching ? 'Searching...' : 'Search'}
               </button>
@@ -634,16 +634,16 @@ function App() {
             
             {/* Search Results */}
             {searchResults.length > 0 && (
-              <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-md">
-                <h3 className="text-sm font-medium text-green-800 mb-2">
+              <div className="mt-4 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+                <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
                   Found in {searchResults.length} file(s)
                 </h3>
               </div>
             )}
             
             {searchTerm && searchResults.length === 0 && !isSearching && (
-              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-md">
-                <p className="text-sm text-gray-600">No files found containing "{searchTerm}"</p>
+              <div className="mt-4 p-4 bg-muted border border-border rounded-md">
+                <p className="text-sm text-muted-foreground">No files found containing "{searchTerm}"</p>
               </div>
             )}
           </div>
@@ -652,7 +652,7 @@ function App() {
             <TableHeader>
               <TableRow>
                 <TableHead 
-                  className="text-center w-1/6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="text-center w-1/6 cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('name')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -660,11 +660,11 @@ function App() {
                     {getSortIndicator('name')}
                   </div>
                   {searchTerm && searchResults.length > 0 && (
-                    <span className="text-xs text-green-600 ml-2">(Search Results)</span>
+                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">(Search Results)</span>
                   )}
                 </TableHead>
                 <TableHead 
-                  className="text-center w-1/6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="text-center w-1/6 cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('created_at')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -673,7 +673,7 @@ function App() {
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center w-1/6 pl-14 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="text-center w-1/6 pl-14 cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('last_generated')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -682,7 +682,7 @@ function App() {
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center w-1/6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="text-center w-1/6 cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('line_count')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -691,7 +691,7 @@ function App() {
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center w-1/6 cursor-pointer hover:bg-gray-50 transition-colors"
+                  className="text-center w-1/6 cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('length')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -729,7 +729,7 @@ function App() {
                   <TableCell className="font-medium w-1/6">
                     <a 
                       href={`/player/${file.name}`}
-                      className="text-blue-600 hover:text-blue-800 underline"
+                      className="text-sky-700 hover:text-sky-600 underline"
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -737,10 +737,10 @@ function App() {
                       {file.name}
                     </a>
                   </TableCell>
-                  <TableCell className="w-1/6 pr-10">{formatDate(file.created_at)}</TableCell>
-                  <TableCell className="w-1/6 pl-10">{formatDate(file.last_generated || '')}</TableCell>
-                  <TableCell className="w-1/6">{file.line_count || 0}</TableCell>
-                  <TableCell className="w-1/6">{file.length || '--:--:--'}</TableCell>
+                  <TableCell className="w-1/6 pr-10 text-foreground">{formatDate(file.created_at)}</TableCell>
+                  <TableCell className="w-1/6 pl-10 text-foreground">{formatDate(file.last_generated || '')}</TableCell>
+                  <TableCell className="w-1/6 text-foreground">{file.line_count || 0}</TableCell>
+                  <TableCell className="w-1/6 text-foreground">{file.length || '--:--:--'}</TableCell>
                   <TableCell className="w-1/6 text-center">
                     <div className="flex justify-center gap-2">
                       <button
@@ -748,7 +748,7 @@ function App() {
                           e.stopPropagation()
                           window.open(`/player/${file.name}`, '_blank')
                         }}
-                        className="p-2 text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-md transition-colors"
+                        className="p-2 text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-md transition-colors"
                         title="View file"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -759,8 +759,8 @@ function App() {
                       
                       {/* Warning icon for files without transcript */}
                       {!file.transcript && !currentProcessingFile.includes(file.name) && (
-                        <div className="p-2 text-red-600" title="No transcript available">
-                          <svg className="w-5 h-5" fill="none" stroke="red" strokeWidth="2" viewBox="0 0 24 24">
+                        <div className="p-2 text-destructive" title="No transcript available">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
                         </div>
@@ -772,7 +772,7 @@ function App() {
                           <button
                             onClick={(e) => handleRegenerate(file.name, e)}
                             disabled={regeneratingFiles.has(file.name)}
-                            className={`p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                            className={`p-2 text-muted-foreground hover:text-primary hover:bg-accent rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                               currentProcessingFile.includes(file.name) ? 'animate-reverse-spin' : ''
                             }`}
                             title="Regenerate transcript"
@@ -792,7 +792,7 @@ function App() {
                           <button
                             onClick={(e) => handleReplace(file.name, e)}
                             disabled={replacingFiles.has(file.name)}
-                            className={`p-2 text-gray-600 hover:text-orange-600 hover:bg-orange-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                            className={`p-2 text-muted-foreground hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                             title="Edit transcript"
                           >
                             {replacingFiles.has(file.name) ? (
@@ -810,7 +810,7 @@ function App() {
                       ) : currentProcessingFile.includes(file.name) ? (
                         <button
                           disabled={true}
-                          className="p-2 text-gray-600 opacity-50 cursor-not-allowed rounded-md"
+                          className="p-2 text-muted-foreground opacity-50 cursor-not-allowed rounded-md"
                           title="Processing transcript"
                         >
                           <svg className="w-5 h-5 animate-reverse-spin" fill="none" viewBox="0 0 24 24">
