@@ -2,7 +2,7 @@ defmodule Autotranscript.VideoProcessor do
   use GenServer
   require Logger
 
-  alias Autotranscript.PathHelper
+  alias Autotranscript.{PathHelper, VideoInfoCache}
 
   @moduledoc """
   A GenServer that manages a queue of video files to be processed.
@@ -125,7 +125,7 @@ defmodule Autotranscript.VideoProcessor do
       {:error, :invalid_file_type}
   """
   def process_video_file(video_path, process_type \\ :all) do
-    case process_type do
+    result = case process_type do
       :all ->
         with :ok <- convert_to_mp3(video_path),
              mp3_path = PathHelper.find_mp3_file_from_video(video_path),
@@ -137,6 +137,11 @@ defmodule Autotranscript.VideoProcessor do
       :length ->
         save_video_length(video_path)
     end
+
+    # Update the video info cache after processing
+    VideoInfoCache.update_video_info_cache()
+
+    result
   end
 
   @doc """
