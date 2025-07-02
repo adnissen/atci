@@ -508,17 +508,10 @@ defmodule Autotranscript.Web.TranscriptController do
           |> send_resp(404, Jason.encode!(%{error: "Video file '#{filename}' not found"}))
 
         file_path ->
-          case Autotranscript.VideoProcessor.save_video_length(file_path) do
-            :ok ->
-              conn
-              |> put_resp_content_type("application/json")
-              |> send_resp(200, Jason.encode!(%{message: "Meta file for '#{filename}' regenerated successfully"}))
-            {:error, reason} ->
-              conn
-              |> put_status(:internal_server_error)
-              |> put_resp_content_type("application/json")
-              |> send_resp(500, Jason.encode!(%{error: "Error regenerating meta file for '#{filename}': #{inspect(reason)}"}))
-          end
+          Autotranscript.VideoProcessor.add_to_queue(file_path, :length)
+          conn
+          |> put_resp_content_type("application/json")
+          |> send_resp(200, Jason.encode!(%{message: "Meta file regeneration for '#{filename}' added to queue"}))
       end
     end
   end

@@ -19,32 +19,32 @@ defmodule Autotranscript.VideoProcessor do
   @doc """
   Adds a video file to the processing queue.
   """
-  def add_to_queue(video_path) do
-    GenServer.cast(__MODULE__, {:add_to_queue, video_path})
+  def add_to_queue(video_path, process_type \\ :all) do
+    GenServer.cast(__MODULE__, {:add_to_queue, {video_path, process_type}})
   end
 
   @doc """
   Gets the current queue status including the queue contents, processing state, and currently processing file.
 
   ## Returns
-    - %{queue: [video_paths], processing: boolean, current_file: video_path | nil}
+    - %{queue: [{video_path, process_type}], processing: boolean, current_file: {video_path, process_type} | nil}
 
   ## Examples
       iex> Autotranscript.VideoProcessor.get_queue_status()
-      %{queue: ["video1.mp4", "video2.mp4"], processing: true, current_file: "video1.mp4"}
+      %{queue: [{"video1.mp4", :all}, {"video2.mp4", :length}], processing: true, current_file: {"video1.mp4", :all}}
   """
   def get_queue_status do
     GenServer.call(__MODULE__, :get_queue_status)
   end
 
   @impl true
-  def handle_cast({:add_to_queue, video_path}, %{queue: queue, processing: processing, current_file: current_file} = state) do
+  def handle_cast({:add_to_queue, {video_path, process_type} = video_tuple}, %{queue: queue, processing: processing, current_file: current_file} = state) do
     # Check if the video is already in the queue or currently being processed
-    if video_path in queue or video_path == current_file do
+    if video_tuple in queue or video_tuple == current_file do
       # Video is already queued or being processed, don't add it again
       {:noreply, state}
     else
-      new_queue = [video_path | queue]
+      new_queue = [video_tuple | queue]
 
       if not processing do
         # Start processing if not already processing
@@ -64,27 +64,27 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast(:process_next, %{queue: [video_path | _rest], processing: _processing, current_file: nil} = state) do
+  def handle_cast(:process_next, %{queue: [{video_path, process_type} = video_tuple | _rest], processing: _processing, current_file: nil} = state) do
     # Start processing the next file in the queue asynchronously
     # Keep the file in the queue until processing is complete
     spawn(fn ->
-      case process_video_file(video_path) do
+      case process_video_file(video_path, process_type) do
         :ok ->
-          IO.puts("Successfully processed #{video_path}")
-          GenServer.cast(__MODULE__, {:processing_complete, video_path, :ok})
+          IO.puts("Successfully processed #{video_path} with type #{process_type}")
+          GenServer.cast(__MODULE__, {:processing_complete, video_tuple, :ok})
         {:error, reason} ->
           IO.puts("Error processing #{video_path}: #{inspect(reason)}")
-          GenServer.cast(__MODULE__, {:processing_complete, video_path, {:error, reason}})
+          GenServer.cast(__MODULE__, {:processing_complete, video_tuple, {:error, reason}})
       end
     end)
 
-    {:noreply, %{state | current_file: video_path}}
+    {:noreply, %{state | current_file: video_tuple}}
   end
 
   @impl true
-  def handle_cast({:processing_complete, video_path, _result}, %{queue: queue, processing: _processing, current_file: _current_file} = state) do
+  def handle_cast({:processing_complete, video_tuple, _result}, %{queue: queue, processing: _processing, current_file: _current_file} = state) do
     # Remove the completed file from the queue
-    new_queue = Enum.reject(queue, fn path -> path == video_path end)
+    new_queue = Enum.reject(queue, fn tuple -> tuple == video_tuple end)
 
     if new_queue == [] do
       # No more files to process
@@ -106,27 +106,36 @@ defmodule Autotranscript.VideoProcessor do
 
   ## Parameters
     - video_path: String path to the video file
+    - process_type: Atom indicating the type of processing (:all, :length)
 
   ## Returns
     - :ok if the processing was successful
     - {:error, reason} if any step failed
 
   ## Examples
-      iex> Autotranscript.VideoProcessor.process_video_file("video.mp4")
+      iex> Autotranscript.VideoProcessor.process_video_file("video.mp4", :all)
       :ok
 
-      iex> Autotranscript.VideoProcessor.process_video_file("not_video.txt")
+      iex> Autotranscript.VideoProcessor.process_video_file("video.mp4", :length)
+      :ok
+
+      iex> Autotranscript.VideoProcessor.process_video_file("not_video.txt", :all)
       {:error, :invalid_file_type}
   """
-  def process_video_file(video_path) do
-    with :ok <- convert_to_mp3(video_path),
-         mp3_path =
-           String.replace_trailing(video_path, ".MP4", ".mp3")
-           |> String.replace_trailing(".mp4", ".mp3"),
-         :ok <- transcribe_audio(mp3_path),
-         :ok <- delete_mp3(mp3_path),
-         :ok <- save_video_length(video_path) do
-      :ok
+  def process_video_file(video_path, process_type \\ :all) do
+    case process_type do
+      :all ->
+        with :ok <- convert_to_mp3(video_path),
+             mp3_path =
+               String.replace_trailing(video_path, ".MP4", ".mp3")
+               |> String.replace_trailing(".mp4", ".mp3"),
+             :ok <- transcribe_audio(mp3_path),
+             :ok <- delete_mp3(mp3_path),
+             :ok <- save_video_length(video_path) do
+          :ok
+        end
+      :length ->
+        save_video_length(video_path)
     end
   end
 
