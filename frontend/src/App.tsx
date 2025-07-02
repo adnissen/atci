@@ -444,7 +444,7 @@ function App() {
       // Get CSRF token from meta tag
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
       
-      const response = await fetch(`/transcripts/${filename}/regenerate`, {
+      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/regenerate`, {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -485,7 +485,7 @@ function App() {
       // Get CSRF token from meta tag
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
       
-      const response = await fetch(`/transcripts/${filename}/replace`, {
+      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/replace`, {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -539,7 +539,7 @@ function App() {
       // Get CSRF token from meta tag
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
       
-      const response = await fetch(`/transcripts/${filename}/regenerate_meta`, {
+      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/regenerate_meta`, {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -776,7 +776,7 @@ function App() {
                 }}>
                   <TableCell className="font-medium w-1/6">
                     <a 
-                      href={`/player/${file.base_name}`}
+                      href={`/player/${encodeURIComponent(file.base_name)}`}
                       className="text-sky-700 hover:text-sky-600 underline"
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
@@ -815,7 +815,7 @@ function App() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          window.open(`/player/${file.base_name}`, '_blank')
+                          window.open(`/player/${encodeURIComponent(file.base_name)}`, '_blank')
                         }}
                         className="p-2 text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-md transition-colors"
                         title="View file"
@@ -825,15 +825,6 @@ function App() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                       </button>
-                      
-                      {/* Warning icon for files without transcript */}
-                      {!file.transcript && !isFileBeingProcessed(file.base_name) && (
-                        <div className="p-2 text-destructive" title="No transcript available">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                      )}
                       
                       {/* Only show regenerate button if transcript exists */}
                       {file.transcript ? (
@@ -864,10 +855,7 @@ function App() {
                             title="Edit transcript"
                           >
                             {replacingFiles.has(file.base_name) ? (
-                              <svg className="w-5 h-5 animate-reverse-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                              </svg>
+                              <></>
                             ) : (
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -881,10 +869,9 @@ function App() {
                           className="p-2 text-muted-foreground opacity-50 cursor-not-allowed rounded-md"
                           title="Processing transcript"
                         >
-                          <svg className="w-5 h-5 animate-reverse-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
+                          <svg className="w-5 h-5 animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
                         </button>
                       ) : null}
                     </div>

@@ -2,6 +2,8 @@ defmodule Autotranscript.Transcriber do
   use GenServer
   require Logger
 
+  alias Autotranscript.PathHelper
+
   @moduledoc """
   Documentation for `Autotranscript`.
   """
@@ -139,12 +141,9 @@ defmodule Autotranscript.Transcriber do
 
     current_time = System.system_time(:second)
 
-    Path.wildcard(Path.join(directory, "**/*.{MP4,mp4}"))
+    Path.wildcard(Path.join(directory, "**/*.#{PathHelper.video_wildcard_pattern()}"))
     |> Enum.each(fn video_path ->
-      txt_path = String.replace_trailing(video_path, ".MP4", ".txt")
-      txt_path = String.replace_trailing(txt_path, ".mp4", ".txt")
-
-      unless File.exists?(txt_path) do
+      unless PathHelper.find_txt_file_from_video(video_path) do
         # Check if the video file is at least 3 seconds old
         case File.stat(video_path, time: :posix) do
           {:ok, %{mtime: mtime}} ->

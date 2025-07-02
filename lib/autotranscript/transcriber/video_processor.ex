@@ -2,6 +2,8 @@ defmodule Autotranscript.VideoProcessor do
   use GenServer
   require Logger
 
+  alias Autotranscript.PathHelper
+
   @moduledoc """
   A GenServer that manages a queue of video files to be processed.
   Processes files one at a time to avoid overwhelming the system.
@@ -126,9 +128,7 @@ defmodule Autotranscript.VideoProcessor do
     case process_type do
       :all ->
         with :ok <- convert_to_mp3(video_path),
-             mp3_path =
-               String.replace_trailing(video_path, ".MP4", ".mp3")
-               |> String.replace_trailing(".mp4", ".mp3"),
+             mp3_path = PathHelper.find_mp3_file_from_video(video_path),
              :ok <- transcribe_audio(mp3_path),
              :ok <- delete_mp3(mp3_path),
              :ok <- save_video_length(video_path) do
@@ -153,9 +153,8 @@ defmodule Autotranscript.VideoProcessor do
       {:error, :invalid_file_type}
   """
   def convert_to_mp3(path) do
-    if String.ends_with?(path, [".MP4", ".mp4"]) do
-      output_path = String.replace_trailing(path, ".MP4", ".mp3")
-      output_path = String.replace_trailing(output_path, ".mp4", ".mp3")
+    if String.ends_with?(path, PathHelper.video_extensions_with_dots) do
+      output_path = PathHelper.replace_video_extension_with(path, ".mp3")
 
       System.cmd("ffmpeg", ["-i", path, "-q:a", "0", "-map", "a", output_path])
       :ok
@@ -246,11 +245,10 @@ defmodule Autotranscript.VideoProcessor do
     - {:error, reason} if any step failed
   """
   def save_video_length(video_path) do
-    if String.ends_with?(video_path, [".MP4", ".mp4"]) do
+    if String.ends_with?(video_path, PathHelper.video_extensions_with_dots) do
       case get_video_length(video_path) do
         {:ok, length} ->
-          meta_path = String.replace_trailing(video_path, ".MP4", ".meta")
-          meta_path = String.replace_trailing(meta_path, ".mp4", ".meta")
+          meta_path = PathHelper.replace_video_extension_with(video_path, ".meta")
 
           case File.write(meta_path, length) do
             :ok ->

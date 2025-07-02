@@ -1,10 +1,11 @@
 defmodule Autotranscript.Web.TranscriptController do
   use Autotranscript.Web, :controller
 
+  alias Autotranscript.PathHelper
   def index(conn, _params) do
     # Get all .txt files in the watch directory (will be empty array if no config)
     txt_files =
-      get_mp4_files()
+      get_video_files()
       |> Jason.encode!()
 
     render(conn, :index, txt_files: txt_files)
@@ -49,23 +50,34 @@ defmodule Autotranscript.Web.TranscriptController do
       |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
     else
       # Change to the watch directory and run grep with line numbers
-      case System.shell("grep -Hni \"" <> search_text <> "\" *.txt", cd: watch_directory) do
-      {output, 0} ->
-        # Parse the output to extract filename and line numbers
-        results = parse_grep_output(output)
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(200, Jason.encode!(results))
-      {output, exit_code} when exit_code > 1 ->
-        conn
-        |> put_status(:internal_server_error)
-        |> put_resp_content_type("application/json")
-        |> send_resp(500, Jason.encode!(%{error: "Error running grep: #{output}"}))
-      {_output, 1} ->
-        # grep returns 1 when no matches found, which is not an error
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(200, Jason.encode!(%{}))
+      # Run first grep command for files in root directory
+      {output1, exit_code1} = System.shell("grep -Hni \"" <> search_text <> "\" *.txt", cd: watch_directory)
+
+      # Run second grep command for files in subdirectories
+      {output2, exit_code2} = System.shell("grep -Hni \"" <> search_text <> "\" **/*.txt", cd: watch_directory)
+
+      cond do
+        # Both commands failed with error (exit code > 1)
+        exit_code1 > 1 and exit_code2 > 1 ->
+          conn
+          |> put_status(:internal_server_error)
+          |> put_resp_content_type("application/json")
+          |> send_resp(500, Jason.encode!(%{error: "Error running grep: #{output1} #{output2}"}))
+
+        # At least one command succeeded (exit code 0) or found no matches (exit code 1)
+        true ->
+          # Parse outputs, defaulting to empty string if command errored
+          results1 = if exit_code1 <= 1, do: parse_grep_output(output1), else: %{}
+          results2 = if exit_code2 <= 1, do: parse_grep_output(output2), else: %{}
+
+          # Merge results, combining line numbers for any overlapping files
+          combined_results = Map.merge(results1, results2, fn _k, v1, v2 ->
+            Enum.sort(Enum.uniq(v1 ++ v2))
+          end)
+
+          conn
+          |> put_resp_content_type("application/json")
+          |> send_resp(200, Jason.encode!(combined_results))
       end
     end
   end
@@ -136,21 +148,21 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def files(conn, _params) do
-    mp4_files = get_mp4_files()
+    video_files = get_video_files()
 
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(mp4_files))
+    |> send_resp(200, Jason.encode!(video_files))
   end
 
-  defp get_mp4_files do
+  defp get_video_files do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     if watch_directory == nil or watch_directory == "" do
       []
     else
-      # Get all .mp4 and .MP4 files in the watch directory
-      Path.wildcard(Path.join(watch_directory, "**/*.{mp4,MP4}"))
+      # Get all video files in the watch directory
+      Path.wildcard(Path.join(watch_directory, "**/*.#{PathHelper.video_wildcard_pattern}"))
       |> Enum.map(fn file_path ->
       case File.stat(file_path) do
         {:ok, stat} ->
@@ -217,8 +229,8 @@ defmodule Autotranscript.Web.TranscriptController do
       |> put_resp_content_type("text/plain")
       |> send_resp(503, "Watch directory not configured. Please configure the application first.")
     else
-      # Get all MP4 files in the watch directory
-      mp4_files = Path.wildcard(Path.join(watch_directory, "**/*.{MP4,mp4}"))
+      # Get all video files in the watch directory
+      mp4_files = Path.wildcard(Path.join(watch_directory, "**/*.#{PathHelper.video_wildcard_pattern}"))
 
     case mp4_files do
       [] ->
@@ -228,7 +240,7 @@ defmodule Autotranscript.Web.TranscriptController do
         |> send_resp(404, "No MP4 files found in watch directory")
 
       files ->
-        # Randomly select an MP4 file
+        # Randomly select an video file
         selected_file = Enum.random(files)
 
         # Generate a temporary filename for the extracted frame
@@ -278,10 +290,7 @@ defmodule Autotranscript.Web.TranscriptController do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Check if the video file exists
-    mp4_path = Path.join(watch_directory, "#{filename}.mp4")
-    mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
-
-    video_exists = File.exists?(mp4_path) or File.exists?(mp4_upper_path)
+    video_exists = PathHelper.video_file_exists?(watch_directory, filename)
 
     if video_exists do
       # Extract and validate the time parameter
@@ -308,15 +317,7 @@ defmodule Autotranscript.Web.TranscriptController do
     # Parse and validate the time parameter
     case Float.parse(time_str) do
       {time, ""} when time >= 0 ->
-        # Check if the video file exists
-        mp4_path = Path.join(watch_directory, "#{filename}.mp4")
-        mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
-
-        video_file = cond do
-          File.exists?(mp4_path) -> mp4_path
-          File.exists?(mp4_upper_path) -> mp4_upper_path
-          true -> nil
-        end
+        video_file = PathHelper.find_video_file(watch_directory, filename)
 
         case video_file do
           nil ->
@@ -422,14 +423,7 @@ defmodule Autotranscript.Web.TranscriptController do
     case {Float.parse(start_time_str || ""), Float.parse(end_time_str || "")} do
       {{start_time, ""}, {end_time, ""}} when start_time >= 0 and end_time > start_time ->
         # Check if the video file exists
-        mp4_path = Path.join(watch_directory, "#{filename}.mp4")
-        mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
-
-        video_file = cond do
-          File.exists?(mp4_path) -> mp4_path
-          File.exists?(mp4_upper_path) -> mp4_upper_path
-          true -> nil
-        end
+        video_file = PathHelper.find_video_file(watch_directory, filename)
 
         case video_file do
           nil ->
@@ -509,14 +503,7 @@ defmodule Autotranscript.Web.TranscriptController do
       |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
     else
       # Check if the video file exists
-      mp4_path = Path.join(watch_directory, "#{filename}.mp4")
-      mp4_upper_path = Path.join(watch_directory, "#{filename}.MP4")
-
-      video_file = cond do
-        File.exists?(mp4_path) -> mp4_path
-        File.exists?(mp4_upper_path) -> mp4_upper_path
-        true -> nil
-      end
+      video_file = PathHelper.find_video_file(watch_directory, filename)
 
       case video_file do
         nil ->
@@ -537,7 +524,6 @@ defmodule Autotranscript.Web.TranscriptController do
   def replace_transcript(conn, %{"filename" => filename}) do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
     file_path = Path.join(watch_directory, "#{filename}.txt")
-    IO.inspect(conn.body_params)
     case conn.body_params do
       %{"text" => replacement_text} ->
         case File.write(file_path, replacement_text) do

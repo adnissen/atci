@@ -3,7 +3,7 @@ defmodule Autotranscript.Web.Plugs.DynamicStatic do
   A plug that dynamically serves static files from the watch directory
   configured in ConfigManager.
   """
-
+alias Autotranscript.PathHelper
   import Plug.Conn
   require Logger
   require Record
@@ -23,18 +23,33 @@ defmodule Autotranscript.Web.Plugs.DynamicStatic do
       watch_directory ->
         file_path = Path.join([watch_directory] ++ path)
 
-        case :prim_file.read_file_info(file_path) do
-          {:ok, file_info(type: :regular) = file_info} ->
+        # If no extension, try all video extensions
+        paths_to_try = if Path.extname(file_path) == "" do
+          Enum.map(PathHelper.video_extensions(), fn ext ->
+            file_path <> "." <> ext
+          end)
+        else
+          [file_path]
+        end
+
+        # Try each possible path
+        case Enum.find_value(paths_to_try, fn path ->
+          case :prim_file.read_file_info(path) do
+            {:ok, file_info(type: :regular) = file_info} -> {path, file_info}
+            _ -> nil
+          end
+        end) do
+          {found_path, file_info} ->
             # Get range header if present
             range = get_req_header(conn, "range")
 
             # Serve the file with range support
             conn
-            |> put_resp_content_type("video/mp4")
+            |> put_resp_content_type(get_content_type(found_path))
             |> put_resp_header("accept-ranges", "bytes")
-            |> serve_range(file_info, file_path, range)
+            |> serve_range(file_info, found_path, range)
 
-          _ ->
+          nil ->
             conn
             |> send_resp(404, "Not Found")
             |> halt()
@@ -99,5 +114,27 @@ defmodule Autotranscript.Web.Plugs.DynamicStatic do
     conn
     |> send_file(200, path)
     |> halt()
+  end
+
+  defp get_content_type(file_path) do
+    file_path
+    |> Path.extname()
+    |> String.downcase()
+    |> case do
+      ".mp4" -> "video/mp4"
+      ".mov" -> "video/quicktime"
+      ".mp3" -> "audio/mpeg"
+      ".txt" -> "text/plain"
+      ".json" -> "application/json"
+      ".pdf" -> "application/pdf"
+      ".jpg" -> "image/jpeg"
+      ".jpeg" -> "image/jpeg"
+      ".png" -> "image/png"
+      ".gif" -> "image/gif"
+      ".webm" -> "video/webm"
+      ".avi" -> "video/x-msvideo"
+      ".mkv" -> "video/x-matroska"
+      _ -> "application/octet-stream"
+    end
   end
 end
