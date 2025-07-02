@@ -46,7 +46,7 @@ defmodule Autotranscript.Transcriber do
   @impl true
   def handle_info(:check_directory, %{watching: true} = state) do
     check_for_videos_with_missing_files_and_add_to_queue()
-    
+
     # Schedule the next directory check in 2 seconds
     timer_ref = Process.send_after(self(), :check_directory, 2000)
     {:noreply, %{state | timer_ref: timer_ref}}
@@ -60,14 +60,14 @@ defmodule Autotranscript.Transcriber do
         # Configuration is now available, start directory watching
         check_for_videos_with_missing_files_and_add_to_queue()
         Logger.info("Configuration became available, directory watching started")
-        
+
         # Cancel the config checking timer if it exists
         if state.config_timer_ref do
           Process.cancel_timer(state.config_timer_ref)
         end
-        
+
         {:noreply, %{state | timer_ref: timer_ref, config_timer_ref: nil, watching: true}}
-      
+
       _ ->
         # Configuration still not available, check again in 5 seconds
         config_timer_ref = Process.send_after(self(), :check_config, 5000)
@@ -93,21 +93,21 @@ defmodule Autotranscript.Transcriber do
     case watch_directory() do
       {:ok, timer_ref} when timer_ref != nil ->
         Logger.info("Directory watching started after configuration update")
-        
+
         # Cancel any existing config checking timer
         if state.config_timer_ref do
           Process.cancel_timer(state.config_timer_ref)
         end
-        
+
         # Start the initial directory check and video processing
         check_for_videos_with_missing_files_and_add_to_queue()
-        
+
         {:reply, :ok, %{state | timer_ref: timer_ref, config_timer_ref: nil, watching: true}}
-      
+
       {:error, reason} ->
         Logger.warning("Failed to start directory watching: #{inspect(reason)}")
         {:reply, {:error, reason}, state}
-      
+
       _ ->
         Logger.warning("Directory watching could not be started (no valid configuration)")
         {:reply, {:error, :no_config}, state}
@@ -126,7 +126,7 @@ defmodule Autotranscript.Transcriber do
 
   def check_for_videos_with_missing_files_and_add_to_queue do
     directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    
+
     if directory == nil or directory == "" do
       Logger.warning("Watch directory not configured, skipping video check")
       :ok
@@ -134,12 +134,12 @@ defmodule Autotranscript.Transcriber do
       do_check_for_videos(directory)
     end
   end
-  
+
   defp do_check_for_videos(directory) do
-    
+
     current_time = System.system_time(:second)
 
-    Path.wildcard(Path.join(directory, "*.{MP4,mp4}"))
+    Path.wildcard(Path.join(directory, "**/*.{MP4,mp4}"))
     |> Enum.each(fn video_path ->
       txt_path = String.replace_trailing(video_path, ".MP4", ".txt")
       txt_path = String.replace_trailing(txt_path, ".mp4", ".txt")
@@ -168,7 +168,7 @@ defmodule Autotranscript.Transcriber do
   """
   def watch_directory do
     directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    
+
     case directory do
       nil ->
         Logger.warning("Watch directory not configured")

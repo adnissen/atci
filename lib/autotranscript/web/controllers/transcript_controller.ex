@@ -12,7 +12,7 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def show(conn, %{"filename" => filename}) do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    
+
     if watch_directory == nil or watch_directory == "" do
       conn
       |> put_status(:service_unavailable)
@@ -41,7 +41,7 @@ defmodule Autotranscript.Web.TranscriptController do
   end
   def grep(conn, %{"text" => search_text}) do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    
+
     if watch_directory == nil or watch_directory == "" do
       conn
       |> put_status(:service_unavailable)
@@ -114,7 +114,7 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def queue(conn, _params) do
     queue_status = Autotranscript.VideoProcessor.get_queue_status()
-    
+
     # Transform tuples to maps for JSON serialization
     transformed_queue_status = %{
       queue: Enum.map(queue_status.queue, fn {video_path, process_type} ->
@@ -129,7 +129,7 @@ defmodule Autotranscript.Web.TranscriptController do
         nil -> nil
       end
     }
-    
+
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(200, Jason.encode!(transformed_queue_status))
@@ -145,17 +145,19 @@ defmodule Autotranscript.Web.TranscriptController do
 
   defp get_mp4_files do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    
+
     if watch_directory == nil or watch_directory == "" do
       []
     else
       # Get all .mp4 and .MP4 files in the watch directory
-      Path.wildcard(Path.join(watch_directory, "*.{mp4,MP4}"))
+      Path.wildcard(Path.join(watch_directory, "**/*.{mp4,MP4}"))
       |> Enum.map(fn file_path ->
       case File.stat(file_path) do
         {:ok, stat} ->
-          filename = Path.basename(file_path, Path.extname(file_path))
-          display_name = Path.basename(file_path)
+          # Get the relative path from watch_directory to the file
+          relative_path = Path.relative_to(file_path, watch_directory)
+          filename = Path.rootname(relative_path)
+          display_name = relative_path
           txt_path = Path.join(watch_directory, "#{filename}.txt")
 
           # Check if transcript exists
@@ -208,7 +210,7 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def random_frame(conn, _params) do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    
+
     if watch_directory == nil or watch_directory == "" do
       conn
       |> put_status(:service_unavailable)
@@ -216,7 +218,7 @@ defmodule Autotranscript.Web.TranscriptController do
       |> send_resp(503, "Watch directory not configured. Please configure the application first.")
     else
       # Get all MP4 files in the watch directory
-      mp4_files = Path.wildcard(Path.join(watch_directory, "*.{MP4,mp4}"))
+      mp4_files = Path.wildcard(Path.join(watch_directory, "**/*.{MP4,mp4}"))
 
     case mp4_files do
       [] ->
@@ -499,7 +501,7 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def regenerate_meta(conn, %{"filename" => filename}) do
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    
+
     if watch_directory == nil or watch_directory == "" do
       conn
       |> put_status(:service_unavailable)
