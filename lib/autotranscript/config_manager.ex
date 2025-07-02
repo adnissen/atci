@@ -3,7 +3,7 @@ defmodule Autotranscript.ConfigManager do
   Manages configuration for Autotranscript application using a GenServer.
 
   Configuration is stored in memory after being loaded from a `.atconfig` file in JSON format.
-  The file is looked for in the current directory first, then in the home directory.
+  The file is looked for only in the home directory.
   """
 
   use GenServer
@@ -32,7 +32,7 @@ defmodule Autotranscript.ConfigManager do
   @doc """
   Saves configuration to a .atconfig file and updates the in-memory state.
 
-  Saves to the current directory by default.
+  Saves to the home directory.
   """
   def save_config(config) when is_map(config) do
     GenServer.call(:config_manager, {:save_config, config})
@@ -141,7 +141,7 @@ defmodule Autotranscript.ConfigManager do
   end
 
   defp save_config_to_file(config) when is_map(config) do
-    config_path = Path.join(File.cwd!(), @config_filename)
+    config_path = Path.expand(Path.join("~", @config_filename))
 
     case Jason.encode(config, pretty: true) do
       {:ok, json_content} ->
@@ -159,16 +159,12 @@ defmodule Autotranscript.ConfigManager do
   end
 
   defp find_config_file do
-    current_dir_config = Path.join(File.cwd!(), @config_filename)
     home_dir_config = Path.expand(Path.join("~", @config_filename))
 
-    cond do
-      File.exists?(current_dir_config) ->
-        {:ok, current_dir_config}
-      File.exists?(home_dir_config) ->
-        {:ok, home_dir_config}
-      true ->
-        {:error, :not_found}
+    if File.exists?(home_dir_config) do
+      {:ok, home_dir_config}
+    else
+      {:error, :not_found}
     end
   end
 end
