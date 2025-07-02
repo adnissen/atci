@@ -114,9 +114,25 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def queue(conn, _params) do
     queue_status = Autotranscript.VideoProcessor.get_queue_status()
+    
+    # Transform tuples to maps for JSON serialization
+    transformed_queue_status = %{
+      queue: Enum.map(queue_status.queue, fn {video_path, process_type} ->
+        %{
+          video_path: video_path,
+          process_type: process_type
+        }
+      end),
+      processing: queue_status.processing,
+      current_file: case queue_status.current_file do
+        {video_path, process_type} -> %{video_path: video_path, process_type: process_type}
+        nil -> nil
+      end
+    }
+    
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(queue_status))
+    |> send_resp(200, Jason.encode!(transformed_queue_status))
   end
 
   def files(conn, _params) do
@@ -508,17 +524,10 @@ defmodule Autotranscript.Web.TranscriptController do
           |> send_resp(404, Jason.encode!(%{error: "Video file '#{filename}' not found"}))
 
         file_path ->
-          case Autotranscript.VideoProcessor.save_video_length(file_path) do
-            :ok ->
-              conn
-              |> put_resp_content_type("application/json")
-              |> send_resp(200, Jason.encode!(%{message: "Meta file for '#{filename}' regenerated successfully"}))
-            {:error, reason} ->
-              conn
-              |> put_status(:internal_server_error)
-              |> put_resp_content_type("application/json")
-              |> send_resp(500, Jason.encode!(%{error: "Error regenerating meta file for '#{filename}': #{inspect(reason)}"}))
-          end
+          Autotranscript.VideoProcessor.add_to_queue(file_path, :length)
+          conn
+          |> put_resp_content_type("application/json")
+          |> send_resp(200, Jason.encode!(%{message: "Meta file regeneration for '#{filename}' added to queue"}))
       end
     end
   end
