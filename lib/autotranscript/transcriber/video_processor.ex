@@ -40,7 +40,7 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast({:add_to_queue, {video_path, process_type} = video_tuple}, %{queue: queue, processing: processing, current_file: current_file} = state) do
+  def handle_cast({:add_to_queue, {_video_path, _process_type} = video_tuple}, %{queue: queue, processing: processing, current_file: current_file} = state) do
     # Check if the video is already in the queue or currently being processed
     if video_tuple in queue or video_tuple == current_file do
       # Video is already queued or being processed, don't add it again

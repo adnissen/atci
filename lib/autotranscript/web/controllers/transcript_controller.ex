@@ -465,6 +465,7 @@ defmodule Autotranscript.Web.TranscriptController do
       %{"text" => replacement_text} ->
         case File.write(file_path, replacement_text) do
           :ok ->
+            VideoInfoCache.update_video_info_cache
             conn
             |> put_resp_content_type("text/plain")
             |> send_resp(200, "Transcript file '#{filename}.txt' updated successfully")
