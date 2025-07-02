@@ -9,7 +9,7 @@ import {
 import './App.css'
 import TranscriptView from './components/TranscriptView'
 import ConfigSetup from './components/ConfigSetup'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 
 function App() {
   // Sample data for the table
@@ -55,6 +55,14 @@ function App() {
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
   const [sortColumn, setSortColumn] = useState<SortColumn>('created_at')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  
+  // State for tracking out-of-view expanded rows
+  const [outOfViewExpandedFile, setOutOfViewExpandedFile] = useState<string | null>(null)
+  const [flashingRow, setFlashingRow] = useState<string | null>(null)
+  const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const transcriptObserverRef = useRef<IntersectionObserver | null>(null)
 
   // Helper function to check if a file is currently being processed
   const isFileBeingProcessed = (filename: string): boolean => {
@@ -67,6 +75,140 @@ function App() {
   const searchResults = Object.keys(searchLineNumbers).filter(filename => 
     searchLineNumbers[filename] && (searchLineNumbers[filename].length > 0)
   )
+
+  // Setup intersection observer to track expanded rows visibility
+  const setupIntersectionObserver = useCallback(() => {
+    // Clean up existing observers
+    if (observerRef.current) {
+      observerRef.current.disconnect()
+    }
+    if (transcriptObserverRef.current) {
+      transcriptObserverRef.current.disconnect()
+    }
+
+    // Observer for file rows (sets single file when row goes off top)
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const filename = entry.target.getAttribute('data-filename')
+          if (filename && expandedFiles.has(filename)) {
+            if (!entry.isIntersecting) {
+              // Check if the element is above the viewport (off the top)
+              const isAboveViewport = entry.boundingClientRect.bottom < (entry.rootBounds?.top || 0)
+              if (isAboveViewport && !outOfViewExpandedFile) {
+                // Only set as out of view if transcript is still visible
+                const transcriptRow = transcriptRowRefs.current[filename]
+                if (transcriptRow) {
+                  const transcriptRect = transcriptRow.getBoundingClientRect()
+                  const isTranscriptAboveViewport = transcriptRect.bottom < (entry.rootBounds?.top || 0)
+                  if (!isTranscriptAboveViewport) {
+                    setOutOfViewExpandedFile(filename)
+                  }
+                }
+              }
+            } else {
+              // Remove if this file is currently the out-of-view file
+              if (outOfViewExpandedFile === filename) {
+                setOutOfViewExpandedFile(null)
+              }
+            }
+          }
+        })
+      },
+      {
+        root: null,
+        rootMargin: '-80px 0px 0px 0px', // Account for top bar height
+        threshold: 0
+      }
+    )
+
+    transcriptObserverRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const filename = entry.target.getAttribute('data-filename')
+          if (filename && expandedFiles.has(filename)) {
+            if (!entry.isIntersecting) {
+              // Check if the bottom of the transcript is above the viewport
+              const isBottomAboveViewport = entry.boundingClientRect.bottom < (entry.rootBounds?.top || 0)
+              if (isBottomAboveViewport && outOfViewExpandedFile === filename) {
+                setOutOfViewExpandedFile(null)
+              } 
+            } else {
+              // Check if the file row is above the viewport but transcript is visible
+              const fileRow = fileRowRefs.current[filename]
+              if (fileRow) {
+                const fileRowRect = fileRow.getBoundingClientRect()
+                const isFileRowAboveViewport = fileRowRect.bottom < (entry.rootBounds?.top || 0)
+                if (isFileRowAboveViewport && !outOfViewExpandedFile) {
+                  setOutOfViewExpandedFile(filename)
+                }
+              }
+            }
+          }
+        })
+      },
+      {
+        root: null,
+        rootMargin: '-80px 0px 0px 0px', // Account for top bar height
+        threshold: 0
+      }
+    )
+
+    // Observe all expanded file rows
+    expandedFiles.forEach(filename => {
+      const rowElement = fileRowRefs.current[filename]
+      if (rowElement && observerRef.current) {
+        observerRef.current.observe(rowElement)
+      }
+      
+      const transcriptRowElement = transcriptRowRefs.current[filename]
+      if (transcriptRowElement && transcriptObserverRef.current) {
+        transcriptObserverRef.current.observe(transcriptRowElement)
+      }
+    })
+  }, [expandedFiles, outOfViewExpandedFile])
+
+  // Handle scroll to top
+  const handleScrollToTop = () => {
+    if (outOfViewExpandedFile) {
+      const topBarHeight = watchDirectory ? 64 : 0 // Approximate height of top bar
+      const elementTop = fileRowRefs.current[outOfViewExpandedFile]?.offsetTop
+      const scrollTop = elementTop ? elementTop - topBarHeight : 0
+      window.scrollTo({ top: scrollTop, behavior: 'smooth' })
+    }
+  }
+
+  // Handle collapse
+  const handleCollapseExpanded = () => {
+    if (outOfViewExpandedFile) {
+      const targetFile = outOfViewExpandedFile
+      
+      // Collapse the row
+      setExpandedFiles(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(targetFile)
+        return newSet
+      })
+      
+      // Clear the out-of-view file
+      setOutOfViewExpandedFile(null)
+      
+      // Scroll to the row and flash it
+      setTimeout(() => {
+        const rowElement = fileRowRefs.current[targetFile]
+        if (rowElement) {
+          const topBarHeight = watchDirectory ? 64 : 0
+          const elementTop = rowElement.offsetTop
+          const scrollTop = elementTop - topBarHeight
+          window.scrollTo({ top: scrollTop, behavior: 'smooth' })
+          
+          // Flash the row
+          setFlashingRow(targetFile)
+          setTimeout(() => setFlashingRow(null), 1000) // Flash for 1 second
+        }
+      }, 100) // Small delay to ensure DOM updates
+    }
+  }
 
   // Sort files based on current sort column and direction
   const sortedFiles = [...files].sort((a, b) => {
@@ -391,6 +533,63 @@ function App() {
     }
   }, [expandedFiles])
 
+  // Setup intersection observer when expanded files change
+  useEffect(() => {
+    if (expandedFiles.size > 0) {
+      setupIntersectionObserver()
+    } else {
+      setOutOfViewExpandedFile(null)
+    }
+
+    // Clear out-of-view file if it's no longer expanded
+    if (outOfViewExpandedFile && !expandedFiles.has(outOfViewExpandedFile)) {
+      setOutOfViewExpandedFile(null)
+    }
+
+    // Clear flashing state for files that are no longer expanded
+    if (flashingRow && !expandedFiles.has(flashingRow)) {
+      setFlashingRow(null)
+    }
+
+    // Cleanup observer on component unmount
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+      if (transcriptObserverRef.current) {
+        transcriptObserverRef.current.disconnect()
+      }
+    }
+  }, [expandedFiles, setupIntersectionObserver])
+
+  // Find replacement when outOfViewExpandedFile becomes null
+  useEffect(() => {
+    if (!outOfViewExpandedFile && expandedFiles.size > 0) {
+      // Check if there are any expanded rows where the transcript view is on screen but the file row is not
+      for (const filename of expandedFiles) {
+        const fileRow = fileRowRefs.current[filename]
+        const transcriptRow = transcriptRowRefs.current[filename]
+        
+        if (fileRow && transcriptRow) {
+          const fileRowRect = fileRow.getBoundingClientRect()
+          const transcriptRowRect = transcriptRow.getBoundingClientRect()
+          const topBarHeight = watchDirectory ? 64 : 0
+          
+          // Check if file row is above viewport (not visible)
+          const isFileRowAboveViewport = fileRowRect.bottom < topBarHeight
+          
+          // Check if transcript row is at least partially visible
+          const isTranscriptVisible = transcriptRowRect.bottom > topBarHeight && transcriptRowRect.top < window.innerHeight
+          
+          if (isFileRowAboveViewport && isTranscriptVisible) {
+            setOutOfViewExpandedFile(filename)
+            break
+          }
+        }
+      }
+    }
+  }, [outOfViewExpandedFile, expandedFiles, watchDirectory])
+
   // Clear search results when search term is empty
   useEffect(() => {
     if (!searchTerm.trim()) {
@@ -433,8 +632,6 @@ function App() {
       setIsSearching(false)
     }
   }
-
-
 
   const handleRegenerate = async (filename: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent row expansion
@@ -638,6 +835,27 @@ function App() {
                   </button>
                 </div>
               </div>
+              
+              {/* Scroll and Collapse Links */}
+              {outOfViewExpandedFile && (
+                <div className="flex gap-4 items-center">
+                  <button
+                    onClick={handleScrollToTop}
+                    className="text-sm text-primary hover:text-primary/80 underline transition-colors"
+                    title={`Scroll to ${outOfViewExpandedFile}`}
+                  >
+                    scroll to row
+                  </button>
+                  <button
+                    onClick={handleCollapseExpanded}
+                    className="text-sm text-primary hover:text-primary/80 underline transition-colors"
+                    title={`Collapse ${outOfViewExpandedFile}`}
+                  >
+                    collapse
+                  </button>
+                </div>
+              )}
+              
               <div className="flex gap-4 items-center">
                 {currentProcessingFile && (
                   <div className="text-sm text-primary font-medium">
@@ -760,7 +978,12 @@ function App() {
                 
                 return (
                 <>
-                <TableRow key={index} onClick={() => {
+                <TableRow 
+                  key={index} 
+                  ref={(el) => { fileRowRefs.current[file.base_name] = el }}
+                  data-filename={file.base_name}
+                  className={flashingRow === file.base_name ? 'animate-pulse bg-primary/10' : ''}
+                  onClick={() => {
                   // Only expand if transcript exists
                   if (file.transcript) {
                     setExpandedFiles(prev => {
@@ -880,7 +1103,10 @@ function App() {
                     </div>
                   </TableCell>
                 </TableRow>
-                <TableRow>
+                <TableRow
+                  ref={(el) => { transcriptRowRefs.current[file.base_name] = el }}
+                  data-filename={file.base_name}
+                >
                   
                 <TableCell colSpan={6} className="p-0">
                   <TranscriptView
