@@ -227,7 +227,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
 
         <div className="mt-6 text-center">
           <p className="text-xs text-muted-foreground">
-            Configuration will be saved as <code className="bg-muted px-1 py-0.5 rounded text-xs">.atconfig</code> in the current directory
+            Configuration will be saved as <code className="bg-muted px-1 py-0.5 rounded text-xs">.atconfig</code> in your home directory
           </p>
         </div>
       </div>
