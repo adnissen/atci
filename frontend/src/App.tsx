@@ -44,13 +44,25 @@ function App() {
   const [isSearching, setIsSearching] = useState(false)
   const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
   const [regeneratingMeta, setRegeneratingMeta] = useState<Set<string>>(new Set())
-  const [queue, setQueue] = useState<string[]>([])
-  const [currentProcessingFile, setCurrentProcessingFile] = useState<string>('')
+  type QueueItem = {
+    video_path: string
+    process_type: string
+  }
+  
+  const [queue, setQueue] = useState<QueueItem[]>([])
+  const [currentProcessingFile, setCurrentProcessingFile] = useState<QueueItem | null>(null)
   const [watchDirectory, setWatchDirectory] = useState<string>('')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
   const [sortColumn, setSortColumn] = useState<SortColumn>('created_at')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+
+  // Helper function to check if a file is currently being processed
+  const isFileBeingProcessed = (filename: string): boolean => {
+    if (!currentProcessingFile) return false
+    const currentFileName = currentProcessingFile.video_path.split('/').pop()?.replace(/\.(mp4|MP4)$/, '')
+    return currentFileName === filename
+  }
 
   // Calculate search results from search line numbers
   const searchResults = Object.keys(searchLineNumbers).filter(filename => 
@@ -327,12 +339,19 @@ function App() {
         if (response.ok) {
           const queueData = await response.json()
           if (queueData.queue && queueData.queue.length > 0) {
-            setCurrentProcessingFile(queueData.current_file || '')
+            setCurrentProcessingFile(queueData.current_file || null)
             setQueue(queueData.queue)
-            setRegeneratingFiles(new Set(queue))
+            // Extract video paths from queue items for regenerating files set
+            const queueVideoPaths = queueData.queue.map((item: QueueItem) => {
+              // Extract filename from full path
+              const pathParts = item.video_path.split('/')
+              const filename = pathParts[pathParts.length - 1]
+              return filename.replace(/\.(mp4|MP4)$/, '')
+            })
+            setRegeneratingFiles(new Set(queueVideoPaths))
           } else {
             setQueue([])
-            setCurrentProcessingFile('')
+            setCurrentProcessingFile(null)
             setRegeneratingFiles(new Set())
           }
         }
@@ -631,7 +650,7 @@ function App() {
               <div className="flex gap-4 items-center">
                 {currentProcessingFile && (
                   <div className="text-sm text-primary font-medium">
-                    Processing: {currentProcessingFile}
+                    Processing: {currentProcessingFile.video_path.split('/').pop()?.replace(/\.(mp4|MP4)$/, '')} ({currentProcessingFile.process_type})
                   </div>
                 )}
                 <div className="relative group">
@@ -818,7 +837,7 @@ function App() {
                       </button>
                       
                       {/* Warning icon for files without transcript */}
-                      {!file.transcript && !currentProcessingFile.includes(file.base_name) && (
+                      {!file.transcript && !isFileBeingProcessed(file.base_name) && (
                         <div className="p-2 text-destructive" title="No transcript available">
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -833,7 +852,7 @@ function App() {
                             onClick={(e) => handleRegenerate(file.base_name, e)}
                             disabled={regeneratingFiles.has(file.base_name)}
                             className={`p-2 text-muted-foreground hover:text-primary hover:bg-accent rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                              currentProcessingFile.includes(file.base_name) ? 'animate-reverse-spin' : ''
+                              isFileBeingProcessed(file.base_name) ? 'animate-reverse-spin' : ''
                             }`}
                             title="Regenerate transcript"
                           >
@@ -867,7 +886,7 @@ function App() {
                             )}
                           </button>
                         </>
-                      ) : currentProcessingFile.includes(file.base_name) ? (
+                      ) : isFileBeingProcessed(file.base_name) ? (
                         <button
                           disabled={true}
                           className="p-2 text-muted-foreground opacity-50 cursor-not-allowed rounded-md"

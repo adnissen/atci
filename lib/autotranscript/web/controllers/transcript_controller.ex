@@ -114,9 +114,25 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def queue(conn, _params) do
     queue_status = Autotranscript.VideoProcessor.get_queue_status()
+    
+    # Transform tuples to maps for JSON serialization
+    transformed_queue_status = %{
+      queue: Enum.map(queue_status.queue, fn {video_path, process_type} ->
+        %{
+          video_path: video_path,
+          process_type: process_type
+        }
+      end),
+      processing: queue_status.processing,
+      current_file: case queue_status.current_file do
+        {video_path, process_type} -> %{video_path: video_path, process_type: process_type}
+        nil -> nil
+      end
+    }
+    
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(queue_status))
+    |> send_resp(200, Jason.encode!(transformed_queue_status))
   end
 
   def files(conn, _params) do
