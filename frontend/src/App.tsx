@@ -777,12 +777,15 @@ function App() {
                   <TableCell className="font-medium w-1/6">
                     <a 
                       href={`/player/${encodeURIComponent(file.base_name)}`}
-                      className="text-sky-700 hover:text-sky-600 underline"
+                      className="text-sky-700 hover:text-sky-600 underline block truncate text-right"
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
                       rel="noopener noreferrer"
+                      title={file.name}
                     >
-                      {file.name}
+                      <span className="inline-block w-full truncate" style={{ direction: 'rtl', textAlign: 'left' }}>
+                        {file.name}
+                      </span>
                     </a>
                   </TableCell>
                   <TableCell className="w-1/6 pr-10 text-foreground">{formatDate(file.created_at)}</TableCell>
