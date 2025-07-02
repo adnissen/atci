@@ -819,8 +819,8 @@ function App() {
         <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-4 py-2 z-10 backdrop-blur-sm">
           <div className="container mx-auto">
             <div className="flex gap-6 justify-between items-center">
-              <div className="flex-1">
-                <div className="flex gap-2 items-center max-w-md">
+              <div className="flex gap-6 items-center flex-1">
+                <div className="flex gap-2 items-center">
                   <div className="text-sm text-foreground font-medium text-left">
                     Directory: {watchDirectory}
                   </div>
@@ -832,6 +832,24 @@ function App() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
+                  </button>
+                </div>
+                
+                {/* Search Bar in Top Bar */}
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    placeholder="Search transcripts..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="px-2 py-1 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-48"
+                  />
+                  <button
+                    onClick={handleSearch}
+                    disabled={isSearching}
+                    className="px-2 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isSearching ? 'Searching...' : 'Search'}
                   </button>
                 </div>
               </div>
@@ -879,40 +897,20 @@ function App() {
         
         {/* File List - Full Width */}
         <div>
-          {/* Search Bar */}
-          <div className="mb-6">
-            <div className="flex gap-2 max-w-md">
-              <input
-                type="text"
-                placeholder="Search in transcripts..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="flex-1 px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-              />
-              <button
-                onClick={handleSearch}
-                disabled={isSearching}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSearching ? 'Searching...' : 'Search'}
-              </button>
+          {/* Search Results */}
+          {searchResults.length > 0 && (
+            <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
+              <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                Found in {searchResults.length} file(s)
+              </h3>
             </div>
-            
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-              <div className="mt-4 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
-                <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
-                  Found in {searchResults.length} file(s)
-                </h3>
-              </div>
-            )}
-            
-            {searchTerm && searchResults.length === 0 && !isSearching && (
-              <div className="mt-4 p-4 bg-muted border border-border rounded-md">
-                <p className="text-sm text-muted-foreground">No files found containing "{searchTerm}"</p>
-              </div>
-            )}
-          </div>
+          )}
+          
+          {searchTerm && searchResults.length === 0 && !isSearching && (
+            <div className="mb-6 p-4 bg-muted border border-border rounded-md">
+              <p className="text-sm text-muted-foreground">No files found containing "{searchTerm}"</p>
+            </div>
+          )}
 
           <Table className="table-fixed w-full">
             <TableHeader>
