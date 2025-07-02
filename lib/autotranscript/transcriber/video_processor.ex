@@ -181,7 +181,7 @@ defmodule Autotranscript.VideoProcessor do
     if String.ends_with?(path, ".mp3") do
       whispercli = Autotranscript.ConfigManager.get_config_value("whispercli_path")
       model = Autotranscript.ConfigManager.get_config_value("model_path")
-      
+
       cond do
         whispercli == nil or whispercli == "" ->
           Logger.error("Whisper CLI path not configured")
@@ -198,7 +198,7 @@ defmodule Autotranscript.VideoProcessor do
         true ->
           System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", path])
           vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
-    
+
           txt_path = String.replace_trailing(vtt_path, ".vtt", ".txt")
           File.rename(path <> ".vtt", txt_path)
           :ok
@@ -251,7 +251,7 @@ defmodule Autotranscript.VideoProcessor do
         {:ok, length} ->
           meta_path = String.replace_trailing(video_path, ".MP4", ".meta")
           meta_path = String.replace_trailing(meta_path, ".mp4", ".meta")
-          
+
           case File.write(meta_path, length) do
             :ok ->
               Logger.info("Saved video length #{length} to #{meta_path}")
@@ -281,9 +281,7 @@ defmodule Autotranscript.VideoProcessor do
   """
   def get_video_length(video_path) do
     case System.cmd("ffmpeg", [
-      "-i", video_path,
-      "-f", "null",
-      "-"
+      "-i", video_path
     ], stderr_to_stdout: true) do
       {output, _exit_code} ->
         # Parse the duration from ffmpeg output
