@@ -1,5 +1,6 @@
 defmodule Autotranscript.Web.TranscriptController do
   use Autotranscript.Web, :controller
+  require Logger
 
   alias Autotranscript.{PathHelper, VideoInfoCache}
   def index(conn, _params) do
@@ -480,6 +481,246 @@ defmodule Autotranscript.Web.TranscriptController do
         |> put_status(:bad_request)
         |> put_resp_content_type("text/plain")
         |> send_resp(400, "Missing required 'text' field in request body")
+    end
+  end
+
+  def partial_reprocess(conn, %{"filename" => filename}) do
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("application/json")
+      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+    else
+      case conn.body_params do
+        %{"time" => time_str} ->
+          case parse_time_to_seconds(time_str) do
+            {:ok, time_seconds} ->
+              execute_partial_reprocess(conn, filename, time_str, time_seconds, watch_directory)
+            {:error, reason} ->
+              conn
+              |> put_status(:bad_request)
+              |> put_resp_content_type("application/json")
+              |> send_resp(400, Jason.encode!(%{error: "Invalid time format: #{reason}"}))
+          end
+        _ ->
+          conn
+          |> put_status(:bad_request)
+          |> put_resp_content_type("application/json")
+          |> send_resp(400, Jason.encode!(%{error: "Missing required 'time' field in request body"}))
+      end
+    end
+  end
+
+  defp execute_partial_reprocess(conn, filename, time_str, time_seconds, watch_directory) do
+    txt_file_path = Path.join(watch_directory, "#{filename}.txt")
+    video_file = PathHelper.find_video_file(watch_directory, filename)
+
+    case video_file do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> put_resp_content_type("application/json")
+        |> send_resp(404, Jason.encode!(%{error: "Video file '#{filename}' not found"}))
+
+      video_path ->
+        case File.exists?(txt_file_path) do
+          false ->
+            conn
+            |> put_status(:not_found)
+            |> put_resp_content_type("application/json")
+            |> send_resp(404, Jason.encode!(%{error: "Transcript file '#{filename}.txt' not found"}))
+
+          true ->
+            case do_partial_reprocess(txt_file_path, video_path, time_str, time_seconds) do
+              :ok ->
+                VideoInfoCache.update_video_info_cache()
+                conn
+                |> put_resp_content_type("application/json")
+                |> send_resp(200, Jason.encode!(%{message: "Partial reprocessing completed successfully for '#{filename}' from time #{time_str}"}))
+
+              {:error, reason} ->
+                conn
+                |> put_status(:internal_server_error)
+                |> put_resp_content_type("application/json")
+                |> send_resp(500, Jason.encode!(%{error: "Error during partial reprocessing: #{reason}"}))
+            end
+        end
+    end
+  end
+
+  defp do_partial_reprocess(txt_file_path, video_path, time_str, time_seconds) do
+    with :ok <- truncate_txt_file_at_time(txt_file_path, time_str),
+         {:ok, temp_video_path} <- create_temp_video_from_time(video_path, time_seconds),
+         {:ok, temp_mp3_path} <- convert_temp_video_to_mp3(temp_video_path),
+         {:ok, temp_txt_path} <- transcribe_temp_mp3(temp_mp3_path),
+         :ok <- cleanup_temp_files([temp_video_path, temp_mp3_path]),
+         :ok <- append_temp_txt_to_original(temp_txt_path, txt_file_path),
+         :ok <- File.rm(temp_txt_path) do
+      :ok
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp parse_time_to_seconds(time_str) do
+    cond do
+      # Format: HH:MM:SS or HH:MM:SS.ms
+      Regex.match?(~r/^\d{1,2}:\d{2}:\d{2}(\.\d+)?$/, time_str) ->
+        case String.split(time_str, ":") do
+          [hours, minutes, seconds_part] ->
+            with {h, ""} <- Integer.parse(hours),
+                 {m, ""} <- Integer.parse(minutes),
+                 {s, _} <- Float.parse(seconds_part) do
+              total_seconds = h * 3600 + m * 60 + s
+              {:ok, total_seconds}
+            else
+              _ -> {:error, "Invalid time components"}
+            end
+          _ -> {:error, "Invalid time format"}
+        end
+
+      # Format: MM:SS or MM:SS.ms
+      Regex.match?(~r/^\d{1,2}:\d{2}(\.\d+)?$/, time_str) ->
+        case String.split(time_str, ":") do
+          [minutes, seconds_part] ->
+            with {m, ""} <- Integer.parse(minutes),
+                 {s, _} <- Float.parse(seconds_part) do
+              total_seconds = m * 60 + s
+              {:ok, total_seconds}
+            else
+              _ -> {:error, "Invalid time components"}
+            end
+          _ -> {:error, "Invalid time format"}
+        end
+
+      # Format: seconds only (integer or float)
+      true ->
+        case Float.parse(time_str) do
+          {seconds, ""} when seconds >= 0 -> {:ok, seconds}
+          _ -> {:error, "Invalid numeric time"}
+        end
+    end
+  end
+
+  defp truncate_txt_file_at_time(txt_file_path, time_str) do
+    case File.read(txt_file_path) do
+      {:ok, content} ->
+        lines = String.split(content, "\n")
+        
+        # Find the first line that includes the time
+        truncated_lines = Enum.take_while(lines, fn line ->
+          not String.contains?(line, time_str)
+        end)
+        
+        # Write the truncated content back
+        truncated_content = Enum.join(truncated_lines, "\n")
+        case File.write(txt_file_path, truncated_content) do
+          :ok -> :ok
+          {:error, reason} -> {:error, "Failed to truncate txt file: #{reason}"}
+        end
+
+      {:error, reason} -> {:error, "Failed to read txt file: #{reason}"}
+    end
+  end
+
+  defp create_temp_video_from_time(video_path, time_seconds) do
+    temp_video_path = Path.join(System.tmp_dir(), "temp_video_#{UUID.uuid4()}.mp4")
+    
+    case System.cmd("ffmpeg", [
+      "-ss", "#{time_seconds}",
+      "-i", video_path,
+      "-c", "copy",
+      "-avoid_negative_ts", "make_zero",
+      "-y",
+      temp_video_path
+    ]) do
+      {_output, 0} -> {:ok, temp_video_path}
+      {error_output, _exit_code} -> {:error, "ffmpeg failed: #{error_output}"}
+    end
+  end
+
+  defp convert_temp_video_to_mp3(temp_video_path) do
+    temp_mp3_path = Path.join(System.tmp_dir(), "temp_audio_#{UUID.uuid4()}.mp3")
+    
+    case System.cmd("ffmpeg", [
+      "-i", temp_video_path,
+      "-q:a", "0",
+      "-map", "a",
+      "-y",
+      temp_mp3_path
+    ]) do
+      {_output, 0} -> {:ok, temp_mp3_path}
+      {error_output, _exit_code} -> {:error, "ffmpeg audio conversion failed: #{error_output}"}
+    end
+  end
+
+  defp transcribe_temp_mp3(temp_mp3_path) do
+    whispercli = Autotranscript.ConfigManager.get_config_value("whispercli_path")
+    model = Autotranscript.ConfigManager.get_config_value("model_path")
+
+    cond do
+      whispercli == nil or whispercli == "" ->
+        {:error, "Whisper CLI path not configured"}
+      model == nil or model == "" ->
+        {:error, "Model path not configured"}
+      not File.exists?(whispercli) ->
+        {:error, "Whisper CLI not found at: #{whispercli}"}
+      not File.exists?(model) ->
+        {:error, "Model file not found at: #{model}"}
+      true ->
+        case System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", temp_mp3_path]) do
+          {_output, 0} ->
+            # Convert VTT to TXT
+            vtt_path = temp_mp3_path <> ".vtt"
+            txt_path = String.replace_trailing(temp_mp3_path, ".mp3", ".txt")
+            case File.rename(vtt_path, txt_path) do
+              :ok -> {:ok, txt_path}
+              {:error, reason} -> {:error, "Failed to rename VTT to TXT: #{reason}"}
+            end
+          {error_output, _exit_code} ->
+            {:error, "Whisper transcription failed: #{error_output}"}
+        end
+    end
+  end
+
+  defp cleanup_temp_files(file_paths) do
+    Enum.each(file_paths, fn path ->
+      case File.rm(path) do
+        :ok -> :ok
+        {:error, :enoent} -> :ok  # File doesn't exist, that's fine
+        {:error, reason} -> Logger.warning("Failed to delete temp file #{path}: #{reason}")
+      end
+    end)
+    :ok
+  end
+
+  defp append_temp_txt_to_original(temp_txt_path, original_txt_path) do
+    case File.read(temp_txt_path) do
+      {:ok, content} ->
+        lines = String.split(content, "\n")
+        # Remove the first line and get the rest
+        remaining_lines = case lines do
+          [_first | rest] -> rest
+          [] -> []
+        end
+        
+        # Append to original file
+        content_to_append = case remaining_lines do
+          [] -> ""
+          lines -> "\n" <> Enum.join(lines, "\n")
+        end
+        
+        case File.open(original_txt_path, [:append]) do
+          {:ok, file} ->
+            IO.write(file, content_to_append)
+            File.close(file)
+            :ok
+          {:error, reason} -> {:error, "Failed to append to original file: #{reason}"}
+        end
+
+      {:error, reason} -> {:error, "Failed to read temp txt file: #{reason}"}
     end
   end
 end
