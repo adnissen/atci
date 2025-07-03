@@ -42,7 +42,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     
     return text.replace(timestampRegex, (match) => {
       const seconds = timestampToSeconds(match);
-      return `<a href="/player/${encodeURIComponent(name)}?time=${seconds}" class="text-sky-700 hover:text-sky-600 underline cursor-pointer timestamp-link" data-timestamp="${match}" onmouseover="window.handleTimestampHover('${name}', '${match}')" onmouseout="window.handleTimestampLeave()">${match}</a>`;
+      return `<a href="/player/${encodeURIComponent(name)}?time=${seconds}" class="text-sky-700 hover:text-sky-600 underline cursor-pointer timestamp-link" data-timestamp="${match}">${match}</a>`;
     });
   };
 

@@ -17,8 +17,6 @@ interface TranscriptViewProps {
 // Extend Window interface for our custom handlers
 declare global {
   interface Window {
-    handleTimestampHover?: (name: string, timestamp: string) => void;
-    handleTimestampLeave?: () => void;
     handleCameraIconHover?: (name: string, time1: string, time2: string) => void;
     handleCameraIconLeave?: () => void;
   }
@@ -50,32 +48,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     return null;
   }
 
-  const [hoveredTimestamp, setHoveredTimestamp] = React.useState<string | null>(null);
-  const [thumbnailUrl, setThumbnailUrl] = React.useState<string | null>(null);
 
-  // Convert timestamp format 00:00:00.000 to seconds
-  const timestampToSeconds = (timestamp: string): number => {
-    const parts = timestamp.split(':');
-    const hours = parseInt(parts[0], 10);
-    const minutes = parseInt(parts[1], 10);
-    const secondsParts = parts[2].split('.');
-    const seconds = parseInt(secondsParts[0], 10);
-    const milliseconds = parseInt(secondsParts[1] || '0', 10);
-    
-    return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
-  };
-
-  // Handle timestamp link hover
-  const handleTimestampHover = (name: string, timestamp: string) => {
-    const seconds = timestampToSeconds(timestamp);
-    setHoveredTimestamp(timestamp);
-    setThumbnailUrl(`/frame/${encodeURIComponent(name)}/${seconds}`);
-  };
-
-  const handleTimestampLeave = () => {
-    setHoveredTimestamp(null);
-    setThumbnailUrl(null);
-  };
 
   // Check if a line contains two timestamps in the format "time1 --> time2"
   const hasTimeRange = (line: string): { hasRange: boolean; time1?: string; time2?: string } => {
@@ -151,16 +124,6 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     // Return all blocks - visibility is handled by the visible property
     return allBlocks;
   };
-
-  // Set up global handlers for the dynamically created links
-  React.useEffect(() => {
-    window.handleTimestampHover = handleTimestampHover;
-    window.handleTimestampLeave = handleTimestampLeave;
-    return () => {
-      delete window.handleTimestampHover;
-      delete window.handleTimestampLeave;
-    };
-  }, []);
 
   // Parse the transcript into blocks
   const transcriptBlocks = React.useMemo(() => 
@@ -270,32 +233,6 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
               </div>
             ))}
           </div>)}
-
-            {/* Thumbnail overlay */}
-            {(hoveredTimestamp) && thumbnailUrl && (
-              <div 
-                className="fixed z-50 bg-card border border-border rounded-lg shadow-lg p-2"
-                style={{
-                  left: '50%',
-                  top: '20px',
-                  transform: 'translateX(-50%)',
-                  maxWidth: '200px',
-                  maxHeight: '150px'
-                }}
-              >
-                <img 
-                  src={thumbnailUrl} 
-                  alt={`Frame at ${hoveredTimestamp}`}
-                  className="w-full h-auto object-contain"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                  }}
-                />
-                <div className="text-xs text-muted-foreground text-center mt-1">
-                  {hoveredTimestamp}
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
