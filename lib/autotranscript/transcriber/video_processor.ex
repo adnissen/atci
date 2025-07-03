@@ -374,6 +374,7 @@ defmodule Autotranscript.VideoProcessor do
          {:ok, temp_mp3_path} <- convert_temp_video_to_mp3_partial(temp_video_path),
          {:ok, temp_txt_path} <- transcribe_temp_mp3_partial(temp_mp3_path),
          :ok <- cleanup_temp_files([temp_video_path, temp_mp3_path]),
+         :ok <- adjust_timestamps_in_temp_file(temp_txt_path, time_seconds),
          :ok <- append_temp_txt_to_original(temp_txt_path, txt_file_path),
          :ok <- File.rm(temp_txt_path) do
       :ok
@@ -472,6 +473,68 @@ defmodule Autotranscript.VideoProcessor do
       end
     end)
     :ok
+  end
+
+  defp adjust_timestamps_in_temp_file(temp_txt_path, start_time_seconds) do
+    case File.read(temp_txt_path) do
+      {:ok, content} ->
+        # Regex to match timestamp format HH:MM:SS.XXX --> HH:MM:SS.XXX
+        timestamp_regex = ~r/(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/
+        
+        adjusted_content = Regex.replace(timestamp_regex, content, fn full_match, start_ts, end_ts ->
+          case {timestamp_to_seconds(start_ts), timestamp_to_seconds(end_ts)} do
+            {{:ok, start_secs}, {:ok, end_secs}} ->
+              adjusted_start = start_secs + start_time_seconds
+              adjusted_end = end_secs + start_time_seconds
+              "#{seconds_to_timestamp(adjusted_start)} --> #{seconds_to_timestamp(adjusted_end)}"
+            _ ->
+              # If parsing fails, return original match
+              full_match
+          end
+        end)
+        
+        case File.write(temp_txt_path, adjusted_content) do
+          :ok -> :ok
+          {:error, reason} -> {:error, "Failed to write adjusted timestamps: #{reason}"}
+        end
+        
+      {:error, reason} -> {:error, "Failed to read temp txt file for timestamp adjustment: #{reason}"}
+    end
+  end
+
+  defp timestamp_to_seconds(timestamp_str) do
+    case String.split(timestamp_str, ":") do
+      [hours, minutes, seconds_with_ms] ->
+        case String.split(seconds_with_ms, ".") do
+          [seconds, milliseconds] ->
+            with {h, ""} <- Integer.parse(hours),
+                 {m, ""} <- Integer.parse(minutes),
+                 {s, ""} <- Integer.parse(seconds),
+                 {ms, ""} <- Integer.parse(milliseconds) do
+              total_seconds = h * 3600 + m * 60 + s + ms / 1000.0
+              {:ok, total_seconds}
+            else
+              _ -> {:error, "Invalid timestamp components"}
+            end
+          _ -> {:error, "Invalid seconds format"}
+        end
+      _ -> {:error, "Invalid timestamp format"}
+    end
+  end
+
+  defp seconds_to_timestamp(total_seconds) do
+    hours = trunc(total_seconds / 3600)
+    remaining_seconds = total_seconds - hours * 3600
+    minutes = trunc(remaining_seconds / 60)
+    seconds = remaining_seconds - minutes * 60
+    
+    # Split seconds into integer and fractional parts
+    integer_seconds = trunc(seconds)
+    milliseconds = trunc((seconds - integer_seconds) * 1000)
+    
+    # Format with leading zeros
+    :io_lib.format("~2..0B:~2..0B:~2..0B.~3..0B", [hours, minutes, integer_seconds, milliseconds])
+    |> List.to_string()
   end
 
   defp append_temp_txt_to_original(temp_txt_path, original_txt_path) do
