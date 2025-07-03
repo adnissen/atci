@@ -21,32 +21,34 @@ defmodule Autotranscript.VideoProcessor do
   @doc """
   Adds a video file to the processing queue.
   """
-  def add_to_queue(video_path, process_type \\ :all) do
-    GenServer.cast(__MODULE__, {:add_to_queue, {video_path, process_type}})
+  def add_to_queue(video_path, process_type \\ :all, opts \\ %{}) do
+    time = Map.get(opts, :time, nil)
+    job_info = %{path: video_path, time: time}
+    GenServer.cast(__MODULE__, {:add_to_queue, {process_type, job_info}})
   end
 
   @doc """
   Gets the current queue status including the queue contents, processing state, and currently processing file.
 
   ## Returns
-    - %{queue: [{video_path, process_type}], processing: boolean, current_file: {video_path, process_type} | nil}
+    - %{queue: [{process_type, %{path: path, time: time}}], processing: boolean, current_file: {process_type, %{path: path, time: time}} | nil}
 
   ## Examples
       iex> Autotranscript.VideoProcessor.get_queue_status()
-      %{queue: [{"video1.mp4", :all}, {"video2.mp4", :length}], processing: true, current_file: {"video1.mp4", :all}}
+      %{queue: [{:all, %{path: "video1.mp4", time: nil}}, {:length, %{path: "video2.mp4", time: nil}}], processing: true, current_file: {:all, %{path: "video1.mp4", time: nil}}}
   """
   def get_queue_status do
     GenServer.call(__MODULE__, :get_queue_status)
   end
 
   @impl true
-  def handle_cast({:add_to_queue, {_video_path, _process_type} = video_tuple}, %{queue: queue, processing: processing, current_file: current_file} = state) do
-    # Check if the video is already in the queue or currently being processed
-    if video_tuple in queue or video_tuple == current_file do
-      # Video is already queued or being processed, don't add it again
+  def handle_cast({:add_to_queue, {_process_type, _job_info} = job_tuple}, %{queue: queue, processing: processing, current_file: current_file} = state) do
+    # Check if the job is already in the queue or currently being processed
+    if job_tuple in queue or job_tuple == current_file do
+      # Job is already queued or being processed, don't add it again
       {:noreply, state}
     else
-      new_queue = [video_tuple | queue]
+      new_queue = [job_tuple | queue]
 
       if not processing do
         # Start processing if not already processing
@@ -66,27 +68,27 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast(:process_next, %{queue: [{video_path, process_type} = video_tuple | _rest], processing: _processing, current_file: nil} = state) do
+  def handle_cast(:process_next, %{queue: [{process_type, %{path: video_path} = job_info} = job_tuple | _rest], processing: _processing, current_file: nil} = state) do
     # Start processing the next file in the queue asynchronously
     # Keep the file in the queue until processing is complete
     spawn(fn ->
-      case process_video_file(video_path, process_type) do
+      case process_video_file(job_info, process_type) do
         :ok ->
           IO.puts("Successfully processed #{video_path} with type #{process_type}")
-          GenServer.cast(__MODULE__, {:processing_complete, video_tuple, :ok})
+          GenServer.cast(__MODULE__, {:processing_complete, job_tuple, :ok})
         {:error, reason} ->
           IO.puts("Error processing #{video_path}: #{inspect(reason)}")
-          GenServer.cast(__MODULE__, {:processing_complete, video_tuple, {:error, reason}})
+          GenServer.cast(__MODULE__, {:processing_complete, job_tuple, {:error, reason}})
       end
     end)
 
-    {:noreply, %{state | current_file: video_tuple}}
+    {:noreply, %{state | current_file: job_tuple}}
   end
 
   @impl true
-  def handle_cast({:processing_complete, video_tuple, _result}, %{queue: queue, processing: _processing, current_file: _current_file} = state) do
-    # Remove the completed file from the queue
-    new_queue = Enum.reject(queue, fn tuple -> tuple == video_tuple end)
+  def handle_cast({:processing_complete, job_tuple, _result}, %{queue: queue, processing: _processing, current_file: _current_file} = state) do
+    # Remove the completed job from the queue
+    new_queue = Enum.reject(queue, fn tuple -> tuple == job_tuple end)
 
     if new_queue == [] do
       # No more files to process
@@ -107,24 +109,24 @@ defmodule Autotranscript.VideoProcessor do
   Processes a video file by converting it to MP3, transcribing the audio, and cleaning up.
 
   ## Parameters
-    - video_path: String path to the video file
-    - process_type: Atom indicating the type of processing (:all, :length)
+    - job_info: Map with %{path: video_path, time: time} where time is optional
+    - process_type: Atom indicating the type of processing (:all, :length, :partial)
 
   ## Returns
     - :ok if the processing was successful
     - {:error, reason} if any step failed
 
   ## Examples
-      iex> Autotranscript.VideoProcessor.process_video_file("video.mp4", :all)
+      iex> Autotranscript.VideoProcessor.process_video_file(%{path: "video.mp4", time: nil}, :all)
       :ok
 
-      iex> Autotranscript.VideoProcessor.process_video_file("video.mp4", :length)
+      iex> Autotranscript.VideoProcessor.process_video_file(%{path: "video.mp4", time: nil}, :length)
       :ok
 
-      iex> Autotranscript.VideoProcessor.process_video_file("not_video.txt", :all)
-      {:error, :invalid_file_type}
+      iex> Autotranscript.VideoProcessor.process_video_file(%{path: "video.mp4", time: "01:30:45"}, :partial)
+      :ok
   """
-  def process_video_file(video_path, process_type \\ :all) do
+  def process_video_file(%{path: video_path, time: time} = _job_info, process_type) do
     result = case process_type do
       :all ->
         with :ok <- convert_to_mp3(video_path),
@@ -136,6 +138,8 @@ defmodule Autotranscript.VideoProcessor do
         end
       :length ->
         save_video_length(video_path)
+      :partial ->
+        process_partial_video(video_path, time)
     end
 
     # Update the video info cache after processing
@@ -296,6 +300,269 @@ defmodule Autotranscript.VideoProcessor do
           nil ->
             {:error, "Could not parse duration from ffmpeg output"}
         end
+    end
+  end
+
+  @doc """
+  Processes a video file from a specific time by truncating the text file,
+  creating a temporary video from the given time, converting to MP3, transcribing,
+  and appending the new content to the original text file.
+
+  ## Parameters
+    - video_path: String path to the video file
+    - time_str: String time in format "HH:MM:SS", "MM:SS", or seconds
+
+  ## Returns
+    - :ok if the processing was successful
+    - {:error, reason} if any step failed
+  """
+  def process_partial_video(video_path, time_str) do
+    # Use the existing partial reprocess logic from the controller
+    txt_file_path = PathHelper.replace_video_extension_with(video_path, ".txt")
+
+    case parse_time_to_seconds(time_str) do
+      {:ok, time_seconds} ->
+        do_partial_video_reprocess(txt_file_path, video_path, time_str, time_seconds)
+      {:error, reason} ->
+        {:error, "Invalid time format: #{reason}"}
+    end
+  end
+
+  defp parse_time_to_seconds(time_str) do
+    cond do
+      # Format: HH:MM:SS or HH:MM:SS.ms
+      Regex.match?(~r/^\d{1,2}:\d{2}:\d{2}(\.\d+)?$/, time_str) ->
+        case String.split(time_str, ":") do
+          [hours, minutes, seconds_part] ->
+            with {h, ""} <- Integer.parse(hours),
+                 {m, ""} <- Integer.parse(minutes),
+                 {s, _} <- Float.parse(seconds_part) do
+              total_seconds = h * 3600 + m * 60 + s
+              {:ok, total_seconds}
+            else
+              _ -> {:error, "Invalid time components"}
+            end
+          _ -> {:error, "Invalid time format"}
+        end
+
+      # Format: MM:SS or MM:SS.ms
+      Regex.match?(~r/^\d{1,2}:\d{2}(\.\d+)?$/, time_str) ->
+        case String.split(time_str, ":") do
+          [minutes, seconds_part] ->
+            with {m, ""} <- Integer.parse(minutes),
+                 {s, _} <- Float.parse(seconds_part) do
+              total_seconds = m * 60 + s
+              {:ok, total_seconds}
+            else
+              _ -> {:error, "Invalid time components"}
+            end
+          _ -> {:error, "Invalid time format"}
+        end
+
+      # Format: seconds only (integer or float)
+      true ->
+        case Float.parse(time_str) do
+          {seconds, ""} when seconds >= 0 -> {:ok, seconds}
+          _ -> {:error, "Invalid numeric time"}
+        end
+    end
+  end
+
+  defp do_partial_video_reprocess(txt_file_path, video_path, time_str, time_seconds) do
+    with :ok <- truncate_txt_file_at_time(txt_file_path, time_str),
+         {:ok, temp_video_path} <- create_temp_video_from_time(video_path, time_seconds),
+         {:ok, temp_mp3_path} <- convert_temp_video_to_mp3_partial(temp_video_path),
+         {:ok, temp_txt_path} <- transcribe_temp_mp3_partial(temp_mp3_path),
+         :ok <- cleanup_temp_files([temp_video_path, temp_mp3_path]),
+         :ok <- adjust_timestamps_in_temp_file(temp_txt_path, time_seconds),
+         :ok <- append_temp_txt_to_original(temp_txt_path, txt_file_path),
+         :ok <- File.rm(temp_txt_path) do
+      :ok
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp truncate_txt_file_at_time(txt_file_path, time_str) do
+    case File.read(txt_file_path) do
+      {:ok, content} ->
+        lines = String.split(content, "\n")
+
+        # Find the first line that includes the time
+        truncated_lines = Enum.take_while(lines, fn line ->
+          not String.contains?(line, time_str)
+        end)
+
+        # Write the truncated content back
+        truncated_content = Enum.join(truncated_lines, "\n")
+        case File.write(txt_file_path, truncated_content) do
+          :ok -> :ok
+          {:error, reason} -> {:error, "Failed to truncate txt file: #{reason}"}
+        end
+
+      {:error, reason} -> {:error, "Failed to read txt file: #{reason}"}
+    end
+  end
+
+  defp create_temp_video_from_time(video_path, time_seconds) do
+    temp_video_path = Path.join(System.tmp_dir(), "temp_video_#{UUID.uuid4()}.mp4")
+
+    case System.cmd("ffmpeg", [
+      "-ss", "#{time_seconds}",
+      "-i", video_path,
+      "-c", "copy",
+      "-avoid_negative_ts", "make_zero",
+      "-y",
+      temp_video_path
+    ]) do
+      {_output, 0} -> {:ok, temp_video_path}
+      {error_output, _exit_code} -> {:error, "ffmpeg failed: #{error_output}"}
+    end
+  end
+
+  defp convert_temp_video_to_mp3_partial(temp_video_path) do
+    temp_mp3_path = Path.join(System.tmp_dir(), "temp_audio_#{UUID.uuid4()}.mp3")
+
+    case System.cmd("ffmpeg", [
+      "-i", temp_video_path,
+      "-q:a", "0",
+      "-map", "a",
+      "-y",
+      temp_mp3_path
+    ]) do
+      {_output, 0} -> {:ok, temp_mp3_path}
+      {error_output, _exit_code} -> {:error, "ffmpeg audio conversion failed: #{error_output}"}
+    end
+  end
+
+  defp transcribe_temp_mp3_partial(temp_mp3_path) do
+    whispercli = Autotranscript.ConfigManager.get_config_value("whispercli_path")
+    model = Autotranscript.ConfigManager.get_config_value("model_path")
+
+    cond do
+      whispercli == nil or whispercli == "" ->
+        {:error, "Whisper CLI path not configured"}
+      model == nil or model == "" ->
+        {:error, "Model path not configured"}
+      not File.exists?(whispercli) ->
+        {:error, "Whisper CLI not found at: #{whispercli}"}
+      not File.exists?(model) ->
+        {:error, "Model file not found at: #{model}"}
+      true ->
+        case System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", temp_mp3_path]) do
+          {_output, 0} ->
+            # Convert VTT to TXT
+            vtt_path = temp_mp3_path <> ".vtt"
+            txt_path = String.replace_trailing(temp_mp3_path, ".mp3", ".txt")
+            case File.rename(vtt_path, txt_path) do
+              :ok -> {:ok, txt_path}
+              {:error, reason} -> {:error, "Failed to rename VTT to TXT: #{reason}"}
+            end
+          {error_output, _exit_code} ->
+            {:error, "Whisper transcription failed: #{error_output}"}
+        end
+    end
+  end
+
+  defp cleanup_temp_files(file_paths) do
+    Enum.each(file_paths, fn path ->
+      case File.rm(path) do
+        :ok -> :ok
+        {:error, :enoent} -> :ok  # File doesn't exist, that's fine
+        {:error, reason} -> Logger.warning("Failed to delete temp file #{path}: #{reason}")
+      end
+    end)
+    :ok
+  end
+
+  defp adjust_timestamps_in_temp_file(temp_txt_path, start_time_seconds) do
+    case File.read(temp_txt_path) do
+      {:ok, content} ->
+        # Regex to match timestamp format HH:MM:SS.XXX --> HH:MM:SS.XXX
+        timestamp_regex = ~r/(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/
+
+        adjusted_content = Regex.replace(timestamp_regex, content, fn full_match, start_ts, end_ts ->
+          case {timestamp_to_seconds(start_ts), timestamp_to_seconds(end_ts)} do
+            {{:ok, start_secs}, {:ok, end_secs}} ->
+              adjusted_start = start_secs + start_time_seconds
+              adjusted_end = end_secs + start_time_seconds
+              "#{seconds_to_timestamp(adjusted_start)} --> #{seconds_to_timestamp(adjusted_end)}"
+            _ ->
+              # If parsing fails, return original match
+              full_match
+          end
+        end)
+
+        case File.write(temp_txt_path, adjusted_content) do
+          :ok -> :ok
+          {:error, reason} -> {:error, "Failed to write adjusted timestamps: #{reason}"}
+        end
+
+      {:error, reason} -> {:error, "Failed to read temp txt file for timestamp adjustment: #{reason}"}
+    end
+  end
+
+  defp timestamp_to_seconds(timestamp_str) do
+    case String.split(timestamp_str, ":") do
+      [hours, minutes, seconds_with_ms] ->
+        case String.split(seconds_with_ms, ".") do
+          [seconds, milliseconds] ->
+            with {h, ""} <- Integer.parse(hours),
+                 {m, ""} <- Integer.parse(minutes),
+                 {s, ""} <- Integer.parse(seconds),
+                 {ms, ""} <- Integer.parse(milliseconds) do
+              total_seconds = h * 3600 + m * 60 + s + ms / 1000.0
+              {:ok, total_seconds}
+            else
+              _ -> {:error, "Invalid timestamp components"}
+            end
+          _ -> {:error, "Invalid seconds format"}
+        end
+      _ -> {:error, "Invalid timestamp format"}
+    end
+  end
+
+  defp seconds_to_timestamp(total_seconds) do
+    hours = trunc(total_seconds / 3600)
+    remaining_seconds = total_seconds - hours * 3600
+    minutes = trunc(remaining_seconds / 60)
+    seconds = remaining_seconds - minutes * 60
+
+    # Split seconds into integer and fractional parts
+    integer_seconds = trunc(seconds)
+    milliseconds = trunc((seconds - integer_seconds) * 1000)
+
+    # Format with leading zeros
+    :io_lib.format("~2..0B:~2..0B:~2..0B.~3..0B", [hours, minutes, integer_seconds, milliseconds])
+    |> List.to_string()
+  end
+
+  defp append_temp_txt_to_original(temp_txt_path, original_txt_path) do
+    case File.read(temp_txt_path) do
+      {:ok, content} ->
+        lines = String.split(content, "\n")
+        # Remove the first two lines and get the rest
+        remaining_lines = case lines do
+          [_first, _second | rest] -> rest
+          [_first] -> []
+          [] -> []
+        end
+
+        # Append to original file
+        content_to_append = case remaining_lines do
+          [] -> ""
+          lines -> "\n" <> Enum.join(lines, "\n")
+        end
+
+        case File.open(original_txt_path, [:append]) do
+          {:ok, file} ->
+            IO.write(file, content_to_append)
+            File.close(file)
+            :ok
+          {:error, reason} -> {:error, "Failed to append to original file: #{reason}"}
+        end
+
+      {:error, reason} -> {:error, "Failed to read temp txt file: #{reason}"}
     end
   end
 end

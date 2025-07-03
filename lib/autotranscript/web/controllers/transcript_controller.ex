@@ -1,5 +1,6 @@
 defmodule Autotranscript.Web.TranscriptController do
   use Autotranscript.Web, :controller
+  require Logger
 
   alias Autotranscript.{PathHelper, VideoInfoCache}
   def index(conn, _params) do
@@ -129,15 +130,16 @@ defmodule Autotranscript.Web.TranscriptController do
 
     # Transform tuples to maps for JSON serialization
     transformed_queue_status = %{
-      queue: Enum.map(queue_status.queue, fn {video_path, process_type} ->
+      queue: Enum.map(queue_status.queue, fn {process_type, %{path: video_path, time: time}} ->
         %{
           video_path: video_path,
-          process_type: process_type
+          process_type: process_type,
+          time: time
         }
       end),
       processing: queue_status.processing,
       current_file: case queue_status.current_file do
-        {video_path, process_type} -> %{video_path: video_path, process_type: process_type}
+        {process_type, %{path: video_path, time: time}} -> %{video_path: video_path, process_type: process_type, time: time}
         nil -> nil
       end
     }
@@ -480,6 +482,105 @@ defmodule Autotranscript.Web.TranscriptController do
         |> put_status(:bad_request)
         |> put_resp_content_type("text/plain")
         |> send_resp(400, "Missing required 'text' field in request body")
+    end
+  end
+
+  def partial_reprocess(conn, %{"filename" => filename}) do
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("application/json")
+      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+    else
+      case conn.body_params do
+        %{"time" => time_str} ->
+          case parse_time_to_seconds(time_str) do
+            {:ok, time_seconds} ->
+              execute_partial_reprocess(conn, filename, time_str, time_seconds, watch_directory)
+            {:error, reason} ->
+              conn
+              |> put_status(:bad_request)
+              |> put_resp_content_type("application/json")
+              |> send_resp(400, Jason.encode!(%{error: "Invalid time format: #{reason}"}))
+          end
+        _ ->
+          conn
+          |> put_status(:bad_request)
+          |> put_resp_content_type("application/json")
+          |> send_resp(400, Jason.encode!(%{error: "Missing required 'time' field in request body"}))
+      end
+    end
+  end
+
+  defp execute_partial_reprocess(conn, filename, time_str, _time_seconds, watch_directory) do
+    txt_file_path = Path.join(watch_directory, "#{filename}.txt")
+    video_file = PathHelper.find_video_file(watch_directory, filename)
+
+    case video_file do
+      nil ->
+        conn
+        |> put_status(:not_found)
+        |> put_resp_content_type("application/json")
+        |> send_resp(404, Jason.encode!(%{error: "Video file '#{filename}' not found"}))
+
+      video_path ->
+        case File.exists?(txt_file_path) do
+          false ->
+            conn
+            |> put_status(:not_found)
+            |> put_resp_content_type("application/json")
+            |> send_resp(404, Jason.encode!(%{error: "Transcript file '#{filename}.txt' not found"}))
+
+          true ->
+            # Add the partial reprocessing job to the queue
+            Autotranscript.VideoProcessor.add_to_queue(video_path, :partial, %{time: time_str})
+            
+            conn
+            |> put_resp_content_type("application/json")
+            |> send_resp(200, Jason.encode!(%{message: "Partial reprocessing for '#{filename}' from time #{time_str} has been added to the queue"}))
+        end
+    end
+  end
+
+  defp parse_time_to_seconds(time_str) do
+    cond do
+      # Format: HH:MM:SS or HH:MM:SS.ms
+      Regex.match?(~r/^\d{1,2}:\d{2}:\d{2}(\.\d+)?$/, time_str) ->
+        case String.split(time_str, ":") do
+          [hours, minutes, seconds_part] ->
+            with {h, ""} <- Integer.parse(hours),
+                 {m, ""} <- Integer.parse(minutes),
+                 {s, _} <- Float.parse(seconds_part) do
+              total_seconds = h * 3600 + m * 60 + s
+              {:ok, total_seconds}
+            else
+              _ -> {:error, "Invalid time components"}
+            end
+          _ -> {:error, "Invalid time format"}
+        end
+
+      # Format: MM:SS or MM:SS.ms
+      Regex.match?(~r/^\d{1,2}:\d{2}(\.\d+)?$/, time_str) ->
+        case String.split(time_str, ":") do
+          [minutes, seconds_part] ->
+            with {m, ""} <- Integer.parse(minutes),
+                 {s, _} <- Float.parse(seconds_part) do
+              total_seconds = m * 60 + s
+              {:ok, total_seconds}
+            else
+              _ -> {:error, "Invalid time components"}
+            end
+          _ -> {:error, "Invalid time format"}
+        end
+
+      # Format: seconds only (integer or float)
+      true ->
+        case Float.parse(time_str) do
+          {seconds, ""} when seconds >= 0 -> {:ok, seconds}
+          _ -> {:error, "Invalid numeric time"}
+        end
     end
   end
 end
