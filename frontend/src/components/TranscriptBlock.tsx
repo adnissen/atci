@@ -57,17 +57,18 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     if (!confirmed) return;
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+
       const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/partial_reprocess`, {
         method: 'POST',
         headers: {
+          'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ time }),
       });
 
       if (response.ok) {
-        const result = await response.json();
-        alert(`Success: ${result.message}`);
         // Reload the page to show updated transcript
         window.location.reload();
       } else {

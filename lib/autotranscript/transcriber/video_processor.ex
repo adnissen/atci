@@ -305,7 +305,7 @@ defmodule Autotranscript.VideoProcessor do
 
   @doc """
   Processes a video file from a specific time by truncating the text file,
-  creating a temporary video from the given time, converting to MP3, transcribing, 
+  creating a temporary video from the given time, converting to MP3, transcribing,
   and appending the new content to the original text file.
 
   ## Parameters
@@ -319,7 +319,7 @@ defmodule Autotranscript.VideoProcessor do
   def process_partial_video(video_path, time_str) do
     # Use the existing partial reprocess logic from the controller
     txt_file_path = PathHelper.replace_video_extension_with(video_path, ".txt")
-    
+
     case parse_time_to_seconds(time_str) do
       {:ok, time_seconds} ->
         do_partial_video_reprocess(txt_file_path, video_path, time_str, time_seconds)
@@ -387,12 +387,12 @@ defmodule Autotranscript.VideoProcessor do
     case File.read(txt_file_path) do
       {:ok, content} ->
         lines = String.split(content, "\n")
-        
+
         # Find the first line that includes the time
         truncated_lines = Enum.take_while(lines, fn line ->
           not String.contains?(line, time_str)
         end)
-        
+
         # Write the truncated content back
         truncated_content = Enum.join(truncated_lines, "\n")
         case File.write(txt_file_path, truncated_content) do
@@ -406,7 +406,7 @@ defmodule Autotranscript.VideoProcessor do
 
   defp create_temp_video_from_time(video_path, time_seconds) do
     temp_video_path = Path.join(System.tmp_dir(), "temp_video_#{UUID.uuid4()}.mp4")
-    
+
     case System.cmd("ffmpeg", [
       "-ss", "#{time_seconds}",
       "-i", video_path,
@@ -422,7 +422,7 @@ defmodule Autotranscript.VideoProcessor do
 
   defp convert_temp_video_to_mp3_partial(temp_video_path) do
     temp_mp3_path = Path.join(System.tmp_dir(), "temp_audio_#{UUID.uuid4()}.mp3")
-    
+
     case System.cmd("ffmpeg", [
       "-i", temp_video_path,
       "-q:a", "0",
@@ -480,7 +480,7 @@ defmodule Autotranscript.VideoProcessor do
       {:ok, content} ->
         # Regex to match timestamp format HH:MM:SS.XXX --> HH:MM:SS.XXX
         timestamp_regex = ~r/(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/
-        
+
         adjusted_content = Regex.replace(timestamp_regex, content, fn full_match, start_ts, end_ts ->
           case {timestamp_to_seconds(start_ts), timestamp_to_seconds(end_ts)} do
             {{:ok, start_secs}, {:ok, end_secs}} ->
@@ -492,12 +492,12 @@ defmodule Autotranscript.VideoProcessor do
               full_match
           end
         end)
-        
+
         case File.write(temp_txt_path, adjusted_content) do
           :ok -> :ok
           {:error, reason} -> {:error, "Failed to write adjusted timestamps: #{reason}"}
         end
-        
+
       {:error, reason} -> {:error, "Failed to read temp txt file for timestamp adjustment: #{reason}"}
     end
   end
@@ -527,11 +527,11 @@ defmodule Autotranscript.VideoProcessor do
     remaining_seconds = total_seconds - hours * 3600
     minutes = trunc(remaining_seconds / 60)
     seconds = remaining_seconds - minutes * 60
-    
+
     # Split seconds into integer and fractional parts
     integer_seconds = trunc(seconds)
     milliseconds = trunc((seconds - integer_seconds) * 1000)
-    
+
     # Format with leading zeros
     :io_lib.format("~2..0B:~2..0B:~2..0B.~3..0B", [hours, minutes, integer_seconds, milliseconds])
     |> List.to_string()
@@ -541,18 +541,19 @@ defmodule Autotranscript.VideoProcessor do
     case File.read(temp_txt_path) do
       {:ok, content} ->
         lines = String.split(content, "\n")
-        # Remove the first line and get the rest
+        # Remove the first two lines and get the rest
         remaining_lines = case lines do
-          [_first | rest] -> rest
+          [_first, _second | rest] -> rest
+          [_first] -> []
           [] -> []
         end
-        
+
         # Append to original file
         content_to_append = case remaining_lines do
           [] -> ""
           lines -> "\n" <> Enum.join(lines, "\n")
         end
-        
+
         case File.open(original_txt_path, [:append]) do
           {:ok, file} ->
             IO.write(file, content_to_append)
