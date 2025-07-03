@@ -590,12 +590,12 @@ function App() {
     }
   }, [outOfViewExpandedFile, expandedFiles, watchDirectory])
 
-  // Clear search results when search term is empty
+  // Clear search results when search term is empty, or auto-search when 4+ characters
   useEffect(() => {
     if (!searchTerm.trim()) {
       setSearchLineNumbers({})
       setExpandedFiles(new Set())
-    } else {
+    } else if (searchTerm.trim().length >= 4) {
       handleSearch()
     }
   }, [searchTerm])
