@@ -148,7 +148,7 @@ defmodule Autotranscript.Transcriber do
         case File.stat(video_path, time: :posix) do
           {:ok, %{mtime: mtime}} ->
             if current_time - mtime >= 3 do
-              Autotranscript.VideoProcessor.add_to_queue(video_path)
+              Autotranscript.VideoProcessor.add_to_queue(video_path, :all)
             end
           {:error, _reason} ->
             # If we can't get file stats, skip this file
