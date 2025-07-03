@@ -49,6 +49,37 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   // Process the text content (only timestamps, no icons)
   const processedText = processContentWithTimestamps(text);
 
+  // Handle regenerate action
+  const handleRegenerate = async (filename: string, time: string) => {
+    if (!time) return;
+    
+    const confirmed = window.confirm(`Are you sure you want to regenerate the transcript from ${time}? This will reprocess the video from this timestamp onwards.`);
+    if (!confirmed) return;
+
+    try {
+      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/partial_reprocess`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ time }),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        alert(`Success: ${result.message}`);
+        // Reload the page to show updated transcript
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error || 'Failed to regenerate transcript'}`);
+      }
+    } catch (error) {
+      console.error('Error calling partial reprocess:', error);
+      alert('Error: Failed to regenerate transcript. Please try again.');
+    }
+  };
+
   // Only return early if we have both start and end times and they're equal
   if (startTime && endTime && startTime === endTime) {
     return <></>;
@@ -100,6 +131,21 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                   <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
                 </svg>
               </a>
+            </span>
+            
+            {/* Regenerate icon */}
+            <span className="inline-flex items-center cursor-pointer text-muted-foreground group transition-colors">
+              <button 
+                onClick={() => handleRegenerate(name, startTime)}
+                className="inline-flex items-baseline p-0 border-none bg-transparent"
+                title={`Regenerate transcript from ${startTime}`}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block group-hover:stroke-[#059669]">
+                  <polyline points="23 4 23 10 17 10"/>
+                  <polyline points="1 20 1 14 7 14"/>
+                  <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
+                </svg>
+              </button>
             </span>
           </div>
         )}
