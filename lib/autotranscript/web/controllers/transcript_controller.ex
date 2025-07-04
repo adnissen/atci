@@ -583,4 +583,73 @@ defmodule Autotranscript.Web.TranscriptController do
         end
     end
   end
+
+  def set_line(conn, %{"filename" => filename}) do
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("application/json")
+      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+    else
+      case conn.body_params do
+        %{"line_number" => line_number_str, "text" => new_text} ->
+          case Integer.parse(line_number_str) do
+            {line_number, ""} when line_number > 0 ->
+              file_path = Path.join(watch_directory, "#{filename}.txt")
+              
+              case File.read(file_path) do
+                {:ok, content} ->
+                  lines = String.split(content, "\n")
+                  
+                  # Check if line number is within bounds
+                  if line_number <= length(lines) do
+                    # Replace the line (convert to 0-based indexing)
+                    updated_lines = List.replace_at(lines, line_number - 1, new_text)
+                    updated_content = Enum.join(updated_lines, "\n")
+                    
+                    case File.write(file_path, updated_content) do
+                      :ok ->
+                        VideoInfoCache.update_video_info_cache()
+                        conn
+                        |> put_resp_content_type("application/json")
+                        |> send_resp(200, Jason.encode!(%{message: "Line #{line_number} in transcript '#{filename}.txt' updated successfully"}))
+                      {:error, reason} ->
+                        conn
+                        |> put_status(:internal_server_error)
+                        |> put_resp_content_type("application/json")
+                        |> send_resp(500, Jason.encode!(%{error: "Error updating transcript file '#{filename}.txt': #{reason}"}))
+                    end
+                  else
+                    conn
+                    |> put_status(:bad_request)
+                    |> put_resp_content_type("application/json")
+                    |> send_resp(400, Jason.encode!(%{error: "Line number #{line_number} is out of bounds. File has #{length(lines)} lines."}))
+                  end
+                {:error, :enoent} ->
+                  conn
+                  |> put_status(:not_found)
+                  |> put_resp_content_type("application/json")
+                  |> send_resp(404, Jason.encode!(%{error: "Transcript file '#{filename}.txt' not found"}))
+                {:error, reason} ->
+                  conn
+                  |> put_status(:internal_server_error)
+                  |> put_resp_content_type("application/json")
+                  |> send_resp(500, Jason.encode!(%{error: "Error reading transcript file '#{filename}.txt': #{reason}"}))
+              end
+            _ ->
+              conn
+              |> put_status(:bad_request)
+              |> put_resp_content_type("application/json")
+              |> send_resp(400, Jason.encode!(%{error: "Invalid line number. Must be a positive integer."}))
+          end
+        _ ->
+          conn
+          |> put_status(:bad_request)
+          |> put_resp_content_type("application/json")
+          |> send_resp(400, Jason.encode!(%{error: "Missing required 'line_number' and 'text' fields in request body"}))
+      end
+    end
+  end
 end
