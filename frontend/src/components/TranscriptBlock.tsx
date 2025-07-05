@@ -331,7 +331,6 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
         onSave={handleSaveEdit}
         onCancel={handleCancelEdit}
         isSubmitting={isSubmitting}
-        inputType="textarea"
         placeholder="Enter text..."
       />
 
@@ -344,7 +343,6 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
         onSave={handleSaveTimestampEdit}
         onCancel={handleCancelTimestampEdit}
         isSubmitting={isSubmitting}
-        inputType="text"
         placeholder="00:00:00.000 --> 00:00:00.000"
       />
     </div>
