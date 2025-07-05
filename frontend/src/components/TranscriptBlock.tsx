@@ -108,8 +108,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   };
 
   // Handle save edit
-  const handleSaveEdit = async () => {
-    if (editedText.trim() === text.trim()) {
+  const handleSaveEdit = async (newText: string) => {
+    if (newText.trim() === text.trim()) {
       setIsEditing(false);
       return;
     }
@@ -127,7 +127,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
         },
         body: JSON.stringify({ 
           line_number: contentLineNumber.toString(), 
-          text: editedText 
+          text: newText 
         }),
       });
       if (response.ok) {
@@ -161,8 +161,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   };
 
   // Handle save timestamp edit
-  const handleSaveTimestampEdit = async () => {
-    if (editedTimestamp.trim() === `${startTime} --> ${endTime}`.trim()) {
+  const handleSaveTimestampEdit = async (newText: string) => {
+    if (newText.trim() === `${startTime} --> ${endTime}`.trim()) {
       setIsEditingTimestamp(false);
       return;
     }
@@ -180,7 +180,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
         },
         body: JSON.stringify({ 
           line_number: lineNumber.toString(), 
-          text: editedTimestamp 
+          text: newText 
         }),
       });
 
@@ -326,8 +326,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
       <EditDialog
         isOpen={isEditing}
         title={`Edit Line ${contentLineNumber}`}
-        value={editedText}
-        onValueChange={setEditedText}
+        initialValue={editedText}
         onSave={handleSaveEdit}
         onCancel={handleCancelEdit}
         isSubmitting={isSubmitting}
@@ -338,8 +337,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
       <EditDialog
         isOpen={isEditingTimestamp}
         title={`Edit Timestamp Line ${timestampLineNumber}`}
-        value={editedTimestamp}
-        onValueChange={setEditedTimestamp}
+        initialValue={editedTimestamp}
         onSave={handleSaveTimestampEdit}
         onCancel={handleCancelTimestampEdit}
         isSubmitting={isSubmitting}

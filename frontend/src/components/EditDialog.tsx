@@ -3,9 +3,8 @@ import React from 'react';
 interface EditDialogProps {
   isOpen: boolean;
   title: string;
-  value: string;
-  onValueChange: (value: string) => void;
-  onSave: () => void;
+  initialValue: string;
+  onSave: (text: string) => void;
   onCancel: () => void;
   isSubmitting: boolean;
   placeholder?: string;
@@ -16,8 +15,7 @@ interface EditDialogProps {
 const EditDialog: React.FC<EditDialogProps> = ({
   isOpen,
   title,
-  value,
-  onValueChange,
+  initialValue,
   onSave,
   onCancel,
   isSubmitting,
@@ -25,6 +23,17 @@ const EditDialog: React.FC<EditDialogProps> = ({
   className = '',
   isLargeMode = false
 }) => {
+  const [text, setText] = React.useState(initialValue);
+
+  // Reset text when dialog opens/closes or initialValue changes
+  React.useEffect(() => {
+    setText(initialValue);
+  }, [initialValue, isOpen]);
+
+  const handleSave = () => {
+    onSave(text);
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -33,8 +42,8 @@ const EditDialog: React.FC<EditDialogProps> = ({
         <h3 className="text-lg font-semibold mb-4">{title}</h3>
         
         <textarea
-          value={value}
-          onChange={(e) => onValueChange(e.target.value)}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
           className={`w-full ${isLargeMode ? 'h-96' : 'h-32'} p-3 border border-gray-300 dark:border-gray-600 rounded-md font-mono text-sm ${className}`}
           placeholder={placeholder}
         />
@@ -48,7 +57,7 @@ const EditDialog: React.FC<EditDialogProps> = ({
             Cancel
           </button>
           <button
-            onClick={onSave}
+            onClick={handleSave}
             disabled={isSubmitting}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
           >

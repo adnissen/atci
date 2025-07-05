@@ -60,7 +60,7 @@ function App() {
   // Replace transcript dialog state
   const [isReplaceDialogOpen, setIsReplaceDialogOpen] = useState(false)
   const [replaceTranscriptFilename, setReplaceTranscriptFilename] = useState('')
-  const [replaceTranscriptContent, setReplaceTranscriptContent] = useState('')
+  const [replaceTranscriptInitialContent, setReplaceTranscriptInitialContent] = useState('')
   const [isReplacingTranscript, setIsReplacingTranscript] = useState(false)
   
   // State for tracking out-of-view expanded rows
@@ -692,7 +692,7 @@ function App() {
       
       // Set up the replace dialog
       setReplaceTranscriptFilename(filename)
-      setReplaceTranscriptContent(transcriptContent)
+      setReplaceTranscriptInitialContent(transcriptContent)
       setIsReplaceDialogOpen(true)
       
     } catch (error) {
@@ -707,8 +707,8 @@ function App() {
     }
   }
 
-  const handleReplaceTranscript = async () => {
-    if (!replaceTranscriptFilename || !replaceTranscriptContent.trim()) return;
+  const handleReplaceTranscript = async (newText: string) => {
+    if (!replaceTranscriptFilename || !newText.trim()) return;
     
     setIsReplacingTranscript(true);
     try {
@@ -720,14 +720,14 @@ function App() {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ text: replaceTranscriptContent })
+        body: JSON.stringify({ text: newText })
       });
       
       if (response.ok) {
         // Update the transcript data with the new content
         setTranscriptData(prev => ({
           ...prev,
-          [replaceTranscriptFilename]: { text: replaceTranscriptContent, loading: false, error: null }
+          [replaceTranscriptFilename]: { text: newText, loading: false, error: null }
         }))
         
         // Force a refresh of the files list to update any metadata
@@ -744,7 +744,7 @@ function App() {
         // Close the dialog
         setIsReplaceDialogOpen(false)
         setReplaceTranscriptFilename('')
-        setReplaceTranscriptContent('')
+        setReplaceTranscriptInitialContent('')
       } else {
         const error = await response.json();
         alert(`Error: ${error.error || 'Failed to replace transcript'}`);
@@ -760,7 +760,7 @@ function App() {
   const handleReplaceCancel = () => {
     setIsReplaceDialogOpen(false)
     setReplaceTranscriptFilename('')
-    setReplaceTranscriptContent('')
+    setReplaceTranscriptInitialContent('')
   }
 
   const handleRegenerateMeta = async (filename: string, e: React.MouseEvent) => {
@@ -1166,8 +1166,7 @@ function App() {
       <EditDialog
         isOpen={isReplaceDialogOpen}
         title={`Replace Transcript - ${replaceTranscriptFilename}`}
-        value={replaceTranscriptContent}
-        onValueChange={setReplaceTranscriptContent}
+        initialValue={replaceTranscriptInitialContent}
         onSave={handleReplaceTranscript}
         onCancel={handleReplaceCancel}
         isSubmitting={isReplacingTranscript}
