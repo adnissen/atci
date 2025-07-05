@@ -3,14 +3,14 @@ defmodule Autotranscript.Web.TranscriptController do
   require Logger
 
   alias Autotranscript.{PathHelper, VideoInfoCache}
-  
+
   # Helper function to decode URL-encoded filenames
-  defp decode_filename(filename) when is_binary(filename) do
+  def decode_filename(filename) when is_binary(filename) do
     filename
     |> URI.decode()
     |> String.trim()
   end
-  defp decode_filename(filename), do: filename
+  def decode_filename(filename), do: filename
   def index(conn, _params) do
     # Get all .txt files in the watch directory (will be empty array if no config)
     txt_files =
@@ -23,7 +23,7 @@ defmodule Autotranscript.Web.TranscriptController do
   def show(conn, %{"filename" => filename}) do
     # Decode the URL-encoded filename
     decoded_filename = decode_filename(filename)
-    
+
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     if watch_directory == nil or watch_directory == "" do
@@ -369,7 +369,7 @@ defmodule Autotranscript.Web.TranscriptController do
     query_params = Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params)
     filename = query_params["filename"]
     decoded_filename = decode_filename(filename || "")
-    
+
     start_time_str = query_params["start_time"]
     end_time_str = query_params["end_time"]
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
@@ -555,7 +555,7 @@ defmodule Autotranscript.Web.TranscriptController do
           true ->
             # Add the partial reprocessing job to the queue
             Autotranscript.VideoProcessor.add_to_queue(video_path, :partial, %{time: time_str})
-            
+
             conn
             |> put_resp_content_type("application/json")
             |> send_resp(200, Jason.encode!(%{message: "Partial reprocessing for '#{decoded_filename}' from time #{time_str} has been added to the queue"}))
@@ -618,17 +618,17 @@ defmodule Autotranscript.Web.TranscriptController do
           case Integer.parse(line_number_str) do
             {line_number, ""} when line_number > 0 ->
               file_path = Path.join(watch_directory, "#{decoded_filename}.txt")
-              
+
               case File.read(file_path) do
                 {:ok, content} ->
                   lines = String.split(content, "\n")
-                  
+
                   # Check if line number is within bounds
                   if line_number <= length(lines) do
                     # Replace the line (convert to 0-based indexing)
                     updated_lines = List.replace_at(lines, line_number - 1, new_text)
                     updated_content = Enum.join(updated_lines, "\n")
-                    
+
                     case File.write(file_path, updated_content) do
                       :ok ->
                         VideoInfoCache.update_video_info_cache()

@@ -22,14 +22,14 @@ alias Autotranscript.PathHelper
 
       watch_directory ->
         file_path = Path.join([watch_directory] ++ path)
-
+        decoded_path = Autotranscript.Web.TranscriptController.decode_filename(file_path)
         # If no extension, try all video extensions
-        paths_to_try = if Path.extname(file_path) == "" do
+        paths_to_try = if Path.extname(decoded_path) == "" do
           Enum.map(PathHelper.video_extensions(), fn ext ->
-            file_path <> "." <> ext
+            decoded_path <> "." <> ext
           end)
         else
-          [file_path]
+          [decoded_path]
         end
 
         # Try each possible path

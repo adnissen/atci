@@ -53,7 +53,7 @@
         
         <div class="video-container">
             <video controls autoplay id="video-player">
-                <source src={"/files/#{@filename}"}>
+                <source src={"/files/#{URI.encode(@filename)}"}>
                 Your browser does not support the video tag.
             </video>
         </div>
