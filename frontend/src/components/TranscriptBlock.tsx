@@ -1,5 +1,6 @@
 import React from 'react';
 import { Edit2 } from 'lucide-react';
+import EditDialog from './EditDialog';
 
 interface TranscriptBlockProps {
   startTime?: string;
@@ -321,68 +322,31 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
         )}
       
       
-      {/* Edit Dialog */}
-      {isEditing && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-2xl w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Edit Line {contentLineNumber}</h3>
-            <textarea
-              value={editedText}
-              onChange={(e) => setEditedText(e.target.value)}
-              className="w-full h-32 p-3 border border-gray-300 dark:border-gray-600 rounded-md font-mono text-sm"
-              placeholder="Enter text..."
-            />
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={handleCancelEdit}
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isSubmitting ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Edit Dialog for Content */}
+      <EditDialog
+        isOpen={isEditing}
+        title={`Edit Line ${contentLineNumber}`}
+        value={editedText}
+        onValueChange={setEditedText}
+        onSave={handleSaveEdit}
+        onCancel={handleCancelEdit}
+        isSubmitting={isSubmitting}
+        inputType="textarea"
+        placeholder="Enter text..."
+      />
 
-      {/* Edit Timestamp Dialog */}
-      {isEditingTimestamp && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-2xl w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Edit Timestamp Line {timestampLineNumber}</h3>
-            <input
-              type="text"
-              value={editedTimestamp}
-              onChange={(e) => setEditedTimestamp(e.target.value)}
-              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-md font-mono text-sm"
-              placeholder="00:00:00.000 --> 00:00:00.000"
-            />
-            <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={handleCancelTimestampEdit}
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveTimestampEdit}
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isSubmitting ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Edit Dialog for Timestamp */}
+      <EditDialog
+        isOpen={isEditingTimestamp}
+        title={`Edit Timestamp Line ${timestampLineNumber}`}
+        value={editedTimestamp}
+        onValueChange={setEditedTimestamp}
+        onSave={handleSaveTimestampEdit}
+        onCancel={handleCancelTimestampEdit}
+        isSubmitting={isSubmitting}
+        inputType="text"
+        placeholder="00:00:00.000 --> 00:00:00.000"
+      />
     </div>
   );
 };
