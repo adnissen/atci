@@ -61,6 +61,7 @@ function App() {
   const [isReplaceDialogOpen, setIsReplaceDialogOpen] = useState(false)
   const [replaceTranscriptFilename, setReplaceTranscriptFilename] = useState('')
   const [replaceTranscriptContent, setReplaceTranscriptContent] = useState('')
+  const [isReplacingTranscript, setIsReplacingTranscript] = useState(false)
   
   // State for tracking out-of-view expanded rows
   const [outOfViewExpandedFile, setOutOfViewExpandedFile] = useState<string | null>(null)
@@ -706,28 +707,54 @@ function App() {
     }
   }
 
-  const handleReplaceSuccess = async () => {
-    // Update the transcript data with the new content
-    setTranscriptData(prev => ({
-      ...prev,
-      [replaceTranscriptFilename]: { text: replaceTranscriptContent, loading: false, error: null }
-    }))
+  const handleReplaceTranscript = async () => {
+    if (!replaceTranscriptFilename || !replaceTranscriptContent.trim()) return;
     
-    // Force a refresh of the files list to update any metadata
+    setIsReplacingTranscript(true);
     try {
-      const filesResponse = await fetch('/files')
-      if (filesResponse.ok) {
-        const filesData = await filesResponse.json()
-        setFiles(filesData)
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      
+      const response = await fetch(`/transcripts/${encodeURIComponent(replaceTranscriptFilename)}/replace`, {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': csrfToken || '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: replaceTranscriptContent })
+      });
+      
+      if (response.ok) {
+        // Update the transcript data with the new content
+        setTranscriptData(prev => ({
+          ...prev,
+          [replaceTranscriptFilename]: { text: replaceTranscriptContent, loading: false, error: null }
+        }))
+        
+        // Force a refresh of the files list to update any metadata
+        try {
+          const filesResponse = await fetch('/files')
+          if (filesResponse.ok) {
+            const filesData = await filesResponse.json()
+            setFiles(filesData)
+          }
+        } catch (error) {
+          console.error('Error refreshing files after replace:', error)
+        }
+        
+        // Close the dialog
+        setIsReplaceDialogOpen(false)
+        setReplaceTranscriptFilename('')
+        setReplaceTranscriptContent('')
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error || 'Failed to replace transcript'}`);
       }
     } catch (error) {
-      console.error('Error refreshing files after replace:', error)
+      console.error('Error replacing transcript:', error);
+      alert('Error: Failed to replace transcript. Please try again.');
+    } finally {
+      setIsReplacingTranscript(false);
     }
-    
-    // Close the dialog
-    setIsReplaceDialogOpen(false)
-    setReplaceTranscriptFilename('')
-    setReplaceTranscriptContent('')
   }
 
   const handleReplaceCancel = () => {
@@ -1141,13 +1168,11 @@ function App() {
         title={`Replace Transcript - ${replaceTranscriptFilename}`}
         value={replaceTranscriptContent}
         onValueChange={setReplaceTranscriptContent}
-        onSave={() => {}} // Not used in replace mode
+        onSave={handleReplaceTranscript}
         onCancel={handleReplaceCancel}
-        isSubmitting={false}
+        isSubmitting={isReplacingTranscript}
         placeholder="Enter the complete transcript content..."
-        isReplaceMode={true}
-        filename={replaceTranscriptFilename}
-        onReplaceSuccess={handleReplaceSuccess}
+        isLargeMode={true}
       />
     </div>
   )
