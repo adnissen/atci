@@ -41,7 +41,7 @@ defmodule Autotranscript.Web.Router do
 
     get "/", PageController, :index
 
-    get "/transcripts", TranscriptController, :index
+    get "/app", TranscriptController, :index
     get "/transcripts/:filename", TranscriptController, :show
     post "/transcripts/:filename/replace", TranscriptController, :replace_transcript
     post "/transcripts/:filename/regenerate", TranscriptController, :regenerate
