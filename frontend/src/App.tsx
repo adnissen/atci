@@ -9,6 +9,7 @@ import {
 import './App.css'
 import TranscriptView from './components/TranscriptView'
 import ConfigSetup from './components/ConfigSetup'
+import EditDialog from './components/EditDialog'
 import { useEffect, useState, useRef, useCallback } from 'react'
 
 function App() {
@@ -55,6 +56,12 @@ function App() {
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
   const [sortColumn, setSortColumn] = useState<SortColumn>('created_at')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  
+  // Replace transcript dialog state
+  const [isReplaceDialogOpen, setIsReplaceDialogOpen] = useState(false)
+  const [replaceTranscriptFilename, setReplaceTranscriptFilename] = useState('')
+  const [replaceTranscriptInitialContent, setReplaceTranscriptInitialContent] = useState('')
+  const [isReplacingTranscript, setIsReplacingTranscript] = useState(false)
   
   // State for tracking out-of-view expanded rows
   const [outOfViewExpandedFile, setOutOfViewExpandedFile] = useState<string | null>(null)
@@ -671,55 +678,26 @@ function App() {
   const handleReplace = async (filename: string, e: React.MouseEvent) => {
     e.stopPropagation() // Prevent row expansion
     
-    // Prompt user for new content
-    const newContent = prompt(`Enter new content for ${filename}:`)
-    if (!newContent) return // User cancelled
-    
     setReplacingFiles(prev => new Set(prev).add(filename))
     
     try {
-      // Get CSRF token from meta tag
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+      // Fetch the current transcript content
+      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}`)
       
-      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/replace`, {
-        method: 'POST',
-        headers: {
-          'X-CSRF-Token': csrfToken || '',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ text: newContent })
-      })
-      
-      if (response.ok) {
-        // Update the transcript data with the new content
-        setTranscriptData(prev => ({
-          ...prev,
-          [filename]: { text: newContent, loading: false, error: null }
-        }))
-        
-        // Force a refresh of the files list to update any metadata
-        const filesResponse = await fetch('/files')
-        if (filesResponse.ok) {
-          const filesData = await filesResponse.json()
-          setFiles(filesData)
-        }
-      } else {
-        console.error('Failed to replace transcript')
-        alert('Failed to replace transcript. Please try again.')
-        setReplacingFiles(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(filename)
-          return newSet
-        })
+      if (!response.ok) {
+        throw new Error(`Failed to fetch transcript: ${response.status} ${response.statusText}`)
       }
+      
+      const transcriptContent = await response.text()
+      
+      // Set up the replace dialog
+      setReplaceTranscriptFilename(filename)
+      setReplaceTranscriptInitialContent(transcriptContent)
+      setIsReplaceDialogOpen(true)
+      
     } catch (error) {
-      console.error('Replacement error:', error)
-      alert('Error replacing transcript. Please try again.')
-      setReplacingFiles(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(filename)
-        return newSet
-      })
+      console.error('Error fetching transcript for replace:', error)
+      alert('Error: Failed to load transcript. Please try again.')
     } finally {
       setReplacingFiles(prev => {
         const newSet = new Set(prev)
@@ -727,6 +705,62 @@ function App() {
         return newSet
       })
     }
+  }
+
+  const handleReplaceTranscript = async (newText: string) => {
+    if (!replaceTranscriptFilename || !newText.trim()) return;
+    
+    setIsReplacingTranscript(true);
+    try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+      
+      const response = await fetch(`/transcripts/${encodeURIComponent(replaceTranscriptFilename)}/replace`, {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': csrfToken || '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ text: newText })
+      });
+      
+      if (response.ok) {
+        // Update the transcript data with the new content
+        setTranscriptData(prev => ({
+          ...prev,
+          [replaceTranscriptFilename]: { text: newText, loading: false, error: null }
+        }))
+        
+        // Force a refresh of the files list to update any metadata
+        try {
+          const filesResponse = await fetch('/files')
+          if (filesResponse.ok) {
+            const filesData = await filesResponse.json()
+            setFiles(filesData)
+          }
+        } catch (error) {
+          console.error('Error refreshing files after replace:', error)
+        }
+        
+        // Close the dialog
+        setIsReplaceDialogOpen(false)
+        setReplaceTranscriptFilename('')
+        setReplaceTranscriptInitialContent('')
+      } else {
+        const error = await response.json();
+        alert(`Error: ${error.error || 'Failed to replace transcript'}`);
+      }
+    } catch (error) {
+      console.error('Error replacing transcript:', error);
+      alert('Error: Failed to replace transcript. Please try again.');
+    } finally {
+      setIsReplacingTranscript(false);
+    }
+  }
+
+  const handleReplaceCancel = () => {
+    setIsReplaceDialogOpen(false)
+    setReplaceTranscriptFilename('')
+    setReplaceTranscriptInitialContent('')
   }
 
   const handleRegenerateMeta = async (filename: string, e: React.MouseEvent) => {
@@ -1128,7 +1162,17 @@ function App() {
         </div>
       </div>
 
-      
+      {/* Replace Transcript Dialog */}
+      <EditDialog
+        isOpen={isReplaceDialogOpen}
+        title={`Replace Transcript - ${replaceTranscriptFilename}`}
+        initialValue={replaceTranscriptInitialContent}
+        onSave={handleReplaceTranscript}
+        onCancel={handleReplaceCancel}
+        isSubmitting={isReplacingTranscript}
+        placeholder="Enter the complete transcript content..."
+        isLargeMode={true}
+      />
     </div>
   )
 }
