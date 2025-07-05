@@ -12,6 +12,7 @@ interface TranscriptViewProps {
   visibleLines?: number[];
   expandContext: (filename: string, direction: "up" | "down", line: number) => void;
   expandAll?: ((filename: string) => void) | undefined;
+  onEditSuccess?: () => void;
 }
 
 // Extend Window interface for our custom handlers
@@ -42,7 +43,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   error = null,
   visibleLines = [],
   expandContext,
-  expandAll = undefined
+  expandAll = undefined,
+  onEditSuccess
 }) => {
   if (!visible) {
     return null;
@@ -212,6 +214,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     name={name}
                     isSearchResult={(item.data as TranscriptBlockData).isSearchResult}
                     lineNumbers={(item.data as TranscriptBlockData).lineNumbers}
+                    onEditSuccess={onEditSuccess}
                   />
                 ) : (
                   <div className="text-muted-foreground italic">

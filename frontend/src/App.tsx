@@ -418,7 +418,6 @@ function App() {
       const currentData = transcriptData[filename]
       return !currentData || (!currentData.loading && !currentData.text && !currentData.error)
     })
-    
     // Fetch transcripts for each file
     await Promise.all(filesToFetch.map(filename => fetchTranscript(filename)))
   }
@@ -1118,6 +1117,7 @@ function App() {
                     visibleLines={searchLineNumbers[file.base_name] || []}
                     expandContext={expandContext}
                     expandAll={expandAll}
+                    onEditSuccess={() => { fetchTranscript(file.base_name) }}
                   />
                 </TableCell>
                 </TableRow>
