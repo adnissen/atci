@@ -11,6 +11,7 @@ interface TranscriptBlockProps {
   isSearchResult?: boolean;
   lineNumbers: number[];
   onEditSuccess?: () => void;
+  fullTranscript?: string; // Full transcript text for editing
 }
 
 const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
@@ -21,22 +22,20 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   name,
   isSearchResult = false,
   lineNumbers,
-  onEditSuccess
+  onEditSuccess,
+  fullTranscript = ''
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
-  const [editedText, setEditedText] = React.useState(text);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isEditingTimestamp, setIsEditingTimestamp] = React.useState(false);
-  const [editedTimestamp, setEditedTimestamp] = React.useState(`${startTime} --> ${endTime}`);
 
-  // Sync editedText with text prop
+  // Sync with props
   React.useEffect(() => {
-    setEditedText(text);
+    // No need to sync editedText anymore since we're using fullTranscript
   }, [text]);
 
-  // Sync editedTimestamp with startTime and endTime props
   React.useEffect(() => {
-    setEditedTimestamp(`${startTime} --> ${endTime}`);
+    // No need to sync editedTimestamp anymore since we're using fullTranscript
   }, [startTime, endTime]);
 
   if (!visible || text === "WEBVTT") {
@@ -103,13 +102,12 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
 
   // Handle edit action
   const handleEdit = () => {
-    setEditedText(text);
     setIsEditing(true);
   };
 
-  // Handle save edit
+  // Handle save edit - now using replace transcript method
   const handleSaveEdit = async (newText: string) => {
-    if (newText.trim() === text.trim()) {
+    if (newText.trim() === fullTranscript.trim()) {
       setIsEditing(false);
       return;
     }
@@ -117,19 +115,16 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     setIsSubmitting(true);
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      const contentLineNumber = lineNumbers[lineNumbers.length - 1]; // Use the content line number
 
-      const response = await fetch(`/transcripts/${encodeURIComponent(name)}/set_line`, {
+      const response = await fetch(`/transcripts/${encodeURIComponent(name)}/replace`, {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          line_number: contentLineNumber.toString(), 
-          text: newText 
-        }),
+        body: JSON.stringify({ text: newText }),
       });
+
       if (response.ok) {
         // Call onEditSuccess callback to refresh transcript data
         if (onEditSuccess) {
@@ -150,19 +145,17 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
 
   // Handle cancel edit
   const handleCancelEdit = () => {
-    setEditedText(text);
     setIsEditing(false);
   };
 
   // Handle edit timestamp
   const handleEditTimestamp = () => {
-    setEditedTimestamp(`${startTime} --> ${endTime}`);
     setIsEditingTimestamp(true);
   };
 
-  // Handle save timestamp edit
+  // Handle save timestamp edit - now using replace transcript method
   const handleSaveTimestampEdit = async (newText: string) => {
-    if (newText.trim() === `${startTime} --> ${endTime}`.trim()) {
+    if (newText.trim() === fullTranscript.trim()) {
       setIsEditingTimestamp(false);
       return;
     }
@@ -170,18 +163,14 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     setIsSubmitting(true);
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-      const lineNumber = timestampLineNumber; // Use the timestamp line number
 
-      const response = await fetch(`/transcripts/${encodeURIComponent(name)}/set_line`, {
+      const response = await fetch(`/transcripts/${encodeURIComponent(name)}/replace`, {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          line_number: lineNumber.toString(), 
-          text: newText 
-        }),
+        body: JSON.stringify({ text: newText }),
       });
 
       if (response.ok) {
@@ -204,7 +193,6 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
 
   // Handle cancel timestamp edit
   const handleCancelTimestampEdit = () => {
-    setEditedTimestamp(`${startTime} --> ${endTime}`);
     setIsEditingTimestamp(false);
   };
 
@@ -325,23 +313,27 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
       {/* Edit Dialog for Content */}
       <EditDialog
         isOpen={isEditing}
-        title={`Edit Line ${contentLineNumber}`}
-        initialValue={editedText}
+        title={`Edit Transcript - ${name}`}
+        initialValue={fullTranscript}
         onSave={handleSaveEdit}
         onCancel={handleCancelEdit}
         isSubmitting={isSubmitting}
-        placeholder="Enter text..."
+        placeholder="Enter transcript content..."
+        isLargeMode={true}
+        targetLineNumber={contentLineNumber}
       />
 
       {/* Edit Dialog for Timestamp */}
       <EditDialog
         isOpen={isEditingTimestamp}
-        title={`Edit Timestamp Line ${timestampLineNumber}`}
-        initialValue={editedTimestamp}
+        title={`Edit Transcript - ${name}`}
+        initialValue={fullTranscript}
         onSave={handleSaveTimestampEdit}
         onCancel={handleCancelTimestampEdit}
         isSubmitting={isSubmitting}
-        placeholder="00:00:00.000 --> 00:00:00.000"
+        placeholder="Enter transcript content..."
+        isLargeMode={true}
+        targetLineNumber={timestampLineNumber}
       />
     </div>
   );

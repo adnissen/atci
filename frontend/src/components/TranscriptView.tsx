@@ -215,6 +215,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     isSearchResult={(item.data as TranscriptBlockData).isSearchResult}
                     lineNumbers={(item.data as TranscriptBlockData).lineNumbers}
                     onEditSuccess={onEditSuccess}
+                    fullTranscript={text}
                   />
                 ) : (
                   <div className="text-muted-foreground italic">
