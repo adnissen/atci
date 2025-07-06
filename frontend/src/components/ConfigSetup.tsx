@@ -41,7 +41,15 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       if (response.ok) {
         const data = await response.json();
         if (data.config) {
-          setConfig(data.config);
+          // Handle the new watch_directories array format
+          const configData = {
+            watch_directory: data.config.watch_directories && data.config.watch_directories.length > 0 
+              ? data.config.watch_directories[0] 
+              : data.config.watch_directory || '',
+            whispercli_path: data.config.whispercli_path || '',
+            model_path: data.config.model_path || ''
+          };
+          setConfig(configData);
         }
       }
     } catch (error) {
