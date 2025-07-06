@@ -54,8 +54,20 @@ defmodule Autotranscript.VideoInfoCache do
   # Scans the watch directory and returns video file information.
   # This is the renamed version of the original get_video_files method.
   defp get_video_info_from_disk do
-    watch_directory = ConfigManager.get_config_value("watch_directory")
+    watch_directories = ConfigManager.get_config_value("watch_directories")
 
+    if watch_directories == nil or watch_directories == [] do
+      []
+    else
+      # Iterate over all watch directories and collect video info from each
+      watch_directories
+      |> Enum.flat_map(&get_video_info_from_directory/1)
+      |> Enum.sort_by(& &1.created_at, :desc)
+    end
+  end
+
+  # Helper function to get video info from a single directory
+  defp get_video_info_from_directory(watch_directory) do
     if watch_directory == nil or watch_directory == "" do
       []
     else
@@ -114,7 +126,6 @@ defmodule Autotranscript.VideoInfoCache do
       end
       end)
       |> Enum.reject(&is_nil/1)
-      |> Enum.sort_by(& &1.created_at, :desc)
     end
   end
 end

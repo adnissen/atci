@@ -127,13 +127,14 @@ defmodule Autotranscript.Transcriber do
   end
 
   def check_for_videos_with_missing_files_and_add_to_queue do
-    directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories")
 
-    if directory == nil or directory == "" do
-      Logger.warning("Watch directory not configured, skipping video check")
+    if watch_directories == nil or watch_directories == [] do
+      Logger.warning("Watch directories not configured, skipping video check")
       :ok
     else
-      do_check_for_videos(directory)
+      # Iterate over all watch directories and apply the existing logic
+      Enum.each(watch_directories, &do_check_for_videos/1)
     end
   end
 
@@ -166,24 +167,26 @@ defmodule Autotranscript.Transcriber do
       {:ok, timer_ref}
   """
   def watch_directory do
-    directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories")
 
-    case directory do
+    case watch_directories do
       nil ->
-        Logger.warning("Watch directory not configured")
+        Logger.warning("Watch directories not configured")
         {:ok, nil}
-      "" ->
-        Logger.warning("Watch directory is empty")
+      [] ->
+        Logger.warning("Watch directories list is empty")
         {:ok, nil}
-      _ ->
-        case File.dir?(directory) do
-          true ->
-            Logger.info("Watching: #{directory} (checking every 2 seconds)")
-            timer_ref = Process.send_after(self(), :check_directory, 2000)
-            {:ok, timer_ref}
-          false ->
-            Logger.error("Watch directory does not exist: #{directory}")
-            {:error, :invalid_directory}
+      directories when is_list(directories) ->
+        # Validate that all directories exist
+        invalid_dirs = Enum.filter(directories, fn dir -> not File.dir?(dir) end)
+        
+        if Enum.empty?(invalid_dirs) do
+          Logger.info("Watching directories: #{inspect(directories)} (checking every 2 seconds)")
+          timer_ref = Process.send_after(self(), :check_directory, 2000)
+          {:ok, timer_ref}
+        else
+          Logger.error("Some watch directories do not exist: #{inspect(invalid_dirs)}")
+          {:error, :invalid_directories}
         end
     end
   end

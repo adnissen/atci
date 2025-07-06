@@ -11,6 +11,82 @@ defmodule Autotranscript.Web.TranscriptController do
     |> String.trim()
   end
   def decode_filename(filename), do: filename
+
+  # Helper function to find a file across all watch directories
+  defp find_file_in_watch_directories(filename, extension) do
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories")
+    
+    if watch_directories == nil or watch_directories == [] do
+      nil
+    else
+      Enum.find_value(watch_directories, fn watch_directory ->
+        file_path = Path.join(watch_directory, "#{filename}#{extension}")
+        if File.exists?(file_path), do: file_path, else: nil
+      end)
+    end
+  end
+
+  # Helper function to find a video file across all watch directories
+  defp find_video_file_in_watch_directories(filename) do
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories")
+    
+    if watch_directories == nil or watch_directories == [] do
+      nil
+    else
+      Enum.find_value(watch_directories, fn watch_directory ->
+        PathHelper.find_video_file(watch_directory, filename)
+      end)
+    end
+  end
+
+  # Helper function to check if watch directories are configured
+  defp watch_directories_configured? do
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories")
+    watch_directories != nil and watch_directories != []
+  end
+
+  # Helper function to get all video files from all watch directories
+  defp get_all_video_files_from_directories do
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories")
+    
+    if watch_directories == nil or watch_directories == [] do
+      []
+    else
+      Enum.flat_map(watch_directories, fn watch_directory ->
+        Path.wildcard(Path.join(watch_directory, "**/*.#{PathHelper.video_wildcard_pattern}"))
+      end)
+    end
+  end
+
+  # Helper function to run grep across all watch directories
+  defp run_grep_across_directories(search_text) do
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories")
+    
+    if watch_directories == nil or watch_directories == [] do
+      %{}
+    else
+      Enum.reduce(watch_directories, %{}, fn watch_directory, acc ->
+        # Run grep commands for this directory
+        {output1, exit_code1} = System.shell("grep -Hni \"" <> search_text <> "\" *.txt", cd: watch_directory)
+        {output2, exit_code2} = System.shell("grep -Hni \"" <> search_text <> "\" **/*.txt", cd: watch_directory)
+        
+        # Parse results if successful
+        results1 = if exit_code1 <= 1, do: parse_grep_output(output1), else: %{}
+        results2 = if exit_code2 <= 1, do: parse_grep_output(output2), else: %{}
+        
+        # Merge results from this directory
+        directory_results = Map.merge(results1, results2, fn _k, v1, v2 ->
+          Enum.sort(Enum.uniq(v1 ++ v2))
+        end)
+        
+        # Merge with accumulated results
+        Map.merge(acc, directory_results, fn _k, v1, v2 ->
+          Enum.sort(Enum.uniq(v1 ++ v2))
+        end)
+      end)
+    end
+  end
+
   def index(conn, _params) do
     # Get all .txt files in the watch directory (will be empty array if no config)
     txt_files =
@@ -24,73 +100,49 @@ defmodule Autotranscript.Web.TranscriptController do
     # Decode the URL-encoded filename
     decoded_filename = decode_filename(filename)
 
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-
-    if watch_directory == nil or watch_directory == "" do
+    if not watch_directories_configured?() do
       conn
       |> put_status(:service_unavailable)
       |> put_resp_content_type("text/plain")
-      |> send_resp(503, "Watch directory not configured. Please configure the application first.")
+      |> send_resp(503, "Watch directories not configured. Please configure the application first.")
     else
-      file_path = Path.join(watch_directory, "#{decoded_filename}.txt")
-
-          case File.read(file_path) do
-        {:ok, content} ->
-          conn
-          |> put_resp_content_type("text/plain")
-          |> send_resp(200, content)
-        {:error, :enoent} ->
+      # Find the transcript file across all watch directories
+      case find_file_in_watch_directories(decoded_filename, ".txt") do
+        nil ->
           conn
           |> put_status(:not_found)
           |> put_resp_content_type("text/plain")
           |> send_resp(404, "Transcript file '#{decoded_filename}' not found")
-        {:error, reason} ->
-          conn
-          |> put_status(:internal_server_error)
-          |> put_resp_content_type("text/plain")
-          |> send_resp(500, "Error reading transcript file '#{decoded_filename}': #{reason}")
+        
+        file_path ->
+          case File.read(file_path) do
+            {:ok, content} ->
+              conn
+              |> put_resp_content_type("text/plain")
+              |> send_resp(200, content)
+            {:error, reason} ->
+              conn
+              |> put_status(:internal_server_error)
+              |> put_resp_content_type("text/plain")
+              |> send_resp(500, "Error reading transcript file '#{decoded_filename}': #{reason}")
+          end
       end
     end
   end
-  def grep(conn, %{"text" => search_text}) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
-    if watch_directory == nil or watch_directory == "" do
+  def grep(conn, %{"text" => search_text}) do
+    if not watch_directories_configured?() do
       conn
       |> put_status(:service_unavailable)
       |> put_resp_content_type("application/json")
-      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+      |> send_resp(503, Jason.encode!(%{error: "Watch directories not configured. Please configure the application first."}))
     else
-      # Change to the watch directory and run grep with line numbers
-      # Run first grep command for files in root directory
-      {output1, exit_code1} = System.shell("grep -Hni \"" <> search_text <> "\" *.txt", cd: watch_directory)
+      # Run grep across all watch directories
+      combined_results = run_grep_across_directories(search_text)
 
-      # Run second grep command for files in subdirectories
-      {output2, exit_code2} = System.shell("grep -Hni \"" <> search_text <> "\" **/*.txt", cd: watch_directory)
-
-      cond do
-        # Both commands failed with error (exit code > 1)
-        exit_code1 > 1 and exit_code2 > 1 ->
-          conn
-          |> put_status(:internal_server_error)
-          |> put_resp_content_type("application/json")
-          |> send_resp(500, Jason.encode!(%{error: "Error running grep: #{output1} #{output2}"}))
-
-        # At least one command succeeded (exit code 0) or found no matches (exit code 1)
-        true ->
-          # Parse outputs, defaulting to empty string if command errored
-          results1 = if exit_code1 <= 1, do: parse_grep_output(output1), else: %{}
-          results2 = if exit_code2 <= 1, do: parse_grep_output(output2), else: %{}
-
-          # Merge results, combining line numbers for any overlapping files
-          combined_results = Map.merge(results1, results2, fn _k, v1, v2 ->
-            Enum.sort(Enum.uniq(v1 ++ v2))
-          end)
-
-          conn
-          |> put_resp_content_type("application/json")
-          |> send_resp(200, Jason.encode!(combined_results))
-      end
+      conn
+      |> put_resp_content_type("application/json")
+      |> send_resp(200, Jason.encode!(combined_results))
     end
   end
 
@@ -116,24 +168,27 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def regenerate(conn, %{"filename" => filename}) do
     decoded_filename = decode_filename(filename)
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    file_path = Path.join(watch_directory, "#{decoded_filename}.txt")
-
-    case File.rm(file_path) do
-      :ok ->
-        conn
-        |> put_resp_content_type("text/plain")
-        |> send_resp(200, "Transcript file '#{decoded_filename}.txt' deleted for regeneration")
-      {:error, :enoent} ->
+    
+    # Find the transcript file across all watch directories
+    case find_file_in_watch_directories(decoded_filename, ".txt") do
+      nil ->
         conn
         |> put_status(:not_found)
         |> put_resp_content_type("text/plain")
         |> send_resp(404, "Transcript file '#{decoded_filename}.txt' not found")
-      {:error, reason} ->
-        conn
-        |> put_status(:internal_server_error)
-        |> put_resp_content_type("text/plain")
-        |> send_resp(500, "Error deleting transcript file '#{decoded_filename}.txt': #{reason}")
+      
+      file_path ->
+        case File.rm(file_path) do
+          :ok ->
+            conn
+            |> put_resp_content_type("text/plain")
+            |> send_resp(200, "Transcript file '#{decoded_filename}.txt' deleted for regeneration")
+          {:error, reason} ->
+            conn
+            |> put_status(:internal_server_error)
+            |> put_resp_content_type("text/plain")
+            |> send_resp(500, "Error deleting transcript file '#{decoded_filename}.txt': #{reason}")
+        end
     end
   end
 
@@ -169,80 +224,75 @@ defmodule Autotranscript.Web.TranscriptController do
     |> send_resp(200, Jason.encode!(video_files))
   end
 
-
-
   def random_frame(conn, _params) do
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-
-    if watch_directory == nil or watch_directory == "" do
+    if not watch_directories_configured?() do
       conn
       |> put_status(:service_unavailable)
       |> put_resp_content_type("text/plain")
-      |> send_resp(503, "Watch directory not configured. Please configure the application first.")
+      |> send_resp(503, "Watch directories not configured. Please configure the application first.")
     else
-      # Get all video files in the watch directory
-      mp4_files = Path.wildcard(Path.join(watch_directory, "**/*.#{PathHelper.video_wildcard_pattern}"))
+      # Get all video files from all watch directories
+      video_files = get_all_video_files_from_directories()
 
-    case mp4_files do
-      [] ->
-        conn
-        |> put_status(:not_found)
-        |> put_resp_content_type("text/plain")
-        |> send_resp(404, "No MP4 files found in watch directory")
+      case video_files do
+        [] ->
+          conn
+          |> put_status(:not_found)
+          |> put_resp_content_type("text/plain")
+          |> send_resp(404, "No video files found in watch directories")
 
-      files ->
-        # Randomly select an video file
-        selected_file = Enum.random(files)
+        files ->
+          # Randomly select a video file
+          selected_file = Enum.random(files)
 
-        # Generate a temporary filename for the extracted frame
-        temp_frame_path = Path.join(System.tmp_dir(), "random_frame_#{:rand.uniform(10000)}.jpg")
+          # Generate a temporary filename for the extracted frame
+          temp_frame_path = Path.join(System.tmp_dir(), "random_frame_#{:rand.uniform(10000)}.jpg")
 
-        # Use ffmpeg to extract a random frame
-        case System.cmd("ffmpeg", [
-          "-i", selected_file,
-          "-vf", "select='gte(n\\,1)'",
-          "-vframes", "1",
-          "-f", "image2",
-          "-y",
-          temp_frame_path
-        ]) do
-          {_output, 0} ->
-            # Successfully extracted frame, serve it
-            case File.read(temp_frame_path) do
-              {:ok, image_data} ->
-                # Clean up temp file
-                File.rm(temp_frame_path)
+          # Use ffmpeg to extract a random frame
+          case System.cmd("ffmpeg", [
+            "-i", selected_file,
+            "-vf", "select='gte(n\\,1)'",
+            "-vframes", "1",
+            "-f", "image2",
+            "-y",
+            temp_frame_path
+          ]) do
+            {_output, 0} ->
+              # Successfully extracted frame, serve it
+              case File.read(temp_frame_path) do
+                {:ok, image_data} ->
+                  # Clean up temp file
+                  File.rm(temp_frame_path)
 
-                conn
-                |> put_resp_content_type("image/jpeg")
-                |> send_resp(200, image_data)
+                  conn
+                  |> put_resp_content_type("image/jpeg")
+                  |> send_resp(200, image_data)
 
-              {:error, reason} ->
-                conn
-                |> put_status(:internal_server_error)
-                |> put_resp_content_type("text/plain")
-                |> send_resp(500, "Error reading extracted frame: #{reason}")
-            end
+                {:error, reason} ->
+                  conn
+                  |> put_status(:internal_server_error)
+                  |> put_resp_content_type("text/plain")
+                  |> send_resp(500, "Error reading extracted frame: #{reason}")
+              end
 
-          {error_output, _exit_code} ->
-            # Clean up temp file if it exists
-            File.rm(temp_frame_path)
+            {error_output, _exit_code} ->
+              # Clean up temp file if it exists
+              File.rm(temp_frame_path)
 
-            conn
-            |> put_status(:internal_server_error)
-            |> put_resp_content_type("text/plain")
-            |> send_resp(500, "Error extracting frame with ffmpeg: #{error_output}")
-        end
+              conn
+              |> put_status(:internal_server_error)
+              |> put_resp_content_type("text/plain")
+              |> send_resp(500, "Error extracting frame with ffmpeg: #{error_output}")
+          end
       end
     end
   end
 
   def player(conn, %{"filename" => filename} = _params) do
     decoded_filename = decode_filename(filename)
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
-    # Check if the video file exists
-    video_exists = PathHelper.video_file_exists?(watch_directory, decoded_filename)
+    # Check if the video file exists in any watch directory
+    video_exists = find_video_file_in_watch_directories(decoded_filename) != nil
 
     if video_exists do
       # Extract and validate the time parameter
@@ -265,14 +315,12 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def frame_at_time(conn, %{"filename" => filename, "time" => time_str}) do
     decoded_filename = decode_filename(filename)
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Parse and validate the time parameter
     case Float.parse(time_str) do
       {time, ""} when time >= 0 ->
-        video_file = PathHelper.find_video_file(watch_directory, decoded_filename)
-
-        case video_file do
+        # Find the video file across all watch directories
+        case find_video_file_in_watch_directories(decoded_filename) do
           nil ->
             conn
             |> put_status(:not_found)
@@ -372,15 +420,12 @@ defmodule Autotranscript.Web.TranscriptController do
 
     start_time_str = query_params["start_time"]
     end_time_str = query_params["end_time"]
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Parse and validate the time parameters
     case {Float.parse(start_time_str || ""), Float.parse(end_time_str || "")} do
       {{start_time, ""}, {end_time, ""}} when start_time >= 0 and end_time > start_time ->
-        # Check if the video file exists
-        video_file = PathHelper.find_video_file(watch_directory, decoded_filename)
-
-        case video_file do
+        # Check if the video file exists in any watch directory
+        case find_video_file_in_watch_directories(decoded_filename) do
           nil ->
             conn
             |> put_status(:not_found)
@@ -442,6 +487,7 @@ defmodule Autotranscript.Web.TranscriptController do
   end
 
   def watch_directory(conn, _params) do
+    # For backward compatibility, return the first watch directory
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
     conn
     |> put_resp_content_type("text/plain")
@@ -450,18 +496,15 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def regenerate_meta(conn, %{"filename" => filename}) do
     decoded_filename = decode_filename(filename)
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
-    if watch_directory == nil or watch_directory == "" do
+    if not watch_directories_configured?() do
       conn
       |> put_status(:service_unavailable)
       |> put_resp_content_type("application/json")
-      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+      |> send_resp(503, Jason.encode!(%{error: "Watch directories not configured. Please configure the application first."}))
     else
-      # Check if the video file exists
-      video_file = PathHelper.find_video_file(watch_directory, decoded_filename)
-
-      case video_file do
+      # Check if the video file exists in any watch directory
+      case find_video_file_in_watch_directories(decoded_filename) do
         nil ->
           conn
           |> put_status(:not_found)
@@ -479,45 +522,53 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def replace_transcript(conn, %{"filename" => filename}) do
     decoded_filename = decode_filename(filename)
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-    file_path = Path.join(watch_directory, "#{decoded_filename}.txt")
-    case conn.body_params do
-      %{"text" => replacement_text} ->
-        case File.write(file_path, replacement_text) do
-          :ok ->
-            VideoInfoCache.update_video_info_cache
-            conn
-            |> put_resp_content_type("text/plain")
-            |> send_resp(200, "Transcript file '#{decoded_filename}.txt' updated successfully")
-          {:error, reason} ->
-            conn
-            |> put_status(:internal_server_error)
-            |> put_resp_content_type("text/plain")
-            |> send_resp(500, "Error updating transcript file '#{decoded_filename}.txt': #{reason}")
-        end
-      _ ->
+    
+    # Find the transcript file across all watch directories
+    case find_file_in_watch_directories(decoded_filename, ".txt") do
+      nil ->
         conn
-        |> put_status(:bad_request)
+        |> put_status(:not_found)
         |> put_resp_content_type("text/plain")
-        |> send_resp(400, "Missing required 'text' field in request body")
+        |> send_resp(404, "Transcript file '#{decoded_filename}.txt' not found")
+      
+      file_path ->
+        case conn.body_params do
+          %{"text" => replacement_text} ->
+            case File.write(file_path, replacement_text) do
+              :ok ->
+                VideoInfoCache.update_video_info_cache()
+                conn
+                |> put_resp_content_type("text/plain")
+                |> send_resp(200, "Transcript file '#{decoded_filename}.txt' updated successfully")
+              {:error, reason} ->
+                conn
+                |> put_status(:internal_server_error)
+                |> put_resp_content_type("text/plain")
+                |> send_resp(500, "Error updating transcript file '#{decoded_filename}.txt': #{reason}")
+            end
+          _ ->
+            conn
+            |> put_status(:bad_request)
+            |> put_resp_content_type("text/plain")
+            |> send_resp(400, "Missing required 'text' field in request body")
+        end
     end
   end
 
   def partial_reprocess(conn, %{"filename" => filename}) do
     decoded_filename = decode_filename(filename)
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
-    if watch_directory == nil or watch_directory == "" do
+    if not watch_directories_configured?() do
       conn
       |> put_status(:service_unavailable)
       |> put_resp_content_type("application/json")
-      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+      |> send_resp(503, Jason.encode!(%{error: "Watch directories not configured. Please configure the application first."}))
     else
       case conn.body_params do
         %{"time" => time_str} ->
           case parse_time_to_seconds(time_str) do
             {:ok, time_seconds} ->
-              execute_partial_reprocess(conn, decoded_filename, time_str, time_seconds, watch_directory)
+              execute_partial_reprocess(conn, decoded_filename, time_str, time_seconds)
             {:error, reason} ->
               conn
               |> put_status(:bad_request)
@@ -533,26 +584,25 @@ defmodule Autotranscript.Web.TranscriptController do
     end
   end
 
-  defp execute_partial_reprocess(conn, decoded_filename, time_str, _time_seconds, watch_directory) do
-    txt_file_path = Path.join(watch_directory, "#{decoded_filename}.txt")
-    video_file = PathHelper.find_video_file(watch_directory, decoded_filename)
-
-    case video_file do
+  defp execute_partial_reprocess(conn, decoded_filename, time_str, _time_seconds) do
+    # Find the transcript file across all watch directories
+    case find_file_in_watch_directories(decoded_filename, ".txt") do
       nil ->
         conn
         |> put_status(:not_found)
         |> put_resp_content_type("application/json")
-        |> send_resp(404, Jason.encode!(%{error: "Video file '#{decoded_filename}' not found"}))
-
-      video_path ->
-        case File.exists?(txt_file_path) do
-          false ->
+        |> send_resp(404, Jason.encode!(%{error: "Transcript file '#{decoded_filename}.txt' not found"}))
+      
+      txt_file_path ->
+        # Find the video file across all watch directories
+        case find_video_file_in_watch_directories(decoded_filename) do
+          nil ->
             conn
             |> put_status(:not_found)
             |> put_resp_content_type("application/json")
-            |> send_resp(404, Jason.encode!(%{error: "Transcript file '#{decoded_filename}.txt' not found"}))
+            |> send_resp(404, Jason.encode!(%{error: "Video file '#{decoded_filename}' not found"}))
 
-          true ->
+          video_path ->
             # Add the partial reprocessing job to the queue
             Autotranscript.VideoProcessor.add_to_queue(video_path, :partial, %{time: time_str})
 
@@ -605,58 +655,60 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def set_line(conn, %{"filename" => filename}) do
     decoded_filename = decode_filename(filename)
-    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
-    if watch_directory == nil or watch_directory == "" do
+    if not watch_directories_configured?() do
       conn
       |> put_status(:service_unavailable)
       |> put_resp_content_type("application/json")
-      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+      |> send_resp(503, Jason.encode!(%{error: "Watch directories not configured. Please configure the application first."}))
     else
       case conn.body_params do
         %{"line_number" => line_number_str, "text" => new_text} ->
           case Integer.parse(line_number_str) do
             {line_number, ""} when line_number > 0 ->
-              file_path = Path.join(watch_directory, "#{decoded_filename}.txt")
-
-              case File.read(file_path) do
-                {:ok, content} ->
-                  lines = String.split(content, "\n")
-
-                  # Check if line number is within bounds
-                  if line_number <= length(lines) do
-                    # Replace the line (convert to 0-based indexing)
-                    updated_lines = List.replace_at(lines, line_number - 1, new_text)
-                    updated_content = Enum.join(updated_lines, "\n")
-
-                    case File.write(file_path, updated_content) do
-                      :ok ->
-                        VideoInfoCache.update_video_info_cache()
-                        conn
-                        |> put_resp_content_type("application/json")
-                        |> send_resp(200, Jason.encode!(%{message: "Line #{line_number} in transcript '#{decoded_filename}.txt' updated successfully"}))
-                      {:error, reason} ->
-                        conn
-                        |> put_status(:internal_server_error)
-                        |> put_resp_content_type("application/json")
-                        |> send_resp(500, Jason.encode!(%{error: "Error updating transcript file '#{decoded_filename}.txt': #{reason}"}))
-                    end
-                  else
-                    conn
-                    |> put_status(:bad_request)
-                    |> put_resp_content_type("application/json")
-                    |> send_resp(400, Jason.encode!(%{error: "Line number #{line_number} is out of bounds. File has #{length(lines)} lines."}))
-                  end
-                {:error, :enoent} ->
+              # Find the transcript file across all watch directories
+              case find_file_in_watch_directories(decoded_filename, ".txt") do
+                nil ->
                   conn
                   |> put_status(:not_found)
                   |> put_resp_content_type("application/json")
                   |> send_resp(404, Jason.encode!(%{error: "Transcript file '#{decoded_filename}.txt' not found"}))
-                {:error, reason} ->
-                  conn
-                  |> put_status(:internal_server_error)
-                  |> put_resp_content_type("application/json")
-                  |> send_resp(500, Jason.encode!(%{error: "Error reading transcript file '#{decoded_filename}.txt': #{reason}"}))
+                
+                file_path ->
+                  case File.read(file_path) do
+                    {:ok, content} ->
+                      lines = String.split(content, "\n")
+
+                      # Check if line number is within bounds
+                      if line_number <= length(lines) do
+                        # Replace the line (convert to 0-based indexing)
+                        updated_lines = List.replace_at(lines, line_number - 1, new_text)
+                        updated_content = Enum.join(updated_lines, "\n")
+
+                        case File.write(file_path, updated_content) do
+                          :ok ->
+                            VideoInfoCache.update_video_info_cache()
+                            conn
+                            |> put_resp_content_type("application/json")
+                            |> send_resp(200, Jason.encode!(%{message: "Line #{line_number} in transcript '#{decoded_filename}.txt' updated successfully"}))
+                          {:error, reason} ->
+                            conn
+                            |> put_status(:internal_server_error)
+                            |> put_resp_content_type("application/json")
+                            |> send_resp(500, Jason.encode!(%{error: "Error updating transcript file '#{decoded_filename}.txt': #{reason}"}))
+                        end
+                      else
+                        conn
+                        |> put_status(:bad_request)
+                        |> put_resp_content_type("application/json")
+                        |> send_resp(400, Jason.encode!(%{error: "Line number #{line_number} is out of bounds. File has #{length(lines)} lines."}))
+                      end
+                    {:error, reason} ->
+                      conn
+                      |> put_status(:internal_server_error)
+                      |> put_resp_content_type("application/json")
+                      |> send_resp(500, Jason.encode!(%{error: "Error reading transcript file '#{decoded_filename}.txt': #{reason}"}))
+                  end
               end
             _ ->
               conn

@@ -12,33 +12,23 @@ alias Autotranscript.PathHelper
   def init(opts), do: opts
 
   def call(%Plug.Conn{path_info: ["files" | path]} = conn, _opts) when length(path) > 0 do
-    # Get the watch directory from ConfigManager
-    case Autotranscript.ConfigManager.get_config_value("watch_directory") do
+    # Get the watch directories from ConfigManager
+    case Autotranscript.ConfigManager.get_config_value("watch_directories") do
       nil ->
-        Logger.warning("Watch directory not configured, cannot serve files")
+        Logger.warning("Watch directories not configured, cannot serve files")
         conn
         |> send_resp(404, "Not Found")
         |> halt()
 
-      watch_directory ->
-        file_path = Path.join([watch_directory] ++ path)
-        decoded_path = Autotranscript.Web.TranscriptController.decode_filename(file_path)
-        # If no extension, try all video extensions
-        paths_to_try = if Path.extname(decoded_path) == "" do
-          Enum.map(PathHelper.video_extensions(), fn ext ->
-            decoded_path <> "." <> ext
-          end)
-        else
-          [decoded_path]
-        end
+      [] ->
+        Logger.warning("Watch directories list is empty, cannot serve files")
+        conn
+        |> send_resp(404, "Not Found")
+        |> halt()
 
-        # Try each possible path
-        case Enum.find_value(paths_to_try, fn path ->
-          case :prim_file.read_file_info(path) do
-            {:ok, file_info(type: :regular) = file_info} -> {path, file_info}
-            _ -> nil
-          end
-        end) do
+      watch_directories ->
+        # Try to find the file in each watch directory
+        case find_file_in_watch_directories(watch_directories, path) do
           {found_path, file_info} ->
             # Get range header if present
             range = get_req_header(conn, "range")
@@ -136,5 +126,30 @@ alias Autotranscript.PathHelper
       ".mkv" -> "video/x-matroska"
       _ -> "application/octet-stream"
     end
+  end
+
+  # Helper function to find a file in any of the watch directories
+  defp find_file_in_watch_directories(watch_directories, path) do
+    Enum.find_value(watch_directories, fn watch_directory ->
+      file_path = Path.join([watch_directory] ++ path)
+      decoded_path = Autotranscript.Web.TranscriptController.decode_filename(file_path)
+      
+      # If no extension, try all video extensions
+      paths_to_try = if Path.extname(decoded_path) == "" do
+        Enum.map(PathHelper.video_extensions(), fn ext ->
+          decoded_path <> "." <> ext
+        end)
+      else
+        [decoded_path]
+      end
+
+      # Try each possible path
+      Enum.find_value(paths_to_try, fn path ->
+        case :prim_file.read_file_info(path) do
+          {:ok, file_info(type: :regular) = file_info} -> {path, file_info}
+          _ -> nil
+        end
+      end)
+    end)
   end
 end
