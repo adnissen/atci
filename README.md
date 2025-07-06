@@ -4,7 +4,7 @@ Autotranscript is an Elixir application that automatically transcribes video fil
 
 ## Description
 
-- Monitors a directory for new MP4 video files or videos without a .txt transcript
+- Monitors one or more directories for new MP4 video files or videos without a .txt transcript
 - Automatically converts videos to MP3 audio using ffmpeg
 - Transcribes audio to text using Whisper
 - Deletes the MP3 file
@@ -17,11 +17,14 @@ Autotranscript is an Elixir application that automatically transcribes video fil
 
 ## Configuration
 
-Configure the following in `config/config.exs`:
+Configuration is stored in a `.atconfig` file in JSON format in your home directory:
 
-```elixir
-config :autotranscript,
-  watch_directory: "/path/to/your/videos",
-  whispercli_path: "/path/to/whisper-cli",
-  model_path: "/path/to/your/whisper.cpp/model.bin"
+```json
+{
+  "watch_directories": ["/path/to/your/videos", "/path/to/another/video/folder"],
+  "whispercli_path": "/path/to/whisper-cli",
+  "model_path": "/path/to/your/whisper.cpp/model.bin"
+}
 ```
+
+**Note**: Watch directories cannot be subdirectories of each other. The system uses the first watch directory for primary operations.

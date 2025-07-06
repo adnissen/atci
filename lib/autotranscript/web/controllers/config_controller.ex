@@ -25,9 +25,9 @@ defmodule Autotranscript.Web.ConfigController do
   Updates the configuration with new values.
   """
   def update(conn, params) do
-    # Extract the config parameters
+    # Extract the config parameters with backward compatibility
     config_params = %{
-      "watch_directory" => params["watch_directory"],
+      "watch_directories" => extract_watch_directories(params),
       "whispercli_path" => params["whispercli_path"],
       "model_path" => params["model_path"]
     }
@@ -73,20 +73,33 @@ defmodule Autotranscript.Web.ConfigController do
     end
   end
   
+  # Extract watch directories with backward compatibility
+  defp extract_watch_directories(params) do
+    cond do
+      # New format: watch_directories as array
+      is_list(params["watch_directories"]) ->
+        params["watch_directories"]
+      
+      # Backward compatibility: single watch_directory
+      is_binary(params["watch_directory"]) and params["watch_directory"] != "" ->
+        [params["watch_directory"]]
+      
+      # Default to empty list
+      true ->
+        []
+    end
+  end
+  
   defp validate_config(config) do
     errors = []
     
-    # Validate watch_directory
-    errors = case config["watch_directory"] do
-      nil -> ["watch_directory is required" | errors]
-      "" -> ["watch_directory cannot be empty" | errors]
-      path when is_binary(path) ->
-        if File.dir?(path) do
-          errors
-        else
-          ["watch_directory must be a valid directory path" | errors]
-        end
-      _ -> ["watch_directory must be a string" | errors]
+    # Validate watch_directories
+    errors = case config["watch_directories"] do
+      nil -> ["watch_directories is required" | errors]
+      [] -> ["watch_directories cannot be empty" | errors]
+      directories when is_list(directories) ->
+        validate_watch_directories(directories, errors)
+      _ -> ["watch_directories must be a list" | errors]
     end
     
     # Validate whispercli_path
@@ -119,5 +132,41 @@ defmodule Autotranscript.Web.ConfigController do
       [] -> {:ok, config}
       _ -> {:error, Enum.reverse(errors)}
     end
+  end
+  
+  defp validate_watch_directories(directories, errors) do
+    # Check if all directories are valid strings and exist
+    string_errors = Enum.reduce(directories, errors, fn dir, acc ->
+      case dir do
+        path when is_binary(path) and path != "" ->
+          if File.dir?(path) do
+            acc
+          else
+            ["watch_directory '#{path}' must be a valid directory path" | acc]
+          end
+        _ ->
+          ["all watch_directories must be non-empty strings" | acc]
+      end
+    end)
+    
+    # Check for subdirectories
+    subdirectory_errors = if has_subdirectories?(directories) do
+      ["watch_directories cannot contain subdirectories of other watch directories" | string_errors]
+    else
+      string_errors
+    end
+    
+    subdirectory_errors
+  end
+  
+  defp has_subdirectories?(directories) when is_list(directories) do
+    normalized_dirs = Enum.map(directories, &Path.expand/1)
+    
+    # Check each directory against every other directory
+    Enum.any?(normalized_dirs, fn dir1 ->
+      Enum.any?(normalized_dirs, fn dir2 ->
+        dir1 != dir2 and String.starts_with?(dir1, dir2 <> "/")
+      end)
+    end)
   end
 end

@@ -44,7 +44,7 @@ defmodule Autotranscript.ConfigManager do
   Returns true if all required fields are present and valid.
   """
   def config_complete?(config) when is_map(config) do
-    required_keys = ["watch_directory", "whispercli_path", "model_path"]
+    required_keys = ["watch_directories", "whispercli_path", "model_path"]
 
     Enum.all?(required_keys, fn key ->
       case Map.get(config, key) do
@@ -53,9 +53,11 @@ defmodule Autotranscript.ConfigManager do
         path when is_binary(path) ->
           # Check if the path exists and is valid
           case key do
-            "watch_directory" -> File.dir?(path)
             _ -> File.exists?(path)
           end
+        directories when is_list(directories) and key == "watch_directories" ->
+          # Validate watch directories
+          validate_watch_directories(directories)
         _ -> false
       end
     end)
@@ -65,6 +67,7 @@ defmodule Autotranscript.ConfigManager do
   Gets a specific configuration value.
 
   Returns the value or nil if not found.
+  For backward compatibility, "watch_directory" returns the first watch directory.
   """
   def get_config_value(key) when is_binary(key) do
     GenServer.call(:config_manager, {:get_config_value, key})
@@ -93,7 +96,16 @@ defmodule Autotranscript.ConfigManager do
 
   @impl true
   def handle_call({:get_config_value, key}, _from, state) do
-    value = Map.get(state, key)
+    value = case key do
+      "watch_directory" ->
+        # For backward compatibility, return the first watch directory
+        case Map.get(state, "watch_directories") do
+          [first_dir | _] -> first_dir
+          _ -> nil
+        end
+      _ ->
+        Map.get(state, key)
+    end
     {:reply, value, state}
   end
 
@@ -103,7 +115,7 @@ defmodule Autotranscript.ConfigManager do
       {:ok, config_path} ->
         Logger.info("Configuration saved to: #{config_path}")
         {:reply, {:ok, config_path}, config}
-      {:error, reason} = error ->
+      {:error, _reason} = error ->
         {:reply, error, config}
     end
   end
@@ -116,6 +128,34 @@ defmodule Autotranscript.ConfigManager do
   end
 
   # Private functions
+
+  defp validate_watch_directories(directories) when is_list(directories) do
+    # Check if the list is not empty
+    if Enum.empty?(directories) do
+      false
+    else
+      # Check if all directories exist and are valid
+      valid_directories = Enum.all?(directories, fn dir ->
+        is_binary(dir) and File.dir?(dir)
+      end)
+
+      # Check that no directory is a subdirectory of another
+      no_subdirectories = not has_subdirectories?(directories)
+
+      valid_directories and no_subdirectories
+    end
+  end
+
+  defp has_subdirectories?(directories) when is_list(directories) do
+    normalized_dirs = Enum.map(directories, &Path.expand/1)
+    
+    # Check each directory against every other directory
+    Enum.any?(normalized_dirs, fn dir1 ->
+      Enum.any?(normalized_dirs, fn dir2 ->
+        dir1 != dir2 and String.starts_with?(dir1, dir2 <> "/")
+      end)
+    end)
+  end
 
   defp load_config_from_file do
     case find_config_file() do
