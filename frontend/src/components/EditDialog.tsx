@@ -53,11 +53,28 @@ const EditDialog: React.FC<EditDialogProps> = ({
           textarea.setSelectionRange(characterPosition, characterPosition);
           textarea.focus();
 
-          // Scroll to the cursor position
-          // Calculate approximate line height and scroll position
-          const lineHeight = parseInt(getComputedStyle(textarea).lineHeight) || 20;
-          const approximateScrollTop = (targetLineNumber - 1) * lineHeight;
-          textarea.scrollTop = Math.max(0, approximateScrollTop - textarea.clientHeight / 2);
+          // Calculate more accurate line height
+          const computedStyle = getComputedStyle(textarea);
+          let lineHeight = parseInt(computedStyle.lineHeight);
+          
+          // If lineHeight is 'normal' or invalid, calculate it from font size
+          if (isNaN(lineHeight) || lineHeight === 0) {
+            const fontSize = parseInt(computedStyle.fontSize) || 14;
+            lineHeight = Math.floor(fontSize * 1.4); // Typical line height multiplier
+          }
+
+          // Get textarea dimensions
+          const textareaHeight = textarea.clientHeight;
+          const paddingTop = parseInt(computedStyle.paddingTop) || 0;
+          const paddingBottom = parseInt(computedStyle.paddingBottom) || 0;
+          const usableHeight = textareaHeight - paddingTop - paddingBottom;
+
+          // Calculate scroll position to center the target line
+          const targetLineTop = (targetLineNumber - 1) * lineHeight;
+          const centerOffset = usableHeight / 2;
+          const scrollTop = Math.max(0, targetLineTop - centerOffset + paddingTop);
+
+          textarea.scrollTop = scrollTop;
         }
       }, 100);
     }
