@@ -448,6 +448,58 @@ defmodule Autotranscript.Web.TranscriptController do
     |> send_resp(200, watch_directory || "")
   end
 
+  def set_watch_directory(conn, params) do
+    case params do
+      %{"watch_directory" => watch_directory} when is_binary(watch_directory) and watch_directory != "" ->
+        # Get current config and update with new watch directory format
+        current_config = Autotranscript.ConfigManager.get_config()
+        
+        # Create updated config with watch_directories array (single element)
+        updated_config = current_config
+        |> Map.put("watch_directories", [watch_directory])
+        |> Map.delete("watch_directory")  # Remove old format if present
+        
+        # Validate that the directory exists
+        if File.dir?(watch_directory) do
+          case Autotranscript.ConfigManager.save_config(updated_config) do
+            {:ok, _config_path} ->
+              conn
+              |> put_resp_content_type("application/json")
+              |> send_resp(200, Jason.encode!(%{
+                success: true,
+                message: "Watch directory updated successfully",
+                watch_directories: [watch_directory]
+              }))
+            {:error, reason} ->
+              conn
+              |> put_status(:internal_server_error)
+              |> put_resp_content_type("application/json")
+              |> send_resp(500, Jason.encode!(%{
+                success: false,
+                message: "Failed to save configuration: #{inspect(reason)}"
+              }))
+          end
+        else
+          conn
+          |> put_status(:bad_request)
+          |> put_resp_content_type("application/json")
+          |> send_resp(400, Jason.encode!(%{
+            success: false,
+            message: "Directory '#{watch_directory}' does not exist or is not accessible"
+          }))
+        end
+      
+      _ ->
+        conn
+        |> put_status(:bad_request)
+        |> put_resp_content_type("application/json")
+        |> send_resp(400, Jason.encode!(%{
+          success: false,
+          message: "Missing or invalid 'watch_directory' parameter"
+        }))
+    end
+  end
+
   def regenerate_meta(conn, %{"filename" => filename}) do
     decoded_filename = decode_filename(filename)
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
