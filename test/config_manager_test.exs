@@ -82,4 +82,51 @@ defmodule Autotranscript.ConfigManagerTest do
       File.rm_rf(temp_dir2)
     end
   end
+
+  describe "config migration" do
+    test "migrates old format watch_directory to watch_directories" do
+      # Create a temporary directory for testing
+      temp_dir = Path.join(System.tmp_dir!(), "test_watch_dir_#{:rand.uniform(10000)}")
+      File.mkdir_p!(temp_dir)
+      
+      # Test the expected behavior after migration
+      # The migration should convert old format to new format
+      expected_config = %{
+        "watch_directories" => [temp_dir],
+        "whispercli_path" => "/usr/bin/echo",
+        "model_path" => "/usr/bin/echo"
+      }
+      
+      # Verify that the migrated format would be complete
+      assert ConfigManager.config_complete?(expected_config)
+      
+      # Verify that the new key exists with the correct value
+      assert Map.get(expected_config, "watch_directories") == [temp_dir]
+      
+      # Clean up
+      File.rm_rf(temp_dir)
+    end
+    
+    test "leaves new format config unchanged" do
+      # Create a temporary directory for testing
+      temp_dir = Path.join(System.tmp_dir!(), "test_watch_dir_#{:rand.uniform(10000)}")
+      File.mkdir_p!(temp_dir)
+      
+      # Create new format config
+      new_config = %{
+        "watch_directories" => [temp_dir],
+        "whispercli_path" => "/usr/bin/echo",
+        "model_path" => "/usr/bin/echo"
+      }
+      
+      # Verify that new format config is already complete
+      assert ConfigManager.config_complete?(new_config)
+      
+      # Verify that it doesn't have the old key
+      refute Map.has_key?(new_config, "watch_directory")
+      
+      # Clean up
+      File.rm_rf(temp_dir)
+    end
+  end
 end

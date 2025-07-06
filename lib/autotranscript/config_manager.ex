@@ -157,6 +157,20 @@ defmodule Autotranscript.ConfigManager do
     end)
   end
 
+  defp migrate_config_format(config) when is_map(config) do
+    # Convert old format (watch_directory string) to new format (watch_directories array)
+    case {Map.get(config, "watch_directory"), Map.get(config, "watch_directories")} do
+      {watch_dir, nil} when is_binary(watch_dir) and watch_dir != "" ->
+        # Convert single watch_directory to watch_directories array
+        config
+        |> Map.put("watch_directories", [watch_dir])
+        |> Map.delete("watch_directory")
+      {_, _} ->
+        # Already in new format or no watch directory specified
+        config
+    end
+  end
+
   defp load_config_from_file do
     case find_config_file() do
       {:ok, config_path} ->
@@ -165,7 +179,7 @@ defmodule Autotranscript.ConfigManager do
             case Jason.decode(content) do
               {:ok, config} ->
                 Logger.info("Configuration loaded from: #{config_path}")
-                config
+                migrate_config_format(config)
               {:error, reason} ->
                 Logger.error("Failed to parse config file #{config_path}: #{inspect(reason)}")
                 %{}
