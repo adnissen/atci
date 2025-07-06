@@ -2,7 +2,7 @@ defmodule Autotranscript.VideoProcessor do
   use GenServer
   require Logger
 
-  alias Autotranscript.{PathHelper, VideoInfoCache}
+  alias Autotranscript.{PathHelper, VideoInfoCache, TranscriptModifier}
 
   @moduledoc """
   A GenServer that manages a queue of video files to be processed.
@@ -209,6 +209,15 @@ defmodule Autotranscript.VideoProcessor do
 
           txt_path = String.replace_trailing(vtt_path, ".vtt", ".txt")
           File.rename(path <> ".vtt", txt_path)
+
+          # Modify the transcript file to add model information
+          case TranscriptModifier.modify_transcript_file(txt_path) do
+            :ok ->
+              Logger.info("Transcript file modified successfully: #{txt_path}")
+            {:error, reason} ->
+              Logger.warning("Failed to modify transcript file #{txt_path}: #{inspect(reason)}")
+          end
+
           :ok
       end
 
