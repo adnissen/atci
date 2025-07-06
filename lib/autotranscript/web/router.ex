@@ -58,7 +58,6 @@ defmodule Autotranscript.Web.Router do
     get "/random_frame", TranscriptController, :random_frame
     get "/clip", TranscriptController, :clip
     get "/watch_directory", TranscriptController, :watch_directory
-    post "/watch_directory", TranscriptController, :set_watch_directory
   end
 
   scope "/", Autotranscript.Web do
