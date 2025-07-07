@@ -26,6 +26,7 @@ const EditDialog: React.FC<EditDialogProps> = ({
   targetLineNumber
 }) => {
   const [text, setText] = React.useState(initialValue);
+  const [whiteSpace, setWhiteSpace] = React.useState<'nowrap' | 'normal'>('nowrap');
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   // Reset text when dialog opens/closes or initialValue changes
@@ -53,28 +54,16 @@ const EditDialog: React.FC<EditDialogProps> = ({
           textarea.setSelectionRange(characterPosition, characterPosition);
           textarea.focus();
 
-          // Calculate more accurate line height
-          const computedStyle = getComputedStyle(textarea);
-          let lineHeight = parseInt(computedStyle.lineHeight);
-          
-          // If lineHeight is 'normal' or invalid, calculate it from font size
-          if (isNaN(lineHeight) || lineHeight === 0) {
-            const fontSize = parseInt(computedStyle.fontSize) || 14;
-            lineHeight = Math.floor(fontSize * 1.4); // Typical line height multiplier
-          }
 
-          // Get textarea dimensions
-          const textareaHeight = textarea.clientHeight;
-          const paddingTop = parseInt(computedStyle.paddingTop) || 0;
-          const paddingBottom = parseInt(computedStyle.paddingBottom) || 0;
-          const usableHeight = textareaHeight - paddingTop - paddingBottom;
+          // Scroll to the cursor position
+          // Calculate approximate line height and scroll position
+          const lineHeight = textarea.scrollHeight / lines.length;
+          const approximateScrollTop = (targetLineNumber - 1) * lineHeight;
+          //right now the target line is just off the bottom of the screen
+          // so move it to the middle by adding half the heigh of the textarea
+          textarea.scrollTop = approximateScrollTop - (textarea.clientHeight / 2);
 
-          // Calculate scroll position to center the target line
-          const targetLineTop = (targetLineNumber - 1) * lineHeight;
-          const centerOffset = usableHeight / 2;
-          const scrollTop = Math.max(0, targetLineTop - centerOffset + paddingTop);
-
-          textarea.scrollTop = scrollTop;
+          setWhiteSpace('normal');
         }
       }, 100);
     }
@@ -95,7 +84,8 @@ const EditDialog: React.FC<EditDialogProps> = ({
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className={`w-full ${isLargeMode ? 'h-96' : 'h-32'} p-3 border border-gray-300 dark:border-gray-600 rounded-md font-mono text-sm ${className}`}
+          className={`w-full ${isLargeMode ? 'h-96' : 'h-32'} p-3 border border-gray-300 dark:border-gray-600 rounded-md font-mono text-sm leading-6 ${className}`}
+          style={{lineHeight: '1.5rem', whiteSpace: whiteSpace}}
           placeholder={placeholder}
         />
         
