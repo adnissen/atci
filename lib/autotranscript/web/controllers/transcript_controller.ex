@@ -281,8 +281,19 @@ defmodule Autotranscript.Web.TranscriptController do
 
           file_path ->
             # Extract and validate the text parameter
-            text_param = case Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params) |> Map.get("text") do
+            query_params = Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params)
+            text_param = case Map.get(query_params, "text") do
               text when is_binary(text) and text != "" -> text
+              _ -> nil
+            end
+
+            # Extract and validate the font_size parameter
+            font_size_param = case Map.get(query_params, "font_size") do
+              size_str when is_binary(size_str) ->
+                case Integer.parse(size_str) do
+                  {size, ""} when size > 0 and size <= 500 -> size
+                  _ -> nil
+                end
               _ -> nil
             end
 
@@ -306,12 +317,17 @@ defmodule Autotranscript.Web.TranscriptController do
                 escaped_text = text
                   |> :unicode.characters_to_binary(:utf8)
 
-                # Calculate font size based on text length to ensure it fits
-                font_size = cond do
-                  String.length(text) > 100 -> 48  # Very long text
-                  String.length(text) > 50 -> 72   # Long text
-                  String.length(text) > 25 -> 96   # Medium text
-                  true -> 144                      # Short text
+                # Use provided font size or calculate based on text length
+                font_size = case font_size_param do
+                  nil ->
+                    # Auto-calculate font size based on text length to ensure it fits
+                    cond do
+                      String.length(text) > 100 -> 48  # Very long text
+                      String.length(text) > 50 -> 72   # Long text
+                      String.length(text) > 25 -> 96   # Medium text
+                      true -> 144                      # Short text
+                    end
+                  size -> size
                 end
 
                 [
