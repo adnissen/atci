@@ -76,15 +76,15 @@ const EditDialog: React.FC<EditDialogProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className={`bg-white dark:bg-gray-800 p-6 rounded-lg ${isLargeMode ? 'max-w-4xl' : 'max-w-2xl'} w-full mx-4`}>
-        <h3 className="text-lg font-semibold mb-4">{title}</h3>
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className={`bg-card border border-border p-6 rounded-lg ${isLargeMode ? 'max-w-4xl' : 'max-w-2xl'} w-full mx-4`}>
+        <h3 className="text-lg font-semibold mb-4 text-foreground">{title}</h3>
         
         <textarea
           ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
-          className={`w-full ${isLargeMode ? 'h-96' : 'h-32'} p-3 border border-gray-300 dark:border-gray-600 rounded-md font-mono text-sm leading-6 ${className}`}
+                      className={`w-full ${isLargeMode ? 'h-96' : 'h-32'} p-3 border border-input bg-background text-foreground rounded-md font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent ${className}`}
           style={{lineHeight: '1.5rem', whiteSpace: whiteSpace}}
           placeholder={placeholder}
         />
@@ -93,14 +93,14 @@ const EditDialog: React.FC<EditDialogProps> = ({
           <button
             onClick={onCancel}
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 disabled:opacity-50"
+                          className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary border border-input rounded-md hover:bg-secondary/80 disabled:opacity-50 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSubmitting}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 disabled:opacity-50"
+                          className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary border border-transparent rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {isSubmitting ? 'Saving...' : 'Save'}
           </button>

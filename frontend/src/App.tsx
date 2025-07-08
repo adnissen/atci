@@ -932,8 +932,8 @@ function App() {
         <div>
           {/* Search Results */}
           {searchResults.length > 0 && (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
-              <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                    <div className="mb-6 p-4 bg-accent/10 border border-accent/20 rounded-md">
+          <h3 className="text-sm font-medium text-accent-foreground mb-2">
                 Found in {searchResults.length} file(s)
               </h3>
             </div>
@@ -957,7 +957,7 @@ function App() {
                     {getSortIndicator('name')}
                   </div>
                   {searchTerm && searchResults.length > 0 && (
-                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">(Search Results)</span>
+                                            <span className="text-xs text-primary ml-2">(Search Results)</span>
                   )}
                 </TableHead>
                 <TableHead 
@@ -1031,7 +1031,7 @@ function App() {
                   <TableCell className="font-medium w-1/6">
                     <a 
                       href={`/player/${encodeURIComponent(file.base_name)}`}
-                      className="text-sky-700 hover:text-sky-600 underline block truncate text-right"
+                                                className="text-primary hover:text-primary/80 underline block truncate text-right"
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -1074,7 +1074,7 @@ function App() {
                           e.stopPropagation()
                           window.open(`/player/${encodeURIComponent(file.base_name)}`, '_blank')
                         }}
-                        className="p-2 text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-md transition-colors"
+                                                    className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
                         title="View file"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

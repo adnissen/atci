@@ -182,8 +182,8 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       )}
 
       {successMessage && (
-        <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md p-3">
-          <div className="text-sm text-green-800 dark:text-green-200">
+                    <div className="bg-accent/10 border border-accent/20 rounded-md p-3">
+              <div className="text-sm text-accent-foreground">
             {successMessage}
           </div>
         </div>

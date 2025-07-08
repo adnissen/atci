@@ -206,7 +206,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const contentLineNumber = lineNumbers[lineNumbers.length - 1];
 
   return (
-    <div className={`mb-2 group ${isSearchResult ? 'bg-yellow-50 dark:bg-yellow-950/20 border-l-4 border-yellow-400 dark:border-yellow-600 pl-2' : ''}`}>
+              <div className={`mb-2 group ${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''}`}>
         {startTime && endTime && (
                 <div className="grid grid-cols-12 gap-1">
 
