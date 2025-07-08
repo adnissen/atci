@@ -1135,7 +1135,7 @@ function App() {
                   onClick={() => handleSort('model')}
                 >
                   <div className="flex items-center justify-center gap-1">
-                    Model
+                    Source
                     {getSortIndicator('model')}
                   </div>
                 </TableHead>

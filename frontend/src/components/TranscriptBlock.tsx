@@ -206,9 +206,9 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const contentLineNumber = lineNumbers[lineNumbers.length - 1];
 
   return (
-              <div className={`mb-2 group ${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''}`}>
+              <div className={`mb-2 ${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''}`}>
         {startTime && endTime && (
-                <div className="grid grid-cols-12 gap-1">
+                <div className="grid grid-cols-12 gap-1 group">
 
           <div className="col-span-1 text-muted-foreground text-sm font-mono flex items-center gap-2">
             <div className="flex items-center gap-2 justify-start">
@@ -282,7 +282,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
         </div>
         )}
         {text != undefined && (
-          <div className="grid grid-cols-12 gap-1">
+          <div className="grid grid-cols-12 gap-1 group">
 
             <div className="col-span-1 text-muted-foreground text-sm font-mono flex items-center gap-2">
             <div className="flex items-center gap-2 justify-end">
