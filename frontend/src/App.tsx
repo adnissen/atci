@@ -474,15 +474,19 @@ function App() {
             'Content-Type': 'application/json'
           }
         })
-        if (response.ok) {
-          const data = await response.json()
-          setConfigComplete(data.is_complete)
-          if (data.is_complete && data.config.watch_directory) {
-            setWatchDirectory(data.config.watch_directory)
+              if (response.ok) {
+        const data = await response.json()
+        setConfigComplete(data.is_complete)
+        if (data.is_complete) {
+          // Handle both old format (watch_directory) and new format (watch_directories)
+          const directory = data.config.watch_directories?.[0] || data.config.watch_directory
+          if (directory) {
+            setWatchDirectory(directory)
           }
-        } else {
-          setConfigComplete(false)
         }
+      } else {
+        setConfigComplete(false)
+      }
       } catch (error) {
         console.error('Error checking configuration:', error)
         setConfigComplete(false)

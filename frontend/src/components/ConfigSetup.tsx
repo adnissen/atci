@@ -1,4 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Trash2, Plus } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+} from './ui/table';
 
 interface ConfigSetupProps {
   onConfigComplete: () => void;
@@ -6,14 +13,14 @@ interface ConfigSetupProps {
 }
 
 interface ConfigData {
-  watch_directory: string;
+  watch_directories: string[];
   whispercli_path: string;
   model_path: string;
 }
 
 const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode = false }) => {
   const [config, setConfig] = useState<ConfigData>({
-    watch_directory: '',
+    watch_directories: [''],
     whispercli_path: '',
     model_path: ''
   });
@@ -43,9 +50,9 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
         if (data.config) {
           // Handle the new watch_directories array format
           const configData = {
-            watch_directory: data.config.watch_directories && data.config.watch_directories.length > 0 
-              ? data.config.watch_directories[0] 
-              : data.config.watch_directory || '',
+            watch_directories: data.config.watch_directories && data.config.watch_directories.length > 0 
+              ? data.config.watch_directories 
+              : [data.config.watch_directory || ''],
             whispercli_path: data.config.whispercli_path || '',
             model_path: data.config.model_path || ''
           };
@@ -61,16 +68,43 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
 
   // Check if all config values are present (not empty)
   const hasAllConfigValues = () => {
-    return config.watch_directory.trim() !== '' && 
+    const hasValidDirectories = config.watch_directories.some(dir => dir.trim() !== '');
+    return hasValidDirectories && 
            config.whispercli_path.trim() !== '' && 
            config.model_path.trim() !== '';
   };
 
-  const handleInputChange = (field: keyof ConfigData, value: string) => {
+  const handleInputChange = (field: keyof Omit<ConfigData, 'watch_directories'>, value: string) => {
     setConfig(prev => ({
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleDirectoryChange = (index: number, value: string) => {
+    const newDirectories = [...config.watch_directories];
+    newDirectories[index] = value;
+    setConfig(prev => ({
+      ...prev,
+      watch_directories: newDirectories
+    }));
+  };
+
+  const addDirectory = () => {
+    setConfig(prev => ({
+      ...prev,
+      watch_directories: [...prev.watch_directories, '']
+    }));
+  };
+
+  const removeDirectory = (index: number) => {
+    if (config.watch_directories.length > 1) {
+      const newDirectories = config.watch_directories.filter((_, i) => i !== index);
+      setConfig(prev => ({
+        ...prev,
+        watch_directories: newDirectories
+      }));
+    }
   };
 
   const handleCancel = () => {
@@ -83,6 +117,20 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
     setErrors([]);
     setSuccessMessage('');
 
+    // Filter out empty directories
+    const filteredDirectories = config.watch_directories.filter(dir => dir.trim() !== '');
+    
+    if (filteredDirectories.length === 0) {
+      setErrors(['At least one watch directory is required']);
+      setIsSubmitting(false);
+      return;
+    }
+
+    const submitData = {
+      ...config,
+      watch_directories: filteredDirectories
+    };
+
     try {
       const response = await fetch('/config', {
         method: 'POST',
@@ -90,7 +138,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
           'Accept': 'application/json',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(config)
+        body: JSON.stringify(submitData)
       });
 
       const result = await response.json();
@@ -116,20 +164,51 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
   const renderForm = () => (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="watch_directory" className="block text-sm font-medium text-foreground mb-1">
-          Watch Directory
+        <label className="block text-sm font-medium text-foreground mb-2">
+          Watch Directories
         </label>
-        <input
-          type="text"
-          id="watch_directory"
-          value={config.watch_directory}
-          onChange={(e) => handleInputChange('watch_directory', e.target.value)}
-          placeholder="/path/to/your/videos"
-          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-          required
-        />
+        <div className="space-y-2">
+          <div className="border border-input rounded-md">
+            <Table>
+              <TableBody>
+                {config.watch_directories.map((dir, index) => (
+                  <TableRow key={index}>
+                    <TableCell className="p-2">
+                      <input
+                        type="text"
+                        value={dir}
+                        onChange={(e) => handleDirectoryChange(index, e.target.value)}
+                        placeholder="/path/to/your/videos"
+                        className="w-full px-2 py-1 text-sm border-0 bg-transparent text-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:ring-inset rounded"
+                      />
+                    </TableCell>
+                    <TableCell className="p-2 w-10">
+                      <button
+                        type="button"
+                        onClick={() => removeDirectory(index)}
+                        disabled={config.watch_directories.length === 1}
+                        className="p-1 text-destructive hover:bg-destructive/10 rounded disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        title="Remove directory"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <button
+            type="button"
+            onClick={addDirectory}
+            className="flex items-center gap-1 px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80"
+          >
+            <Plus className="h-3 w-3" />
+            Add Directory
+          </button>
+        </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Directory to monitor for MP4 video files
+          Directories to monitor for MP4 video files. At least one directory is required.
         </p>
       </div>
 
