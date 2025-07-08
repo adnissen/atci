@@ -133,7 +133,7 @@
   #root {
     width: 100%;
     min-height: 100vh;
-    background-color: oklch(0.15 0 0);
+    background-color: var(--background);
   }
 }
 
