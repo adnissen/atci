@@ -24,16 +24,21 @@ defmodule Autotranscript.VideoProcessorTest do
       temp_txt = Path.join(System.tmp_dir(), "test_transcript.txt")
 
       File.write!(temp_srt, srt_content)
-      
+
       assert :ok = VideoProcessor.convert_srt_to_transcript(temp_srt, temp_txt)
-      
+
       {:ok, result} = File.read(temp_txt)
       lines = String.split(result, "\n", trim: true)
 
       assert List.first(lines) == "model: subtitle file"
-      assert Enum.at(lines, 1) == "00:00:01.000 Hello world"
-      assert Enum.at(lines, 2) == "00:00:04.500 This is a test subtitle on multiple lines"
-      assert Enum.at(lines, 3) == "00:00:10.000 Final subtitle"
+      assert Enum.at(lines, 1) == "00:00:01.000 --> 00:00:03.000"
+      assert Enum.at(lines, 2) == "Hello world"
+      assert Enum.at(lines, 3) == ""
+      assert Enum.at(lines, 4) == "00:00:04.500 --> 00:00:07.000"
+      assert Enum.at(lines, 5) == "This is a test subtitle on multiple lines"
+      assert Enum.at(lines, 6) == ""
+      assert Enum.at(lines, 7) == "00:00:10.000 --> 00:00:12.500"
+      assert Enum.at(lines, 8) == "Final subtitle"
 
       # Cleanup
       File.rm(temp_srt)
@@ -45,11 +50,11 @@ defmodule Autotranscript.VideoProcessorTest do
       temp_txt = Path.join(System.tmp_dir(), "test_empty_transcript.txt")
 
       File.write!(temp_srt, "")
-      
+
       assert :ok = VideoProcessor.convert_srt_to_transcript(temp_srt, temp_txt)
-      
+
       {:ok, result} = File.read(temp_txt)
-      
+
       assert result == "model: subtitle file"
 
       # Cleanup
@@ -67,11 +72,11 @@ defmodule Autotranscript.VideoProcessorTest do
       temp_txt = Path.join(System.tmp_dir(), "test_malformed_transcript.txt")
 
       File.write!(temp_srt, srt_content)
-      
+
       assert :ok = VideoProcessor.convert_srt_to_transcript(temp_srt, temp_txt)
-      
+
       {:ok, result} = File.read(temp_txt)
-      
+
       # Should still have the model line even if no valid subtitles were parsed
       assert result == "model: subtitle file"
 

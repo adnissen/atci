@@ -4,7 +4,7 @@ defmodule Autotranscript.PathHelper do
   """
 
   # Define the list of video extensions we support
-  @video_extensions ["mp4", "mov"]
+  @video_extensions ["mp4", "mov", "mkv"]
 
   @doc """
   Returns the list of supported video extensions.

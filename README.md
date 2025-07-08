@@ -1,10 +1,10 @@
 # Autotranscript
 
-Autotranscript is an Elixir application that automatically transcribes video files to text using Whisper. It watches a configured directory for new MP4 files and processes them automatically.
+Autotranscript is an Elixir application that automatically transcribes video files to text using Whisper. It watches a configured directory for new video files (MP4, MOV, MKV) and processes them automatically.
 
 ## Description
 
-- Monitors one or more directories for new MP4 video files or videos without a .txt transcript
+- Monitors one or more directories for new video files (MP4, MOV, MKV) or videos without a .txt transcript
 - Automatically detects and extracts existing subtitles from video files
 - If no subtitles are found, converts videos to MP3 audio using ffmpeg
 - Transcribes audio to text using Whisper (when subtitles are not available)

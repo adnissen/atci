@@ -642,7 +642,7 @@ defmodule Autotranscript.VideoProcessor do
                   |> String.split("\n", trim: true)
                   |> Enum.map(fn line ->
                     case String.split(line, ",") do
-                      [index, _codec_name, "subtitle"] -> 
+                      [index, _codec_name, "subtitle"] ->
                         case Integer.parse(index) do
                           {idx, ""} -> idx
                           _ -> nil
@@ -651,7 +651,7 @@ defmodule Autotranscript.VideoProcessor do
                     end
                   end)
                   |> Enum.filter(&(&1 != nil))
-        
+
         {:ok, streams}
       {error_output, _exit_code} ->
         {:error, "ffprobe failed: #{error_output}"}
@@ -713,11 +713,11 @@ defmodule Autotranscript.VideoProcessor do
       {:ok, content} ->
         # Parse SRT format and convert to transcript format
         transcript_lines = parse_srt_content(content)
-        
+
         # Add "model: subtitle file" at the beginning
         final_content = ["model: subtitle file" | transcript_lines]
                         |> Enum.join("\n")
-        
+
         case File.write(txt_path, final_content) do
           :ok -> :ok
           {:error, reason} -> {:error, "Failed to write transcript: #{reason}"}
@@ -733,20 +733,21 @@ defmodule Autotranscript.VideoProcessor do
              |> String.trim()
              |> String.split(~r/\n\n+/)
              |> Enum.filter(&(&1 != ""))
-    
+
     # Process each block
     Enum.flat_map(blocks, fn block ->
       lines = String.split(block, "\n")
-      
+
       case lines do
         [_index, timestamp_line | text_lines] when text_lines != [] ->
-          # Extract start time from timestamp line (format: "00:00:00,000 --> 00:00:03,000")
-          case Regex.run(~r/^(\d{2}:\d{2}:\d{2}),(\d{3}) --> /, timestamp_line) do
-            [_, time, millis] ->
+          # Extract both start and end times from timestamp line (format: "00:00:00,000 --> 00:00:03,000")
+          case Regex.run(~r/^(\d{2}:\d{2}:\d{2}),(\d{3}) --> (\d{2}:\d{2}:\d{2}),(\d{3})/, timestamp_line) do
+            [_, start_time, start_millis, end_time, end_millis] ->
               # Convert to our format with period instead of comma
-              timestamp = "#{time}.#{millis}"
+              start_timestamp = "#{start_time}.#{start_millis}"
+              end_timestamp = "#{end_time}.#{end_millis}"
               text = Enum.join(text_lines, " ")
-              ["#{timestamp} #{text}"]
+              ["#{start_timestamp} --> #{end_timestamp}", text, ""]
             _ ->
               []
           end
