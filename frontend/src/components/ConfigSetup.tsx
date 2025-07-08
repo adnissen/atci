@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Plus } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+} from './ui/table';
 
 interface ConfigSetupProps {
   onConfigComplete: () => void;
@@ -162,42 +168,42 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
           Watch Directories
         </label>
         <div className="space-y-2">
-          <div className="border border-input rounded-md overflow-hidden">
-            <table className="w-full">
-              <tbody>
+          <div className="border border-input rounded-md">
+            <Table>
+              <TableBody>
                 {config.watch_directories.map((dir, index) => (
-                  <tr key={index} className="border-b border-input last:border-b-0">
-                    <td className="p-2">
+                  <TableRow key={index}>
+                    <TableCell className="p-2">
                       <input
                         type="text"
                         value={dir}
                         onChange={(e) => handleDirectoryChange(index, e.target.value)}
                         placeholder="/path/to/your/videos"
-                        className="w-full px-3 py-1.5 border-0 bg-transparent text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-inset rounded"
+                        className="w-full px-2 py-1 text-sm border-0 bg-transparent text-foreground focus:outline-none focus:ring-1 focus:ring-ring focus:ring-inset rounded"
                       />
-                    </td>
-                    <td className="p-2 w-12">
+                    </TableCell>
+                    <TableCell className="p-2 w-10">
                       <button
                         type="button"
                         onClick={() => removeDirectory(index)}
                         disabled={config.watch_directories.length === 1}
-                        className="p-1.5 text-destructive hover:bg-destructive/10 rounded-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        className="p-1 text-destructive hover:bg-destructive/10 rounded disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         title="Remove directory"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                       </button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
           <button
             type="button"
             onClick={addDirectory}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80"
+            className="flex items-center gap-1 px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80"
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3 w-3" />
             Add Directory
           </button>
         </div>
