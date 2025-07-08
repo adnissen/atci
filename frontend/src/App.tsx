@@ -11,6 +11,7 @@ import TranscriptView from './components/TranscriptView'
 import ConfigSetup from './components/ConfigSetup'
 import EditDialog from './components/EditDialog'
 import { useEffect, useState, useRef, useCallback } from 'react'
+import { useLSState } from './hooks/useLSState'
 
 function App() {
   // Sample data for the table
@@ -54,11 +55,11 @@ function App() {
   const [watchDirectory, setWatchDirectory] = useState<string>('')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
-  const [sortColumn, setSortColumn] = useState<SortColumn>('created_at')
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
+  const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
   
   // Theme toggle state
-  const [isDarkMode, setIsDarkMode] = useState(true)
+  const [isDarkMode, setIsDarkMode] = useLSState('isDarkMode', true)
   
   // Apply dark theme on initial load
   useEffect(() => {
