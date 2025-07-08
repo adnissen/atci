@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(.dark, .dark *));
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
@@ -114,8 +114,26 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
+  html, body {
     @apply bg-background text-foreground;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+  }
+  html.dark, body.dark, .dark {
+    background-color: oklch(0.15 0 0) !important;
+    color: oklch(0.82 0 0) !important;
+  }
+  
+  .dark * {
+    border-color: oklch(0.28 0 0);
+  }
+  
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    background-color: oklch(0.15 0 0);
   }
 }
 

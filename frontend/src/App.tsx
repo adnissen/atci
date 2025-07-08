@@ -827,7 +827,7 @@ function App() {
   // Show loading while checking configuration
   if (configComplete === null) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background dark flex items-center justify-center">
         <div className="text-center">
           <div className="text-lg text-muted-foreground">Loading...</div>
         </div>
@@ -846,7 +846,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background dark">
       {/* Watch Directory Bar - Fixed to top */}
       {watchDirectory && (
         <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-4 py-2 z-10 backdrop-blur-sm">
