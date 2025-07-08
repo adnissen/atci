@@ -129,12 +129,30 @@ defmodule Autotranscript.VideoProcessor do
   def process_video_file(%{path: video_path, time: time} = _job_info, process_type) do
     result = case process_type do
       :all ->
-        with :ok <- convert_to_mp3(video_path),
-             mp3_path = PathHelper.find_mp3_file_from_video(video_path),
-             :ok <- transcribe_audio(mp3_path),
-             :ok <- delete_mp3(mp3_path),
-             :ok <- save_video_length(video_path) do
-          :ok
+        # Check if video has subtitles first
+        case check_and_extract_subtitles(video_path) do
+          {:ok, :extracted} ->
+            # Subtitles were found and extracted, just save video length
+            save_video_length(video_path)
+          {:ok, :no_subtitles} ->
+            # No subtitles, proceed with normal audio extraction and transcription
+            with :ok <- convert_to_mp3(video_path),
+                 mp3_path = PathHelper.find_mp3_file_from_video(video_path),
+                 :ok <- transcribe_audio(mp3_path),
+                 :ok <- delete_mp3(mp3_path),
+                 :ok <- save_video_length(video_path) do
+              :ok
+            end
+          {:error, reason} ->
+            # If subtitle extraction fails, fall back to normal processing
+            Logger.warning("Failed to check subtitles: #{inspect(reason)}, falling back to audio transcription")
+            with :ok <- convert_to_mp3(video_path),
+                 mp3_path = PathHelper.find_mp3_file_from_video(video_path),
+                 :ok <- transcribe_audio(mp3_path),
+                 :ok <- delete_mp3(mp3_path),
+                 :ok <- save_video_length(video_path) do
+              :ok
+            end
         end
       :length ->
         save_video_length(video_path)
@@ -573,5 +591,169 @@ defmodule Autotranscript.VideoProcessor do
 
       {:error, reason} -> {:error, "Failed to read temp txt file: #{reason}"}
     end
+  end
+
+  @doc """
+  Checks if a video file has subtitles and extracts them if found.
+
+  ## Parameters
+    - video_path: String path to the video file
+
+  ## Returns
+    - {:ok, :extracted} if subtitles were found and extracted
+    - {:ok, :no_subtitles} if no subtitles were found
+    - {:error, reason} if there was an error
+  """
+  def check_and_extract_subtitles(video_path) do
+    case get_subtitle_streams(video_path) do
+      {:ok, []} ->
+        {:ok, :no_subtitles}
+      {:ok, subtitle_streams} ->
+        # Extract the first/default subtitle stream
+        first_stream = List.first(subtitle_streams)
+        extract_subtitle_stream(video_path, first_stream)
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc """
+  Gets information about subtitle streams in a video file using ffprobe.
+
+  ## Parameters
+    - video_path: String path to the video file
+
+  ## Returns
+    - {:ok, subtitle_streams} where subtitle_streams is a list of stream indices
+    - {:error, reason} if ffprobe fails
+  """
+  def get_subtitle_streams(video_path) do
+    case System.cmd("ffprobe", [
+      "-v", "error",
+      "-select_streams", "s",
+      "-show_entries", "stream=index,codec_name,codec_type",
+      "-of", "csv=p=0",
+      video_path
+    ]) do
+      {output, 0} ->
+        # Parse the output to get subtitle stream indices
+        streams = output
+                  |> String.trim()
+                  |> String.split("\n", trim: true)
+                  |> Enum.map(fn line ->
+                    case String.split(line, ",") do
+                      [index, _codec_name, "subtitle"] ->
+                        case Integer.parse(index) do
+                          {idx, ""} -> idx
+                          _ -> nil
+                        end
+                      _ -> nil
+                    end
+                  end)
+                  |> Enum.filter(&(&1 != nil))
+
+        {:ok, streams}
+      {error_output, _exit_code} ->
+        {:error, "ffprobe failed: #{error_output}"}
+    end
+  end
+
+  @doc """
+  Extracts a subtitle stream from a video file and saves it as a text file.
+
+  ## Parameters
+    - video_path: String path to the video file
+    - stream_index: Integer index of the subtitle stream to extract
+
+  ## Returns
+    - {:ok, :extracted} if successful
+    - {:error, reason} if extraction failed
+  """
+  def extract_subtitle_stream(video_path, stream_index) do
+    txt_path = PathHelper.replace_video_extension_with(video_path, ".txt")
+    temp_srt_path = Path.join(System.tmp_dir(), "temp_subtitle_#{UUID.uuid4()}.srt")
+
+    # Extract subtitle to temporary SRT file
+    case System.cmd("ffmpeg", [
+      "-i", video_path,
+      "-map", "0:#{stream_index}",
+      "-c:s", "srt",
+      "-y",
+      temp_srt_path
+    ]) do
+      {_output, 0} ->
+        # Convert SRT to plain text transcript format
+        case convert_srt_to_transcript(temp_srt_path, txt_path) do
+          :ok ->
+            File.rm(temp_srt_path)
+            Logger.info("Successfully extracted subtitles from #{video_path}")
+            {:ok, :extracted}
+          {:error, reason} ->
+            File.rm(temp_srt_path)
+            {:error, reason}
+        end
+      {error_output, _exit_code} ->
+        {:error, "ffmpeg subtitle extraction failed: #{error_output}"}
+    end
+  end
+
+  @doc """
+  Converts an SRT subtitle file to the transcript format used by the application.
+
+  ## Parameters
+    - srt_path: String path to the SRT file
+    - txt_path: String path where the transcript will be saved
+
+  ## Returns
+    - :ok if successful
+    - {:error, reason} if conversion failed
+  """
+  def convert_srt_to_transcript(srt_path, txt_path) do
+    case File.read(srt_path) do
+      {:ok, content} ->
+        # Parse SRT format and convert to transcript format
+        transcript_lines = parse_srt_content(content)
+
+        # Add "model: subtitle file" at the beginning
+        final_content = ["model: subtitle file" | transcript_lines]
+                        |> Enum.join("\n")
+
+        case File.write(txt_path, final_content) do
+          :ok -> :ok
+          {:error, reason} -> {:error, "Failed to write transcript: #{reason}"}
+        end
+      {:error, reason} ->
+        {:error, "Failed to read SRT file: #{reason}"}
+    end
+  end
+
+  defp parse_srt_content(content) do
+    # Split content into subtitle blocks
+    blocks = content
+             |> String.trim()
+             |> String.split(~r/\n\n+/)
+             |> Enum.filter(&(&1 != ""))
+
+    # Process each block
+    Enum.flat_map(blocks, fn block ->
+      lines = String.split(block, "\n")
+
+      case lines do
+        [_index, timestamp_line | text_lines] when text_lines != [] ->
+          # Extract both start and end times from timestamp line (format: "00:00:00,000 --> 00:00:03,000")
+          case Regex.run(~r/^(\d{2}:\d{2}:\d{2}),(\d{3}) --> (\d{2}:\d{2}:\d{2}),(\d{3})/, timestamp_line) do
+            [_, start_time, start_millis, end_time, end_millis] ->
+              # Convert to our format with period instead of comma
+              start_timestamp = "#{start_time}.#{start_millis}"
+              end_timestamp = "#{end_time}.#{end_millis}"
+              text = Enum.join(text_lines, " ")
+              ["#{start_timestamp} --> #{end_timestamp}", text, ""]
+            _ ->
+              []
+          end
+        _ ->
+          []
+      end
+    end)
   end
 end
