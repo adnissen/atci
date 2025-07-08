@@ -51,6 +51,7 @@ defmodule Autotranscript.Web.Router do
 
     get "/grep/:text", TranscriptController, :grep
     get "/player/:filename", TranscriptController, :player
+    get "/clip_player/:filename", TranscriptController, :clip_player
     get "/frame/:filename/:time", TranscriptController, :frame_at_time
 
     get "/queue", TranscriptController, :queue

@@ -263,6 +263,65 @@ defmodule Autotranscript.Web.TranscriptController do
     end
   end
 
+  def clip_player(conn, %{"filename" => filename} = _params) do
+    decoded_filename = decode_filename(filename)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+
+    # Check if the video file exists
+    video_exists = PathHelper.video_file_exists?(watch_directory, decoded_filename)
+
+    if video_exists do
+      # Extract query parameters
+      query_params = Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params)
+
+      start_time = query_params["start_time"]
+      end_time = query_params["end_time"]
+      text = query_params["text"]
+      font_size = query_params["font_size"]
+      display_text = query_params["display_text"]
+
+      # Validate required parameters
+      case {start_time, end_time} do
+        {start_str, end_str} when is_binary(start_str) and is_binary(end_str) ->
+          # Build the clip URL
+          clip_params = %{
+            "filename" => decoded_filename,
+            "start_time" => start_str,
+            "end_time" => end_str
+          }
+
+          # Add optional parameters if present
+          clip_params = if text && text != "", do: Map.put(clip_params, "text", text), else: clip_params
+          clip_params = if font_size && font_size != "", do: Map.put(clip_params, "font_size", font_size), else: clip_params
+          clip_params = if display_text && display_text != "", do: Map.put(clip_params, "display_text", display_text), else: clip_params
+
+          # Construct the clip URL
+          clip_url = "/clip?" <> URI.encode_query(clip_params)
+
+          render(conn, :clip_player,
+            filename: decoded_filename,
+            clip_url: clip_url,
+            start_time: start_time,
+            end_time: end_time,
+            text: text || "",
+            font_size: font_size || "",
+            display_text: display_text || ""
+          )
+
+        _ ->
+          conn
+          |> put_status(:bad_request)
+          |> put_resp_content_type("text/plain")
+          |> send_resp(400, "Missing required start_time and end_time parameters")
+      end
+    else
+      conn
+      |> put_status(:not_found)
+      |> put_resp_content_type("text/plain")
+      |> send_resp(404, "Video file '#{decoded_filename}' not found")
+    end
+  end
+
   def frame_at_time(conn, %{"filename" => filename, "time" => time_str}) do
     decoded_filename = decode_filename(filename)
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
@@ -317,16 +376,10 @@ defmodule Autotranscript.Web.TranscriptController do
                 escaped_text = text
                   |> :unicode.characters_to_binary(:utf8)
 
-                # Use provided font size or calculate based on text length
+                # Use provided font size or calculate based on video dimensions and text length
                 font_size = case font_size_param do
                   nil ->
-                    # Auto-calculate font size based on text length to ensure it fits
-                    cond do
-                      String.length(text) > 100 -> 48  # Very long text
-                      String.length(text) > 50 -> 72   # Long text
-                      String.length(text) > 25 -> 96   # Medium text
-                      true -> 144                      # Short text
-                    end
+                    calculate_font_size_for_video(file_path, String.length(text))
                   size -> size
                 end
 
@@ -388,6 +441,9 @@ defmodule Autotranscript.Web.TranscriptController do
 
     start_time_str = query_params["start_time"]
     end_time_str = query_params["end_time"]
+    text_param = query_params["text"]
+    display_text_param = query_params["display_text"]
+    font_size_param = query_params["font_size"]
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Parse and validate the time parameters
@@ -410,16 +466,61 @@ defmodule Autotranscript.Web.TranscriptController do
             # Generate a temporary filename for the clipped video
             temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}.mp4")
 
-            # Use ffmpeg to extract the video clip
-            case System.cmd("ffmpeg", [
-              "-ss", "#{start_time}",
-              "-i", file_path,
-              "-t", "#{duration}",
-              "-c", "copy",
-              "-avoid_negative_ts", "make_zero",
-              "-y",
-              temp_clip_path
-            ]) do
+            # Build ffmpeg command with optional text overlay (only if display_text is true)
+            ffmpeg_args = case {text_param, display_text_param} do
+              {text, "true"} when is_binary(text) and text != "" ->
+                # Escape special characters in text for ffmpeg
+                escaped_text = text
+                  |> :unicode.characters_to_binary(:utf8)
+
+                # Use provided font size or calculate based on text length
+                font_size = case font_size_param do
+                  size_str when is_binary(size_str) ->
+                    case Integer.parse(size_str) do
+                      {size, ""} when size > 0 and size <= 500 -> size
+                      _ -> nil
+                    end
+                  _ -> nil
+                end
+
+                font_size = case font_size do
+                  nil ->
+                    calculate_font_size_for_video(file_path, String.length(text))
+                  size -> size
+                end
+
+                [
+                  "-ss", "#{start_time}",
+                  "-i", file_path,
+                  "-t", "#{duration}",
+                  "-vf", "drawtext=text='#{escaped_text}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
+                  "-c:v", "libx264",
+                  "-c:a", "aac",
+                  "-crf", "23",
+                  "-preset", "medium",
+                  "-movflags", "faststart",
+                  "-avoid_negative_ts", "make_zero",
+                  "-y",
+                  temp_clip_path
+                ]
+              _ ->
+                [
+                  "-ss", "#{start_time}",
+                  "-i", file_path,
+                  "-t", "#{duration}",
+                  "-c:v", "libx264",
+                  "-c:a", "aac",
+                  "-crf", "23",
+                  "-preset", "medium",
+                  "-movflags", "faststart",
+                  "-avoid_negative_ts", "make_zero",
+                  "-y",
+                  temp_clip_path
+                ]
+            end
+
+            # Use ffmpeg to extract and convert the video clip to MP4
+            case System.cmd("ffmpeg", ffmpeg_args) do
               {_output, 0} ->
                 # Successfully created clip, serve it
                 case File.read(temp_clip_path) do
@@ -576,6 +677,58 @@ defmodule Autotranscript.Web.TranscriptController do
             |> put_resp_content_type("application/json")
             |> send_resp(200, Jason.encode!(%{message: "Partial reprocessing for '#{decoded_filename}' from time #{time_str} has been added to the queue"}))
         end
+    end
+  end
+
+  defp calculate_font_size_for_video(video_path, text_length) do
+    # Get video dimensions using ffprobe
+    case System.cmd("ffprobe", [
+      "-v", "error",
+      "-select_streams", "v:0",
+      "-show_entries", "stream=width,height",
+      "-of", "csv=p=0",
+      video_path
+    ]) do
+      {output, 0} ->
+        case String.trim(output) |> String.split(",") do
+          [width_str, height_str] ->
+            case {Integer.parse(width_str), Integer.parse(height_str)} do
+              {{width, ""}, {height, ""}} ->
+                # Calculate font size based on video dimensions and text length
+                # Base font size is proportional to video height
+                base_font_size = max(24, trunc(height / 20))
+
+                # Adjust based on text length
+                length_factor = cond do
+                  text_length > 100 -> 0.6   # Very long text - smaller
+                  text_length > 50 -> 0.8    # Long text - slightly smaller
+                  text_length > 25 -> 1.0    # Medium text - base size
+                  true -> 1.4               # Short text - larger
+                end
+
+                # Ensure font size is within reasonable bounds
+                font_size = trunc(base_font_size * length_factor)
+                max(24, min(font_size, 200))
+              _ ->
+                # Fallback to old logic if parsing fails
+                fallback_font_size_by_text_length(text_length)
+            end
+          _ ->
+            # Fallback to old logic if output format is unexpected
+            fallback_font_size_by_text_length(text_length)
+        end
+      _ ->
+        # Fallback to old logic if ffprobe fails
+        fallback_font_size_by_text_length(text_length)
+    end
+  end
+
+  defp fallback_font_size_by_text_length(text_length) do
+    cond do
+      text_length > 100 -> 48  # Very long text
+      text_length > 50 -> 72   # Long text
+      text_length > 25 -> 96   # Medium text
+      true -> 144              # Short text
     end
   end
 

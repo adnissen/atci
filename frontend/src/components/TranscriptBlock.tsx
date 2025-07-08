@@ -224,7 +224,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
               
               {/* Video icon */}
               <span className="inline-flex items-center cursor-pointer text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                <a href={`/clip?filename=${encodeURIComponent(name)}&start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}`} target="_blank" className="inline-flex items-baseline">
+                <a href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`} target="_blank" className="inline-flex items-baseline">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block hover:stroke-[#be185d]">
                     <polygon points="23 7 16 12 23 17 23 7"/>
                     <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
