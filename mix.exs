@@ -14,7 +14,7 @@ defmodule Autotranscript.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, :httpoison],
       mod: {Autotranscript.Application, []}
     ]
   end
@@ -28,7 +28,8 @@ defmodule Autotranscript.MixProject do
       {:plug_cowboy, "~> 2.7"},
       {:gettext, ">= 0.24.0"},
       {:jason, "~> 1.4"},
-      {:uuid, "~> 1.1"}
+      {:uuid, "~> 1.1"},
+      {:httpoison, "~> 2.0"}
     ]
   end
 end

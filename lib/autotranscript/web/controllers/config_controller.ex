@@ -29,7 +29,8 @@ defmodule Autotranscript.Web.ConfigController do
     config_params = %{
       "watch_directories" => extract_watch_directories(params),
       "whispercli_path" => params["whispercli_path"],
-      "model_path" => params["model_path"]
+      "model_path" => params["model_path"],
+      "model_name" => params["model_name"]
     }
     
     # Validate the parameters
@@ -115,21 +116,37 @@ defmodule Autotranscript.Web.ConfigController do
       _ -> ["whispercli_path must be a string" | errors]
     end
     
-    # Validate model_path
-    errors = case config["model_path"] do
-      nil -> ["model_path is required" | errors]
-      "" -> ["model_path cannot be empty" | errors]
-      path when is_binary(path) ->
+    # Validate model configuration - either model_path or model_name must be provided
+    errors = case {config["model_path"], config["model_name"]} do
+      {nil, nil} -> ["Either model_path or model_name is required" | errors]
+      {"", ""} -> ["Either model_path or model_name is required" | errors]
+      {"", nil} -> ["Either model_path or model_name is required" | errors]
+      {nil, ""} -> ["Either model_path or model_name is required" | errors]
+      {path, _} when is_binary(path) and path != "" ->
+        # If model_path is provided, check if it exists
         if File.exists?(path) do
           errors
         else
           ["model_path must be a valid file path" | errors]
         end
-      _ -> ["model_path must be a string" | errors]
+      {_, name} when is_binary(name) and name != "" ->
+        # If model_name is provided, check if it's downloaded
+        model_path = Path.join([Path.expand("~/.autotranscript/models"), "#{name}.bin"])
+        if File.exists?(model_path) do
+          errors
+        else
+          ["Model #{name} is not downloaded" | errors]
+        end
+      _ -> ["Invalid model configuration" | errors]
     end
     
+    # Filter out nil values from config before returning
+    cleaned_config = config
+    |> Enum.filter(fn {_k, v} -> v != nil and v != "" end)
+    |> Enum.into(%{})
+    
     case errors do
-      [] -> {:ok, config}
+      [] -> {:ok, cleaned_config}
       _ -> {:error, Enum.reverse(errors)}
     end
   end

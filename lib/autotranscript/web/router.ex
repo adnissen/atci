@@ -67,4 +67,12 @@ defmodule Autotranscript.Web.Router do
     get "/config", ConfigController, :show
     post "/config", ConfigController, :update
   end
+
+  scope "/api", Autotranscript.Web do
+    pipe_through :api
+
+    # Model management endpoints
+    get "/models", ModelController, :list
+    post "/models/download", ModelController, :download
+  end
 end

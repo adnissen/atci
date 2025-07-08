@@ -24,6 +24,7 @@ function App() {
     length?: string
     full_path?: string
     last_generated?: string
+    model?: string
   }
   
   type TranscriptData = {
@@ -32,7 +33,7 @@ function App() {
     error: string | null
   }
   
-  type SortColumn = 'created_at' | 'last_generated' | 'name' | 'line_count' | 'length'
+  type SortColumn = 'created_at' | 'last_generated' | 'name' | 'line_count' | 'length' | 'model'
   type SortDirection = 'asc' | 'desc'
   
   // Configuration state
@@ -279,6 +280,10 @@ function App() {
         aValue = a.length || '0:00'
         bValue = b.length || '0:00'
         break
+      case 'model':
+        aValue = a.model || ''
+        bValue = b.model || ''
+        break
       default:
         return 0
     }
@@ -391,6 +396,30 @@ function App() {
         </svg>
       )
     }
+  }
+
+  // Get color for model chip based on model name
+  const getModelChipColor = (model: string | undefined) => {
+    if (!model) return 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+    
+    // Color palette for different model types
+    const modelColors: Record<string, string> = {
+      'tiny': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+      'base': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+      'small': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+      'medium': 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+      'large': 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    }
+    
+    // Determine model type from name
+    for (const [key, color] of Object.entries(modelColors)) {
+      if (model.includes(key)) {
+        return color
+      }
+    }
+    
+    // Default color if no match
+    return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
   }
 
   // Function to format date from YYYY-MM-DD HH:MM:SS to MM-DD-YYYY x:xxpm
@@ -1054,7 +1083,7 @@ function App() {
             <TableHeader>
               <TableRow>
                 <TableHead 
-                  className="text-center w-1/6 cursor-pointer hover:bg-accent transition-colors"
+                  className="text-center w-[16%] cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('name')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -1066,7 +1095,7 @@ function App() {
                   )}
                 </TableHead>
                 <TableHead 
-                  className="text-center w-1/6 cursor-pointer hover:bg-accent transition-colors"
+                  className="text-center w-[14%] cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('created_at')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -1075,7 +1104,7 @@ function App() {
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center w-1/6 pl-14 cursor-pointer hover:bg-accent transition-colors"
+                  className="text-center w-[14%] pl-6 cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('last_generated')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -1084,7 +1113,7 @@ function App() {
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center w-1/6 cursor-pointer hover:bg-accent transition-colors"
+                  className="text-center w-[10%] cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('line_count')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -1093,7 +1122,7 @@ function App() {
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center w-1/6 cursor-pointer hover:bg-accent transition-colors"
+                  className="text-center w-[10%] cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('length')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -1101,7 +1130,16 @@ function App() {
                     {getSortIndicator('length')}
                   </div>
                 </TableHead>
-                <TableHead className="text-center w-1/6">Actions</TableHead>
+                <TableHead 
+                  className="text-center w-[16%] cursor-pointer hover:bg-accent transition-colors"
+                  onClick={() => handleSort('model')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Model
+                    {getSortIndicator('model')}
+                  </div>
+                </TableHead>
+                <TableHead className="text-center w-[20%]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1133,7 +1171,7 @@ function App() {
                     })
                   }
                 }}>
-                  <TableCell className="font-medium w-1/6">
+                  <TableCell className="font-medium w-[16%]">
                     <a 
                       href={`/player/${encodeURIComponent(file.base_name)}`}
                                                 className="text-primary hover:text-primary/80 underline block truncate text-right"
@@ -1147,10 +1185,10 @@ function App() {
                       </span>
                     </a>
                   </TableCell>
-                  <TableCell className="w-1/6 pr-10 text-foreground">{formatDate(file.created_at)}</TableCell>
-                  <TableCell className="w-1/6 pl-10 text-foreground">{formatDate(file.last_generated || '')}</TableCell>
-                  <TableCell className="w-1/6 text-foreground">{file.line_count || 0}</TableCell>
-                  <TableCell className="w-1/6 text-foreground">
+                  <TableCell className="w-[14%] pr-10 text-foreground">{formatDate(file.created_at)}</TableCell>
+                  <TableCell className="w-[14%] pl-10 text-foreground">{formatDate(file.last_generated || '')}</TableCell>
+                  <TableCell className="w-[10%] text-foreground">{file.line_count || 0}</TableCell>
+                  <TableCell className="w-[10%] text-foreground">
                     {file.length ? (
                       file.length
                     ) : (
@@ -1172,7 +1210,16 @@ function App() {
                       </button>
                     )}
                   </TableCell>
-                  <TableCell className="w-1/6 text-center">
+                  <TableCell className="w-[16%] text-center">
+                    {file.model ? (
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getModelChipColor(file.model)}`}>
+                        {file.model}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="w-[20%] text-center">
                     <div className="flex justify-center gap-2">
                       <button
                         onClick={(e) => {
@@ -1244,7 +1291,7 @@ function App() {
                   data-filename={file.base_name}
                 >
                   
-                <TableCell colSpan={6} className="p-0">
+                <TableCell colSpan={7} className="p-0">
                   <TranscriptView
                     visible={expandedFiles.has(file.base_name)}
                     name={file.base_name}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, Download, CheckCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -15,7 +15,14 @@ interface ConfigSetupProps {
 interface ConfigData {
   watch_directories: string[];
   whispercli_path: string;
-  model_path: string;
+  model_path?: string;
+  model_name?: string;
+}
+
+interface Model {
+  name: string;
+  downloaded: boolean;
+  path: string;
 }
 
 const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode = false }) => {
@@ -28,13 +35,66 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
   const [errors, setErrors] = useState<string[]>([]);
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const [models, setModels] = useState<Model[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelSelection, setModelSelection] = useState<'custom' | string>('custom');
+  const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
 
   // Fetch existing configuration when in edit mode
   useEffect(() => {
     if (isEditMode) {
       fetchCurrentConfig();
     }
+    fetchModels();
   }, [isEditMode]);
+
+  const fetchModels = async () => {
+    setIsLoadingModels(true);
+    try {
+      const response = await fetch('/api/models');
+      if (response.ok) {
+        const data = await response.json();
+        setModels(data.models || []);
+      }
+    } catch (error) {
+      console.error('Error fetching models:', error);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
+  const downloadModel = async (modelName: string) => {
+    setDownloadingModel(modelName);
+    try {
+      const response = await fetch('/api/models/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ model_name: modelName })
+      });
+      
+      if (response.ok) {
+        // Refresh models list after download
+        await fetchModels();
+        // If this is the selected model, update the config
+        if (modelSelection === modelName) {
+          setConfig(prev => ({
+            ...prev,
+            model_name: modelName,
+            model_path: ''
+          }));
+        }
+      } else {
+        const error = await response.json();
+        setErrors([error.message || 'Failed to download model']);
+      }
+    } catch (error) {
+      setErrors(['Network error: Failed to download model']);
+    } finally {
+      setDownloadingModel(null);
+    }
+  };
 
   const fetchCurrentConfig = async () => {
     setIsLoading(true);
@@ -54,9 +114,17 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
               ? data.config.watch_directories 
               : [data.config.watch_directory || ''],
             whispercli_path: data.config.whispercli_path || '',
-            model_path: data.config.model_path || ''
+            model_path: data.config.model_path || '',
+            model_name: data.config.model_name || ''
           };
           setConfig(configData);
+          
+          // Set model selection based on config
+          if (configData.model_name) {
+            setModelSelection(configData.model_name);
+          } else if (configData.model_path) {
+            setModelSelection('custom');
+          }
         }
       }
     } catch (error) {
@@ -69,9 +137,12 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
   // Check if all config values are present (not empty)
   const hasAllConfigValues = () => {
     const hasValidDirectories = config.watch_directories.some(dir => dir.trim() !== '');
+    const hasModel = (modelSelection === 'custom' && config.model_path?.trim() !== '') || 
+                    (modelSelection !== 'custom' && models.find(m => m.name === modelSelection)?.downloaded);
+    
     return hasValidDirectories && 
            config.whispercli_path.trim() !== '' && 
-           config.model_path.trim() !== '';
+           hasModel;
   };
 
   const handleInputChange = (field: keyof Omit<ConfigData, 'watch_directories'>, value: string) => {
@@ -111,6 +182,26 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
     onConfigComplete();
   };
 
+  const handleModelSelectionChange = (value: string) => {
+    setModelSelection(value);
+    if (value === 'custom') {
+      setConfig(prev => ({
+        ...prev,
+        model_name: undefined,
+        model_path: prev.model_path || ''
+      }));
+    } else {
+      const model = models.find(m => m.name === value);
+      if (model) {
+        setConfig(prev => ({
+          ...prev,
+          model_name: value,
+          model_path: ''
+        }));
+      }
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -126,10 +217,17 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       return;
     }
 
-    const submitData = {
-      ...config,
-      watch_directories: filteredDirectories
+    // Prepare submit data based on model selection
+    const submitData: any = {
+      watch_directories: filteredDirectories,
+      whispercli_path: config.whispercli_path
     };
+
+    if (modelSelection === 'custom') {
+      submitData.model_path = config.model_path;
+    } else {
+      submitData.model_name = modelSelection;
+    }
 
     try {
       const response = await fetch('/config', {
@@ -231,21 +329,70 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       </div>
 
       <div>
-        <label htmlFor="model_path" className="block text-sm font-medium text-foreground mb-1">
-          Model Path
+        <label className="block text-sm font-medium text-foreground mb-1">
+          Model Selection
         </label>
-        <input
-          type="text"
-          id="model_path"
-          value={config.model_path}
-          onChange={(e) => handleInputChange('model_path', e.target.value)}
-          placeholder="/path/to/your/whisper.cpp/model.bin"
+        <select
+          value={modelSelection}
+          onChange={(e) => handleModelSelectionChange(e.target.value)}
           className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-          required
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Path to the Whisper model file (.bin)
-        </p>
+          disabled={isLoadingModels}
+        >
+          <option value="custom">Custom Model Path</option>
+          {models.length > 0 && (
+            <>
+              <optgroup label="Downloaded Models">
+                {models.filter(m => m.downloaded).map(model => (
+                  <option key={model.name} value={model.name}>
+                    {model.name} ✓
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Available Models">
+                {models.filter(m => !m.downloaded).map(model => (
+                  <option key={model.name} value={model.name}>
+                    {model.name}
+                  </option>
+                ))}
+              </optgroup>
+            </>
+          )}
+        </select>
+        
+        {modelSelection === 'custom' ? (
+          <>
+            <input
+              type="text"
+              value={config.model_path || ''}
+              onChange={(e) => handleInputChange('model_path', e.target.value)}
+              placeholder="/path/to/your/whisper.cpp/model.bin"
+              className="w-full mt-2 px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              required={modelSelection === 'custom'}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Path to the Whisper model file (.bin)
+            </p>
+          </>
+        ) : modelSelection !== 'custom' && (
+          <>
+            {models.find(m => m.name === modelSelection)?.downloaded ? (
+              <div className="mt-2 flex items-center gap-2 text-xs text-green-600">
+                <CheckCircle className="h-4 w-4" />
+                Model is downloaded and ready to use
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => downloadModel(modelSelection)}
+                disabled={downloadingModel !== null}
+                className="mt-2 flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Download className="h-3 w-3" />
+                {downloadingModel === modelSelection ? 'Downloading...' : 'Download Model'}
+              </button>
+            )}
+          </>
+        )}
       </div>
 
       {errors.length > 0 && (
@@ -261,8 +408,8 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       )}
 
       {successMessage && (
-                    <div className="bg-accent/10 border border-accent/20 rounded-md p-3">
-              <div className="text-sm text-accent-foreground">
+        <div className="bg-accent/10 border border-accent/20 rounded-md p-3">
+          <div className="text-sm text-accent-foreground">
             {successMessage}
           </div>
         </div>
@@ -271,7 +418,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       <div className="flex space-x-3">
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || !hasAllConfigValues()}
           className="flex-1 bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? 'Saving...' : (isEditMode ? 'Update Configuration' : 'Save Configuration')}
