@@ -57,6 +57,9 @@ function App() {
   const [sortColumn, setSortColumn] = useState<SortColumn>('created_at')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   
+  // Theme toggle state
+  const [isDarkMode, setIsDarkMode] = useState(true)
+  
   // Replace transcript dialog state
   const [isReplaceDialogOpen, setIsReplaceDialogOpen] = useState(false)
   const [replaceTranscriptFilename, setReplaceTranscriptFilename] = useState('')
@@ -76,6 +79,24 @@ function App() {
     if (!currentProcessingFile) return false
     const currentFileName = currentProcessingFile.video_path.split('/').pop()?.replace(/\.(mp4|MP4)$/, '')
     return currentFileName === filename
+  }
+
+  // Theme toggle function
+  const toggleTheme = () => {
+    const newIsDarkMode = !isDarkMode
+    setIsDarkMode(newIsDarkMode)
+    
+    // Update the HTML element class
+    const htmlElement = document.documentElement
+    const bodyElement = document.body
+    
+    if (newIsDarkMode) {
+      htmlElement.classList.add('dark')
+      bodyElement.classList.add('dark')
+    } else {
+      htmlElement.classList.remove('dark')
+      bodyElement.classList.remove('dark')
+    }
   }
 
   // Calculate search results from search line numbers
@@ -827,26 +848,91 @@ function App() {
   // Show loading while checking configuration
   if (configComplete === null) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className={`min-h-screen bg-background ${isDarkMode ? 'dark' : ''} flex items-center justify-center`}>
         <div className="text-center">
           <div className="text-lg text-muted-foreground">Loading...</div>
         </div>
+        
+        {/* Theme Toggle Button */}
+        <button
+          onClick={toggleTheme}
+          className="fixed bottom-6 left-6 z-50 p-3 bg-card border border-border rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-foreground hover:bg-accent"
+          title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDarkMode ? (
+            // Sun icon for light mode
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          ) : (
+            // Moon icon for dark mode
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+          )}
+        </button>
       </div>
     )
   }
 
   // Show configuration setup if not complete
   if (configComplete === false) {
-    return <ConfigSetup onConfigComplete={handleConfigComplete} />
+    return (
+      <>
+        <ConfigSetup onConfigComplete={handleConfigComplete} />
+        
+        {/* Theme Toggle Button */}
+        <button
+          onClick={toggleTheme}
+          className="fixed bottom-6 left-6 z-50 p-3 bg-card border border-border rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-foreground hover:bg-accent"
+          title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDarkMode ? (
+            // Sun icon for light mode
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          ) : (
+            // Moon icon for dark mode
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+          )}
+        </button>
+      </>
+    )
   }
 
   // Show configuration editor if requested
   if (isConfigEditorOpen) {
-    return <ConfigSetup onConfigComplete={handleConfigUpdate} isEditMode={true} />
+    return (
+      <>
+        <ConfigSetup onConfigComplete={handleConfigUpdate} isEditMode={true} />
+        
+        {/* Theme Toggle Button */}
+        <button
+          onClick={toggleTheme}
+          className="fixed bottom-6 left-6 z-50 p-3 bg-card border border-border rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-foreground hover:bg-accent"
+          title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDarkMode ? (
+            // Sun icon for light mode
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          ) : (
+            // Moon icon for dark mode
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+            </svg>
+          )}
+        </button>
+      </>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`min-h-screen bg-background ${isDarkMode ? 'dark' : ''}`}>
       {/* Watch Directory Bar - Fixed to top */}
       {watchDirectory && (
         <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-4 py-2 z-10 backdrop-blur-sm">
@@ -932,8 +1018,8 @@ function App() {
         <div>
           {/* Search Results */}
           {searchResults.length > 0 && (
-            <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
-              <h3 className="text-sm font-medium text-green-800 dark:text-green-200 mb-2">
+                    <div className="mb-6 p-4 bg-accent/10 border border-accent/20 rounded-md">
+          <h3 className="text-sm font-medium text-accent-foreground mb-2">
                 Found in {searchResults.length} file(s)
               </h3>
             </div>
@@ -957,7 +1043,7 @@ function App() {
                     {getSortIndicator('name')}
                   </div>
                   {searchTerm && searchResults.length > 0 && (
-                    <span className="text-xs text-green-600 dark:text-green-400 ml-2">(Search Results)</span>
+                                            <span className="text-xs text-primary ml-2">(Search Results)</span>
                   )}
                 </TableHead>
                 <TableHead 
@@ -1031,7 +1117,7 @@ function App() {
                   <TableCell className="font-medium w-1/6">
                     <a 
                       href={`/player/${encodeURIComponent(file.base_name)}`}
-                      className="text-sky-700 hover:text-sky-600 underline block truncate text-right"
+                                                className="text-primary hover:text-primary/80 underline block truncate text-right"
                       onClick={(e) => e.stopPropagation()}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -1074,7 +1160,7 @@ function App() {
                           e.stopPropagation()
                           window.open(`/player/${encodeURIComponent(file.base_name)}`, '_blank')
                         }}
-                        className="p-2 text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/20 rounded-md transition-colors"
+                                                    className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
                         title="View file"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1108,7 +1194,7 @@ function App() {
                           <button
                             onClick={(e) => handleReplace(file.base_name, e)}
                             disabled={replacingFiles.has(file.base_name)}
-                            className={`p-2 text-muted-foreground hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950/20 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                            className={`p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                             title="Edit transcript"
                           >
                             {replacingFiles.has(file.base_name) ? (
@@ -1173,6 +1259,25 @@ function App() {
         placeholder="Enter the complete transcript content..."
         isLargeMode={true}
       />
+
+      {/* Theme Toggle Button */}
+      <button
+        onClick={toggleTheme}
+        className="fixed bottom-6 left-6 z-50 p-3 bg-card border border-border rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-foreground hover:bg-accent"
+        title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+      >
+        {isDarkMode ? (
+          // Sun icon for light mode
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        ) : (
+          // Moon icon for dark mode
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        )}
+      </button>
     </div>
   )
 }
