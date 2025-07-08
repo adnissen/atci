@@ -44,9 +44,9 @@ defmodule Autotranscript.ConfigManager do
   Returns true if all required fields are present and valid.
   """
   def config_complete?(config) when is_map(config) do
-    required_keys = ["watch_directories", "whispercli_path", "model_path"]
+    required_keys = ["watch_directories", "whispercli_path"]
 
-    Enum.all?(required_keys, fn key ->
+    base_complete = Enum.all?(required_keys, fn key ->
       case Map.get(config, key) do
         nil -> false
         "" -> false
@@ -61,6 +61,22 @@ defmodule Autotranscript.ConfigManager do
         _ -> false
       end
     end)
+
+    # Check if we have either model_path or model_name
+    model_complete = case {Map.get(config, "model_path"), Map.get(config, "model_name")} do
+      {nil, nil} -> false
+      {"", ""} -> false
+      {"", nil} -> false
+      {nil, ""} -> false
+      {path, _} when is_binary(path) and path != "" -> File.exists?(path)
+      {_, name} when is_binary(name) and name != "" -> 
+        # Check if the model is downloaded
+        model_path = Path.join([Path.expand("~/.autotranscript/models"), "#{name}.bin"])
+        File.exists?(model_path)
+      _ -> false
+    end
+
+    base_complete and model_complete
   end
 
   @doc """
@@ -78,6 +94,23 @@ defmodule Autotranscript.ConfigManager do
   """
   def reload_config do
     GenServer.call(:config_manager, :reload_config)
+  end
+
+  @doc """
+  Gets the effective model path, resolving model_name to a path if needed.
+  """
+  def get_effective_model_path do
+    config = get_config()
+    case {Map.get(config, "model_path"), Map.get(config, "model_name")} do
+      {path, _} when is_binary(path) and path != "" -> 
+        # Use the explicit path if provided
+        path
+      {_, name} when is_binary(name) and name != "" ->
+        # Convert model name to path
+        Path.join([Path.expand("~/.autotranscript/models"), "#{name}.bin"])
+      _ ->
+        nil
+    end
   end
 
   # Server callbacks
@@ -102,6 +135,16 @@ defmodule Autotranscript.ConfigManager do
         case Map.get(state, "watch_directories") do
           [first_dir | _] -> first_dir
           _ -> nil
+        end
+      "model_path" ->
+        # Return the effective model path
+        case {Map.get(state, "model_path"), Map.get(state, "model_name")} do
+          {path, _} when is_binary(path) and path != "" -> 
+            path
+          {_, name} when is_binary(name) and name != "" ->
+            Path.join([Path.expand("~/.autotranscript/models"), "#{name}.bin"])
+          _ ->
+            nil
         end
       _ ->
         Map.get(state, key)
