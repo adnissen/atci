@@ -4,7 +4,7 @@ defmodule Autotranscript.ModelManager do
   """
 
   require Logger
-  
+
   @model_names [
     "ggml-base-q5_1",
     "ggml-base-q8_0",
@@ -40,16 +40,16 @@ defmodule Autotranscript.ModelManager do
     "ggml-tiny.en-q8_0",
     "ggml-tiny.en"
   ]
-  
+
   @huggingface_base_url "https://huggingface.co/ggerganov/whisper.cpp/resolve/main"
-  
+
   @doc """
   Returns the directory where models are stored.
   """
   def models_directory do
     Path.expand("~/.autotranscript/models")
   end
-  
+
   @doc """
   Ensures the models directory exists.
   """
@@ -57,13 +57,13 @@ defmodule Autotranscript.ModelManager do
     dir = models_directory()
     File.mkdir_p(dir)
   end
-  
+
   @doc """
   Lists all available models with their download status.
   """
   def list_models do
     ensure_models_directory()
-    
+
     Enum.map(@model_names, fn model_name ->
       path = Path.join(models_directory(), "#{model_name}.bin")
       %{
@@ -73,7 +73,7 @@ defmodule Autotranscript.ModelManager do
       }
     end)
   end
-  
+
   @doc """
   Downloads a model from Hugging Face.
   """
@@ -82,13 +82,12 @@ defmodule Autotranscript.ModelManager do
       {:error, "Invalid model name"}
     else
       ensure_models_directory()
-      
+
       model_path = Path.join(models_directory(), "#{model_name}.bin")
       url = "#{@huggingface_base_url}/#{model_name}.bin"
-      
+
       Logger.info("Downloading model #{model_name} from #{url}")
-      
-      # Use httpc to download the file
+
       case download_file(url, model_path) do
         :ok ->
           Logger.info("Successfully downloaded model #{model_name}")
@@ -99,36 +98,39 @@ defmodule Autotranscript.ModelManager do
       end
     end
   end
-  
+
   defp download_file(url, destination) do
-    # Ensure httpc is started
-    :inets.start()
-    :ssl.start()
-    
-    # Create a temporary file to download to
-    temp_file = "#{destination}.tmp"
-    
-    # Download with progress logging
-    case :httpc.request(:get, {String.to_charlist(url), []}, 
-                       [{:timeout, :infinity}, {:connect_timeout, 30_000}], 
-                       [{:stream, String.to_charlist(temp_file)}]) do
-      {:ok, :saved_to_file} ->
-        # Move the temp file to the final destination
-        case File.rename(temp_file, destination) do
-          :ok -> :ok
-          {:error, reason} -> 
-            File.rm(temp_file)
-            {:error, reason}
+    Logger.info("Starting download from #{url}")
+
+    # Use HTTPoison to download the file
+    options = [
+      timeout: 300_000,  # 5 minutes timeout
+      recv_timeout: 300_000,  # 5 minutes receive timeout
+      follow_redirect: true
+    ]
+
+    case HTTPoison.get(url, [], options) do
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
+        Logger.info("Download completed, saving to #{destination}")
+        case File.write(destination, body) do
+          :ok ->
+            Logger.info("Successfully saved model to #{destination}")
+            :ok
+          {:error, reason} ->
+            Logger.error("Failed to write file: #{inspect(reason)}")
+            {:error, "Failed to write file: #{inspect(reason)}"}
         end
-      {:ok, {{_, status_code, _}, _, _}} ->
-        File.rm(temp_file)
+
+      {:ok, %HTTPoison.Response{status_code: status_code}} ->
+        Logger.error("HTTP request failed with status code: #{status_code}")
         {:error, "HTTP error: #{status_code}"}
-      {:error, reason} ->
-        File.rm(temp_file)
-        {:error, reason}
+
+      {:error, %HTTPoison.Error{reason: reason}} ->
+        Logger.error("HTTP request failed: #{inspect(reason)}")
+        {:error, "Download failed: #{inspect(reason)}"}
     end
   end
-  
+
   @doc """
   Gets the full list of available model names.
   """
