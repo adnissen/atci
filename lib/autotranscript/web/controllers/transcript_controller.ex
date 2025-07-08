@@ -608,7 +608,7 @@ defmodule Autotranscript.Web.TranscriptController do
     file_path = Path.join(watch_directory, "#{decoded_filename}.txt")
     case conn.body_params do
       %{"text" => replacement_text} ->
-        case File.write(file_path, replacement_text) do
+        case File.write(file_path, replacement_text, [:utf8]) do
           :ok ->
             VideoInfoCache.update_video_info_cache
             conn
@@ -806,7 +806,7 @@ defmodule Autotranscript.Web.TranscriptController do
                     updated_lines = List.replace_at(lines, line_number - 1, new_text)
                     updated_content = Enum.join(updated_lines, "\n")
 
-                    case File.write(file_path, updated_content) do
+                    case File.write(file_path, updated_content, [:utf8]) do
                       :ok ->
                         VideoInfoCache.update_video_info_cache()
                         conn

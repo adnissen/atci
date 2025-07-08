@@ -24,7 +24,7 @@ defmodule Autotranscript.TranscriptModifier do
     with {:ok, model_filename} <- get_model_filename(),
          {:ok, content} <- File.read(transcript_path),
          {:ok, modified_content} <- modify_content(content, model_filename),
-         :ok <- File.write(transcript_path, modified_content) do
+         :ok <- File.write(transcript_path, modified_content, [:utf8]) do
       Logger.info("Successfully modified transcript file: #{transcript_path}")
       :ok
     else

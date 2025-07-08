@@ -422,7 +422,7 @@ defmodule Autotranscript.VideoProcessor do
 
         # Write the truncated content back
         truncated_content = Enum.join(truncated_lines, "\n")
-        case File.write(txt_file_path, truncated_content) do
+        case File.write(txt_file_path, truncated_content, [:utf8]) do
           :ok -> :ok
           {:error, reason} -> {:error, "Failed to truncate txt file: #{reason}"}
         end
@@ -520,7 +520,7 @@ defmodule Autotranscript.VideoProcessor do
           end
         end)
 
-        case File.write(temp_txt_path, adjusted_content) do
+        case File.write(temp_txt_path, adjusted_content, [:utf8]) do
           :ok -> :ok
           {:error, reason} -> {:error, "Failed to write adjusted timestamps: #{reason}"}
         end
@@ -581,11 +581,9 @@ defmodule Autotranscript.VideoProcessor do
           lines -> "\n" <> Enum.join(lines, "\n")
         end
 
-        case File.open(original_txt_path, [:append]) do
-          {:ok, file} ->
-            IO.write(file, content_to_append)
-            File.close(file)
-            :ok
+        # Use File.write with :append and :utf8 options to handle Unicode content properly
+        case File.write(original_txt_path, content_to_append, [:append, :utf8]) do
+          :ok -> :ok
           {:error, reason} -> {:error, "Failed to append to original file: #{reason}"}
         end
 
@@ -718,7 +716,7 @@ defmodule Autotranscript.VideoProcessor do
         final_content = ["model: subtitle file" | transcript_lines]
                         |> Enum.join("\n")
 
-        case File.write(txt_path, final_content) do
+        case File.write(txt_path, final_content, [:utf8]) do
           :ok -> :ok
           {:error, reason} -> {:error, "Failed to write transcript: #{reason}"}
         end
