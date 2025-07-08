@@ -60,6 +60,20 @@ function App() {
   // Theme toggle state
   const [isDarkMode, setIsDarkMode] = useState(true)
   
+  // Apply dark theme on initial load
+  useEffect(() => {
+    const htmlElement = document.documentElement
+    const bodyElement = document.body
+    
+    if (isDarkMode) {
+      htmlElement.classList.add('dark')
+      bodyElement.classList.add('dark')
+    } else {
+      htmlElement.classList.remove('dark')
+      bodyElement.classList.remove('dark')
+    }
+  }, []) // Empty dependency array means this runs once on mount
+  
   // Replace transcript dialog state
   const [isReplaceDialogOpen, setIsReplaceDialogOpen] = useState(false)
   const [replaceTranscriptFilename, setReplaceTranscriptFilename] = useState('')
