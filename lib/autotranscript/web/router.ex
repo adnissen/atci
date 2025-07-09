@@ -68,6 +68,7 @@ defmodule Autotranscript.Web.Router do
 
     get("/queue", TranscriptController, :queue)
     get("/files", TranscriptController, :files)
+    get("/sources", TranscriptController, :sources)
     get("/random_frame", TranscriptController, :random_frame)
     get("/clip", TranscriptController, :clip)
     get("/watch_directory", TranscriptController, :watch_directory)

@@ -209,9 +209,44 @@ defmodule Autotranscript.Web.TranscriptController do
         end
     end
 
+    # Filter by sources if provided
+    final_filtered_files = case params["sources"] do
+      nil -> filtered_files
+      "" -> filtered_files
+      sources_param ->
+        # Parse sources from comma-separated string
+        sources = String.split(sources_param, ",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+        
+        if Enum.empty?(sources) do
+          filtered_files
+        else
+          Enum.filter(filtered_files, fn file ->
+            # Include file if its source (model field) is in the filter
+            # Handle nil sources by checking if nil is in the filter
+            file.model && Enum.member?(sources, file.model)
+          end)
+        end
+    end
+
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(filtered_files))
+    |> send_resp(200, Jason.encode!(final_filtered_files))
+  end
+
+  def sources(conn, _params) do
+    video_files = VideoInfoCache.get_video_files()
+    
+    # Get unique sources from the model field, filtering out nil values
+    unique_sources = 
+      video_files
+      |> Enum.map(& &1.model)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(unique_sources))
   end
 
   def random_frame(conn, _params) do
