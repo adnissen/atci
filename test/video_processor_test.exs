@@ -44,7 +44,7 @@ defmodule Autotranscript.VideoProcessorTest do
 
       # Check meta file for source information
       {:ok, meta_content} = File.read(temp_meta)
-      assert String.contains?(meta_content, "source: subtitle file")
+      assert String.contains?(meta_content, "source: subtitles")
 
       # Cleanup
       File.rm(temp_srt)
@@ -67,7 +67,7 @@ defmodule Autotranscript.VideoProcessorTest do
 
       # Check meta file for source information
       {:ok, meta_content} = File.read(temp_meta)
-      assert String.contains?(meta_content, "source: subtitle file")
+      assert String.contains?(meta_content, "source: subtitles")
 
       # Cleanup
       File.rm(temp_srt)
@@ -96,7 +96,7 @@ defmodule Autotranscript.VideoProcessorTest do
 
       # Check meta file for source information
       {:ok, meta_content} = File.read(temp_meta)
-      assert String.contains?(meta_content, "source: subtitle file")
+      assert String.contains?(meta_content, "source: subtitles")
 
       # Cleanup
       File.rm(temp_srt)

@@ -796,7 +796,7 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @doc """
-  Converts an SRT subtitle file to the transcript format used by the application.
+  Converts an SRT subtitles to the transcript format used by the application.
 
   ## Parameters
     - srt_path: String path to the SRT file
@@ -823,7 +823,7 @@ defmodule Autotranscript.VideoProcessor do
             case Autotranscript.MetaFileHandler.update_meta_field(
                    meta_path,
                    "source",
-                   "subtitle file"
+                   "subtitles"
                  ) do
               :ok ->
                 :ok

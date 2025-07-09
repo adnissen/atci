@@ -39,11 +39,11 @@ defmodule Autotranscript.MetaFileHandlerTest do
       # Write initial content
       File.write!(meta_path, "old: content\n")
 
-      metadata = %{"source" => "subtitle file"}
+      metadata = %{"source" => "subtitles"}
       assert :ok = MetaFileHandler.write_meta_file(meta_path, metadata)
 
       {:ok, content} = File.read(meta_path)
-      assert String.contains?(content, "source: subtitle file")
+      assert String.contains?(content, "source: subtitles")
       refute String.contains?(content, "old: content")
     end
   end
@@ -97,10 +97,10 @@ defmodule Autotranscript.MetaFileHandlerTest do
       meta_path = Path.join(temp_dir, "test.meta")
       File.write!(meta_path, "length: 01:23:45\n")
 
-      assert :ok = MetaFileHandler.update_meta_field(meta_path, "source", "subtitle file")
+      assert :ok = MetaFileHandler.update_meta_field(meta_path, "source", "subtitles")
 
       {:ok, metadata} = MetaFileHandler.read_meta_file(meta_path)
-      assert metadata["source"] == "subtitle file"
+      assert metadata["source"] == "subtitles"
       assert metadata["length"] == "01:23:45"
     end
 

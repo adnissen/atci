@@ -9,8 +9,8 @@ Autotranscript is an Elixir application that automatically transcribes video fil
 - If no subtitles are found, converts videos to MP3 audio using ffmpeg
 - Transcribes audio to text using Whisper (when subtitles are not available)
 - Deletes the MP3 file after transcription
-- When subtitles are extracted, saves "source: subtitle file" to the .meta file
-- Source information (model name or "subtitle file") is stored in .meta files
+- When subtitles are extracted, saves "source: subtitles" to the .meta file
+- Source information (model name or "subtitles") is stored in .meta files
 
 ## Prerequisites
 
