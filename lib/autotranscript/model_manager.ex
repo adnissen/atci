@@ -66,6 +66,7 @@ defmodule Autotranscript.ModelManager do
 
     Enum.map(@model_names, fn model_name ->
       path = Path.join(models_directory(), "#{model_name}.bin")
+
       %{
         name: model_name,
         downloaded: File.exists?(path),
@@ -92,6 +93,7 @@ defmodule Autotranscript.ModelManager do
         :ok ->
           Logger.info("Successfully downloaded model #{model_name}")
           {:ok, model_path}
+
         {:error, reason} ->
           Logger.error("Failed to download model #{model_name}: #{inspect(reason)}")
           {:error, reason}
@@ -104,18 +106,22 @@ defmodule Autotranscript.ModelManager do
 
     # Use HTTPoison to download the file
     options = [
-      timeout: 300_000,  # 5 minutes timeout
-      recv_timeout: 300_000,  # 5 minutes receive timeout
+      # 5 minutes timeout
+      timeout: 300_000,
+      # 5 minutes receive timeout
+      recv_timeout: 300_000,
       follow_redirect: true
     ]
 
     case HTTPoison.get(url, [], options) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
         Logger.info("Download completed, saving to #{destination}")
+
         case File.write(destination, body) do
           :ok ->
             Logger.info("Successfully saved model to #{destination}")
             :ok
+
           {:error, reason} ->
             Logger.error("Failed to write file: #{inspect(reason)}")
             {:error, "Failed to write file: #{inspect(reason)}"}

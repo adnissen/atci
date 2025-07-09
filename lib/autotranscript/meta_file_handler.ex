@@ -19,12 +19,14 @@ defmodule Autotranscript.MetaFileHandler do
   def read_meta_file(meta_path) do
     case File.read(meta_path) do
       {:ok, content} ->
-        metadata = content
+        metadata =
+          content
           |> String.split("\n", trim: true)
           |> Enum.reduce(%{}, fn line, acc ->
             case String.split(line, ": ", parts: 2) do
               [key, value] ->
                 Map.put(acc, String.trim(key), String.trim(value))
+
               _ ->
                 # Skip invalid lines
                 acc
@@ -32,6 +34,7 @@ defmodule Autotranscript.MetaFileHandler do
           end)
 
         {:ok, metadata}
+
       {:error, reason} ->
         {:error, reason}
     end
@@ -49,7 +52,8 @@ defmodule Autotranscript.MetaFileHandler do
     - {:error, reason} if the file cannot be written
   """
   def write_meta_file(meta_path, metadata) when is_map(metadata) do
-    content = metadata
+    content =
+      metadata
       |> Enum.map(fn {key, value} -> "#{key}: #{value}" end)
       |> Enum.sort()
       |> Enum.join("\n")
@@ -58,6 +62,7 @@ defmodule Autotranscript.MetaFileHandler do
       :ok ->
         Logger.info("Wrote meta file: #{meta_path}")
         :ok
+
       {:error, reason} ->
         Logger.error("Failed to write meta file #{meta_path}: #{inspect(reason)}")
         {:error, reason}
@@ -78,10 +83,11 @@ defmodule Autotranscript.MetaFileHandler do
   """
   def update_meta_field(meta_path, key, value) do
     # Read existing metadata or start with empty map
-    metadata = case read_meta_file(meta_path) do
-      {:ok, existing} -> existing
-      {:error, _} -> %{}
-    end
+    metadata =
+      case read_meta_file(meta_path) do
+        {:ok, existing} -> existing
+        {:error, _} -> %{}
+      end
 
     # Update the field
     updated_metadata = Map.put(metadata, key, value)
@@ -109,6 +115,7 @@ defmodule Autotranscript.MetaFileHandler do
           nil -> {:error, :not_found}
           value -> {:ok, value}
         end
+
       {:error, reason} ->
         {:error, reason}
     end

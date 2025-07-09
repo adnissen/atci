@@ -43,7 +43,10 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast({:add_to_queue, {_process_type, _job_info} = job_tuple}, %{queue: queue, processing: processing, current_file: current_file} = state) do
+  def handle_cast(
+        {:add_to_queue, {_process_type, _job_info} = job_tuple},
+        %{queue: queue, processing: processing, current_file: current_file} = state
+      ) do
     # Check if the job is already in the queue or currently being processed
     if job_tuple in queue or job_tuple == current_file do
       # Job is already queued or being processed, don't add it again
@@ -69,7 +72,14 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast(:process_next, %{queue: [{process_type, %{path: video_path} = job_info} = job_tuple | _rest], processing: _processing, current_file: nil} = state) do
+  def handle_cast(
+        :process_next,
+        %{
+          queue: [{process_type, %{path: video_path} = job_info} = job_tuple | _rest],
+          processing: _processing,
+          current_file: nil
+        } = state
+      ) do
     # Start processing the next file in the queue asynchronously
     # Keep the file in the queue until processing is complete
     spawn(fn ->
@@ -77,6 +87,7 @@ defmodule Autotranscript.VideoProcessor do
         :ok ->
           IO.puts("Successfully processed #{video_path} with type #{process_type}")
           GenServer.cast(__MODULE__, {:processing_complete, job_tuple, :ok})
+
         {:error, reason} ->
           IO.puts("Error processing #{video_path}: #{inspect(reason)}")
           GenServer.cast(__MODULE__, {:processing_complete, job_tuple, {:error, reason}})
@@ -87,7 +98,10 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast({:processing_complete, job_tuple, _result}, %{queue: queue, processing: _processing, current_file: _current_file} = state) do
+  def handle_cast(
+        {:processing_complete, job_tuple, _result},
+        %{queue: queue, processing: _processing, current_file: _current_file} = state
+      ) do
     # Remove the completed job from the queue
     new_queue = Enum.reject(queue, fn tuple -> tuple == job_tuple end)
 
@@ -102,7 +116,11 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_call(:get_queue_status, _from, %{queue: queue, processing: processing, current_file: current_file} = state) do
+  def handle_call(
+        :get_queue_status,
+        _from,
+        %{queue: queue, processing: processing, current_file: current_file} = state
+      ) do
     {:reply, %{queue: queue, processing: processing, current_file: current_file}, state}
   end
 
@@ -128,38 +146,46 @@ defmodule Autotranscript.VideoProcessor do
       :ok
   """
   def process_video_file(%{path: video_path, time: time} = _job_info, process_type) do
-    result = case process_type do
-      :all ->
-        # Check if video has subtitles first
-        case check_and_extract_subtitles(video_path) do
-          {:ok, :extracted} ->
-            # Subtitles were found and extracted, just save video length
-            save_video_length(video_path)
-          {:ok, :no_subtitles} ->
-            # No subtitles, proceed with normal audio extraction and transcription
-            with :ok <- convert_to_mp3(video_path),
-                 mp3_path = PathHelper.find_mp3_file_from_video(video_path),
-                 :ok <- transcribe_audio(mp3_path),
-                 :ok <- delete_mp3(mp3_path),
-                 :ok <- save_video_length(video_path) do
-              :ok
-            end
-          {:error, reason} ->
-            # If subtitle extraction fails, fall back to normal processing
-            Logger.warning("Failed to check subtitles: #{inspect(reason)}, falling back to audio transcription")
-            with :ok <- convert_to_mp3(video_path),
-                 mp3_path = PathHelper.find_mp3_file_from_video(video_path),
-                 :ok <- transcribe_audio(mp3_path),
-                 :ok <- delete_mp3(mp3_path),
-                 :ok <- save_video_length(video_path) do
-              :ok
-            end
-        end
-      :length ->
-        save_video_length(video_path)
-      :partial ->
-        process_partial_video(video_path, time)
-    end
+    result =
+      case process_type do
+        :all ->
+          # Check if video has subtitles first
+          case check_and_extract_subtitles(video_path) do
+            {:ok, :extracted} ->
+              # Subtitles were found and extracted, just save video length
+              save_video_length(video_path)
+
+            {:ok, :no_subtitles} ->
+              # No subtitles, proceed with normal audio extraction and transcription
+              with :ok <- convert_to_mp3(video_path),
+                   mp3_path = PathHelper.find_mp3_file_from_video(video_path),
+                   :ok <- transcribe_audio(mp3_path),
+                   :ok <- delete_mp3(mp3_path),
+                   :ok <- save_video_length(video_path) do
+                :ok
+              end
+
+            {:error, reason} ->
+              # If subtitle extraction fails, fall back to normal processing
+              Logger.warning(
+                "Failed to check subtitles: #{inspect(reason)}, falling back to audio transcription"
+              )
+
+              with :ok <- convert_to_mp3(video_path),
+                   mp3_path = PathHelper.find_mp3_file_from_video(video_path),
+                   :ok <- transcribe_audio(mp3_path),
+                   :ok <- delete_mp3(mp3_path),
+                   :ok <- save_video_length(video_path) do
+                :ok
+              end
+          end
+
+        :length ->
+          save_video_length(video_path)
+
+        :partial ->
+          process_partial_video(video_path, time)
+      end
 
     # Update the video info cache after processing
     VideoInfoCache.update_video_info_cache()
@@ -181,7 +207,7 @@ defmodule Autotranscript.VideoProcessor do
       {:error, :invalid_file_type}
   """
   def convert_to_mp3(path) do
-    if String.ends_with?(path, PathHelper.video_extensions_with_dots) do
+    if String.ends_with?(path, PathHelper.video_extensions_with_dots()) do
       output_path = PathHelper.replace_video_extension_with(path, ".mp3")
 
       ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
@@ -214,15 +240,19 @@ defmodule Autotranscript.VideoProcessor do
         whispercli == nil or whispercli == "" ->
           Logger.error("Whisper CLI path not configured")
           {:error, :whispercli_not_configured}
+
         model == nil or model == "" ->
           Logger.error("Model path not configured")
           {:error, :model_not_configured}
+
         not File.exists?(whispercli) ->
           Logger.error("Whisper CLI not found at: #{whispercli}")
           {:error, :whispercli_not_found}
+
         not File.exists?(model) ->
           Logger.error("Model file not found at: #{model}")
           {:error, :model_not_found}
+
         true ->
           System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", path])
           vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
@@ -234,13 +264,13 @@ defmodule Autotranscript.VideoProcessor do
           case TranscriptModifier.add_source_to_meta(txt_path) do
             :ok ->
               Logger.info("Transcript file modified successfully: #{txt_path}")
+
             {:error, reason} ->
               Logger.warning("Failed to modify transcript file #{txt_path}: #{inspect(reason)}")
           end
 
           :ok
       end
-
     else
       {:error, :invalid_file_type}
     end
@@ -283,7 +313,7 @@ defmodule Autotranscript.VideoProcessor do
     - {:error, reason} if any step failed
   """
   def save_video_length(video_path) do
-    if String.ends_with?(video_path, PathHelper.video_extensions_with_dots) do
+    if String.ends_with?(video_path, PathHelper.video_extensions_with_dots()) do
       case get_video_length(video_path) do
         {:ok, length} ->
           meta_path = PathHelper.replace_video_extension_with(video_path, ".meta")
@@ -293,10 +323,12 @@ defmodule Autotranscript.VideoProcessor do
             :ok ->
               Logger.info("Saved video length #{length} to #{meta_path}")
               :ok
+
             {:error, reason} ->
               Logger.warning("Failed to write meta file #{meta_path}: #{inspect(reason)}")
               {:error, reason}
           end
+
         {:error, reason} ->
           Logger.warning("Failed to get video length for #{video_path}: #{inspect(reason)}")
           {:error, reason}
@@ -318,9 +350,15 @@ defmodule Autotranscript.VideoProcessor do
   """
   def get_video_length(video_path) do
     ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
-    case System.cmd(ffmpeg_path, [
-      "-i", video_path
-    ], stderr_to_stdout: true) do
+
+    case System.cmd(
+           ffmpeg_path,
+           [
+             "-i",
+             video_path
+           ],
+           stderr_to_stdout: true
+         ) do
       {output, _exit_code} ->
         # Parse the duration from ffmpeg output
         case Regex.run(~r/Duration: (\d{2}:\d{2}:\d{2}\.\d{2})/, output) do
@@ -328,6 +366,7 @@ defmodule Autotranscript.VideoProcessor do
             # Remove milliseconds to get hh:mm:ss format
             length = duration_with_ms |> String.split(".") |> List.first()
             {:ok, length}
+
           nil ->
             {:error, "Could not parse duration from ffmpeg output"}
         end
@@ -354,6 +393,7 @@ defmodule Autotranscript.VideoProcessor do
     case parse_time_to_seconds(time_str) do
       {:ok, time_seconds} ->
         do_partial_video_reprocess(txt_file_path, video_path, time_str, time_seconds)
+
       {:error, reason} ->
         {:error, "Invalid time format: #{reason}"}
     end
@@ -373,7 +413,9 @@ defmodule Autotranscript.VideoProcessor do
             else
               _ -> {:error, "Invalid time components"}
             end
-          _ -> {:error, "Invalid time format"}
+
+          _ ->
+            {:error, "Invalid time format"}
         end
 
       # Format: MM:SS or MM:SS.ms
@@ -387,7 +429,9 @@ defmodule Autotranscript.VideoProcessor do
             else
               _ -> {:error, "Invalid time components"}
             end
-          _ -> {:error, "Invalid time format"}
+
+          _ ->
+            {:error, "Invalid time format"}
         end
 
       # Format: seconds only (integer or float)
@@ -420,18 +464,21 @@ defmodule Autotranscript.VideoProcessor do
         lines = String.split(content, "\n")
 
         # Find the first line that includes the time
-        truncated_lines = Enum.take_while(lines, fn line ->
-          not String.contains?(line, time_str)
-        end)
+        truncated_lines =
+          Enum.take_while(lines, fn line ->
+            not String.contains?(line, time_str)
+          end)
 
         # Write the truncated content back
         truncated_content = Enum.join(truncated_lines, "\n")
+
         case File.write(txt_file_path, truncated_content, [:utf8]) do
           :ok -> :ok
           {:error, reason} -> {:error, "Failed to truncate txt file: #{reason}"}
         end
 
-      {:error, reason} -> {:error, "Failed to read txt file: #{reason}"}
+      {:error, reason} ->
+        {:error, "Failed to read txt file: #{reason}"}
     end
   end
 
@@ -439,14 +486,19 @@ defmodule Autotranscript.VideoProcessor do
     temp_video_path = Path.join(System.tmp_dir(), "temp_video_#{UUID.uuid4()}.mp4")
 
     ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+
     case System.cmd(ffmpeg_path, [
-      "-ss", "#{time_seconds}",
-      "-i", video_path,
-      "-c", "copy",
-      "-avoid_negative_ts", "make_zero",
-      "-y",
-      temp_video_path
-    ]) do
+           "-ss",
+           "#{time_seconds}",
+           "-i",
+           video_path,
+           "-c",
+           "copy",
+           "-avoid_negative_ts",
+           "make_zero",
+           "-y",
+           temp_video_path
+         ]) do
       {_output, 0} -> {:ok, temp_video_path}
       {error_output, _exit_code} -> {:error, "ffmpeg failed: #{error_output}"}
     end
@@ -456,13 +508,17 @@ defmodule Autotranscript.VideoProcessor do
     temp_mp3_path = Path.join(System.tmp_dir(), "temp_audio_#{UUID.uuid4()}.mp3")
 
     ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+
     case System.cmd(ffmpeg_path, [
-      "-i", temp_video_path,
-      "-q:a", "0",
-      "-map", "a",
-      "-y",
-      temp_mp3_path
-    ]) do
+           "-i",
+           temp_video_path,
+           "-q:a",
+           "0",
+           "-map",
+           "a",
+           "-y",
+           temp_mp3_path
+         ]) do
       {_output, 0} -> {:ok, temp_mp3_path}
       {error_output, _exit_code} -> {:error, "ffmpeg audio conversion failed: #{error_output}"}
     end
@@ -475,22 +531,28 @@ defmodule Autotranscript.VideoProcessor do
     cond do
       whispercli == nil or whispercli == "" ->
         {:error, "Whisper CLI path not configured"}
+
       model == nil or model == "" ->
         {:error, "Model path not configured"}
+
       not File.exists?(whispercli) ->
         {:error, "Whisper CLI not found at: #{whispercli}"}
+
       not File.exists?(model) ->
         {:error, "Model file not found at: #{model}"}
+
       true ->
         case System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", temp_mp3_path]) do
           {_output, 0} ->
             # Convert VTT to TXT
             vtt_path = temp_mp3_path <> ".vtt"
             txt_path = String.replace_trailing(temp_mp3_path, ".mp3", ".txt")
+
             case File.rename(vtt_path, txt_path) do
               :ok -> {:ok, txt_path}
               {:error, reason} -> {:error, "Failed to rename VTT to TXT: #{reason}"}
             end
+
           {error_output, _exit_code} ->
             {:error, "Whisper transcription failed: #{error_output}"}
         end
@@ -501,10 +563,12 @@ defmodule Autotranscript.VideoProcessor do
     Enum.each(file_paths, fn path ->
       case File.rm(path) do
         :ok -> :ok
-        {:error, :enoent} -> :ok  # File doesn't exist, that's fine
+        # File doesn't exist, that's fine
+        {:error, :enoent} -> :ok
         {:error, reason} -> Logger.warning("Failed to delete temp file #{path}: #{reason}")
       end
     end)
+
     :ok
   end
 
@@ -514,24 +578,28 @@ defmodule Autotranscript.VideoProcessor do
         # Regex to match timestamp format HH:MM:SS.XXX --> HH:MM:SS.XXX
         timestamp_regex = ~r/(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})/
 
-        adjusted_content = Regex.replace(timestamp_regex, content, fn full_match, start_ts, end_ts ->
-          case {timestamp_to_seconds(start_ts), timestamp_to_seconds(end_ts)} do
-            {{:ok, start_secs}, {:ok, end_secs}} ->
-              adjusted_start = start_secs + start_time_seconds
-              adjusted_end = end_secs + start_time_seconds
-              "#{seconds_to_timestamp(adjusted_start)} --> #{seconds_to_timestamp(adjusted_end)}"
-            _ ->
-              # If parsing fails, return original match
-              full_match
-          end
-        end)
+        adjusted_content =
+          Regex.replace(timestamp_regex, content, fn full_match, start_ts, end_ts ->
+            case {timestamp_to_seconds(start_ts), timestamp_to_seconds(end_ts)} do
+              {{:ok, start_secs}, {:ok, end_secs}} ->
+                adjusted_start = start_secs + start_time_seconds
+                adjusted_end = end_secs + start_time_seconds
+
+                "#{seconds_to_timestamp(adjusted_start)} --> #{seconds_to_timestamp(adjusted_end)}"
+
+              _ ->
+                # If parsing fails, return original match
+                full_match
+            end
+          end)
 
         case File.write(temp_txt_path, adjusted_content, [:utf8]) do
           :ok -> :ok
           {:error, reason} -> {:error, "Failed to write adjusted timestamps: #{reason}"}
         end
 
-      {:error, reason} -> {:error, "Failed to read temp txt file for timestamp adjustment: #{reason}"}
+      {:error, reason} ->
+        {:error, "Failed to read temp txt file for timestamp adjustment: #{reason}"}
     end
   end
 
@@ -549,9 +617,13 @@ defmodule Autotranscript.VideoProcessor do
             else
               _ -> {:error, "Invalid timestamp components"}
             end
-          _ -> {:error, "Invalid seconds format"}
+
+          _ ->
+            {:error, "Invalid seconds format"}
         end
-      _ -> {:error, "Invalid timestamp format"}
+
+      _ ->
+        {:error, "Invalid timestamp format"}
     end
   end
 
@@ -575,17 +647,19 @@ defmodule Autotranscript.VideoProcessor do
       {:ok, content} ->
         lines = String.split(content, "\n")
         # Remove the first two lines and get the rest
-        remaining_lines = case lines do
-          [_first, _second | rest] -> rest
-          [_first] -> []
-          [] -> []
-        end
+        remaining_lines =
+          case lines do
+            [_first, _second | rest] -> rest
+            [_first] -> []
+            [] -> []
+          end
 
         # Append to original file
-        content_to_append = case remaining_lines do
-          [] -> ""
-          lines -> "\n" <> Enum.join(lines, "\n")
-        end
+        content_to_append =
+          case remaining_lines do
+            [] -> ""
+            lines -> "\n" <> Enum.join(lines, "\n")
+          end
 
         # Use File.write with :append and :utf8 options to handle Unicode content properly
         case File.write(original_txt_path, content_to_append, [:append, :utf8]) do
@@ -593,7 +667,8 @@ defmodule Autotranscript.VideoProcessor do
           {:error, reason} -> {:error, "Failed to append to original file: #{reason}"}
         end
 
-      {:error, reason} -> {:error, "Failed to read temp txt file: #{reason}"}
+      {:error, reason} ->
+        {:error, "Failed to read temp txt file: #{reason}"}
     end
   end
 
@@ -612,10 +687,12 @@ defmodule Autotranscript.VideoProcessor do
     case get_subtitle_streams(video_path) do
       {:ok, []} ->
         {:ok, :no_subtitles}
+
       {:ok, subtitle_streams} ->
         # Extract the first/default subtitle stream
         first_stream = List.first(subtitle_streams)
         extract_subtitle_stream(video_path, first_stream)
+
       {:error, reason} ->
         {:error, reason}
     end
@@ -633,31 +710,40 @@ defmodule Autotranscript.VideoProcessor do
   """
   def get_subtitle_streams(video_path) do
     ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
+
     case System.cmd(ffprobe_path, [
-      "-v", "error",
-      "-select_streams", "s",
-      "-show_entries", "stream=index,codec_name,codec_type",
-      "-of", "csv=p=0",
-      video_path
-    ]) do
+           "-v",
+           "error",
+           "-select_streams",
+           "s",
+           "-show_entries",
+           "stream=index,codec_name,codec_type",
+           "-of",
+           "csv=p=0",
+           video_path
+         ]) do
       {output, 0} ->
         # Parse the output to get subtitle stream indices
-        streams = output
-                  |> String.trim()
-                  |> String.split("\n", trim: true)
-                  |> Enum.map(fn line ->
-                    case String.split(line, ",") do
-                      [index, _codec_name, "subtitle"] ->
-                        case Integer.parse(index) do
-                          {idx, ""} -> idx
-                          _ -> nil
-                        end
-                      _ -> nil
-                    end
-                  end)
-                  |> Enum.filter(&(&1 != nil))
+        streams =
+          output
+          |> String.trim()
+          |> String.split("\n", trim: true)
+          |> Enum.map(fn line ->
+            case String.split(line, ",") do
+              [index, _codec_name, "subtitle"] ->
+                case Integer.parse(index) do
+                  {idx, ""} -> idx
+                  _ -> nil
+                end
+
+              _ ->
+                nil
+            end
+          end)
+          |> Enum.filter(&(&1 != nil))
 
         {:ok, streams}
+
       {error_output, _exit_code} ->
         {:error, "ffprobe failed: #{error_output}"}
     end
@@ -680,13 +766,17 @@ defmodule Autotranscript.VideoProcessor do
 
     # Extract subtitle to temporary SRT file
     ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+
     case System.cmd(ffmpeg_path, [
-      "-i", video_path,
-      "-map", "0:#{stream_index}",
-      "-c:s", "srt",
-      "-y",
-      temp_srt_path
-    ]) do
+           "-i",
+           video_path,
+           "-map",
+           "0:#{stream_index}",
+           "-c:s",
+           "srt",
+           "-y",
+           temp_srt_path
+         ]) do
       {_output, 0} ->
         # Convert SRT to plain text transcript format
         case convert_srt_to_transcript(temp_srt_path, txt_path) do
@@ -694,10 +784,12 @@ defmodule Autotranscript.VideoProcessor do
             File.rm(temp_srt_path)
             Logger.info("Successfully extracted subtitles from #{video_path}")
             {:ok, :extracted}
+
           {:error, reason} ->
             File.rm(temp_srt_path)
             {:error, reason}
         end
+
       {error_output, _exit_code} ->
         {:error, "ffmpeg subtitle extraction failed: #{error_output}"}
     end
@@ -727,14 +819,25 @@ defmodule Autotranscript.VideoProcessor do
           :ok ->
             # Save source information to meta file
             meta_path = String.replace_trailing(txt_path, ".txt", ".meta")
-            case Autotranscript.MetaFileHandler.update_meta_field(meta_path, "source", "subtitle file") do
-              :ok -> :ok
+
+            case Autotranscript.MetaFileHandler.update_meta_field(
+                   meta_path,
+                   "source",
+                   "subtitle file"
+                 ) do
+              :ok ->
+                :ok
+
               {:error, reason} ->
                 Logger.warning("Failed to update meta file with source: #{inspect(reason)}")
-                :ok  # Still return ok since transcript was written successfully
+                # Still return ok since transcript was written successfully
+                :ok
             end
-          {:error, reason} -> {:error, "Failed to write transcript: #{reason}"}
+
+          {:error, reason} ->
+            {:error, "Failed to write transcript: #{reason}"}
         end
+
       {:error, reason} ->
         {:error, "Failed to read SRT file: #{reason}"}
     end
@@ -742,10 +845,11 @@ defmodule Autotranscript.VideoProcessor do
 
   defp parse_srt_content(content) do
     # Split content into subtitle blocks
-    blocks = content
-             |> String.trim()
-             |> String.split(~r/\n\n+/)
-             |> Enum.filter(&(&1 != ""))
+    blocks =
+      content
+      |> String.trim()
+      |> String.split(~r/\n\n+/)
+      |> Enum.filter(&(&1 != ""))
 
     # Process each block and join with empty lines between entries
     blocks
@@ -755,22 +859,28 @@ defmodule Autotranscript.VideoProcessor do
       case lines do
         [_index, timestamp_line | text_lines] when text_lines != [] ->
           # Extract both start and end times from timestamp line (format: "00:00:00,000 --> 00:00:03,000")
-          case Regex.run(~r/^(\d{2}:\d{2}:\d{2}),(\d{3}) --> (\d{2}:\d{2}:\d{2}),(\d{3})/, timestamp_line) do
+          case Regex.run(
+                 ~r/^(\d{2}:\d{2}:\d{2}),(\d{3}) --> (\d{2}:\d{2}:\d{2}),(\d{3})/,
+                 timestamp_line
+               ) do
             [_, start_time, start_millis, end_time, end_millis] ->
               # Convert to our format with period instead of comma
               start_timestamp = "#{start_time}.#{start_millis}"
               end_timestamp = "#{end_time}.#{end_millis}"
               text = Enum.join(text_lines, " ")
               "#{start_timestamp} --> #{end_timestamp}\n#{text}"
+
             _ ->
               nil
           end
+
         _ ->
           nil
       end
     end)
     |> Enum.filter(&(&1 != nil))
     |> Enum.join("\n\n")
-    |> String.split("\n")  # Split back into lines for consistency with the rest of the code
+    # Split back into lines for consistency with the rest of the code
+    |> String.split("\n")
   end
 end

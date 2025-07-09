@@ -7,7 +7,10 @@ import Config
 config :autotranscript, Autotranscript.Web.Endpoint,
   url: [host: "localhost"],
   http: [ip: {127, 0, 0, 1}, port: 6200],
-  render_errors: [formats: [html: Autotranscript.Web.ErrorView, json: Autotranscript.Web.ErrorView], layout: false],
+  render_errors: [
+    formats: [html: Autotranscript.Web.ErrorView, json: Autotranscript.Web.ErrorView],
+    layout: false
+  ],
   pubsub_server: Autotranscript.PubSub,
   live_view: [signing_salt: "autotranscript-salt"],
   secret_key_base: "autotranscript-secret-key-base-for-development-only-change-in-production"

@@ -68,64 +68,74 @@ defmodule Autotranscript.VideoInfoCache do
       []
     else
       # Get all video files in the watch directory
-      Path.wildcard(Path.join(watch_directory, "**/*.#{PathHelper.video_wildcard_pattern}"))
+      Path.wildcard(Path.join(watch_directory, "**/*.#{PathHelper.video_wildcard_pattern()}"))
       |> Enum.map(fn file_path ->
-      case File.stat(file_path) do
-        {:ok, stat} ->
-          # Get the relative path from watch_directory to the file
-          relative_path = Path.relative_to(file_path, watch_directory)
-          filename = Path.rootname(relative_path)
-          display_name = relative_path
-          txt_path = Path.join(watch_directory, "#{filename}.txt")
+        case File.stat(file_path) do
+          {:ok, stat} ->
+            # Get the relative path from watch_directory to the file
+            relative_path = Path.relative_to(file_path, watch_directory)
+            filename = Path.rootname(relative_path)
+            display_name = relative_path
+            txt_path = Path.join(watch_directory, "#{filename}.txt")
 
-          # Check if transcript exists
-          transcript_exists = File.exists?(txt_path)
-          meta_path = Path.join(watch_directory, "#{filename}.meta")
+            # Check if transcript exists
+            transcript_exists = File.exists?(txt_path)
+            meta_path = Path.join(watch_directory, "#{filename}.meta")
 
-                    # If transcript exists, get line count, last modified time, and source
-          {line_count, last_generated, model} = if transcript_exists do
-            case File.read(txt_path) do
-              {:ok, content} ->
-                lines = String.split(content, "\n")
-                line_count = length(lines)
+            # If transcript exists, get line count, last modified time, and source
+            {line_count, last_generated, model} =
+              if transcript_exists do
+                case File.read(txt_path) do
+                  {:ok, content} ->
+                    lines = String.split(content, "\n")
+                    line_count = length(lines)
 
-                # Get source from meta file
-                source = extract_source_from_meta(meta_path)
+                    # Get source from meta file
+                    source = extract_source_from_meta(meta_path)
 
-                case File.stat(txt_path) do
-                  {:ok, txt_stat} -> {line_count, txt_stat.mtime |> Autotranscript.Web.TranscriptHTML.format_datetime(), source}
-                  {:error, _} -> {line_count, nil, source}
+                    case File.stat(txt_path) do
+                      {:ok, txt_stat} ->
+                        {line_count,
+                         txt_stat.mtime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
+                         source}
+
+                      {:error, _} ->
+                        {line_count, nil, source}
+                    end
+
+                  {:error, _} ->
+                    {0, nil, nil}
                 end
-              {:error, _} -> {0, nil, nil}
-            end
-          else
-            {0, nil, nil}
-          end
+              else
+                {0, nil, nil}
+              end
 
-          # If transcript exists, try to read video length from meta file
-          length = if transcript_exists do
-            case Autotranscript.MetaFileHandler.get_meta_field(meta_path, "length") do
-              {:ok, length_value} -> length_value
-              {:error, _} -> nil
-            end
-          else
+            # If transcript exists, try to read video length from meta file
+            length =
+              if transcript_exists do
+                case Autotranscript.MetaFileHandler.get_meta_field(meta_path, "length") do
+                  {:ok, length_value} -> length_value
+                  {:error, _} -> nil
+                end
+              else
+                nil
+              end
+
+            %{
+              name: display_name,
+              base_name: filename,
+              created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
+              line_count: line_count,
+              full_path: file_path,
+              transcript: transcript_exists,
+              last_generated: last_generated,
+              length: length,
+              model: model
+            }
+
+          {:error, _} ->
             nil
-          end
-
-          %{
-            name: display_name,
-            base_name: filename,
-            created_at: stat.ctime |> Autotranscript.Web.TranscriptHTML.format_datetime(),
-            line_count: line_count,
-            full_path: file_path,
-            transcript: transcript_exists,
-            last_generated: last_generated,
-            length: length,
-            model: model
-          }
-        {:error, _} ->
-          nil
-      end
+        end
       end)
       |> Enum.reject(&is_nil/1)
       |> Enum.sort_by(& &1.created_at, :desc)

@@ -17,6 +17,7 @@ defmodule Autotranscript.MetaFileHandlerTest do
   describe "write_meta_file/2" do
     test "writes a new meta file with multiple fields", %{temp_dir: temp_dir} do
       meta_path = Path.join(temp_dir, "test.meta")
+
       metadata = %{
         "source" => "ggml-base.en",
         "length" => "01:23:45",
@@ -50,11 +51,13 @@ defmodule Autotranscript.MetaFileHandlerTest do
   describe "read_meta_file/1" do
     test "reads a meta file with multiple fields", %{temp_dir: temp_dir} do
       meta_path = Path.join(temp_dir, "test.meta")
+
       content = """
       source: ggml-base.en
       length: 01:23:45
       processed_at: 2024-01-01
       """
+
       File.write!(meta_path, content)
 
       {:ok, metadata} = MetaFileHandler.read_meta_file(meta_path)
@@ -62,8 +65,6 @@ defmodule Autotranscript.MetaFileHandlerTest do
       assert metadata["length"] == "01:23:45"
       assert metadata["processed_at"] == "2024-01-01"
     end
-
-
 
     test "handles empty meta file", %{temp_dir: temp_dir} do
       meta_path = Path.join(temp_dir, "test.meta")
