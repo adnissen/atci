@@ -17,6 +17,8 @@ interface ConfigData {
   whispercli_path: string;
   model_path?: string;
   model_name?: string;
+  ffmpeg_path: string;
+  ffprobe_path: string;
 }
 
 interface Model {
@@ -29,7 +31,9 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
   const [config, setConfig] = useState<ConfigData>({
     watch_directories: [''],
     whispercli_path: '',
-    model_path: ''
+    model_path: '',
+    ffmpeg_path: '',
+    ffprobe_path: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -115,7 +119,9 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
               : [data.config.watch_directory || ''],
             whispercli_path: data.config.whispercli_path || '',
             model_path: data.config.model_path || '',
-            model_name: data.config.model_name || ''
+            model_name: data.config.model_name || '',
+            ffmpeg_path: data.config.ffmpeg_path || '',
+            ffprobe_path: data.config.ffprobe_path || ''
           };
           setConfig(configData);
           
@@ -142,6 +148,8 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
     
     return hasValidDirectories && 
            config.whispercli_path.trim() !== '' && 
+           config.ffmpeg_path.trim() !== '' &&
+           config.ffprobe_path.trim() !== '' &&
            hasModel;
   };
 
@@ -220,7 +228,9 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
     // Prepare submit data based on model selection
     const submitData: any = {
       watch_directories: filteredDirectories,
-      whispercli_path: config.whispercli_path
+      whispercli_path: config.whispercli_path,
+      ffmpeg_path: config.ffmpeg_path,
+      ffprobe_path: config.ffprobe_path
     };
 
     if (modelSelection === 'custom') {
@@ -393,6 +403,42 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
             )}
           </>
         )}
+      </div>
+
+      <div>
+        <label htmlFor="ffmpeg_path" className="block text-sm font-medium text-foreground mb-1">
+          FFmpeg Path
+        </label>
+        <input
+          type="text"
+          id="ffmpeg_path"
+          value={config.ffmpeg_path}
+          onChange={(e) => handleInputChange('ffmpeg_path', e.target.value)}
+          placeholder="/path/to/ffmpeg"
+          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+          required
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Path to the ffmpeg executable (auto-detected if available in PATH)
+        </p>
+      </div>
+
+      <div>
+        <label htmlFor="ffprobe_path" className="block text-sm font-medium text-foreground mb-1">
+          FFprobe Path
+        </label>
+        <input
+          type="text"
+          id="ffprobe_path"
+          value={config.ffprobe_path}
+          onChange={(e) => handleInputChange('ffprobe_path', e.target.value)}
+          placeholder="/path/to/ffprobe"
+          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+          required
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Path to the ffprobe executable (auto-detected if available in PATH)
+        </p>
       </div>
 
       {errors.length > 0 && (

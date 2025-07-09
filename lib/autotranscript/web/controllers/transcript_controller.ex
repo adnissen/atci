@@ -2,7 +2,7 @@ defmodule Autotranscript.Web.TranscriptController do
   use Autotranscript.Web, :controller
   require Logger
 
-  alias Autotranscript.{PathHelper, VideoInfoCache}
+  alias Autotranscript.{PathHelper, VideoInfoCache, ConfigManager}
 
   # Helper function to decode URL-encoded filenames
   def decode_filename(filename) when is_binary(filename) do
@@ -198,7 +198,8 @@ defmodule Autotranscript.Web.TranscriptController do
         temp_frame_path = Path.join(System.tmp_dir(), "random_frame_#{:rand.uniform(10000)}.jpg")
 
         # Use ffmpeg to extract a random frame
-        case System.cmd("ffmpeg", [
+        ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+        case System.cmd(ffmpeg_path, [
           "-i", selected_file,
           "-vf", "select='gte(n\\,1)'",
           "-vframes", "1",
@@ -396,7 +397,8 @@ defmodule Autotranscript.Web.TranscriptController do
             end
 
             # Use ffmpeg to extract a frame at the specified time
-            case System.cmd("ffmpeg", ffmpeg_args) do
+            ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+            case System.cmd(ffmpeg_path, ffmpeg_args) do
               {_output, 0} ->
                 # Successfully extracted frame, serve it
                 case File.read(temp_frame_path) do
@@ -528,7 +530,8 @@ defmodule Autotranscript.Web.TranscriptController do
             end
 
             # Use ffmpeg to extract and convert the video clip to MP4
-            case System.cmd("ffmpeg", ffmpeg_args) do
+            ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+            case System.cmd(ffmpeg_path, ffmpeg_args) do
               {_output, 0} ->
                 # Successfully created clip, serve it
                 case File.read(temp_clip_path) do
@@ -690,7 +693,8 @@ defmodule Autotranscript.Web.TranscriptController do
 
   defp calculate_font_size_for_video(video_path, text_length) do
     # Get video dimensions using ffprobe
-    case System.cmd("ffprobe", [
+    ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
+    case System.cmd(ffprobe_path, [
       "-v", "error",
       "-select_streams", "v:0",
       "-show_entries", "stream=width,height",
