@@ -1,5 +1,4 @@
 import React from 'react';
-import EditDialog from './EditDialog';
 
 interface DualEditDialogProps {
   isOpen: boolean;
@@ -25,22 +24,49 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
   transcriptTargetLineNumber
 }) => {
   const [metaContent, setMetaContent] = React.useState(metaInitialValue);
+  const [transcriptContent, setTranscriptContent] = React.useState(transcriptInitialValue);
   const [isLoadingMeta, setIsLoadingMeta] = React.useState(false);
   const [isSavingMeta, setIsSavingMeta] = React.useState(false);
-  const [transcriptText, setTranscriptText] = React.useState(transcriptInitialValue);
-  const [showTranscriptDialog, setShowTranscriptDialog] = React.useState(false);
-  const [showMetaDialog, setShowMetaDialog] = React.useState(false);
+  const transcriptTextareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   // Reset state when dialog opens/closes
   React.useEffect(() => {
     if (isOpen) {
-      setTranscriptText(transcriptInitialValue);
+      setTranscriptContent(transcriptInitialValue);
       fetchMetaContent();
-    } else {
-      setShowTranscriptDialog(false);
-      setShowMetaDialog(false);
     }
   }, [isOpen, transcriptInitialValue]);
+
+  // Auto-scroll to target line when dialog opens
+  React.useEffect(() => {
+    if (isOpen && transcriptTargetLineNumber && transcriptTextareaRef.current) {
+      // Small delay to ensure the dialog has rendered
+      setTimeout(() => {
+        const textarea = transcriptTextareaRef.current;
+        if (!textarea) return;
+
+        const lines = textarea.value.split('\n');
+        if (transcriptTargetLineNumber <= lines.length) {
+          // Calculate the character position of the target line
+          let characterPosition = 0;
+          for (let i = 0; i < transcriptTargetLineNumber - 1; i++) {
+            characterPosition += lines[i].length + 1; // +1 for newline
+          }
+
+          // Set cursor position to the beginning of the target line
+          textarea.setSelectionRange(characterPosition, characterPosition);
+          textarea.focus();
+
+          // Scroll to the cursor position
+          // Calculate approximate line height and scroll position
+          const lineHeight = textarea.scrollHeight / lines.length;
+          const approximateScrollTop = (transcriptTargetLineNumber - 1) * lineHeight;
+          // Move target line to the middle by adding half the height of the textarea
+          textarea.scrollTop = approximateScrollTop - (textarea.clientHeight / 2);
+        }
+      }, 100);
+    }
+  }, [isOpen, transcriptTargetLineNumber]);
 
   const fetchMetaContent = async () => {
     if (!filename) return;
@@ -63,7 +89,7 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
     }
   };
 
-  const handleMetaSave = async (text: string) => {
+  const handleMetaSave = async () => {
     setIsSavingMeta(true);
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
@@ -74,13 +100,11 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: metaContent }),
       });
 
       if (response.ok) {
-        setMetaContent(text);
-        onMetaSave(text);
-        setShowMetaDialog(false);
+        onMetaSave(metaContent);
       } else {
         const error = await response.json();
         alert(`Error: ${error.error || 'Failed to update meta file'}`);
@@ -93,46 +117,63 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
     }
   };
 
-  const handleTranscriptSave = (text: string) => {
-    onTranscriptSave(text);
-    setShowTranscriptDialog(false);
+  const handleTranscriptSave = () => {
+    onTranscriptSave(transcriptContent);
   };
 
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* Main Dialog */}
-      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="bg-card border border-border p-6 rounded-lg max-w-5xl w-full mx-4">
-          <h3 className="text-lg font-semibold mb-4 text-foreground">Edit Files - {filename}</h3>
-          
-          {/* Transcript Preview Section */}
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-card border border-border rounded-lg max-w-5xl w-full mx-4 max-h-[90vh] flex flex-col">
+        {/* Header with close button */}
+        <div className="flex justify-between items-center p-6 border-b border-border">
+          <h3 className="text-lg font-semibold text-foreground">Edit Files - {filename}</h3>
+          <button
+            onClick={onCancel}
+            className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
+            title="Close"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content area */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {/* Transcript Edit Section */}
           <div className="mb-6">
             <div className="flex justify-between items-center mb-2">
               <h4 className="text-md font-medium text-foreground">Transcript (.txt)</h4>
               <button
-                onClick={() => setShowTranscriptDialog(true)}
-                className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                onClick={handleTranscriptSave}
+                disabled={isTranscriptSubmitting}
+                className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary border border-transparent rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
-                Edit Transcript
+                {isTranscriptSubmitting ? 'Saving...' : 'Save Transcript'}
               </button>
             </div>
-            <div className="w-full h-64 p-3 border border-input bg-background text-foreground rounded-md font-mono text-sm leading-6 overflow-y-auto">
-              <pre className="whitespace-pre-wrap">{transcriptText || 'No transcript content'}</pre>
-            </div>
+            <textarea
+              ref={transcriptTextareaRef}
+              value={transcriptContent}
+              onChange={(e) => setTranscriptContent(e.target.value)}
+              className="w-full h-64 p-3 border border-input bg-background text-foreground rounded-md font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+              placeholder="Enter transcript content..."
+              readOnly={isTranscriptSubmitting}
+            />
           </div>
           
-          {/* Meta File Preview Section */}
+          {/* Meta File Edit Section */}
           <div className="mb-4">
             <div className="flex justify-between items-center mb-2">
               <h4 className="text-md font-medium text-foreground">Meta File (.meta)</h4>
               <button
-                onClick={() => setShowMetaDialog(true)}
-                disabled={isLoadingMeta}
-                className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                onClick={handleMetaSave}
+                disabled={isSavingMeta || isLoadingMeta}
+                className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary border border-transparent rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
-                Edit Meta
+                {isSavingMeta ? 'Saving...' : 'Save Meta'}
               </button>
             </div>
             {isLoadingMeta ? (
@@ -140,49 +181,18 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
                 <span className="text-muted-foreground">Loading meta file...</span>
               </div>
             ) : (
-              <div className="w-full h-32 p-3 border border-input bg-background text-foreground rounded-md font-mono text-sm leading-6 overflow-y-auto">
-                <pre className="whitespace-pre-wrap">{metaContent || 'No meta content'}</pre>
-              </div>
+              <textarea
+                value={metaContent}
+                onChange={(e) => setMetaContent(e.target.value)}
+                className="w-full h-32 p-3 border border-input bg-background text-foreground rounded-md font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                placeholder="Enter meta file content (key: value format)..."
+                readOnly={isSavingMeta}
+              />
             )}
-          </div>
-          
-          {/* Close Button */}
-          <div className="flex justify-end">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary border border-input rounded-md hover:bg-secondary/80 transition-colors"
-            >
-              Close
-            </button>
           </div>
         </div>
       </div>
-
-      {/* Transcript Edit Dialog */}
-      <EditDialog
-        isOpen={showTranscriptDialog}
-        title={`Edit Transcript - ${filename}`}
-        initialValue={transcriptText}
-        onSave={handleTranscriptSave}
-        onCancel={() => setShowTranscriptDialog(false)}
-        isSubmitting={isTranscriptSubmitting}
-        placeholder="Enter transcript content..."
-        isLargeMode={true}
-        targetLineNumber={transcriptTargetLineNumber}
-      />
-
-      {/* Meta File Edit Dialog */}
-      <EditDialog
-        isOpen={showMetaDialog}
-        title={`Edit Meta File - ${filename}`}
-        initialValue={metaContent}
-        onSave={handleMetaSave}
-        onCancel={() => setShowMetaDialog(false)}
-        isSubmitting={isSavingMeta}
-        placeholder="Enter meta file content (key: value format)..."
-        className="h-48"
-      />
-    </>
+    </div>
   );
 };
 
