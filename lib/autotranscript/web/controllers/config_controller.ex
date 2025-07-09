@@ -1,26 +1,26 @@
 defmodule Autotranscript.Web.ConfigController do
   use Autotranscript.Web, :controller
   require Logger
-  
+
   alias Autotranscript.ConfigManager
-  
+
   @doc """
   Returns the current configuration status and values.
   """
   def show(conn, _params) do
     config = ConfigManager.get_config()
     is_complete = ConfigManager.config_complete?(config)
-    
+
     response = %{
       config: config,
       is_complete: is_complete
     }
-    
+
     conn
     |> put_resp_content_type("application/json")
     |> send_resp(200, Jason.encode!(response))
   end
-  
+
   @doc """
   Updates the configuration with new values.
   """
@@ -30,9 +30,11 @@ defmodule Autotranscript.Web.ConfigController do
       "watch_directories" => extract_watch_directories(params),
       "whispercli_path" => params["whispercli_path"],
       "model_path" => params["model_path"],
-      "model_name" => params["model_name"]
+      "model_name" => params["model_name"],
+      "ffmpeg_path" => params["ffmpeg_path"],
+      "ffprobe_path" => params["ffprobe_path"]
     }
-    
+
     # Validate the parameters
     case validate_config(config_params) do
         {:ok, validated_config} ->
@@ -45,7 +47,7 @@ defmodule Autotranscript.Web.ConfigController do
                 {:error, reason} ->
                   Logger.warning("Could not start directory watching: #{inspect(reason)}")
               end
-              
+
               conn
               |> put_resp_content_type("application/json")
               |> send_resp(200, Jason.encode!(%{
@@ -73,27 +75,27 @@ defmodule Autotranscript.Web.ConfigController do
         }))
     end
   end
-  
+
   # Extract watch directories with backward compatibility
   defp extract_watch_directories(params) do
     cond do
       # New format: watch_directories as array
       is_list(params["watch_directories"]) ->
         params["watch_directories"]
-      
+
       # Backward compatibility: single watch_directory
       is_binary(params["watch_directory"]) and params["watch_directory"] != "" ->
         [params["watch_directory"]]
-      
+
       # Default to empty list
       true ->
         []
     end
   end
-  
+
   defp validate_config(config) do
     errors = []
-    
+
     # Validate watch_directories
     errors = case config["watch_directories"] do
       nil -> ["watch_directories is required" | errors]
@@ -102,7 +104,7 @@ defmodule Autotranscript.Web.ConfigController do
         validate_watch_directories(directories, errors)
       _ -> ["watch_directories must be a list" | errors]
     end
-    
+
     # Validate whispercli_path
     errors = case config["whispercli_path"] do
       nil -> ["whispercli_path is required" | errors]
@@ -115,7 +117,7 @@ defmodule Autotranscript.Web.ConfigController do
         end
       _ -> ["whispercli_path must be a string" | errors]
     end
-    
+
     # Validate model configuration - either model_path or model_name must be provided
     errors = case {config["model_path"], config["model_name"]} do
       {nil, nil} -> ["Either model_path or model_name is required" | errors]
@@ -139,18 +141,44 @@ defmodule Autotranscript.Web.ConfigController do
         end
       _ -> ["Invalid model configuration" | errors]
     end
-    
+
+    # Validate ffmpeg_path
+    errors = case config["ffmpeg_path"] do
+      nil -> ["ffmpeg_path is required" | errors]
+      "" -> ["ffmpeg_path cannot be empty" | errors]
+      path when is_binary(path) ->
+        if File.exists?(path) do
+          errors
+        else
+          ["ffmpeg_path must be a valid file path" | errors]
+        end
+      _ -> ["ffmpeg_path must be a string" | errors]
+    end
+
+    # Validate ffprobe_path
+    errors = case config["ffprobe_path"] do
+      nil -> ["ffprobe_path is required" | errors]
+      "" -> ["ffprobe_path cannot be empty" | errors]
+      path when is_binary(path) ->
+        if File.exists?(path) do
+          errors
+        else
+          ["ffprobe_path must be a valid file path" | errors]
+        end
+      _ -> ["ffprobe_path must be a string" | errors]
+    end
+
     # Filter out nil values from config before returning
     cleaned_config = config
     |> Enum.filter(fn {_k, v} -> v != nil and v != "" end)
     |> Enum.into(%{})
-    
+
     case errors do
       [] -> {:ok, cleaned_config}
       _ -> {:error, Enum.reverse(errors)}
     end
   end
-  
+
   defp validate_watch_directories(directories, errors) do
     # Check if all directories are valid strings and exist
     string_errors = Enum.reduce(directories, errors, fn dir, acc ->
@@ -165,20 +193,20 @@ defmodule Autotranscript.Web.ConfigController do
           ["all watch_directories must be non-empty strings" | acc]
       end
     end)
-    
+
     # Check for subdirectories
     subdirectory_errors = if has_subdirectories?(directories) do
       ["watch_directories cannot contain subdirectories of other watch directories" | string_errors]
     else
       string_errors
     end
-    
+
     subdirectory_errors
   end
-  
+
   defp has_subdirectories?(directories) when is_list(directories) do
     normalized_dirs = Enum.map(directories, &Path.expand/1)
-    
+
     # Check each directory against every other directory
     Enum.any?(normalized_dirs, fn dir1 ->
       Enum.any?(normalized_dirs, fn dir2 ->

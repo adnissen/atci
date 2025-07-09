@@ -37,7 +37,6 @@ defmodule Autotranscript.ConfigManager do
   def save_config(config) when is_map(config) do
     GenServer.call(:config_manager, {:save_config, config})
   end
-
   @doc """
   Checks if the configuration is complete.
 
@@ -69,7 +68,7 @@ defmodule Autotranscript.ConfigManager do
       {"", nil} -> false
       {nil, ""} -> false
       {path, _} when is_binary(path) and path != "" -> File.exists?(path)
-      {_, name} when is_binary(name) and name != "" -> 
+      {_, name} when is_binary(name) and name != "" ->
         # Check if the model is downloaded
         model_path = Path.join([Path.expand("~/.autotranscript/models"), "#{name}.bin"])
         File.exists?(model_path)
@@ -102,7 +101,7 @@ defmodule Autotranscript.ConfigManager do
   def get_effective_model_path do
     config = get_config()
     case {Map.get(config, "model_path"), Map.get(config, "model_name")} do
-      {path, _} when is_binary(path) and path != "" -> 
+      {path, _} when is_binary(path) and path != "" ->
         # Use the explicit path if provided
         path
       {_, name} when is_binary(name) and name != "" ->
@@ -118,16 +117,6 @@ defmodule Autotranscript.ConfigManager do
   @impl true
   def init(_args) do
     config = load_config_from_file()
-    
-    # Auto-detect ffmpeg and ffprobe if not configured
-    config = auto_detect_executables(config)
-    
-    # Save config if executables were auto-detected
-    if Map.get(config, "ffmpeg_path") != Map.get(load_config_from_file(), "ffmpeg_path") or
-       Map.get(config, "ffprobe_path") != Map.get(load_config_from_file(), "ffprobe_path") do
-      save_config_to_file(config)
-    end
-    
     Logger.info("ConfigManager started with config keys: #{inspect(Map.keys(config))}")
     {:ok, config}
   end
@@ -149,7 +138,7 @@ defmodule Autotranscript.ConfigManager do
       "model_path" ->
         # Return the effective model path
         case {Map.get(state, "model_path"), Map.get(state, "model_name")} do
-          {path, _} when is_binary(path) and path != "" -> 
+          {path, _} when is_binary(path) and path != "" ->
             path
           {_, name} when is_binary(name) and name != "" ->
             Path.join([Path.expand("~/.autotranscript/models"), "#{name}.bin"])
@@ -201,7 +190,7 @@ defmodule Autotranscript.ConfigManager do
 
   defp has_subdirectories?(directories) when is_list(directories) do
     normalized_dirs = Enum.map(directories, &Path.expand/1)
-    
+
     # Check each directory against every other directory
     Enum.any?(normalized_dirs, fn dir1 ->
       Enum.any?(normalized_dirs, fn dir2 ->
@@ -272,40 +261,6 @@ defmodule Autotranscript.ConfigManager do
       {:ok, home_dir_config}
     else
       {:error, :not_found}
-    end
-  end
-
-  defp auto_detect_executables(config) do
-    config
-    |> auto_detect_executable("ffmpeg_path", "ffmpeg")
-    |> auto_detect_executable("ffprobe_path", "ffprobe")
-  end
-  
-  defp auto_detect_executable(config, config_key, executable_name) do
-    case Map.get(config, config_key) do
-      nil ->
-        detect_and_set_executable(config, config_key, executable_name)
-      "" ->
-        detect_and_set_executable(config, config_key, executable_name)
-      existing_path ->
-        # Verify the existing path is still valid
-        if File.exists?(existing_path) do
-          config
-        else
-          Logger.warning("Configured #{executable_name} path no longer exists: #{existing_path}")
-          detect_and_set_executable(config, config_key, executable_name)
-        end
-    end
-  end
-  
-  defp detect_and_set_executable(config, config_key, executable_name) do
-    case System.find_executable(executable_name) do
-      nil ->
-        Logger.warning("#{executable_name} not found in PATH")
-        config
-      path ->
-        Logger.info("Auto-detected #{executable_name} at: #{path}")
-        Map.put(config, config_key, path)
     end
   end
 end
