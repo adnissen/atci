@@ -48,6 +48,10 @@ defmodule Autotranscript.Web.Router do
     post "/transcripts/:filename/regenerate_meta", TranscriptController, :regenerate_meta
     post "/transcripts/:filename/partial_reprocess", TranscriptController, :partial_reprocess
     post "/transcripts/:filename/set_line", TranscriptController, :set_line
+    
+    # Meta file routes
+    get "/transcripts/:filename/meta", TranscriptController, :get_meta_file
+    post "/transcripts/:filename/meta", TranscriptController, :set_meta_file
 
     get "/grep/:text", TranscriptController, :grep
     get "/player/:filename", TranscriptController, :player

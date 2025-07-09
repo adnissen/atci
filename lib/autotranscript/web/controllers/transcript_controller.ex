@@ -849,4 +849,102 @@ defmodule Autotranscript.Web.TranscriptController do
       end
     end
   end
+
+  def get_meta_file(conn, %{"filename" => filename}) do
+    decoded_filename = decode_filename(filename)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("application/json")
+      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+    else
+      # Find the video file first
+      video_file = PathHelper.find_video_file(watch_directory, decoded_filename)
+      
+      case video_file do
+        nil ->
+          conn
+          |> put_status(:not_found)
+          |> put_resp_content_type("application/json")
+          |> send_resp(404, Jason.encode!(%{error: "Video file '#{decoded_filename}' not found"}))
+          
+        file_path ->
+          # Get the meta file path
+          meta_path = PathHelper.replace_video_extension_with(file_path, ".meta")
+          
+          # Read the meta file content as raw text
+          case File.read(meta_path) do
+            {:ok, content} ->
+              conn
+              |> put_resp_content_type("application/json")
+              |> send_resp(200, Jason.encode!(%{content: content}))
+              
+            {:error, :enoent} ->
+              # Meta file doesn't exist, return empty content
+              conn
+              |> put_resp_content_type("application/json")
+              |> send_resp(200, Jason.encode!(%{content: ""}))
+              
+            {:error, reason} ->
+              conn
+              |> put_status(:internal_server_error)
+              |> put_resp_content_type("application/json")
+              |> send_resp(500, Jason.encode!(%{error: "Error reading meta file: #{reason}"}))
+          end
+      end
+    end
+  end
+  
+  def set_meta_file(conn, %{"filename" => filename}) do
+    decoded_filename = decode_filename(filename)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("application/json")
+      |> send_resp(503, Jason.encode!(%{error: "Watch directory not configured. Please configure the application first."}))
+    else
+      case conn.body_params do
+        %{"content" => content} ->
+          # Find the video file first
+          video_file = PathHelper.find_video_file(watch_directory, decoded_filename)
+          
+          case video_file do
+            nil ->
+              conn
+              |> put_status(:not_found)
+              |> put_resp_content_type("application/json")
+              |> send_resp(404, Jason.encode!(%{error: "Video file '#{decoded_filename}' not found"}))
+              
+            file_path ->
+              # Get the meta file path
+              meta_path = PathHelper.replace_video_extension_with(file_path, ".meta")
+              
+              # Write the content to the meta file
+              case File.write(meta_path, content, [:utf8]) do
+                :ok ->
+                  VideoInfoCache.update_video_info_cache()
+                  conn
+                  |> put_resp_content_type("application/json")
+                  |> send_resp(200, Jason.encode!(%{message: "Meta file '#{decoded_filename}.meta' updated successfully"}))
+                  
+                {:error, reason} ->
+                  conn
+                  |> put_status(:internal_server_error)
+                  |> put_resp_content_type("application/json")
+                  |> send_resp(500, Jason.encode!(%{error: "Error updating meta file '#{decoded_filename}.meta': #{reason}"}))
+              end
+          end
+          
+        _ ->
+          conn
+          |> put_status(:bad_request)
+          |> put_resp_content_type("application/json")
+          |> send_resp(400, Jason.encode!(%{error: "Missing required 'content' field in request body"}))
+      end
+    end
+  end
 end

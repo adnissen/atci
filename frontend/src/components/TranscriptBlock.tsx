@@ -1,6 +1,6 @@
 import React from 'react';
 import { Edit2 } from 'lucide-react';
-import EditDialog from './EditDialog';
+import DualEditDialog from './DualEditDialog';
 
 interface TranscriptBlockProps {
   startTime?: string;
@@ -311,29 +311,29 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
       
       
       {/* Edit Dialog for Content */}
-      <EditDialog
+      <DualEditDialog
         isOpen={isEditing}
-        title={`Edit Transcript - ${name}`}
-        initialValue={fullTranscript}
-        onSave={handleSaveEdit}
+        filename={name}
+        transcriptInitialValue={fullTranscript}
+        metaInitialValue=""
+        onTranscriptSave={handleSaveEdit}
+        onMetaSave={() => {}}
         onCancel={handleCancelEdit}
-        isSubmitting={isSubmitting}
-        placeholder="Enter transcript content..."
-        isLargeMode={true}
-        targetLineNumber={contentLineNumber}
+        isTranscriptSubmitting={isSubmitting}
+        transcriptTargetLineNumber={contentLineNumber}
       />
 
       {/* Edit Dialog for Timestamp */}
-      <EditDialog
+      <DualEditDialog
         isOpen={isEditingTimestamp}
-        title={`Edit Transcript - ${name}`}
-        initialValue={fullTranscript}
-        onSave={handleSaveTimestampEdit}
+        filename={name}
+        transcriptInitialValue={fullTranscript}
+        metaInitialValue=""
+        onTranscriptSave={handleSaveTimestampEdit}
+        onMetaSave={() => {}}
         onCancel={handleCancelTimestampEdit}
-        isSubmitting={isSubmitting}
-        placeholder="Enter transcript content..."
-        isLargeMode={true}
-        targetLineNumber={timestampLineNumber}
+        isTranscriptSubmitting={isSubmitting}
+        transcriptTargetLineNumber={timestampLineNumber}
       />
     </div>
   );
