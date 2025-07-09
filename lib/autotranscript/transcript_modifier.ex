@@ -1,13 +1,12 @@
 defmodule Autotranscript.TranscriptModifier do
   @moduledoc """
-  Utility module for modifying transcript files.
+  Utility module for modifying transcript files and updating source metadata.
   """
 
   require Logger
 
   @doc """
-  Modifies a transcript file by removing the first line and adding a new line
-  at the start with "model: " followed by the model filename (without extension).
+  Adds source information to the meta file for a transcript.
 
   ## Parameters
     - transcript_path: String path to the transcript file
@@ -17,19 +16,17 @@ defmodule Autotranscript.TranscriptModifier do
     - {:error, reason} if there was an error
 
   ## Examples
-      iex> Autotranscript.TranscriptModifier.modify_transcript_file("/path/to/transcript.txt")
+      iex> Autotranscript.TranscriptModifier.add_source_to_meta("/path/to/transcript.txt")
       :ok
   """
-  def modify_transcript_file(transcript_path) do
+  def add_source_to_meta(transcript_path) do
     with {:ok, model_filename} <- get_model_filename(),
-         {:ok, content} <- File.read(transcript_path),
-         {:ok, modified_content} <- modify_content(content, model_filename),
-         :ok <- File.write(transcript_path, modified_content, [:utf8]) do
-      Logger.info("Successfully modified transcript file: #{transcript_path}")
+         :ok <- update_meta_file_source(transcript_path, model_filename) do
+      Logger.info("Successfully updated meta file for: #{transcript_path}")
       :ok
     else
       {:error, reason} ->
-        Logger.error("Failed to modify transcript file #{transcript_path}: #{inspect(reason)}")
+        Logger.error("Failed to update meta file for #{transcript_path}: #{inspect(reason)}")
         {:error, reason}
     end
   end
@@ -55,28 +52,14 @@ defmodule Autotranscript.TranscriptModifier do
     end
   end
 
-  @doc """
-  Modifies the content by removing the first line and adding the model line.
+  defp update_meta_file_source(transcript_path, model_filename) do
+    meta_path = String.replace_trailing(transcript_path, ".txt", ".meta")
 
-  ## Parameters
-    - content: String content of the transcript file
-    - model_filename: String filename of the model (without extension)
-
-  ## Returns
-    - {:ok, modified_content} if successful
-    - {:error, reason} if there was an error
-  """
-  def modify_content(content, model_filename) do
-    lines = String.split(content, "\n")
-
-    case lines do
-      [] ->
-        # Empty file, just add the model line
-        {:ok, "model: #{model_filename}\n"}
-      [_first_line | rest] ->
-        # Remove first line and add model line at the beginning
-        new_lines = ["model: #{model_filename}" | rest]
-        {:ok, Enum.join(new_lines, "\n")}
+    case Autotranscript.MetaFileHandler.update_meta_field(meta_path, "source", model_filename) do
+      :ok -> :ok
+      {:error, reason} ->
+        Logger.warning("Failed to update meta file with source: #{inspect(reason)}")
+        :ok  # Still return ok since transcript was modified successfully
     end
   end
 end

@@ -51,18 +51,11 @@ defmodule Autotranscript.VideoInfoCache do
     {:noreply, %{state | video_files: video_files}}
   end
 
-  # Helper function to extract model name from transcript content
-  defp extract_model_from_transcript(content) do
-    # Look for the first line that starts with "model: "
-    case String.split(content, "\n", parts: 2) do
-      [first_line | _] ->
-        if String.starts_with?(first_line, "model: ") do
-          String.replace_prefix(first_line, "model: ", "") |> String.trim()
-        else
-          nil
-        end
-      _ ->
-        nil
+  # Helper function to extract source name from meta file
+  defp extract_source_from_meta(meta_path) do
+    case Autotranscript.MetaFileHandler.get_meta_field(meta_path, "source") do
+      {:ok, source} -> source
+      {:error, _} -> nil
     end
   end
 
@@ -87,17 +80,21 @@ defmodule Autotranscript.VideoInfoCache do
 
           # Check if transcript exists
           transcript_exists = File.exists?(txt_path)
+          meta_path = Path.join(watch_directory, "#{filename}.meta")
 
-          # If transcript exists, get line count, last modified time, and model
+                    # If transcript exists, get line count, last modified time, and source
           {line_count, last_generated, model} = if transcript_exists do
             case File.read(txt_path) do
               {:ok, content} ->
                 lines = String.split(content, "\n")
                 line_count = length(lines)
-                model_name = extract_model_from_transcript(content)
+
+                # Get source from meta file
+                source = extract_source_from_meta(meta_path)
+
                 case File.stat(txt_path) do
-                  {:ok, txt_stat} -> {line_count, txt_stat.mtime |> Autotranscript.Web.TranscriptHTML.format_datetime(), model_name}
-                  {:error, _} -> {line_count, nil, model_name}
+                  {:ok, txt_stat} -> {line_count, txt_stat.mtime |> Autotranscript.Web.TranscriptHTML.format_datetime(), source}
+                  {:error, _} -> {line_count, nil, source}
                 end
               {:error, _} -> {0, nil, nil}
             end
@@ -107,9 +104,8 @@ defmodule Autotranscript.VideoInfoCache do
 
           # If transcript exists, try to read video length from meta file
           length = if transcript_exists do
-            meta_path = Path.join(watch_directory, "#{filename}.meta")
-            case File.read(meta_path) do
-              {:ok, length_content} -> String.trim(length_content)
+            case Autotranscript.MetaFileHandler.get_meta_field(meta_path, "length") do
+              {:ok, length_value} -> length_value
               {:error, _} -> nil
             end
           else

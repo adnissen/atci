@@ -229,7 +229,7 @@ defmodule Autotranscript.VideoProcessor do
           File.rename(path <> ".vtt", txt_path)
 
           # Modify the transcript file to add model information
-          case TranscriptModifier.modify_transcript_file(txt_path) do
+          case TranscriptModifier.add_source_to_meta(txt_path) do
             :ok ->
               Logger.info("Transcript file modified successfully: #{txt_path}")
             {:error, reason} ->
@@ -286,7 +286,8 @@ defmodule Autotranscript.VideoProcessor do
         {:ok, length} ->
           meta_path = PathHelper.replace_video_extension_with(video_path, ".meta")
 
-          case File.write(meta_path, length) do
+          # Use MetaFileHandler to update the length field
+          case Autotranscript.MetaFileHandler.update_meta_field(meta_path, "length", length) do
             :ok ->
               Logger.info("Saved video length #{length} to #{meta_path}")
               :ok
@@ -712,12 +713,19 @@ defmodule Autotranscript.VideoProcessor do
         # Parse SRT format and convert to transcript format
         transcript_lines = parse_srt_content(content)
 
-        # Add "model: subtitle file" at the beginning
-        final_content = ["model: subtitle file" | transcript_lines]
-                        |> Enum.join("\n")
+        # Write transcript without the model line
+        final_content = Enum.join(transcript_lines, "\n")
 
         case File.write(txt_path, final_content, [:utf8]) do
-          :ok -> :ok
+          :ok ->
+            # Save source information to meta file
+            meta_path = String.replace_trailing(txt_path, ".txt", ".meta")
+            case Autotranscript.MetaFileHandler.update_meta_field(meta_path, "source", "subtitle file") do
+              :ok -> :ok
+              {:error, reason} ->
+                Logger.warning("Failed to update meta file with source: #{inspect(reason)}")
+                :ok  # Still return ok since transcript was written successfully
+            end
           {:error, reason} -> {:error, "Failed to write transcript: #{reason}"}
         end
       {:error, reason} ->
@@ -732,8 +740,9 @@ defmodule Autotranscript.VideoProcessor do
              |> String.split(~r/\n\n+/)
              |> Enum.filter(&(&1 != ""))
 
-    # Process each block
-    Enum.flat_map(blocks, fn block ->
+    # Process each block and join with empty lines between entries
+    blocks
+    |> Enum.map(fn block ->
       lines = String.split(block, "\n")
 
       case lines do
@@ -745,13 +754,16 @@ defmodule Autotranscript.VideoProcessor do
               start_timestamp = "#{start_time}.#{start_millis}"
               end_timestamp = "#{end_time}.#{end_millis}"
               text = Enum.join(text_lines, " ")
-              ["#{start_timestamp} --> #{end_timestamp}", text, ""]
+              "#{start_timestamp} --> #{end_timestamp}\n#{text}"
             _ ->
-              []
+              nil
           end
         _ ->
-          []
+          nil
       end
     end)
+    |> Enum.filter(&(&1 != nil))
+    |> Enum.join("\n\n")
+    |> String.split("\n")  # Split back into lines for consistency with the rest of the code
   end
 end
