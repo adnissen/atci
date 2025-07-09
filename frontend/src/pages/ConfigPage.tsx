@@ -351,7 +351,7 @@ export default function ConfigPage() {
                       </button>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Directories to monitor for MP4 video files. At least one directory is required.
+                      Directories to monitor for video files. At least one directory is required.
                     </p>
                   </div>
 
@@ -510,15 +510,6 @@ export default function ConfigPage() {
                       className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSubmitting ? 'Saving...' : 'Save'}
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={() => handleSave(true)}
-                      disabled={isSubmitting || !hasAllConfigValues()}
-                      className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSubmitting ? 'Saving...' : 'Save and Close'}
                     </button>
                   </div>
                 </form>

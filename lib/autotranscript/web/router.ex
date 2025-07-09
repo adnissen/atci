@@ -42,13 +42,14 @@ defmodule Autotranscript.Web.Router do
     get "/", PageController, :index
 
     get "/app", TranscriptController, :index
+    get "/app/*path", TranscriptController, :index
     get "/transcripts/:filename", TranscriptController, :show
     post "/transcripts/:filename/replace", TranscriptController, :replace_transcript
     post "/transcripts/:filename/regenerate", TranscriptController, :regenerate
     post "/transcripts/:filename/regenerate_meta", TranscriptController, :regenerate_meta
     post "/transcripts/:filename/partial_reprocess", TranscriptController, :partial_reprocess
     post "/transcripts/:filename/set_line", TranscriptController, :set_line
-    
+
     # Meta file routes
     get "/transcripts/:filename/meta", TranscriptController, :get_meta_file
     post "/transcripts/:filename/meta", TranscriptController, :set_meta_file

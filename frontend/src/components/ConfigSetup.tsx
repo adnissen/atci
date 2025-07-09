@@ -316,7 +316,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
           </button>
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Directories to monitor for MP4 video files. At least one directory is required.
+          Directories to monitor for video files. At least one directory is required.
         </p>
       </div>
 

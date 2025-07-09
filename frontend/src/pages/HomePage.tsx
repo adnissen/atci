@@ -507,7 +507,7 @@ export default function HomePage() {
       const response = await fetch('/files')
       if (response.ok) {
         const data = await response.json()
-        setFiles(data.files || [])
+        setFiles(data || [])
       }
     } catch (error) {
       console.error('Error refreshing files:', error)
@@ -716,16 +716,14 @@ export default function HomePage() {
             <div className="flex gap-6 justify-between items-center">
               <div className="flex gap-6 items-center flex-1">
                 <div className="flex gap-2 items-center">
-                  <div className="text-sm text-foreground font-medium text-left">
-                    Directory: {watchDirectory}
-                  </div>
                   <button
                     onClick={() => navigate('/config')}
-                    className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
+                    className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors group"
                     title="Edit configuration"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <svg className="w-4 h-4 group-hover:animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11a2 2 0 100-4 2 2 0 000 4z" />
                     </svg>
                   </button>
                 </div>
