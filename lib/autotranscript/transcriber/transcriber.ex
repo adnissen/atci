@@ -123,6 +123,7 @@ defmodule Autotranscript.Transcriber do
       has_timer: state.timer_ref != nil,
       has_config_timer: state.config_timer_ref != nil
     }
+
     {:reply, status, state}
   end
 
@@ -138,7 +139,6 @@ defmodule Autotranscript.Transcriber do
   end
 
   defp do_check_for_videos(directory) do
-
     current_time = System.system_time(:second)
 
     Path.wildcard(Path.join(directory, "**/*.#{PathHelper.video_wildcard_pattern()}"))
@@ -150,6 +150,7 @@ defmodule Autotranscript.Transcriber do
             if current_time - mtime >= 3 do
               Autotranscript.VideoProcessor.add_to_queue(video_path, :all)
             end
+
           {:error, _reason} ->
             # If we can't get file stats, skip this file
             Logger.warning("Could not get file stats for #{video_path}")
@@ -172,15 +173,18 @@ defmodule Autotranscript.Transcriber do
       nil ->
         Logger.warning("Watch directory not configured")
         {:ok, nil}
+
       "" ->
         Logger.warning("Watch directory is empty")
         {:ok, nil}
+
       _ ->
         case File.dir?(directory) do
           true ->
             Logger.info("Watching: #{directory} (checking every 2 seconds)")
             timer_ref = Process.send_after(self(), :check_directory, 2000)
             {:ok, timer_ref}
+
           false ->
             Logger.error("Watch directory does not exist: #{directory}")
             {:error, :invalid_directory}

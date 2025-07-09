@@ -42,12 +42,16 @@ defmodule Autotranscript.TranscriptModifier do
     case Autotranscript.ConfigManager.get_config_value("model_path") do
       nil ->
         {:error, "model_path not configured"}
+
       "" ->
         {:error, "model_path is empty"}
+
       model_path ->
-        filename = model_path
-                  |> Path.basename()
-                  |> Path.rootname()
+        filename =
+          model_path
+          |> Path.basename()
+          |> Path.rootname()
+
         {:ok, filename}
     end
   end
@@ -56,10 +60,13 @@ defmodule Autotranscript.TranscriptModifier do
     meta_path = String.replace_trailing(transcript_path, ".txt", ".meta")
 
     case Autotranscript.MetaFileHandler.update_meta_field(meta_path, "source", model_filename) do
-      :ok -> :ok
+      :ok ->
+        :ok
+
       {:error, reason} ->
         Logger.warning("Failed to update meta file with source: #{inspect(reason)}")
-        :ok  # Still return ok since transcript was modified successfully
+        # Still return ok since transcript was modified successfully
+        :ok
     end
   end
 end

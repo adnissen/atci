@@ -3,7 +3,7 @@ defmodule Autotranscript.Web.Plugs.DynamicStatic do
   A plug that dynamically serves static files from the watch directory
   configured in ConfigManager.
   """
-alias Autotranscript.PathHelper
+  alias Autotranscript.PathHelper
   import Plug.Conn
   require Logger
   require Record
@@ -16,6 +16,7 @@ alias Autotranscript.PathHelper
     case Autotranscript.ConfigManager.get_config_value("watch_directory") do
       nil ->
         Logger.warning("Watch directory not configured, cannot serve files")
+
         conn
         |> send_resp(404, "Not Found")
         |> halt()
@@ -24,21 +25,22 @@ alias Autotranscript.PathHelper
         file_path = Path.join([watch_directory] ++ path)
         decoded_path = Autotranscript.Web.TranscriptController.decode_filename(file_path)
         # If no extension, try all video extensions
-        paths_to_try = if Path.extname(decoded_path) == "" do
-          Enum.map(PathHelper.video_extensions(), fn ext ->
-            decoded_path <> "." <> ext
-          end)
-        else
-          [decoded_path]
-        end
+        paths_to_try =
+          if Path.extname(decoded_path) == "" do
+            Enum.map(PathHelper.video_extensions(), fn ext ->
+              decoded_path <> "." <> ext
+            end)
+          else
+            [decoded_path]
+          end
 
         # Try each possible path
         case Enum.find_value(paths_to_try, fn path ->
-          case :prim_file.read_file_info(path) do
-            {:ok, file_info(type: :regular) = file_info} -> {path, file_info}
-            _ -> nil
-          end
-        end) do
+               case :prim_file.read_file_info(path) do
+                 {:ok, file_info(type: :regular) = file_info} -> {path, file_info}
+                 _ -> nil
+               end
+             end) do
           {found_path, file_info} ->
             # Get range header if present
             range = get_req_header(conn, "range")

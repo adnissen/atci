@@ -37,42 +37,54 @@ defmodule Autotranscript.Web.ConfigController do
 
     # Validate the parameters
     case validate_config(config_params) do
-        {:ok, validated_config} ->
-          case ConfigManager.save_config(validated_config) do
-            {:ok, _config_path} ->
-              # Try to start directory watching now that configuration is available
-              case Autotranscript.Transcriber.start_watching() do
-                :ok ->
-                  Logger.info("Directory watching started after configuration update")
-                {:error, reason} ->
-                  Logger.warning("Could not start directory watching: #{inspect(reason)}")
-              end
+      {:ok, validated_config} ->
+        case ConfigManager.save_config(validated_config) do
+          {:ok, _config_path} ->
+            # Try to start directory watching now that configuration is available
+            case Autotranscript.Transcriber.start_watching() do
+              :ok ->
+                Logger.info("Directory watching started after configuration update")
 
-              conn
-              |> put_resp_content_type("application/json")
-              |> send_resp(200, Jason.encode!(%{
+              {:error, reason} ->
+                Logger.warning("Could not start directory watching: #{inspect(reason)}")
+            end
+
+            conn
+            |> put_resp_content_type("application/json")
+            |> send_resp(
+              200,
+              Jason.encode!(%{
                 success: true,
                 message: "Configuration saved successfully",
                 config: validated_config
-              }))
-            {:error, reason} ->
-              conn
-              |> put_status(:internal_server_error)
-              |> put_resp_content_type("application/json")
-              |> send_resp(500, Jason.encode!(%{
+              })
+            )
+
+          {:error, reason} ->
+            conn
+            |> put_status(:internal_server_error)
+            |> put_resp_content_type("application/json")
+            |> send_resp(
+              500,
+              Jason.encode!(%{
                 success: false,
                 message: "Failed to save configuration: #{inspect(reason)}"
-              }))
-          end
+              })
+            )
+        end
+
       {:error, errors} ->
         conn
         |> put_status(:bad_request)
         |> put_resp_content_type("application/json")
-        |> send_resp(400, Jason.encode!(%{
-          success: false,
-          message: "Invalid configuration",
-          errors: errors
-        }))
+        |> send_resp(
+          400,
+          Jason.encode!(%{
+            success: false,
+            message: "Invalid configuration",
+            errors: errors
+          })
+        )
     end
   end
 
@@ -97,81 +109,123 @@ defmodule Autotranscript.Web.ConfigController do
     errors = []
 
     # Validate watch_directories
-    errors = case config["watch_directories"] do
-      nil -> ["watch_directories is required" | errors]
-      [] -> ["watch_directories cannot be empty" | errors]
-      directories when is_list(directories) ->
-        validate_watch_directories(directories, errors)
-      _ -> ["watch_directories must be a list" | errors]
-    end
+    errors =
+      case config["watch_directories"] do
+        nil ->
+          ["watch_directories is required" | errors]
+
+        [] ->
+          ["watch_directories cannot be empty" | errors]
+
+        directories when is_list(directories) ->
+          validate_watch_directories(directories, errors)
+
+        _ ->
+          ["watch_directories must be a list" | errors]
+      end
 
     # Validate whispercli_path
-    errors = case config["whispercli_path"] do
-      nil -> ["whispercli_path is required" | errors]
-      "" -> ["whispercli_path cannot be empty" | errors]
-      path when is_binary(path) ->
-        if File.exists?(path) do
-          errors
-        else
-          ["whispercli_path must be a valid file path" | errors]
-        end
-      _ -> ["whispercli_path must be a string" | errors]
-    end
+    errors =
+      case config["whispercli_path"] do
+        nil ->
+          ["whispercli_path is required" | errors]
+
+        "" ->
+          ["whispercli_path cannot be empty" | errors]
+
+        path when is_binary(path) ->
+          if File.exists?(path) do
+            errors
+          else
+            ["whispercli_path must be a valid file path" | errors]
+          end
+
+        _ ->
+          ["whispercli_path must be a string" | errors]
+      end
 
     # Validate model configuration - either model_path or model_name must be provided
-    errors = case {config["model_path"], config["model_name"]} do
-      {nil, nil} -> ["Either model_path or model_name is required" | errors]
-      {"", ""} -> ["Either model_path or model_name is required" | errors]
-      {"", nil} -> ["Either model_path or model_name is required" | errors]
-      {nil, ""} -> ["Either model_path or model_name is required" | errors]
-      {path, _} when is_binary(path) and path != "" ->
-        # If model_path is provided, check if it exists
-        if File.exists?(path) do
-          errors
-        else
-          ["model_path must be a valid file path" | errors]
-        end
-      {_, name} when is_binary(name) and name != "" ->
-        # If model_name is provided, check if it's downloaded
-        model_path = Path.join([Path.expand("~/.autotranscript/models"), "#{name}.bin"])
-        if File.exists?(model_path) do
-          errors
-        else
-          ["Model #{name} is not downloaded" | errors]
-        end
-      _ -> ["Invalid model configuration" | errors]
-    end
+    errors =
+      case {config["model_path"], config["model_name"]} do
+        {nil, nil} ->
+          ["Either model_path or model_name is required" | errors]
+
+        {"", ""} ->
+          ["Either model_path or model_name is required" | errors]
+
+        {"", nil} ->
+          ["Either model_path or model_name is required" | errors]
+
+        {nil, ""} ->
+          ["Either model_path or model_name is required" | errors]
+
+        {path, _} when is_binary(path) and path != "" ->
+          # If model_path is provided, check if it exists
+          if File.exists?(path) do
+            errors
+          else
+            ["model_path must be a valid file path" | errors]
+          end
+
+        {_, name} when is_binary(name) and name != "" ->
+          # If model_name is provided, check if it's downloaded
+          model_path = Path.join([Path.expand("~/.autotranscript/models"), "#{name}.bin"])
+
+          if File.exists?(model_path) do
+            errors
+          else
+            ["Model #{name} is not downloaded" | errors]
+          end
+
+        _ ->
+          ["Invalid model configuration" | errors]
+      end
 
     # Validate ffmpeg_path
-    errors = case config["ffmpeg_path"] do
-      nil -> ["ffmpeg_path is required" | errors]
-      "" -> ["ffmpeg_path cannot be empty" | errors]
-      path when is_binary(path) ->
-        if File.exists?(path) do
-          errors
-        else
-          ["ffmpeg_path must be a valid file path" | errors]
-        end
-      _ -> ["ffmpeg_path must be a string" | errors]
-    end
+    errors =
+      case config["ffmpeg_path"] do
+        nil ->
+          ["ffmpeg_path is required" | errors]
+
+        "" ->
+          ["ffmpeg_path cannot be empty" | errors]
+
+        path when is_binary(path) ->
+          if File.exists?(path) do
+            errors
+          else
+            ["ffmpeg_path must be a valid file path" | errors]
+          end
+
+        _ ->
+          ["ffmpeg_path must be a string" | errors]
+      end
 
     # Validate ffprobe_path
-    errors = case config["ffprobe_path"] do
-      nil -> ["ffprobe_path is required" | errors]
-      "" -> ["ffprobe_path cannot be empty" | errors]
-      path when is_binary(path) ->
-        if File.exists?(path) do
-          errors
-        else
-          ["ffprobe_path must be a valid file path" | errors]
-        end
-      _ -> ["ffprobe_path must be a string" | errors]
-    end
+    errors =
+      case config["ffprobe_path"] do
+        nil ->
+          ["ffprobe_path is required" | errors]
+
+        "" ->
+          ["ffprobe_path cannot be empty" | errors]
+
+        path when is_binary(path) ->
+          if File.exists?(path) do
+            errors
+          else
+            ["ffprobe_path must be a valid file path" | errors]
+          end
+
+        _ ->
+          ["ffprobe_path must be a string" | errors]
+      end
 
     # Filter out nil values from config before returning
-    cleaned_config = config
-    |> Enum.filter(fn {_k, v} -> v != nil and v != "" end)
-    |> Enum.into(%{})
+    cleaned_config =
+      config
+      |> Enum.filter(fn {_k, v} -> v != nil and v != "" end)
+      |> Enum.into(%{})
 
     case errors do
       [] -> {:ok, cleaned_config}
@@ -181,25 +235,31 @@ defmodule Autotranscript.Web.ConfigController do
 
   defp validate_watch_directories(directories, errors) do
     # Check if all directories are valid strings and exist
-    string_errors = Enum.reduce(directories, errors, fn dir, acc ->
-      case dir do
-        path when is_binary(path) and path != "" ->
-          if File.dir?(path) do
-            acc
-          else
-            ["watch_directory '#{path}' must be a valid directory path" | acc]
-          end
-        _ ->
-          ["all watch_directories must be non-empty strings" | acc]
-      end
-    end)
+    string_errors =
+      Enum.reduce(directories, errors, fn dir, acc ->
+        case dir do
+          path when is_binary(path) and path != "" ->
+            if File.dir?(path) do
+              acc
+            else
+              ["watch_directory '#{path}' must be a valid directory path" | acc]
+            end
+
+          _ ->
+            ["all watch_directories must be non-empty strings" | acc]
+        end
+      end)
 
     # Check for subdirectories
-    subdirectory_errors = if has_subdirectories?(directories) do
-      ["watch_directories cannot contain subdirectories of other watch directories" | string_errors]
-    else
-      string_errors
-    end
+    subdirectory_errors =
+      if has_subdirectories?(directories) do
+        [
+          "watch_directories cannot contain subdirectories of other watch directories"
+          | string_errors
+        ]
+      else
+        string_errors
+      end
 
     subdirectory_errors
   end

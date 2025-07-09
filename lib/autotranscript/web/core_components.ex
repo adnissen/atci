@@ -11,7 +11,7 @@ defmodule Autotranscript.Web.CoreComponents do
 
       <.page_title>Welcome</.page_title>
   """
-  slot :inner_block, required: true
+  slot(:inner_block, required: true)
 
   def page_title(assigns) do
     ~H"""
@@ -28,8 +28,8 @@ defmodule Autotranscript.Web.CoreComponents do
         <%= assigns[:page_title] || "Welcome" %>
       </.app_live_title>
   """
-  attr :suffix, :string, default: nil
-  slot :inner_block, required: true
+  attr(:suffix, :string, default: nil)
+  slot(:inner_block, required: true)
 
   def app_live_title(assigns) do
     ~H"""
