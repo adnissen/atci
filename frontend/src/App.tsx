@@ -9,7 +9,7 @@ import {
 import './App.css'
 import TranscriptView from './components/TranscriptView'
 import ConfigSetup from './components/ConfigSetup'
-import EditDialog from './components/EditDialog'
+import DualEditDialog from './components/DualEditDialog'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLSState } from './hooks/useLSState'
 
@@ -1315,15 +1315,15 @@ function App() {
       </div>
 
       {/* Replace Transcript Dialog */}
-      <EditDialog
+      <DualEditDialog
         isOpen={isReplaceDialogOpen}
-        title={`Replace Transcript - ${replaceTranscriptFilename}`}
-        initialValue={replaceTranscriptInitialContent}
-        onSave={handleReplaceTranscript}
+        filename={replaceTranscriptFilename}
+        transcriptInitialValue={replaceTranscriptInitialContent}
+        metaInitialValue=""
+        onTranscriptSave={handleReplaceTranscript}
+        onMetaSave={() => {}}
         onCancel={handleReplaceCancel}
-        isSubmitting={isReplacingTranscript}
-        placeholder="Enter the complete transcript content..."
-        isLargeMode={true}
+        isTranscriptSubmitting={isReplacingTranscript}
       />
 
       {/* Theme Toggle Button */}
