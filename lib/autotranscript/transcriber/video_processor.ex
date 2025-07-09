@@ -229,7 +229,7 @@ defmodule Autotranscript.VideoProcessor do
           File.rename(path <> ".vtt", txt_path)
 
           # Modify the transcript file to add model information
-          case TranscriptModifier.modify_transcript_file(txt_path) do
+          case TranscriptModifier.add_source_to_meta(txt_path) do
             :ok ->
               Logger.info("Transcript file modified successfully: #{txt_path}")
             {:error, reason} ->
@@ -717,12 +717,12 @@ defmodule Autotranscript.VideoProcessor do
         final_content = Enum.join(transcript_lines, "\n")
 
         case File.write(txt_path, final_content, [:utf8]) do
-          :ok -> 
+          :ok ->
             # Save source information to meta file
             meta_path = String.replace_trailing(txt_path, ".txt", ".meta")
             case Autotranscript.MetaFileHandler.update_meta_field(meta_path, "source", "subtitle file") do
               :ok -> :ok
-              {:error, reason} -> 
+              {:error, reason} ->
                 Logger.warning("Failed to update meta file with source: #{inspect(reason)}")
                 :ok  # Still return ok since transcript was written successfully
             end

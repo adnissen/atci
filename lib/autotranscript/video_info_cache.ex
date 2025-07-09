@@ -59,21 +59,6 @@ defmodule Autotranscript.VideoInfoCache do
     end
   end
 
-  # Helper function to extract model name from transcript content (for backward compatibility)
-  defp extract_model_from_transcript(content) do
-    # Look for the first line that starts with "model: "
-    case String.split(content, "\n", parts: 2) do
-      [first_line | _] ->
-        if String.starts_with?(first_line, "model: ") do
-          String.replace_prefix(first_line, "model: ", "") |> String.trim()
-        else
-          nil
-        end
-      _ ->
-        nil
-    end
-  end
-
   # Scans the watch directory and returns video file information.
   # This is the renamed version of the original get_video_files method.
   defp get_video_info_from_disk do
@@ -97,25 +82,19 @@ defmodule Autotranscript.VideoInfoCache do
           transcript_exists = File.exists?(txt_path)
           meta_path = Path.join(watch_directory, "#{filename}.meta")
 
-          # If transcript exists, get line count, last modified time, and source/model
+                    # If transcript exists, get line count, last modified time, and source
           {line_count, last_generated, model} = if transcript_exists do
             case File.read(txt_path) do
               {:ok, content} ->
                 lines = String.split(content, "\n")
                 line_count = length(lines)
-                
-                # Try to get source from meta file first, fall back to model from transcript
+
+                # Get source from meta file
                 source = extract_source_from_meta(meta_path)
-                model_name = if source do
-                  source
-                else
-                  # Backward compatibility: check for model in transcript
-                  extract_model_from_transcript(content)
-                end
-                
+
                 case File.stat(txt_path) do
-                  {:ok, txt_stat} -> {line_count, txt_stat.mtime |> Autotranscript.Web.TranscriptHTML.format_datetime(), model_name}
-                  {:error, _} -> {line_count, nil, model_name}
+                  {:ok, txt_stat} -> {line_count, txt_stat.mtime |> Autotranscript.Web.TranscriptHTML.format_datetime(), source}
+                  {:error, _} -> {line_count, nil, source}
                 end
               {:error, _} -> {0, nil, nil}
             end

@@ -26,15 +26,11 @@ defmodule Autotranscript.MetaFileHandler do
               [key, value] ->
                 Map.put(acc, String.trim(key), String.trim(value))
               _ ->
-                # Handle legacy format (just length value)
-                if String.match?(line, ~r/^\d{2}:\d{2}:\d{2}$/) do
-                  Map.put(acc, "length", String.trim(line))
-                else
-                  acc
-                end
+                # Skip invalid lines
+                acc
             end
           end)
-        
+
         {:ok, metadata}
       {:error, reason} ->
         {:error, reason}
@@ -57,7 +53,7 @@ defmodule Autotranscript.MetaFileHandler do
       |> Enum.map(fn {key, value} -> "#{key}: #{value}" end)
       |> Enum.sort()
       |> Enum.join("\n")
-    
+
     case File.write(meta_path, content <> "\n", [:utf8]) do
       :ok ->
         Logger.info("Wrote meta file: #{meta_path}")
@@ -86,10 +82,10 @@ defmodule Autotranscript.MetaFileHandler do
       {:ok, existing} -> existing
       {:error, _} -> %{}
     end
-    
+
     # Update the field
     updated_metadata = Map.put(metadata, key, value)
-    
+
     # Write back
     write_meta_file(meta_path, updated_metadata)
   end

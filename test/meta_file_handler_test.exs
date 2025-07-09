@@ -34,13 +34,13 @@ defmodule Autotranscript.MetaFileHandlerTest do
 
     test "overwrites an existing meta file", %{temp_dir: temp_dir} do
       meta_path = Path.join(temp_dir, "test.meta")
-      
+
       # Write initial content
       File.write!(meta_path, "old: content\n")
-      
+
       metadata = %{"source" => "subtitle file"}
       assert :ok = MetaFileHandler.write_meta_file(meta_path, metadata)
-      
+
       {:ok, content} = File.read(meta_path)
       assert String.contains?(content, "source: subtitle file")
       refute String.contains?(content, "old: content")
@@ -63,13 +63,7 @@ defmodule Autotranscript.MetaFileHandlerTest do
       assert metadata["processed_at"] == "2024-01-01"
     end
 
-    test "handles legacy format with just length value", %{temp_dir: temp_dir} do
-      meta_path = Path.join(temp_dir, "test.meta")
-      File.write!(meta_path, "01:23:45")
 
-      {:ok, metadata} = MetaFileHandler.read_meta_file(meta_path)
-      assert metadata["length"] == "01:23:45"
-    end
 
     test "handles empty meta file", %{temp_dir: temp_dir} do
       meta_path = Path.join(temp_dir, "test.meta")
@@ -81,7 +75,7 @@ defmodule Autotranscript.MetaFileHandlerTest do
 
     test "returns error for non-existent file", %{temp_dir: temp_dir} do
       meta_path = Path.join(temp_dir, "non_existent.meta")
-      
+
       assert {:error, :enoent} = MetaFileHandler.read_meta_file(meta_path)
     end
   end

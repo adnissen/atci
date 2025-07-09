@@ -10,17 +10,7 @@ Autotranscript is an Elixir application that automatically transcribes video fil
 - Transcribes audio to text using Whisper (when subtitles are not available)
 - Deletes the MP3 file after transcription
 - When subtitles are extracted, saves "source: subtitle file" to the .meta file
-- Source information (model name or "subtitle file") is now stored in .meta files instead of transcript files
-
-## Migration from Previous Versions
-
-If you have existing transcript files with "model:" lines at the beginning, run the migration task:
-
-```bash
-mix migrate_model_to_meta
-```
-
-This will move the model information from transcript files to .meta files as "source:" information.
+- Source information (model name or "subtitle file") is stored in .meta files
 
 ## Prerequisites
 
