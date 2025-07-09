@@ -44,7 +44,7 @@ defmodule Autotranscript.ConfigManager do
   Returns true if all required fields are present and valid.
   """
   def config_complete?(config) when is_map(config) do
-    required_keys = ["watch_directories", "whispercli_path"]
+    required_keys = ["watch_directories", "whispercli_path", "ffmpeg_path", "ffprobe_path"]
 
     base_complete = Enum.all?(required_keys, fn key ->
       case Map.get(config, key) do
@@ -118,6 +118,16 @@ defmodule Autotranscript.ConfigManager do
   @impl true
   def init(_args) do
     config = load_config_from_file()
+    
+    # Auto-detect ffmpeg and ffprobe if not configured
+    config = auto_detect_executables(config)
+    
+    # Save config if executables were auto-detected
+    if Map.get(config, "ffmpeg_path") != Map.get(load_config_from_file(), "ffmpeg_path") or
+       Map.get(config, "ffprobe_path") != Map.get(load_config_from_file(), "ffprobe_path") do
+      save_config_to_file(config)
+    end
+    
     Logger.info("ConfigManager started with config keys: #{inspect(Map.keys(config))}")
     {:ok, config}
   end
@@ -262,6 +272,40 @@ defmodule Autotranscript.ConfigManager do
       {:ok, home_dir_config}
     else
       {:error, :not_found}
+    end
+  end
+
+  defp auto_detect_executables(config) do
+    config
+    |> auto_detect_executable("ffmpeg_path", "ffmpeg")
+    |> auto_detect_executable("ffprobe_path", "ffprobe")
+  end
+  
+  defp auto_detect_executable(config, config_key, executable_name) do
+    case Map.get(config, config_key) do
+      nil ->
+        detect_and_set_executable(config, config_key, executable_name)
+      "" ->
+        detect_and_set_executable(config, config_key, executable_name)
+      existing_path ->
+        # Verify the existing path is still valid
+        if File.exists?(existing_path) do
+          config
+        else
+          Logger.warning("Configured #{executable_name} path no longer exists: #{existing_path}")
+          detect_and_set_executable(config, config_key, executable_name)
+        end
+    end
+  end
+  
+  defp detect_and_set_executable(config, config_key, executable_name) do
+    case System.find_executable(executable_name) do
+      nil ->
+        Logger.warning("#{executable_name} not found in PATH")
+        config
+      path ->
+        Logger.info("Auto-detected #{executable_name} at: #{path}")
+        Map.put(config, config_key, path)
     end
   end
 end

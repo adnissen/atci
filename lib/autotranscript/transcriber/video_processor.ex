@@ -3,6 +3,7 @@ defmodule Autotranscript.VideoProcessor do
   require Logger
 
   alias Autotranscript.{PathHelper, VideoInfoCache, TranscriptModifier}
+  alias Autotranscript.ConfigManager
 
   @moduledoc """
   A GenServer that manages a queue of video files to be processed.
@@ -183,7 +184,8 @@ defmodule Autotranscript.VideoProcessor do
     if String.ends_with?(path, PathHelper.video_extensions_with_dots) do
       output_path = PathHelper.replace_video_extension_with(path, ".mp3")
 
-      System.cmd("ffmpeg", ["-i", path, "-q:a", "0", "-map", "a", output_path])
+      ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+      System.cmd(ffmpeg_path, ["-i", path, "-q:a", "0", "-map", "a", output_path])
       :ok
     else
       {:error, :invalid_file_type}
@@ -315,7 +317,8 @@ defmodule Autotranscript.VideoProcessor do
     - {:error, reason} if ffmpeg fails
   """
   def get_video_length(video_path) do
-    case System.cmd("ffmpeg", [
+    ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+    case System.cmd(ffmpeg_path, [
       "-i", video_path
     ], stderr_to_stdout: true) do
       {output, _exit_code} ->
@@ -435,7 +438,8 @@ defmodule Autotranscript.VideoProcessor do
   defp create_temp_video_from_time(video_path, time_seconds) do
     temp_video_path = Path.join(System.tmp_dir(), "temp_video_#{UUID.uuid4()}.mp4")
 
-    case System.cmd("ffmpeg", [
+    ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+    case System.cmd(ffmpeg_path, [
       "-ss", "#{time_seconds}",
       "-i", video_path,
       "-c", "copy",
@@ -451,7 +455,8 @@ defmodule Autotranscript.VideoProcessor do
   defp convert_temp_video_to_mp3_partial(temp_video_path) do
     temp_mp3_path = Path.join(System.tmp_dir(), "temp_audio_#{UUID.uuid4()}.mp3")
 
-    case System.cmd("ffmpeg", [
+    ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+    case System.cmd(ffmpeg_path, [
       "-i", temp_video_path,
       "-q:a", "0",
       "-map", "a",
@@ -627,7 +632,8 @@ defmodule Autotranscript.VideoProcessor do
     - {:error, reason} if ffprobe fails
   """
   def get_subtitle_streams(video_path) do
-    case System.cmd("ffprobe", [
+    ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
+    case System.cmd(ffprobe_path, [
       "-v", "error",
       "-select_streams", "s",
       "-show_entries", "stream=index,codec_name,codec_type",
@@ -673,7 +679,8 @@ defmodule Autotranscript.VideoProcessor do
     temp_srt_path = Path.join(System.tmp_dir(), "temp_subtitle_#{UUID.uuid4()}.srt")
 
     # Extract subtitle to temporary SRT file
-    case System.cmd("ffmpeg", [
+    ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+    case System.cmd(ffmpeg_path, [
       "-i", video_path,
       "-map", "0:#{stream_index}",
       "-c:s", "srt",
