@@ -6,6 +6,14 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '../components/ui/dropdown-menu'
 import TranscriptView from '../components/TranscriptView'
 import DualEditDialog from '../components/DualEditDialog'
 import { useEffect, useState, useRef, useCallback } from 'react'
@@ -56,6 +64,7 @@ export default function HomePage() {
   const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
   const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
   const [selectedWatchDirs, setSelectedWatchDirs] = useLSState<string[]>('selectedWatchDirs', [])
+  const [availableWatchDirs, setAvailableWatchDirs] = useState<string[]>([])
   
   // Replace transcript dialog state
   const [isReplaceDialogOpen, setIsReplaceDialogOpen] = useState(false)
@@ -83,13 +92,22 @@ export default function HomePage() {
     searchLineNumbers[filename] && (searchLineNumbers[filename].length > 0)
   )
 
-  // Extract unique watch directories from files
-  const availableWatchDirs = [...new Set(files.map(file => {
-    if (!file.full_path || !watchDirectory) return '.'
-    const relativePath = file.full_path.replace(watchDirectory, '').replace(/^\//, '')
-    const dir = relativePath.includes('/') ? relativePath.split('/')[0] : '.'
-    return dir
-  }))].sort()
+  // Fetch configured watch directories from the API
+  useEffect(() => {
+    const fetchWatchDirectories = async () => {
+      try {
+        const response = await fetch('/watch_directories')
+        if (response.ok) {
+          const dirs = await response.json()
+          setAvailableWatchDirs(dirs || [])
+        }
+      } catch (error) {
+        console.error('Error fetching watch directories:', error)
+      }
+    }
+    
+    fetchWatchDirectories()
+  }, [])
 
   // Initialize selectedWatchDirs with all available directories if empty
   useEffect(() => {
@@ -526,7 +544,7 @@ export default function HomePage() {
   const refreshFiles = async () => {
     try {
       // Only apply filter if directories are selected and available
-      const shouldFilter = selectedWatchDirs.length > 0 && availableWatchDirs.length > 0
+      const shouldFilter = selectedWatchDirs.length > 0 && availableWatchDirs.length > 0 && selectedWatchDirs.length < availableWatchDirs.length
       const watchDirsParam = shouldFilter ? `?watch_directories=${selectedWatchDirs.join(',')}` : ''
       const response = await fetch(`/files${watchDirsParam}`)
       if (response.ok) {
@@ -829,40 +847,57 @@ export default function HomePage() {
       <div className={`container mx-auto py-10 ${watchDirectory ? 'pt-16' : ''}`}>
         {/* Watch Directory Filter */}
         {availableWatchDirs.length > 1 && (
-          <div className="mb-6 p-4 bg-muted/30 border border-border rounded-md">
-            <div className="flex items-center gap-4">
-              <h3 className="text-sm font-medium text-foreground">Filter by Directory:</h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleSelectAllWatchDirs}
-                  className="text-xs text-primary hover:text-primary/80 underline"
-                >
-                  Select All
+          <div className="mb-6 flex items-center gap-4">
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                  {selectedWatchDirs.length === availableWatchDirs.length 
+                    ? "All Directories" 
+                    : selectedWatchDirs.length === 0 
+                    ? "No Directories" 
+                    : `${selectedWatchDirs.length} Director${selectedWatchDirs.length === 1 ? 'y' : 'ies'}`}
+                  <svg className="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
                 </button>
-                <span className="text-xs text-muted-foreground">|</span>
-                <button
-                  onClick={handleDeselectAllWatchDirs}
-                  className="text-xs text-primary hover:text-primary/80 underline"
-                >
-                  Deselect All
-                </button>
-              </div>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {availableWatchDirs.map(dir => (
-                <label key={dir} className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedWatchDirs.includes(dir)}
-                    onChange={() => handleWatchDirToggle(dir)}
-                    className="rounded border-border text-primary focus:ring-1 focus:ring-primary"
-                  />
-                  <span className="text-sm text-foreground">
-                    {dir === '.' ? 'Root Directory' : dir}
-                  </span>
-                </label>
-              ))}
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-80">
+                <DropdownMenuLabel>Watch Directories</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="grid grid-cols-1 gap-1 p-2">
+                  <DropdownMenuCheckboxItem
+                    checked={selectedWatchDirs.length === availableWatchDirs.length}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        handleSelectAllWatchDirs()
+                      } else {
+                        handleDeselectAllWatchDirs()
+                      }
+                    }}
+                    className="font-medium"
+                  >
+                    Select All
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {availableWatchDirs.map(dir => (
+                    <DropdownMenuCheckboxItem
+                      key={dir}
+                      checked={selectedWatchDirs.includes(dir)}
+                      onCheckedChange={() => handleWatchDirToggle(dir)}
+                    >
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium text-sm">
+                          {dir.split('/').pop() || dir}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {dir}
+                        </span>
+                      </div>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
 

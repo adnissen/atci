@@ -182,9 +182,9 @@ defmodule Autotranscript.Web.TranscriptController do
     |> send_resp(200, Jason.encode!(transformed_queue_status))
   end
 
-  def files(conn, params) do
+    def files(conn, params) do
     video_files = VideoInfoCache.get_video_files()
-    
+
     # Filter by watch directories if provided
     filtered_files = case params["watch_directories"] do
       nil -> video_files
@@ -192,25 +192,19 @@ defmodule Autotranscript.Web.TranscriptController do
       watch_dirs_param ->
         # Parse watch directories from comma-separated string
         watch_dirs = String.split(watch_dirs_param, ",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-        watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
-        
-        if watch_directory == nil or watch_directory == "" or Enum.empty?(watch_dirs) do
+        configured_watch_dirs = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
+
+        if Enum.empty?(watch_dirs) or Enum.empty?(configured_watch_dirs) do
           video_files
         else
           Enum.filter(video_files, fn file ->
-            # Extract the directory path relative to the watch directory
-            relative_path = Path.relative_to(file.full_path, watch_directory)
-            file_dir = Path.dirname(relative_path)
-            
-            # Normalize file_dir (ensure it's "." for root directory)
-            file_dir = if file_dir == "." or file_dir == "" do
-              "."
-            else
-              file_dir
-            end
-            
-            # Include files in root directory if "." is selected, otherwise check if directory matches
-            Enum.member?(watch_dirs, file_dir)
+            # Check which configured watch directory this file belongs to
+            file_watch_dir = Enum.find(configured_watch_dirs, fn watch_dir ->
+              String.starts_with?(file.full_path, watch_dir)
+            end)
+
+            # Include file if its watch directory is in the filter
+            file_watch_dir && Enum.member?(watch_dirs, file_watch_dir)
           end)
         end
     end
@@ -699,6 +693,14 @@ defmodule Autotranscript.Web.TranscriptController do
           "Invalid time parameters. Start time must be non-negative and end time must be greater than start time."
         )
     end
+  end
+
+  def watch_directories(conn, _params) do
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(watch_directories))
   end
 
   def watch_directory(conn, _params) do
