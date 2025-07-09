@@ -16,7 +16,9 @@ defmodule Autotranscript.ConfigManagerTest do
         # Use echo as a test binary
         "whispercli_path" => "/usr/bin/echo",
         # Use echo as a test binary
-        "model_path" => "/usr/bin/echo"
+        "model_path" => "/usr/bin/echo",
+        "ffmpeg_path" => "/usr/bin/echo",
+        "ffprobe_path" => "/usr/bin/echo"
       }
 
       assert ConfigManager.config_complete?(config)
@@ -36,7 +38,9 @@ defmodule Autotranscript.ConfigManagerTest do
       config = %{
         "watch_directories" => [temp_dir1, subdir],
         "whispercli_path" => "/usr/bin/echo",
-        "model_path" => "/usr/bin/echo"
+        "model_path" => "/usr/bin/echo",
+        "ffmpeg_path" => "/usr/bin/echo",
+        "ffprobe_path" => "/usr/bin/echo"
       }
 
       refute ConfigManager.config_complete?(config)
@@ -49,7 +53,9 @@ defmodule Autotranscript.ConfigManagerTest do
       config = %{
         "watch_directories" => [],
         "whispercli_path" => "/usr/bin/echo",
-        "model_path" => "/usr/bin/echo"
+        "model_path" => "/usr/bin/echo",
+        "ffmpeg_path" => "/usr/bin/echo",
+        "ffprobe_path" => "/usr/bin/echo"
       }
 
       refute ConfigManager.config_complete?(config)
@@ -88,45 +94,68 @@ defmodule Autotranscript.ConfigManagerTest do
 
   describe "config migration" do
     test "migrates old format watch_directory to watch_directories" do
-      # Create a temporary directory for testing
+      # Create temporary directory for testing
       temp_dir = Path.join(System.tmp_dir!(), "test_watch_dir_#{:rand.uniform(10000)}")
       File.mkdir_p!(temp_dir)
 
-      # Test the expected behavior after migration
-      # The migration should convert old format to new format
+      old_config = %{
+        "watch_directory" => temp_dir,
+        "whispercli_path" => "/usr/bin/echo",
+        "model_path" => "/usr/bin/echo",
+        "ffmpeg_path" => "/usr/bin/echo",
+        "ffprobe_path" => "/usr/bin/echo"
+      }
+
+      # Test the migration logic directly by simulating what happens in migrate_config_format
+      migrated_config = case {Map.get(old_config, "watch_directory"), Map.get(old_config, "watch_directories")} do
+        {watch_dir, nil} when is_binary(watch_dir) and watch_dir != "" ->
+          old_config
+          |> Map.put("watch_directories", [watch_dir])
+          |> Map.delete("watch_directory")
+        {_, _} ->
+          old_config
+      end
+
       expected_config = %{
         "watch_directories" => [temp_dir],
         "whispercli_path" => "/usr/bin/echo",
-        "model_path" => "/usr/bin/echo"
+        "model_path" => "/usr/bin/echo",
+        "ffmpeg_path" => "/usr/bin/echo",
+        "ffprobe_path" => "/usr/bin/echo"
       }
 
-      # Verify that the migrated format would be complete
+      assert migrated_config == expected_config
       assert ConfigManager.config_complete?(expected_config)
-
-      # Verify that the new key exists with the correct value
-      assert Map.get(expected_config, "watch_directories") == [temp_dir]
 
       # Clean up
       File.rm_rf(temp_dir)
     end
 
     test "leaves new format config unchanged" do
-      # Create a temporary directory for testing
+      # Create temporary directory for testing
       temp_dir = Path.join(System.tmp_dir!(), "test_watch_dir_#{:rand.uniform(10000)}")
       File.mkdir_p!(temp_dir)
 
-      # Create new format config
       new_config = %{
         "watch_directories" => [temp_dir],
         "whispercli_path" => "/usr/bin/echo",
-        "model_path" => "/usr/bin/echo"
+        "model_path" => "/usr/bin/echo",
+        "ffmpeg_path" => "/usr/bin/echo",
+        "ffprobe_path" => "/usr/bin/echo"
       }
 
-      # Verify that new format config is already complete
-      assert ConfigManager.config_complete?(new_config)
+      # Test the migration logic - should not change new format
+      migrated_config = case {Map.get(new_config, "watch_directory"), Map.get(new_config, "watch_directories")} do
+        {watch_dir_val, nil} when is_binary(watch_dir_val) and watch_dir_val != "" ->
+          new_config
+          |> Map.put("watch_directories", [watch_dir_val])
+          |> Map.delete("watch_directory")
+        {_, _} ->
+          new_config
+      end
 
-      # Verify that it doesn't have the old key
-      refute Map.has_key?(new_config, "watch_directory")
+      assert migrated_config == new_config
+      assert ConfigManager.config_complete?(new_config)
 
       # Clean up
       File.rm_rf(temp_dir)

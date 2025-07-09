@@ -128,13 +128,13 @@ defmodule Autotranscript.Transcriber do
   end
 
   def check_for_videos_with_missing_files_and_add_to_queue do
-    directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
 
-    if directory == nil or directory == "" do
-      Logger.warning("Watch directory not configured, skipping video check")
+    if Enum.empty?(watch_directories) do
+      Logger.warning("No watch directories configured, skipping video check")
       :ok
     else
-      do_check_for_videos(directory)
+      Enum.each(watch_directories, &do_check_for_videos/1)
     end
   end
 
@@ -167,27 +167,23 @@ defmodule Autotranscript.Transcriber do
       {:ok, timer_ref}
   """
   def watch_directory do
-    directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
 
-    case directory do
-      nil ->
-        Logger.warning("Watch directory not configured")
+    case watch_directories do
+      [] ->
+        Logger.warning("No watch directories configured")
         {:ok, nil}
 
-      "" ->
-        Logger.warning("Watch directory is empty")
-        {:ok, nil}
-
-      _ ->
-        case File.dir?(directory) do
-          true ->
-            Logger.info("Watching: #{directory} (checking every 2 seconds)")
-            timer_ref = Process.send_after(self(), :check_directory, 2000)
-            {:ok, timer_ref}
-
-          false ->
-            Logger.error("Watch directory does not exist: #{directory}")
-            {:error, :invalid_directory}
+      directories ->
+        # Check if all directories exist
+        if Enum.all?(directories, &File.dir?/1) do
+          Logger.info("Watching: #{Enum.join(directories, ", ")} (checking every 2 seconds)")
+          timer_ref = Process.send_after(self(), :check_directory, 2000)
+          {:ok, timer_ref}
+        else
+          invalid_dirs = Enum.reject(directories, &File.dir?/1)
+          Logger.error("Watch directories do not exist: #{Enum.join(invalid_dirs, ", ")}")
+          {:error, :invalid_directory}
         end
     end
   end
