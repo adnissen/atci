@@ -182,12 +182,36 @@ defmodule Autotranscript.Web.TranscriptController do
     |> send_resp(200, Jason.encode!(transformed_queue_status))
   end
 
-  def files(conn, _params) do
+    def files(conn, params) do
     video_files = VideoInfoCache.get_video_files()
+
+    # Filter by watch directories if provided
+    filtered_files = case params["watch_directories"] do
+      nil -> video_files
+      "" -> video_files
+      watch_dirs_param ->
+        # Parse watch directories from comma-separated string
+        watch_dirs = String.split(watch_dirs_param, ",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+        configured_watch_dirs = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
+
+        if Enum.empty?(watch_dirs) or Enum.empty?(configured_watch_dirs) do
+          video_files
+        else
+          Enum.filter(video_files, fn file ->
+            # Check which configured watch directory this file belongs to
+            file_watch_dir = Enum.find(configured_watch_dirs, fn watch_dir ->
+              String.starts_with?(file.full_path, watch_dir)
+            end)
+
+            # Include file if its watch directory is in the filter
+            file_watch_dir && Enum.member?(watch_dirs, file_watch_dir)
+          end)
+        end
+    end
 
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(video_files))
+    |> send_resp(200, Jason.encode!(filtered_files))
   end
 
   def random_frame(conn, _params) do
@@ -669,6 +693,14 @@ defmodule Autotranscript.Web.TranscriptController do
           "Invalid time parameters. Start time must be non-negative and end time must be greater than start time."
         )
     end
+  end
+
+  def watch_directories(conn, _params) do
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
+
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(watch_directories))
   end
 
   def watch_directory(conn, _params) do

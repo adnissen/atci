@@ -6,6 +6,14 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from '../components/ui/dropdown-menu'
 import TranscriptView from '../components/TranscriptView'
 import DualEditDialog from '../components/DualEditDialog'
 import { useEffect, useState, useRef, useCallback } from 'react'
@@ -55,6 +63,8 @@ export default function HomePage() {
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
   const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
   const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
+  const [selectedWatchDirs, setSelectedWatchDirs] = useLSState<string[]>('selectedWatchDirs', [])
+  const [availableWatchDirs, setAvailableWatchDirs] = useState<string[]>([])
   
   // Replace transcript dialog state
   const [isReplaceDialogOpen, setIsReplaceDialogOpen] = useState(false)
@@ -81,6 +91,30 @@ export default function HomePage() {
   const searchResults = Object.keys(searchLineNumbers).filter(filename => 
     searchLineNumbers[filename] && (searchLineNumbers[filename].length > 0)
   )
+
+  // Fetch configured watch directories from the API
+  useEffect(() => {
+    const fetchWatchDirectories = async () => {
+      try {
+        const response = await fetch('/watch_directories')
+        if (response.ok) {
+          const dirs = await response.json()
+          setAvailableWatchDirs(dirs || [])
+        }
+      } catch (error) {
+        console.error('Error fetching watch directories:', error)
+      }
+    }
+    
+    fetchWatchDirectories()
+  }, [])
+
+  // Initialize selectedWatchDirs with all available directories if empty
+  useEffect(() => {
+    if (selectedWatchDirs.length === 0 && availableWatchDirs.length > 0) {
+      setSelectedWatchDirs(availableWatchDirs)
+    }
+  }, [availableWatchDirs])
 
   // Setup intersection observer to track expanded rows visibility
   const setupIntersectionObserver = useCallback(() => {
@@ -500,11 +534,19 @@ export default function HomePage() {
     }, 3000)
     
     return () => clearInterval(interval)
-  }, [])
+  }, [selectedWatchDirs])
+
+  // Refresh files when selectedWatchDirs changes
+  useEffect(() => {
+    refreshFiles()
+  }, [selectedWatchDirs])
 
   const refreshFiles = async () => {
     try {
-      const response = await fetch('/files')
+      // Only apply filter if directories are selected and available
+      const shouldFilter = selectedWatchDirs.length > 0 && availableWatchDirs.length > 0 && selectedWatchDirs.length < availableWatchDirs.length
+      const watchDirsParam = shouldFilter ? `?watch_directories=${selectedWatchDirs.join(',')}` : ''
+      const response = await fetch(`/files${watchDirsParam}`)
       if (response.ok) {
         const data = await response.json()
         setFiles(data || [])
@@ -707,6 +749,23 @@ export default function HomePage() {
     }
   }
 
+  const handleWatchDirToggle = (dir: string) => {
+    setSelectedWatchDirs(prev => {
+      const newSelection = prev.includes(dir) 
+        ? prev.filter(d => d !== dir)
+        : [...prev, dir]
+      return newSelection
+    })
+  }
+
+  const handleSelectAllWatchDirs = () => {
+    setSelectedWatchDirs(availableWatchDirs)
+  }
+
+  const handleDeselectAllWatchDirs = () => {
+    setSelectedWatchDirs([])
+  }
+
   return (
     <>
       {/* Watch Directory Bar - Fixed to top */}
@@ -786,6 +845,62 @@ export default function HomePage() {
 
       {/* Main content with top padding to account for fixed header */}
       <div className={`container mx-auto py-10 ${watchDirectory ? 'pt-16' : ''}`}>
+        {/* Watch Directory Filter */}
+        {availableWatchDirs.length > 1 && (
+          <div className="mb-6 flex items-center gap-4">
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                  {selectedWatchDirs.length === availableWatchDirs.length 
+                    ? "All Directories" 
+                    : selectedWatchDirs.length === 0 
+                    ? "No Directories" 
+                    : `${selectedWatchDirs.length} Director${selectedWatchDirs.length === 1 ? 'y' : 'ies'}`}
+                  <svg className="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-80">
+                <DropdownMenuLabel>Watch Directories</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <div className="grid grid-cols-1 gap-1 p-2">
+                  <DropdownMenuCheckboxItem
+                    checked={selectedWatchDirs.length === availableWatchDirs.length}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        handleSelectAllWatchDirs()
+                      } else {
+                        handleDeselectAllWatchDirs()
+                      }
+                    }}
+                    className="font-medium"
+                  >
+                    Select All
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuSeparator />
+                  {availableWatchDirs.map(dir => (
+                    <DropdownMenuCheckboxItem
+                      key={dir}
+                      checked={selectedWatchDirs.includes(dir)}
+                      onCheckedChange={() => handleWatchDirToggle(dir)}
+                    >
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium text-sm">
+                          {dir.split('/').pop() || dir}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {dir}
+                        </span>
+                      </div>
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        )}
+
         {/* File List - Full Width */}
         <div>
           {/* Search Results */}
