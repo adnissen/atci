@@ -55,6 +55,7 @@ export default function HomePage() {
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
   const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
   const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
+  const [selectedWatchDirs, setSelectedWatchDirs] = useLSState<string[]>('selectedWatchDirs', [])
   
   // Replace transcript dialog state
   const [isReplaceDialogOpen, setIsReplaceDialogOpen] = useState(false)
@@ -81,6 +82,21 @@ export default function HomePage() {
   const searchResults = Object.keys(searchLineNumbers).filter(filename => 
     searchLineNumbers[filename] && (searchLineNumbers[filename].length > 0)
   )
+
+  // Extract unique watch directories from files
+  const availableWatchDirs = [...new Set(files.map(file => {
+    if (!file.full_path || !watchDirectory) return '.'
+    const relativePath = file.full_path.replace(watchDirectory, '').replace(/^\//, '')
+    const dir = relativePath.includes('/') ? relativePath.split('/')[0] : '.'
+    return dir
+  }))].sort()
+
+  // Initialize selectedWatchDirs with all available directories if empty
+  useEffect(() => {
+    if (selectedWatchDirs.length === 0 && availableWatchDirs.length > 0) {
+      setSelectedWatchDirs(availableWatchDirs)
+    }
+  }, [availableWatchDirs])
 
   // Setup intersection observer to track expanded rows visibility
   const setupIntersectionObserver = useCallback(() => {
@@ -500,11 +516,19 @@ export default function HomePage() {
     }, 3000)
     
     return () => clearInterval(interval)
-  }, [])
+  }, [selectedWatchDirs])
+
+  // Refresh files when selectedWatchDirs changes
+  useEffect(() => {
+    refreshFiles()
+  }, [selectedWatchDirs])
 
   const refreshFiles = async () => {
     try {
-      const response = await fetch('/files')
+      // Only apply filter if directories are selected and available
+      const shouldFilter = selectedWatchDirs.length > 0 && availableWatchDirs.length > 0
+      const watchDirsParam = shouldFilter ? `?watch_directories=${selectedWatchDirs.join(',')}` : ''
+      const response = await fetch(`/files${watchDirsParam}`)
       if (response.ok) {
         const data = await response.json()
         setFiles(data || [])
@@ -707,6 +731,23 @@ export default function HomePage() {
     }
   }
 
+  const handleWatchDirToggle = (dir: string) => {
+    setSelectedWatchDirs(prev => {
+      const newSelection = prev.includes(dir) 
+        ? prev.filter(d => d !== dir)
+        : [...prev, dir]
+      return newSelection
+    })
+  }
+
+  const handleSelectAllWatchDirs = () => {
+    setSelectedWatchDirs(availableWatchDirs)
+  }
+
+  const handleDeselectAllWatchDirs = () => {
+    setSelectedWatchDirs([])
+  }
+
   return (
     <>
       {/* Watch Directory Bar - Fixed to top */}
@@ -786,6 +827,45 @@ export default function HomePage() {
 
       {/* Main content with top padding to account for fixed header */}
       <div className={`container mx-auto py-10 ${watchDirectory ? 'pt-16' : ''}`}>
+        {/* Watch Directory Filter */}
+        {availableWatchDirs.length > 1 && (
+          <div className="mb-6 p-4 bg-muted/30 border border-border rounded-md">
+            <div className="flex items-center gap-4">
+              <h3 className="text-sm font-medium text-foreground">Filter by Directory:</h3>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSelectAllWatchDirs}
+                  className="text-xs text-primary hover:text-primary/80 underline"
+                >
+                  Select All
+                </button>
+                <span className="text-xs text-muted-foreground">|</span>
+                <button
+                  onClick={handleDeselectAllWatchDirs}
+                  className="text-xs text-primary hover:text-primary/80 underline"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {availableWatchDirs.map(dir => (
+                <label key={dir} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedWatchDirs.includes(dir)}
+                    onChange={() => handleWatchDirToggle(dir)}
+                    className="rounded border-border text-primary focus:ring-1 focus:ring-primary"
+                  />
+                  <span className="text-sm text-foreground">
+                    {dir === '.' ? 'Root Directory' : dir}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* File List - Full Width */}
         <div>
           {/* Search Results */}
