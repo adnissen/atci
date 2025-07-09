@@ -701,7 +701,7 @@ defmodule Autotranscript.Web.TranscriptController do
         case String.trim(output) |> String.split(",") do
           [width_str, height_str] ->
             case {Integer.parse(width_str), Integer.parse(height_str)} do
-              {{width, ""}, {height, ""}} ->
+              {{_width, ""}, {height, ""}} ->
                 # Calculate font size based on video dimensions and text length
                 # Base font size is proportional to video height
                 base_font_size = max(24, trunc(height / 20))
