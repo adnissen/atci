@@ -677,12 +677,15 @@ export default function HomePage() {
     setIsReplacingTranscript(true)
     
     try {
-      const response = await fetch(`/transcripts/${encodeURIComponent(replaceTranscriptFilename)}`, {
-        method: 'PUT',
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
+      const response = await fetch(`/transcripts/${encodeURIComponent(replaceTranscriptFilename)}/replace`, {
+        method: 'POST',
         headers: {
+          'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content: newText })
+        body: JSON.stringify({ text: newText })
       })
       
       if (response.ok) {
