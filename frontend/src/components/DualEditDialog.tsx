@@ -149,7 +149,7 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
               <button
                 onClick={handleTranscriptSave}
                 disabled={isTranscriptSubmitting}
-                className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary border border-transparent rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="px-3 py-1.5 text-xs font-normal text-primary-foreground bg-primary border border-transparent rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {isTranscriptSubmitting ? 'Saving...' : 'Save Transcript'}
               </button>
@@ -171,7 +171,7 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
               <button
                 onClick={handleMetaSave}
                 disabled={isSavingMeta || isLoadingMeta}
-                className="px-4 py-2 text-sm font-medium text-primary-foreground bg-primary border border-transparent rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                className="px-3 py-1.5 text-xs font-normal text-primary-foreground bg-primary border border-transparent rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
                 {isSavingMeta ? 'Saving...' : 'Save Meta'}
               </button>

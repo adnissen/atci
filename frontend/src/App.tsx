@@ -1060,8 +1060,6 @@ function App() {
 
       {/* Main content with top padding to account for fixed header */}
       <div className={`container mx-auto py-10 ${watchDirectory ? 'pt-16' : ''}`}>
-        <h1 className="text-2xl font-bold mb-6 text-foreground">File List</h1>
-        
         {/* File List - Full Width */}
         <div>
           {/* Search Results */}
@@ -1180,8 +1178,10 @@ function App() {
                       rel="noopener noreferrer"
                       title={file.name}
                     >
-                      <span className="inline-block w-full truncate" style={{ direction: 'rtl', textAlign: 'left' }}>
-                        {file.name}
+                        <span className="inline-block w-full truncate" style={{ direction: 'rtl', textAlign: 'left' }}>
+                        <bdi>
+                          {file.name}
+                        </bdi>
                       </span>
                     </a>
                   </TableCell>
