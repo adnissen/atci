@@ -13,6 +13,7 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
   DropdownMenuLabel,
+  DropdownMenuItem,
 } from '../components/ui/dropdown-menu'
 import TranscriptView from '../components/TranscriptView'
 import DualEditDialog from '../components/DualEditDialog'
@@ -1181,71 +1182,79 @@ export default function HomePage() {
                       <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                  <TableCell className="w-[20%] text-center">
-                    <div className="flex justify-center gap-2">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          window.open(`/player/${encodeURIComponent(file.base_name)}`, '_blank')
-                        }}
-                                                    className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-                        title="View file"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      </button>
-                      
-                      {/* Only show regenerate button if transcript exists */}
-                      {file.transcript ? (
-                        <>
-                          <button
+                                    <TableCell className="w-[20%] text-center">
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-2 text-muted-foreground hover:text-primary hover:bg-accent rounded-md transition-colors"
+                          title="Actions"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                          </svg>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            window.open(`/player/${encodeURIComponent(file.base_name)}`, '_blank')
+                          }}
+                        >
+                          <span>View file</span>
+                          <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </DropdownMenuItem>
+                        
+                        {/* Only show regenerate option if transcript exists */}
+                        {file.transcript && (
+                          <DropdownMenuItem
                             onClick={(e) => handleRegenerate(file.base_name, e)}
                             disabled={regeneratingFiles.has(file.base_name)}
-                            className={`p-2 text-muted-foreground hover:text-primary hover:bg-accent rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                              isFileBeingProcessed(file.base_name) ? 'animate-reverse-spin' : ''
-                            }`}
-                            title="Regenerate transcript"
                           >
+                            <span>Regenerate transcript</span>
                             {regeneratingFiles.has(file.base_name) ? (
-                              <svg className="w-5 h-5 animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                            </svg>
+                              <svg className="w-4 h-4 ml-auto animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
                             ) : (
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
                             )}
-                          </button>
-                          
-                          <button
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {/* Only show edit option if transcript exists */}
+                        {file.transcript && (
+                          <DropdownMenuItem
                             onClick={(e) => handleReplace(file.base_name, e)}
                             disabled={replacingFiles.has(file.base_name)}
-                            className={`p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
-                            title="Edit transcript"
+                            variant="destructive"
                           >
-                            {replacingFiles.has(file.base_name) ? (
-                              <></>
-                            ) : (
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <span>Edit transcript</span>
+                            {!replacingFiles.has(file.base_name) && (
+                              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
                             )}
-                          </button>
-                        </>
-                      ) : isFileBeingProcessed(file.base_name) ? (
-                        <button
-                          disabled={true}
-                          className="p-2 text-muted-foreground opacity-50 cursor-not-allowed rounded-md"
-                          title="Processing transcript"
-                        >
-                          <svg className="w-5 h-5 animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          </DropdownMenuItem>
+                        )}
+                        
+                        {/* Show processing status if file is being processed */}
+                        {isFileBeingProcessed(file.base_name) && (
+                          <DropdownMenuItem disabled>
+                            <span>Processing transcript...</span>
+                            <svg className="w-4 h-4 ml-auto animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                             </svg>
-                        </button>
-                      ) : null}
-                    </div>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
                 <TableRow
