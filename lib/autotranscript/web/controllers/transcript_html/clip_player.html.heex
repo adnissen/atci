@@ -223,15 +223,6 @@
                             <label for="gif">Generate GIF</label>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="gif_quality">GIF Quality</label>
-                        <select id="gif_quality" name="gif_quality" style={"display: #{if @gif == "true", do: "block", else: "none"}; width: 100%; padding: 8px; border: 1px solid #444; border-radius: 4px; background-color: #1a1a1a; color: white; font-size: 14px;"}>
-                            <option value="fast" {if @gif_quality == "fast", do: [selected: "selected"], else: []}>Fast (240p, 4fps)</option>
-                            <option value="balanced" {if @gif_quality == "balanced" || @gif_quality == "", do: [selected: "selected"], else: []}>Balanced (320p, 6fps)</option>
-                            <option value="high" {if @gif_quality == "high", do: [selected: "selected"], else: []}>High (480p, 6fps)</option>
-                            <option value="ultra" {if @gif_quality == "ultra", do: [selected: "selected"], else: []}>Ultra (320p, 8fps) - Original</option>
-                        </select>
-                    </div>
                 </div>
                 
                 <div class="button-group">
@@ -263,7 +254,6 @@
             const fontSizeInput = document.getElementById('font_size');
             const displayTextInput = document.getElementById('display_text');
             const gifInput = document.getElementById('gif');
-            const gifQualityInput = document.getElementById('gif_quality');
             
             // Cache for GIF blob URL to avoid re-processing
             let cachedGifBlobUrl = null;
@@ -309,7 +299,6 @@
                 const fontSize = fontSizeInput.value;
                 const displayText = displayTextInput.checked;
                 const gif = gifInput.checked;
-                const gifQuality = gifQualityInput.value;
                 
                 // Validate required fields
                 if (!startTime || !endTime || parseFloat(startTime) < 0 || parseFloat(endTime) <= parseFloat(startTime)) {
@@ -345,10 +334,6 @@
                 if (gif) {
                     clipParams.set('gif', 'true');
                     urlParams.set('gif', 'true');
-                    if (gifQuality && gifQuality.trim() !== '') {
-                        clipParams.set('gif_quality', gifQuality);
-                        urlParams.set('gif_quality', gifQuality);
-                    }
                 }
                 
                 // Update video or gif source
@@ -359,8 +344,6 @@
                 
                 // Toggle display between video and gif
                 if (gif) {
-                    gifQualityInput.style.display = 'block';
-                    
                     // Create new image to preload GIF
                     const tempImg = new Image();
                     tempImg.onload = function() {
@@ -389,7 +372,6 @@
                     };
                     tempImg.src = newClipUrl;
                 } else {
-                    gifQualityInput.style.display = 'none';
                     const videoSource = video.querySelector('source');
                     videoSource.src = newClipUrl;
                     
@@ -448,16 +430,14 @@
             // Set initial download filename and cache GIF if needed
             updateVideo();
             
-            // If page loads with GIF mode already enabled, cache the initial GIF and show quality dropdown
+            // If page loads with GIF mode already enabled, cache the initial GIF
             if (gifInput.checked && gifImg.src) {
-                gifQualityInput.style.display = 'block';
                 hideLoading(); // Make sure loading is hidden on initial load
                 fetchGifAsBlob(gifImg.src).then(blobUrl => {
                     cachedGifBlobUrl = blobUrl;
                     downloadLink.href = cachedGifBlobUrl;
                 });
             } else {
-                gifQualityInput.style.display = 'none';
                 hideLoading(); // Make sure loading is hidden on initial load
             }
             
@@ -468,7 +448,6 @@
             fontSizeInput.addEventListener('input', debouncedUpdate);
             displayTextInput.addEventListener('change', updateVideo); // Immediate update for checkbox
             gifInput.addEventListener('change', updateVideo); // Immediate update for checkbox
-            gifQualityInput.addEventListener('change', updateVideo); // Immediate update for dropdown
             
             // Clean up blob URLs when page is unloaded
             window.addEventListener('beforeunload', function() {
