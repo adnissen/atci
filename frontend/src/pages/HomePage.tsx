@@ -75,6 +75,13 @@ export default function HomePage() {
   const [replaceTranscriptInitialContent, setReplaceTranscriptInitialContent] = useState('')
   const [isReplacingTranscript, setIsReplacingTranscript] = useState(false)
   
+  // Rename dialog state
+  const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false)
+  const [renameFilename, setRenameFilename] = useState('')
+  const [newFilename, setNewFilename] = useState('')
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameError, setRenameError] = useState('')
+  
   // State for tracking out-of-view expanded rows
   const [outOfViewExpandedFile, setOutOfViewExpandedFile] = useState<string | null>(null)
   const [flashingRow, setFlashingRow] = useState<string | null>(null)
@@ -768,6 +775,78 @@ export default function HomePage() {
     setReplaceTranscriptInitialContent('')
   }
 
+  const handleRename = async (filename: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setRenameFilename(filename)
+    setNewFilename(filename) // Pre-populate with current name
+    setRenameError('')
+    setIsRenameDialogOpen(true)
+    
+    // Select all text in the input field after a brief delay to ensure the dialog is rendered
+    setTimeout(() => {
+      const input = document.getElementById('new-filename') as HTMLInputElement
+      if (input) {
+        input.select()
+      }
+    }, 100)
+  }
+
+  const handleRenameSubmit = async () => {
+    if (!newFilename.trim()) {
+      setRenameError('Filename cannot be empty')
+      return
+    }
+
+    if (newFilename === renameFilename) {
+      setRenameError('New filename must be different from current filename')
+      return
+    }
+
+    if (/[\/\\.]/.test(newFilename)) {
+      setRenameError('Filename cannot contain path separators or extensions')
+      return
+    }
+
+    setIsRenaming(true)
+    setRenameError('')
+
+    try {
+      const response = await fetch(`/transcripts/${encodeURIComponent(renameFilename)}/rename`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          new_filename: newFilename.trim()
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || `Failed to rename file: ${response.status} ${response.statusText}`)
+      }
+
+      // Success - close dialog and refresh files
+      setIsRenameDialogOpen(false)
+      setRenameFilename('')
+      setNewFilename('')
+      await refreshFiles()
+
+    } catch (err) {
+      console.error('Error renaming file:', err)
+      setRenameError(err instanceof Error ? err.message : 'An error occurred while renaming the file')
+    } finally {
+      setIsRenaming(false)
+    }
+  }
+
+  const handleRenameCancel = () => {
+    setIsRenameDialogOpen(false)
+    setRenameFilename('')
+    setNewFilename('')
+    setRenameError('')
+  }
+
   const handleRegenerateMeta = async (filename: string, e: React.MouseEvent) => {
     e.stopPropagation()
     
@@ -1244,6 +1323,17 @@ export default function HomePage() {
                           </DropdownMenuItem>
                         )}
                         
+                        {/* Rename option */}
+                        <DropdownMenuItem
+                          onClick={(e) => handleRename(file.base_name, e)}
+                          disabled={isFileBeingProcessed(file.base_name) || regeneratingFiles.has(file.base_name) || replacingFiles.has(file.base_name)}
+                        >
+                          <span>Rename</span>
+                          <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </DropdownMenuItem>
+                        
                         {/* Show processing status if file is being processed */}
                         {isFileBeingProcessed(file.base_name) && (
                           <DropdownMenuItem disabled>
@@ -1296,6 +1386,66 @@ export default function HomePage() {
         onCancel={handleReplaceCancel}
         isTranscriptSubmitting={isReplacingTranscript}
       />
+
+      {/* Rename Dialog */}
+      {isRenameDialogOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-background border border-border rounded-lg p-6 w-96 max-w-90vw">
+            <h2 className="text-lg font-semibold mb-4">Rename File</h2>
+            <p className="text-sm text-muted-foreground mb-4">
+              Renaming "{renameFilename}" (this will rename the video, transcript, and meta files)
+            </p>
+            
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="new-filename" className="block text-sm font-medium mb-2">
+                  New filename (without extension):
+                </label>
+                <input
+                  id="new-filename"
+                  type="text"
+                  value={newFilename}
+                  onChange={(e) => setNewFilename(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isRenaming && newFilename.trim()) {
+                      handleRenameSubmit()
+                    } else if (e.key === 'Escape') {
+                      handleRenameCancel()
+                    }
+                  }}
+                  className="w-full px-3 py-2 border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent"
+                  placeholder="Enter new filename"
+                  disabled={isRenaming}
+                  autoFocus
+                />
+              </div>
+              
+              {renameError && (
+                <div className="text-sm text-destructive">
+                  {renameError}
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={handleRenameCancel}
+                  className="px-4 py-2 text-sm border border-input bg-background text-foreground rounded hover:bg-accent focus:outline-none focus:ring-1 focus:ring-ring"
+                  disabled={isRenaming}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRenameSubmit}
+                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isRenaming || !newFilename.trim()}
+                >
+                  {isRenaming ? 'Renaming...' : 'Rename'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

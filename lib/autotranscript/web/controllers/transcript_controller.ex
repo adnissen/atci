@@ -1257,4 +1257,146 @@ defmodule Autotranscript.Web.TranscriptController do
       end
     end
   end
+
+  def rename(conn, %{"filename" => filename}) do
+    decoded_filename = decode_filename(filename)
+    watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
+
+    if watch_directory == nil or watch_directory == "" do
+      conn
+      |> put_status(:service_unavailable)
+      |> put_resp_content_type("application/json")
+      |> send_resp(
+        503,
+        Jason.encode!(%{
+          error: "Watch directory not configured. Please configure the application first."
+        })
+      )
+    else
+      case conn.body_params do
+        %{"new_filename" => new_filename} ->
+          # Validate new filename (no path separators, no extension)
+          if String.contains?(new_filename, ["/", "\\", "."]) do
+            conn
+            |> put_status(:bad_request)
+            |> put_resp_content_type("application/json")
+            |> send_resp(
+              400,
+              Jason.encode!(%{error: "New filename cannot contain path separators or extensions"})
+            )
+          else
+            # Find the original video file
+            video_file = PathHelper.find_video_file(watch_directory, decoded_filename)
+
+            case video_file do
+              nil ->
+                conn
+                |> put_status(:not_found)
+                |> put_resp_content_type("application/json")
+                |> send_resp(
+                  404,
+                  Jason.encode!(%{error: "Video file '#{decoded_filename}' not found"})
+                )
+
+              old_video_path ->
+                # Get the video file extension
+                video_extension = Path.extname(old_video_path)
+                
+                # Build new file paths
+                new_video_path = Path.join(watch_directory, "#{new_filename}#{video_extension}")
+                old_txt_path = Path.join(watch_directory, "#{decoded_filename}.txt")
+                new_txt_path = Path.join(watch_directory, "#{new_filename}.txt")
+                old_meta_path = PathHelper.replace_video_extension_with(old_video_path, ".meta")
+                new_meta_path = Path.join(watch_directory, "#{new_filename}.meta")
+
+                # Check if any target files already exist
+                cond do
+                  File.exists?(new_video_path) ->
+                    conn
+                    |> put_status(:conflict)
+                    |> put_resp_content_type("application/json")
+                    |> send_resp(
+                      409,
+                      Jason.encode!(%{error: "A video file with name '#{new_filename}' already exists"})
+                    )
+
+                  File.exists?(new_txt_path) ->
+                    conn
+                    |> put_status(:conflict)
+                    |> put_resp_content_type("application/json")
+                    |> send_resp(
+                      409,
+                      Jason.encode!(%{error: "A transcript file with name '#{new_filename}' already exists"})
+                    )
+
+                  File.exists?(new_meta_path) ->
+                    conn
+                    |> put_status(:conflict)
+                    |> put_resp_content_type("application/json")
+                    |> send_resp(
+                      409,
+                      Jason.encode!(%{error: "A meta file with name '#{new_filename}' already exists"})
+                    )
+
+                  true ->
+                    # Perform the rename operations
+                    rename_results = [
+                      {:video, File.rename(old_video_path, new_video_path)},
+                      {:txt, if(File.exists?(old_txt_path), do: File.rename(old_txt_path, new_txt_path), else: :ok)},
+                      {:meta, if(File.exists?(old_meta_path), do: File.rename(old_meta_path, new_meta_path), else: :ok)}
+                    ]
+
+                    # Check if all renames were successful
+                    failed_renames = Enum.filter(rename_results, fn {_type, result} -> result != :ok end)
+
+                    case failed_renames do
+                      [] ->
+                        # All renames successful, update cache
+                        VideoInfoCache.update_video_info_cache()
+
+                        conn
+                        |> put_resp_content_type("application/json")
+                        |> send_resp(
+                          200,
+                          Jason.encode!(%{
+                            message: "Successfully renamed '#{decoded_filename}' to '#{new_filename}'"
+                          })
+                        )
+
+                      failures ->
+                        # Some renames failed, attempt to rollback successful ones
+                        Logger.error("Rename operation failed: #{inspect(failures)}")
+                        
+                        # Attempt rollback of successful renames (best effort)
+                        if File.exists?(new_video_path), do: File.rename(new_video_path, old_video_path)
+                        if File.exists?(new_txt_path), do: File.rename(new_txt_path, old_txt_path)
+                        if File.exists?(new_meta_path), do: File.rename(new_meta_path, old_meta_path)
+
+                        failed_types = Enum.map(failures, fn {type, _} -> type end)
+
+                        conn
+                        |> put_status(:internal_server_error)
+                        |> put_resp_content_type("application/json")
+                        |> send_resp(
+                          500,
+                          Jason.encode!(%{
+                            error: "Failed to rename files. Failed operations: #{Enum.join(failed_types, ", ")}"
+                          })
+                        )
+                    end
+                end
+            end
+          end
+
+        _ ->
+          conn
+          |> put_status(:bad_request)
+          |> put_resp_content_type("application/json")
+          |> send_resp(
+            400,
+            Jason.encode!(%{error: "Missing required 'new_filename' field in request body"})
+          )
+      end
+    end
+  end
 end

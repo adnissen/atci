@@ -56,6 +56,7 @@ defmodule Autotranscript.Web.Router do
     post("/transcripts/:filename/regenerate_meta", TranscriptController, :regenerate_meta)
     post("/transcripts/:filename/partial_reprocess", TranscriptController, :partial_reprocess)
     post("/transcripts/:filename/set_line", TranscriptController, :set_line)
+    post("/transcripts/:filename/rename", TranscriptController, :rename)
 
     # Meta file routes
     get("/transcripts/:filename/meta", TranscriptController, :get_meta_file)
