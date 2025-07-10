@@ -641,6 +641,10 @@ export default function HomePage() {
     }
   }
 
+  useEffect(() => {
+    handleSearch();
+  }, [searchTerm])
+
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
       setSearchLineNumbers({})
