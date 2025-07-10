@@ -183,7 +183,7 @@
                 <source src={@clip_url}>
                 Your browser does not support the video tag.
             </video>
-            <img id="gif-player" src={@clip_url} style={if @gif == "true", do: "display: block; width: 100%;", else: "display: none;"} />
+            <img id="gif-player" src={@clip_url} style={if @gif == "true", do: "display: block;", else: "display: none;"} />
         </div>
         
         <div class="form-container">
@@ -220,7 +220,7 @@
                     <div class="form-group">
                         <div class="checkbox-group">
                             <input type="checkbox" id="gif" name="gif" value="true" {if @gif == "true", do: [checked: "checked"], else: []}>
-                            <label for="gif">Generate GIF</label>
+                            <label for="gif">Render as GIF</label>
                         </div>
                     </div>
                 </div>
