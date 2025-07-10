@@ -22,39 +22,35 @@ defmodule Autotranscript.Web.Plugs.DynamicStatic do
         |> halt()
 
       watch_directory ->
-        file_path = Path.join([watch_directory] ++ path)
-        decoded_path = Autotranscript.Web.TranscriptController.decode_filename(file_path)
-        # If no extension, try all video extensions
-        paths_to_try =
-          if Path.extname(decoded_path) == "" do
-            Enum.map(PathHelper.video_extensions(), fn ext ->
-              decoded_path <> "." <> ext
-            end)
-          else
-            [decoded_path]
-          end
+        # Join the path components to get the filename
+        filename = Enum.join(path, "/")
+        decoded_filename = Autotranscript.Web.TranscriptController.decode_filename(filename)
 
-        # Try each possible path
-        case Enum.find_value(paths_to_try, fn path ->
-               case :prim_file.read_file_info(path) do
-                 {:ok, file_info(type: :regular) = file_info} -> {path, file_info}
-                 _ -> nil
-               end
-             end) do
-          {found_path, file_info} ->
-            # Get range header if present
-            range = get_req_header(conn, "range")
-
-            # Serve the file with range support
-            conn
-            |> put_resp_content_type(get_content_type(found_path))
-            |> put_resp_header("accept-ranges", "bytes")
-            |> serve_range(file_info, found_path, range)
-
+        # Use PathHelper.find_video_file to find the actual video file with extension
+        case PathHelper.find_video_file(watch_directory, decoded_filename) do
           nil ->
             conn
             |> send_resp(404, "Not Found")
             |> halt()
+
+          found_path ->
+            # Get file info for the found path
+            case :prim_file.read_file_info(found_path) do
+              {:ok, file_info(type: :regular) = file_info} ->
+                # Get range header if present
+                range = get_req_header(conn, "range")
+
+                # Serve the file with range support
+                conn
+                |> put_resp_content_type(get_content_type(found_path))
+                |> put_resp_header("accept-ranges", "bytes")
+                |> serve_range(file_info, found_path, range)
+
+              _ ->
+                conn
+                |> send_resp(404, "Not Found")
+                |> halt()
+            end
         end
     end
   end
