@@ -216,7 +216,7 @@ defmodule Autotranscript.Web.TranscriptController do
       sources_param ->
         # Parse sources from comma-separated string
         sources = String.split(sources_param, ",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-        
+
         if Enum.empty?(sources) do
           filtered_files
         else
@@ -235,9 +235,9 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def sources(conn, _params) do
     video_files = VideoInfoCache.get_video_files()
-    
+
     # Get unique sources from the model field, filtering out nil values
-    unique_sources = 
+    unique_sources =
       video_files
       |> Enum.map(& &1.model)
       |> Enum.reject(&is_nil/1)
@@ -1275,14 +1275,14 @@ defmodule Autotranscript.Web.TranscriptController do
     else
       case conn.body_params do
         %{"new_filename" => new_filename} ->
-          # Validate new filename (no path separators, no extension)
-          if String.contains?(new_filename, ["/", "\\", "."]) do
+          # Validate new filename (no path separators)
+          if String.contains?(new_filename, ["/", "\\"]) do
             conn
             |> put_status(:bad_request)
             |> put_resp_content_type("application/json")
             |> send_resp(
               400,
-              Jason.encode!(%{error: "New filename cannot contain path separators or extensions"})
+              Jason.encode!(%{error: "New filename cannot contain path separators"})
             )
           else
             # Find the original video file
@@ -1299,15 +1299,16 @@ defmodule Autotranscript.Web.TranscriptController do
                 )
 
               old_video_path ->
-                # Get the video file extension
+                # Get the video file extension and directory
                 video_extension = Path.extname(old_video_path)
-                
+                directory = Path.dirname(old_video_path)
+
                 # Build new file paths
-                new_video_path = Path.join(watch_directory, "#{new_filename}#{video_extension}")
-                old_txt_path = Path.join(watch_directory, "#{decoded_filename}.txt")
-                new_txt_path = Path.join(watch_directory, "#{new_filename}.txt")
+                new_video_path = Path.join(directory, "#{new_filename}#{video_extension}")
+                old_txt_path = PathHelper.replace_video_extension_with(old_video_path, ".txt")
+                new_txt_path = Path.join(directory, "#{new_filename}.txt")
                 old_meta_path = PathHelper.replace_video_extension_with(old_video_path, ".meta")
-                new_meta_path = Path.join(watch_directory, "#{new_filename}.meta")
+                new_meta_path = Path.join(directory, "#{new_filename}.meta")
 
                 # Check if any target files already exist
                 cond do
@@ -1366,7 +1367,7 @@ defmodule Autotranscript.Web.TranscriptController do
                       failures ->
                         # Some renames failed, attempt to rollback successful ones
                         Logger.error("Rename operation failed: #{inspect(failures)}")
-                        
+
                         # Attempt rollback of successful renames (best effort)
                         if File.exists?(new_video_path), do: File.rename(new_video_path, old_video_path)
                         if File.exists?(new_txt_path), do: File.rename(new_txt_path, old_txt_path)

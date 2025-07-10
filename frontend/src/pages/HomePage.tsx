@@ -777,8 +777,12 @@ export default function HomePage() {
 
   const handleRename = async (filename: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    setRenameFilename(filename)
-    setNewFilename(filename) // Pre-populate with current name
+    
+    // Extract just the filename part (remove any folder path)
+    const baseFilename = filename.split('/').pop()?.split('\\').pop() || filename
+    
+    setRenameFilename(filename) // Keep original for API call
+    setNewFilename(baseFilename) // Pre-populate with just the filename
     setRenameError('')
     setIsRenameDialogOpen(true)
     
@@ -797,13 +801,14 @@ export default function HomePage() {
       return
     }
 
-    if (newFilename === renameFilename) {
+    const baseFilename = renameFilename.split('/').pop()?.split('\\').pop() || renameFilename
+    if (newFilename === baseFilename) {
       setRenameError('New filename must be different from current filename')
       return
     }
 
-    if (/[\/\\.]/.test(newFilename)) {
-      setRenameError('Filename cannot contain path separators or extensions')
+    if (/[\/\\]/.test(newFilename)) {
+      setRenameError('Filename cannot contain path separators')
       return
     }
 
@@ -811,9 +816,12 @@ export default function HomePage() {
     setRenameError('')
 
     try {
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
       const response = await fetch(`/transcripts/${encodeURIComponent(renameFilename)}/rename`, {
         method: 'POST',
         headers: {
+          'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -1393,7 +1401,7 @@ export default function HomePage() {
           <div className="bg-background border border-border rounded-lg p-6 w-96 max-w-90vw">
             <h2 className="text-lg font-semibold mb-4">Rename File</h2>
             <p className="text-sm text-muted-foreground mb-4">
-              Renaming "{renameFilename}" (this will rename the video, transcript, and meta files)
+              Renaming "{renameFilename.split('/').pop()?.split('\\').pop() || renameFilename}" (this will rename the video, transcript, and meta files)
             </p>
             
             <div className="space-y-4">
