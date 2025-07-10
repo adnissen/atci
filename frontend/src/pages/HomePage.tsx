@@ -650,10 +650,10 @@ export default function HomePage() {
     setIsSearching(true)
 
     try {
-      const response = await fetch(`/search?q=${encodeURIComponent(searchTerm)}`)
+      const response = await fetch(`/grep/${encodeURIComponent(searchTerm)}`)
       if (response.ok) {
         const data = await response.json()
-        setSearchLineNumbers(data.results || {})
+        setSearchLineNumbers(data || {})
       }
     } catch (error) {
       console.error('Error searching:', error)

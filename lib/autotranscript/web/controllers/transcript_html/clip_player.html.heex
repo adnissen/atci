@@ -132,6 +132,37 @@
         .btn-success:hover {
             background-color: #218838;
         }
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+            background-color: #000;
+            border-radius: 8px;
+            color: #ccc;
+        }
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #333;
+            border-top: 4px solid #4a9eff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        .loading-subtext {
+            font-size: 14px;
+            color: #888;
+        }
     </style>
 </head>
 <body>
@@ -143,6 +174,11 @@
         </div>
         
         <div class="video-container">
+            <div id="loading-container" class="loading-container" style="display: none;">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Processing...</div>
+                <div class="loading-subtext">Generating your clip, please wait</div>
+            </div>
             <video controls autoplay id="video-player" style={if @gif == "true", do: "display: none;", else: "display: block;"}>
                 <source src={@clip_url}>
                 Your browser does not support the video tag.
@@ -187,6 +223,15 @@
                             <label for="gif">Generate GIF</label>
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label for="gif_quality">GIF Quality</label>
+                        <select id="gif_quality" name="gif_quality" style={"display: #{if @gif == "true", do: "block", else: "none"}; width: 100%; padding: 8px; border: 1px solid #444; border-radius: 4px; background-color: #1a1a1a; color: white; font-size: 14px;"}>
+                            <option value="fast" {if @gif_quality == "fast", do: [selected: "selected"], else: []}>Fast (240p, 4fps)</option>
+                            <option value="balanced" {if @gif_quality == "balanced" || @gif_quality == "", do: [selected: "selected"], else: []}>Balanced (320p, 6fps)</option>
+                            <option value="high" {if @gif_quality == "high", do: [selected: "selected"], else: []}>High (480p, 6fps)</option>
+                            <option value="ultra" {if @gif_quality == "ultra", do: [selected: "selected"], else: []}>Ultra (320p, 8fps) - Original</option>
+                        </select>
+                    </div>
                 </div>
                 
                 <div class="button-group">
@@ -205,6 +250,9 @@
             const form = document.querySelector('form');
             const video = document.getElementById('video-player');
             const gifImg = document.getElementById('gif-player');
+            const loadingContainer = document.getElementById('loading-container');
+            const loadingText = document.querySelector('.loading-text');
+            const loadingSubtext = document.querySelector('.loading-subtext');
             const clipInfo = document.querySelector('.clip-info');
             const downloadLink = document.querySelector('.btn-success');
             
@@ -215,6 +263,43 @@
             const fontSizeInput = document.getElementById('font_size');
             const displayTextInput = document.getElementById('display_text');
             const gifInput = document.getElementById('gif');
+            const gifQualityInput = document.getElementById('gif_quality');
+            
+            // Cache for GIF blob URL to avoid re-processing
+            let cachedGifBlobUrl = null;
+            
+            // Function to show loading state
+            function showLoading(isGif = false) {
+                loadingContainer.style.display = 'flex';
+                video.style.display = 'none';
+                gifImg.style.display = 'none';
+                
+                if (isGif) {
+                    loadingText.textContent = 'Generating GIF...';
+                    loadingSubtext.textContent = 'This may take a moment, please wait';
+                } else {
+                    loadingText.textContent = 'Processing video...';
+                    loadingSubtext.textContent = 'Preparing your clip';
+                }
+            }
+            
+            // Function to hide loading state
+            function hideLoading() {
+                loadingContainer.style.display = 'none';
+            }
+            
+            // Function to fetch GIF as blob and create blob URL for download
+            async function fetchGifAsBlob(url) {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error('Failed to fetch GIF');
+                    const blob = await response.blob();
+                    return URL.createObjectURL(blob);
+                } catch (error) {
+                    console.error('Error fetching GIF blob:', error);
+                    return url; // Fallback to original URL
+                }
+            }
             
             // Function to update video and download link
             function updateVideo() {
@@ -224,6 +309,7 @@
                 const fontSize = fontSizeInput.value;
                 const displayText = displayTextInput.checked;
                 const gif = gifInput.checked;
+                const gifQuality = gifQualityInput.value;
                 
                 // Validate required fields
                 if (!startTime || !endTime || parseFloat(startTime) < 0 || parseFloat(endTime) <= parseFloat(startTime)) {
@@ -259,21 +345,72 @@
                 if (gif) {
                     clipParams.set('gif', 'true');
                     urlParams.set('gif', 'true');
+                    if (gifQuality && gifQuality.trim() !== '') {
+                        clipParams.set('gif_quality', gifQuality);
+                        urlParams.set('gif_quality', gifQuality);
+                    }
                 }
                 
                 // Update video or gif source
                 const newClipUrl = '/clip?' + clipParams.toString();
                 
+                // Show loading state
+                showLoading(gif);
+                
                 // Toggle display between video and gif
                 if (gif) {
-                    video.style.display = 'none';
-                    gifImg.style.display = 'block';
-                    gifImg.src = newClipUrl;
+                    gifQualityInput.style.display = 'block';
+                    
+                    // Create new image to preload GIF
+                    const tempImg = new Image();
+                    tempImg.onload = function() {
+                        // GIF loaded successfully
+                        gifImg.src = newClipUrl;
+                        hideLoading();
+                        gifImg.style.display = 'block';
+                        
+                        // Cache GIF as blob for efficient downloads
+                        fetchGifAsBlob(newClipUrl).then(blobUrl => {
+                            // Clean up old blob URL
+                            if (cachedGifBlobUrl) {
+                                URL.revokeObjectURL(cachedGifBlobUrl);
+                            }
+                            cachedGifBlobUrl = blobUrl;
+                            
+                            // Update download link to use cached blob
+                            downloadLink.href = cachedGifBlobUrl;
+                        });
+                    };
+                    tempImg.onerror = function() {
+                        // GIF failed to load
+                        hideLoading();
+                        gifImg.style.display = 'block';
+                        gifImg.src = newClipUrl; // Still try to show it
+                    };
+                    tempImg.src = newClipUrl;
                 } else {
-                    video.style.display = 'block';
-                    gifImg.style.display = 'none';
+                    gifQualityInput.style.display = 'none';
                     const videoSource = video.querySelector('source');
                     videoSource.src = newClipUrl;
+                    
+                    // Clean up cached GIF blob URL if switching away from GIF
+                    if (cachedGifBlobUrl) {
+                        URL.revokeObjectURL(cachedGifBlobUrl);
+                        cachedGifBlobUrl = null;
+                    }
+                    
+                    // Use direct URL for video downloads
+                    downloadLink.href = newClipUrl;
+                    
+                    // Handle video loading
+                    video.onloadeddata = function() {
+                        hideLoading();
+                        video.style.display = 'block';
+                    };
+                    video.onerror = function() {
+                        hideLoading();
+                        video.style.display = 'block'; // Still try to show it
+                    };
                     video.load();
                 }
                 
@@ -289,8 +426,7 @@
                     }
                 }
                 
-                // Update download link
-                downloadLink.href = newClipUrl;
+                // Update download link properties (href is set above based on mode)
                 downloadLink.download = filename;
                 downloadLink.textContent = 'Download ' + (gif ? 'GIF' : 'Clip');
                 
@@ -309,8 +445,21 @@
                 updateTimeout = setTimeout(updateVideo, 500); // 500ms delay
             }
             
-            // Set initial download filename
+            // Set initial download filename and cache GIF if needed
             updateVideo();
+            
+            // If page loads with GIF mode already enabled, cache the initial GIF and show quality dropdown
+            if (gifInput.checked && gifImg.src) {
+                gifQualityInput.style.display = 'block';
+                hideLoading(); // Make sure loading is hidden on initial load
+                fetchGifAsBlob(gifImg.src).then(blobUrl => {
+                    cachedGifBlobUrl = blobUrl;
+                    downloadLink.href = cachedGifBlobUrl;
+                });
+            } else {
+                gifQualityInput.style.display = 'none';
+                hideLoading(); // Make sure loading is hidden on initial load
+            }
             
             // Listen for input changes
             startTimeInput.addEventListener('input', debouncedUpdate);
@@ -319,6 +468,14 @@
             fontSizeInput.addEventListener('input', debouncedUpdate);
             displayTextInput.addEventListener('change', updateVideo); // Immediate update for checkbox
             gifInput.addEventListener('change', updateVideo); // Immediate update for checkbox
+            gifQualityInput.addEventListener('change', updateVideo); // Immediate update for dropdown
+            
+            // Clean up blob URLs when page is unloaded
+            window.addEventListener('beforeunload', function() {
+                if (cachedGifBlobUrl) {
+                    URL.revokeObjectURL(cachedGifBlobUrl);
+                }
+            });
         });
     </script>
 </body>

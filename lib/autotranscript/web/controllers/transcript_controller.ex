@@ -4,6 +4,55 @@ defmodule Autotranscript.Web.TranscriptController do
 
   alias Autotranscript.{PathHelper, VideoInfoCache, ConfigManager}
 
+  # GIF quality presets - controlled by gif_quality parameter
+  defp get_gif_settings(quality \\ "balanced") do
+    case quality do
+      "fast" ->
+        %{
+          fps: 4,
+          width: 240,
+          scaling_filter: "fast_bilinear",
+          max_colors: 256,
+          stats_mode: "single",
+          dither: "bayer",
+          bayer_scale: 1
+        }
+      "balanced" ->
+        %{
+          fps: 6,
+          width: 320,
+          scaling_filter: "fast_bilinear",
+          max_colors: 256,
+          stats_mode: "single",
+          dither: "bayer",
+          bayer_scale: 2
+        }
+      "high" ->
+        %{
+          fps: 6,
+          width: 480,
+          scaling_filter: "lanczos",
+          max_colors: 256,
+          stats_mode: "diff",
+          dither: "bayer",
+          bayer_scale: 3
+        }
+      "ultra" ->
+        %{
+          fps: 10,
+          width: 480,
+          scaling_filter: "lanczos",
+          max_colors: 256,
+          stats_mode: "diff",
+          dither: "bayer",
+          bayer_scale: 3
+        }
+      _ ->
+        # Default to balanced if unknown quality
+        get_gif_settings("balanced")
+    end
+  end
+
   # Helper function to decode URL-encoded filenames
   def decode_filename(filename) when is_binary(filename) do
     filename
@@ -370,6 +419,7 @@ defmodule Autotranscript.Web.TranscriptController do
         font_size = query_params["font_size"]
         display_text = query_params["display_text"]
         gif = query_params["gif"]
+        gif_quality = query_params["gif_quality"]
 
       # Validate required parameters
       case {start_time, end_time} do
@@ -400,6 +450,11 @@ defmodule Autotranscript.Web.TranscriptController do
               do: Map.put(clip_params, "gif", gif),
               else: clip_params
 
+          clip_params =
+            if gif_quality && gif_quality != "",
+              do: Map.put(clip_params, "gif_quality", gif_quality),
+              else: clip_params
+
           # Construct the clip URL
           clip_url = "/clip?" <> URI.encode_query(clip_params)
 
@@ -411,7 +466,8 @@ defmodule Autotranscript.Web.TranscriptController do
             text: text || "",
             font_size: font_size || "",
             display_text: display_text || "",
-            gif: gif || ""
+            gif: gif || "",
+            gif_quality: gif_quality || "balanced"
           )
 
         _ ->
@@ -575,6 +631,7 @@ defmodule Autotranscript.Web.TranscriptController do
     display_text_param = query_params["display_text"]
     font_size_param = query_params["font_size"]
     gif_param = query_params["gif"]
+    gif_quality_param = query_params["gif_quality"] || "balanced"
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Parse and validate the time parameters
@@ -598,6 +655,9 @@ defmodule Autotranscript.Web.TranscriptController do
             is_gif = gif_param == "true"
             file_extension = if is_gif, do: ".gif", else: ".mp4"
             temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}#{file_extension}")
+
+            # Get GIF settings based on quality parameter
+            gif_settings = if is_gif, do: get_gif_settings(gif_quality_param), else: nil
 
             # Build ffmpeg command with optional text overlay (only if display_text is true)
             ffmpeg_args =
@@ -663,7 +723,7 @@ defmodule Autotranscript.Web.TranscriptController do
                   ]
 
                 {text, "true", true} when is_binary(text) and text != "" ->
-                  # GIF with text overlay
+                  # GIF with text overlay - optimized for speed
                   escaped_text =
                     text
                     |> :unicode.characters_to_binary(:utf8)
@@ -738,7 +798,7 @@ defmodule Autotranscript.Web.TranscriptController do
                   ]
 
                 {_, _, true} ->
-                  # GIF without text overlay
+                  # GIF without text overlay - optimized for speed
                   [
                     "-ss",
                     "#{start_time}",
