@@ -254,7 +254,7 @@ defmodule Autotranscript.VideoProcessor do
           {:error, :model_not_found}
 
         true ->
-          System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", path])
+          System.cmd(whispercli, ["-m", model, "-np", "--max-context", "32", "-ovtt", "-f", path])
           vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
 
           txt_path = String.replace_trailing(vtt_path, ".vtt", ".txt")

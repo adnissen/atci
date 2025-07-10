@@ -617,7 +617,7 @@ export default function HomePage() {
       if (response.ok) {
         const data = await response.json()
         setQueue(data.queue || [])
-        setCurrentProcessingFile(data.current_processing || null)
+        setCurrentProcessingFile(data.current_file || null)
         
         // Update regeneratingFiles based on queue
         const filesInQueue = new Set<string>(
@@ -671,10 +671,15 @@ export default function HomePage() {
     
     // Add to regenerating set immediately for UI feedback
     setRegeneratingFiles(prev => new Set(prev).add(filename))
-    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
     try {
       const response = await fetch(`/regenerate/${encodeURIComponent(filename)}`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': csrfToken || '',
+          'Content-Type': 'application/json',
+        },
       })
       
       if (!response.ok) {
@@ -864,10 +869,15 @@ export default function HomePage() {
     
     // Add to regenerating set for UI feedback
     setRegeneratingFiles(prev => new Set(prev).add(filename))
-    
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+
     try {
       const response = await fetch(`/regenerate-meta/${encodeURIComponent(filename)}`, {
-        method: 'POST'
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': csrfToken || '',
+          'Content-Type': 'application/json',
+        },
       })
       
       if (response.ok) {
@@ -988,7 +998,7 @@ export default function HomePage() {
               <div className="flex gap-4 items-center">
                 {currentProcessingFile && (
                   <div className="text-sm text-primary font-medium">
-                    Processing: {currentProcessingFile.video_path.split('/').pop()?.replace(/\.(mp4|MP4)$/, '')} ({currentProcessingFile.process_type})
+                    Processing: {currentProcessingFile.video_path.split('/').pop()} ({currentProcessingFile.process_type})
                   </div>
                 )}
                 <div className="relative group">
