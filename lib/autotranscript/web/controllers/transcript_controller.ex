@@ -378,7 +378,7 @@ defmodule Autotranscript.Web.TranscriptController do
         text = query_params["text"]
         font_size = query_params["font_size"]
         display_text = query_params["display_text"]
-        gif = query_params["gif"]
+        format = query_params["format"] || "mp4"
 
       # Validate required parameters
       case {start_time, end_time} do
@@ -405,8 +405,8 @@ defmodule Autotranscript.Web.TranscriptController do
               else: clip_params
 
           clip_params =
-            if gif && gif != "",
-              do: Map.put(clip_params, "gif", gif),
+            if format && format != "",
+              do: Map.put(clip_params, "format", format),
               else: clip_params
 
 
@@ -422,7 +422,7 @@ defmodule Autotranscript.Web.TranscriptController do
             text: text || "",
             font_size: font_size || "",
             display_text: display_text || "",
-            gif: gif || ""
+            format: "mp4"
           )
 
         _ ->
@@ -585,7 +585,7 @@ defmodule Autotranscript.Web.TranscriptController do
     text_param = query_params["text"]
     display_text_param = query_params["display_text"]
     font_size_param = query_params["font_size"]
-    gif_param = query_params["gif"]
+    format_param = query_params["format"] || "mp4"
     watch_directory = Autotranscript.ConfigManager.get_config_value("watch_directory")
 
     # Parse and validate the time parameters
@@ -605,18 +605,26 @@ defmodule Autotranscript.Web.TranscriptController do
             # Calculate duration
             duration = end_time - start_time
 
-            # Generate a temporary filename for the clipped video or GIF
-            is_gif = gif_param == "true"
-            file_extension = if is_gif, do: ".gif", else: ".mp4"
+            # Generate a temporary filename for the clipped video, GIF, or MP3
+            format = case format_param do
+              "gif" -> "gif"
+              "mp3" -> "mp3"
+              _ -> "mp4"
+            end
+
+            file_extension = case format do
+              "gif" -> ".gif"
+              "mp3" -> ".mp3"
+              _ -> ".mp4"
+            end
+
             temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}#{file_extension}")
 
-
-
-            # Build ffmpeg command with optional text overlay (only if display_text is true)
+            # Build ffmpeg command based on format and optional text overlay
             ffmpeg_args =
-              case {text_param, display_text_param, is_gif} do
-                {text, "true", false} when is_binary(text) and text != "" ->
-                  # Video with text overlay
+              case {text_param, display_text_param, format} do
+                {text, "true", "mp4"} when is_binary(text) and text != "" ->
+                  # MP4 video with text overlay
                   escaped_text =
                     text
                     |> :unicode.characters_to_binary(:utf8)
@@ -675,7 +683,7 @@ defmodule Autotranscript.Web.TranscriptController do
                     temp_clip_path
                   ]
 
-                {text, "true", true} when is_binary(text) and text != "" ->
+                {text, "true", "gif"} when is_binary(text) and text != "" ->
                   # GIF with text overlay - optimized for speed
                   escaped_text =
                     text
@@ -717,8 +725,8 @@ defmodule Autotranscript.Web.TranscriptController do
                     temp_clip_path
                   ]
 
-                {_, _, false} ->
-                  # Video without text overlay
+                {_, _, "mp4"} ->
+                  # MP4 video without text overlay
                   [
                     "-ss",
                     "#{start_time}",
@@ -750,15 +758,15 @@ defmodule Autotranscript.Web.TranscriptController do
                     temp_clip_path
                   ]
 
-                {_, _, true} ->
-                  # GIF without text overlay - optimized for speed
+                {_, _, "gif"} ->
+                  # GIF without text overlay
                   [
                     "-ss",
                     "#{start_time}",
-                    "-i",
-                    file_path,
                     "-t",
                     "#{duration}",
+                    "-i",
+                    file_path,
                     "-vf",
                     "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
                     "-loop",
@@ -766,9 +774,31 @@ defmodule Autotranscript.Web.TranscriptController do
                     "-y",
                     temp_clip_path
                   ]
+
+                {_, _, "mp3"} ->
+                  # MP3 audio extraction
+                  [
+                    "-ss",
+                    "#{start_time}",
+                    "-i",
+                    file_path,
+                    "-t",
+                    "#{duration}",
+                    "-vn",
+                    "-acodec",
+                    "libmp3lame",
+                    "-ar",
+                    "44100",
+                    "-ac",
+                    "2",
+                    "-b:a",
+                    "256k",
+                    "-y",
+                    temp_clip_path
+                  ]
               end
 
-            # Use ffmpeg to extract and convert the video clip to MP4 or GIF
+            # Use ffmpeg to extract and convert the video clip to MP4, GIF, or MP3
             ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
 
             case System.cmd(ffmpeg_path, ffmpeg_args) do
@@ -779,7 +809,11 @@ defmodule Autotranscript.Web.TranscriptController do
                     # Clean up temp file
                     File.rm(temp_clip_path)
 
-                    content_type = if is_gif, do: "image/gif", else: "video/mp4"
+                    content_type = case format do
+                      "gif" -> "image/gif"
+                      "mp3" -> "audio/mpeg"
+                      _ -> "video/mp4"
+                    end
 
                     conn
                     |> put_resp_content_type(content_type)
@@ -789,7 +823,7 @@ defmodule Autotranscript.Web.TranscriptController do
                     conn
                     |> put_status(:internal_server_error)
                     |> put_resp_content_type("text/plain")
-                    |> send_resp(500, "Error reading clipped #{if is_gif, do: "GIF", else: "video"}: #{reason}")
+                    |> send_resp(500, "Error reading clipped #{format}: #{reason}")
                 end
 
               {error_output, _exit_code} ->
@@ -799,7 +833,7 @@ defmodule Autotranscript.Web.TranscriptController do
                 conn
                 |> put_status(:internal_server_error)
                 |> put_resp_content_type("text/plain")
-                |> send_resp(500, "Error creating #{if is_gif, do: "GIF", else: "video"} clip with ffmpeg: #{error_output}")
+                |> send_resp(500, "Error creating #{format} clip with ffmpeg: #{error_output}")
             end
         end
 
