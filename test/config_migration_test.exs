@@ -19,14 +19,16 @@ defmodule Autotranscript.ConfigMigrationTest do
       }
 
       # Test the migration logic directly by simulating what happens in migrate_config_format
-      migrated_config = case {Map.get(old_config, "watch_directory"), Map.get(old_config, "watch_directories")} do
-        {watch_dir_val, nil} when is_binary(watch_dir_val) and watch_dir_val != "" ->
-          old_config
-          |> Map.put("watch_directories", [watch_dir_val])
-          |> Map.delete("watch_directory")
-        {_, _} ->
-          old_config
-      end
+      migrated_config =
+        case {Map.get(old_config, "watch_directory"), Map.get(old_config, "watch_directories")} do
+          {watch_dir_val, nil} when is_binary(watch_dir_val) and watch_dir_val != "" ->
+            old_config
+            |> Map.put("watch_directories", [watch_dir_val])
+            |> Map.delete("watch_directory")
+
+          {_, _} ->
+            old_config
+        end
 
       # Verify the migration worked
       assert Map.get(migrated_config, "watch_directories") == [temp_dir]
@@ -58,14 +60,16 @@ defmodule Autotranscript.ConfigMigrationTest do
       }
 
       # Test the migration logic - should not change new format
-      migrated_config = case {Map.get(new_config, "watch_directory"), Map.get(new_config, "watch_directories")} do
-        {watch_dir_val, nil} when is_binary(watch_dir_val) and watch_dir_val != "" ->
-          new_config
-          |> Map.put("watch_directories", [watch_dir_val])
-          |> Map.delete("watch_directory")
-        {_, _} ->
-          new_config
-      end
+      migrated_config =
+        case {Map.get(new_config, "watch_directory"), Map.get(new_config, "watch_directories")} do
+          {watch_dir_val, nil} when is_binary(watch_dir_val) and watch_dir_val != "" ->
+            new_config
+            |> Map.put("watch_directories", [watch_dir_val])
+            |> Map.delete("watch_directory")
+
+          {_, _} ->
+            new_config
+        end
 
       # Verify the config was not changed
       assert migrated_config == new_config

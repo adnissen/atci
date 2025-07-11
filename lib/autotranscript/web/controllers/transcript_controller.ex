@@ -4,15 +4,6 @@ defmodule Autotranscript.Web.TranscriptController do
 
   alias Autotranscript.{PathHelper, VideoInfoCache, ConfigManager}
 
-  # GIF generation settings - optimized for speed and reasonable file sizes
-  @gif_fps 8
-  @gif_width 320
-  @gif_scaling_filter "fast_bilinear"
-  @gif_max_colors 256
-  @gif_stats_mode "single"
-  @gif_dither "bayer"
-  @gif_bayer_scale 2
-
   # Helper function to decode URL-encoded filenames
   def decode_filename(filename) when is_binary(filename) do
     filename
