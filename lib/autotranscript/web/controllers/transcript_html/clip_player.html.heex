@@ -14,8 +14,8 @@
             margin: 0;
             padding: 0;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-            color: #f8fafc;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+            color: #e5e5e5;
             min-height: 100vh;
             line-height: 1.6;
         }
@@ -35,7 +35,7 @@
             font-size: 2.5rem;
             font-weight: 700;
             margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -43,7 +43,7 @@
         
         .clip-info {
             font-size: 1.1rem;
-            color: #94a3b8;
+            color: #a1a1aa;
             font-weight: 500;
         }
         
@@ -53,8 +53,9 @@
             background: #000;
             border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
             margin-bottom: 2rem;
+            border: 1px solid #27272a;
         }
         
         video, #gif-player {
@@ -76,14 +77,14 @@
             min-height: 300px;
             background: rgba(0, 0, 0, 0.95);
             backdrop-filter: blur(10px);
-            color: #e2e8f0;
+            color: #d4d4d8;
         }
         
         .loading-spinner {
             width: 48px;
             height: 48px;
-            border: 3px solid #334155;
-            border-top: 3px solid #60a5fa;
+            border: 3px solid #3f3f46;
+            border-top: 3px solid #3b82f6;
             border-radius: 50%;
             animation: spin 1s linear infinite;
             margin-bottom: 1.5rem;
@@ -102,17 +103,17 @@
         
         .loading-subtext {
             font-size: 0.875rem;
-            color: #94a3b8;
+            color: #71717a;
         }
         
         .form-container {
-            background: rgba(30, 41, 59, 0.7);
+            background: rgba(24, 24, 27, 0.8);
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(148, 163, 184, 0.1);
+            border: 1px solid #27272a;
             padding: 2rem;
             border-radius: 16px;
             margin-bottom: 2rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
         }
         
         .form-row {
@@ -130,7 +131,7 @@
         .form-group label {
             font-size: 0.875rem;
             font-weight: 600;
-            color: #e2e8f0;
+            color: #d4d4d8;
             margin-bottom: 0.5rem;
             letter-spacing: 0.025em;
         }
@@ -139,10 +140,10 @@
         .form-group textarea {
             width: 100%;
             padding: 0.875rem 1rem;
-            border: 2px solid #334155;
+            border: 2px solid #3f3f46;
             border-radius: 8px;
-            background: rgba(15, 23, 42, 0.6);
-            color: #f8fafc;
+            background: rgba(9, 9, 11, 0.8);
+            color: #e5e5e5;
             font-size: 0.875rem;
             font-family: inherit;
             transition: all 0.2s ease;
@@ -151,8 +152,8 @@
         .form-group input:focus, 
         .form-group textarea:focus {
             outline: none;
-            border-color: #60a5fa;
-            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
         
         .form-group textarea {
@@ -170,16 +171,16 @@
         .checkbox-group input[type="checkbox"] {
             width: 1.25rem;
             height: 1.25rem;
-            border: 2px solid #334155;
+            border: 2px solid #3f3f46;
             border-radius: 4px;
-            background: rgba(15, 23, 42, 0.6);
+            background: rgba(9, 9, 11, 0.8);
             cursor: pointer;
             transition: all 0.2s ease;
         }
         
         .checkbox-group input[type="checkbox"]:checked {
-            background: #60a5fa;
-            border-color: #60a5fa;
+            background: #3b82f6;
+            border-color: #3b82f6;
         }
         
         .checkbox-group label {
@@ -187,7 +188,7 @@
             font-size: 0.875rem;
             font-weight: 500;
             cursor: pointer;
-            color: #e2e8f0;
+            color: #d4d4d8;
         }
         
         .button-group {
@@ -214,14 +215,14 @@
         }
         
         .btn-success {
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
             color: white;
-            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.3);
+            box-shadow: 0 4px 14px 0 rgba(5, 150, 105, 0.3);
         }
         
         .btn-success:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px 0 rgba(16, 185, 129, 0.4);
+            box-shadow: 0 8px 25px 0 rgba(5, 150, 105, 0.4);
         }
         
         .btn-success:active {
@@ -237,7 +238,7 @@
             display: inline-flex;
             align-items: center;
             gap: 0.5rem;
-            color: #94a3b8;
+            color: #71717a;
             text-decoration: none;
             font-size: 1rem;
             font-weight: 500;
@@ -247,8 +248,8 @@
         }
         
         .back-link:hover {
-            color: #60a5fa;
-            background: rgba(96, 165, 250, 0.1);
+            color: #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
         }
         
         .back-link::before {
@@ -304,16 +305,16 @@
         }
         
         ::-webkit-scrollbar-track {
-            background: #1e293b;
+            background: #18181b;
         }
         
         ::-webkit-scrollbar-thumb {
-            background: #475569;
+            background: #3f3f46;
             border-radius: 4px;
         }
         
         ::-webkit-scrollbar-thumb:hover {
-            background: #64748b;
+            background: #52525b;
         }
     </style>
 </head>
