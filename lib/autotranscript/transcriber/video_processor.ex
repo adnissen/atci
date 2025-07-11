@@ -2,7 +2,7 @@ defmodule Autotranscript.VideoProcessor do
   use GenServer
   require Logger
 
-  alias Autotranscript.{PathHelper, VideoInfoCache, TranscriptModifier}
+  alias Autotranscript.{PathHelper, VideoInfoCache, TranscriptModifier, MetaFileHandler}
   alias Autotranscript.ConfigManager
 
   @moduledoc """
@@ -254,7 +254,18 @@ defmodule Autotranscript.VideoProcessor do
           {:error, :model_not_found}
 
         true ->
-          System.cmd(whispercli, ["-m", model, "-np", "--max-context", "0", "-ovtt", "-f", path])
+          # Get prompt from meta file if available
+          prompt = get_prompt_from_meta(path)
+          
+          # Build command arguments with optional prompt
+          args = ["-m", model, "-np", "--max-context", "0", "-ovtt", "-f", path]
+          args = if prompt do
+            args ++ ["--prompt", prompt]
+          else
+            args
+          end
+
+          System.cmd(whispercli, args)
           vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
 
           txt_path = String.replace_trailing(vtt_path, ".vtt", ".txt")
@@ -369,6 +380,31 @@ defmodule Autotranscript.VideoProcessor do
 
           nil ->
             {:error, "Could not parse duration from ffmpeg output"}
+        end
+    end
+  end
+
+  # Finds the corresponding video file path from an MP3 file path by checking
+  # which video file with the same base name exists.
+  defp find_video_path_from_mp3(mp3_path) do
+    # Get the base path without extension
+    base_path = String.replace_trailing(mp3_path, ".mp3", "")
+    
+    # Check each video extension to see which one exists
+    PathHelper.video_extensions_with_dots()
+    |> Enum.map(fn ext -> base_path <> ext end)
+    |> Enum.find(&File.exists?/1)
+  end
+
+  # Gets the prompt text from a video file's meta file if it exists.
+  defp get_prompt_from_meta(mp3_path) do
+    case find_video_path_from_mp3(mp3_path) do
+      nil -> nil
+      video_path ->
+        meta_path = PathHelper.replace_video_extension_with(video_path, ".meta")
+        case MetaFileHandler.get_meta_field(meta_path, "prompt") do
+          {:ok, prompt} -> prompt
+          {:error, _} -> nil
         end
     end
   end
@@ -542,7 +578,18 @@ defmodule Autotranscript.VideoProcessor do
         {:error, "Model file not found at: #{model}"}
 
       true ->
-        case System.cmd(whispercli, ["-m", model, "-np", "-ovtt", "-f", temp_mp3_path]) do
+        # Get prompt from meta file if available
+        prompt = get_prompt_from_meta(temp_mp3_path)
+        
+        # Build command arguments with optional prompt
+        args = ["-m", model, "-np", "-ovtt", "-f", temp_mp3_path]
+        args = if prompt do
+          args ++ ["--prompt", prompt]
+        else
+          args
+        end
+
+        case System.cmd(whispercli, args) do
           {_output, 0} ->
             # Convert VTT to TXT
             vtt_path = temp_mp3_path <> ".vtt"
