@@ -481,11 +481,11 @@ defmodule Autotranscript.Web.TranscriptController do
             # Generate a temporary filename for the extracted frame
             temp_frame_path = Path.join(System.tmp_dir(), "frame_at_time_#{UUID.uuid4()}.jpg")
 
-            # Build ffmpeg command with optional drawtext filter
-            ffmpeg_args =
+                        # Build ffmpeg command with optional drawtext filter
+            {ffmpeg_args, temp_text_path} =
               case text_param do
                 nil ->
-                  [
+                  {[
                     "-ss",
                     "#{time}",
                     "-i",
@@ -498,40 +498,60 @@ defmodule Autotranscript.Web.TranscriptController do
                     "image2",
                     "-y",
                     temp_frame_path
-                  ]
+                  ], nil}
 
                 text ->
-                  # Escape special characters in text for ffmpeg
-                  escaped_text =
-                    text
-                    |> :unicode.characters_to_binary(:utf8)
+                  # Create a temporary text file for the drawtext filter
+                  temp_text_path = Path.join(System.tmp_dir(), "text_#{UUID.uuid4()}.txt")
 
-                  # Use provided font size or calculate based on video dimensions and text length
-                  font_size =
-                    case font_size_param do
-                      nil ->
-                        calculate_font_size_for_video(file_path, String.length(text))
+                  # Write text to temporary file
+                  case File.write(temp_text_path, text, [:utf8]) do
+                    :ok ->
+                      # Use provided font size or calculate based on video dimensions and text length
+                      font_size =
+                        case font_size_param do
+                          nil ->
+                            calculate_font_size_for_video(file_path, String.length(text))
 
-                      size ->
-                        size
-                    end
+                          size ->
+                            size
+                        end
 
-                  [
-                    "-ss",
-                    "#{time}",
-                    "-i",
-                    file_path,
-                    "-vf",
-                    "drawtext=text='#{escaped_text}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
-                    "-vframes",
-                    "1",
-                    "-q:v",
-                    "2",
-                    "-f",
-                    "image2",
-                    "-y",
-                    temp_frame_path
-                  ]
+                      {[
+                        "-ss",
+                        "#{time}",
+                        "-i",
+                        file_path,
+                        "-vf",
+                        "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
+                        "-vframes",
+                        "1",
+                        "-q:v",
+                        "2",
+                        "-f",
+                        "image2",
+                        "-y",
+                        temp_frame_path
+                      ], temp_text_path}
+
+                    {:error, reason} ->
+                      # If we can't write the text file, fall back to no text overlay
+                      Logger.warning("Failed to create temporary text file: #{reason}")
+                      {[
+                        "-ss",
+                        "#{time}",
+                        "-i",
+                        file_path,
+                        "-vframes",
+                        "1",
+                        "-q:v",
+                        "2",
+                        "-f",
+                        "image2",
+                        "-y",
+                        temp_frame_path
+                      ], nil}
+                  end
               end
 
             # Use ffmpeg to extract a frame at the specified time
@@ -542,14 +562,19 @@ defmodule Autotranscript.Web.TranscriptController do
                 # Successfully extracted frame, serve it
                 case File.read(temp_frame_path) do
                   {:ok, image_data} ->
-                    # Clean up temp file
+                    # Clean up temp files
                     File.rm(temp_frame_path)
+                    if temp_text_path, do: File.rm(temp_text_path)
 
                     conn
                     |> put_resp_content_type("image/jpeg")
                     |> send_resp(200, image_data)
 
                   {:error, reason} ->
+                    # Clean up temp files on error
+                    File.rm(temp_frame_path)
+                    if temp_text_path, do: File.rm(temp_text_path)
+
                     conn
                     |> put_status(:internal_server_error)
                     |> put_resp_content_type("text/plain")
@@ -557,8 +582,9 @@ defmodule Autotranscript.Web.TranscriptController do
                 end
 
               {error_output, _exit_code} ->
-                # Clean up temp file if it exists
+                # Clean up temp files if they exist
                 File.rm(temp_frame_path)
+                if temp_text_path, do: File.rm(temp_text_path)
 
                 conn
                 |> put_status(:internal_server_error)
@@ -621,113 +647,171 @@ defmodule Autotranscript.Web.TranscriptController do
             temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}#{file_extension}")
 
             # Build ffmpeg command based on format and optional text overlay
-            ffmpeg_args =
+            {ffmpeg_args, temp_text_path} =
               case {text_param, display_text_param, format} do
                 {text, "true", "mp4"} when is_binary(text) and text != "" ->
                   # MP4 video with text overlay
-                  escaped_text =
-                    text
-                    |> :unicode.characters_to_binary(:utf8)
+                  # Create a temporary text file for the drawtext filter
+                  temp_text_path = Path.join(System.tmp_dir(), "text_#{UUID.uuid4()}.txt")
 
-                  font_size =
-                    case font_size_param do
-                      size_str when is_binary(size_str) ->
-                        case Integer.parse(size_str) do
-                          {size, ""} when size > 0 and size <= 500 -> size
-                          _ -> nil
+                  # Write text to temporary file
+                  case File.write(temp_text_path, text, [:utf8]) do
+                    :ok ->
+                      font_size =
+                        case font_size_param do
+                          size_str when is_binary(size_str) ->
+                            case Integer.parse(size_str) do
+                              {size, ""} when size > 0 and size <= 500 -> size
+                              _ -> nil
+                            end
+
+                          _ ->
+                            nil
                         end
 
-                      _ ->
-                        nil
-                    end
+                      font_size =
+                        case font_size do
+                          nil ->
+                            calculate_font_size_for_video(file_path, String.length(text))
 
-                  font_size =
-                    case font_size do
-                      nil ->
-                        calculate_font_size_for_video(file_path, String.length(text))
+                          size ->
+                            size
+                        end
 
-                      size ->
-                        size
-                    end
+                      {[
+                        "-ss",
+                        "#{start_time}",
+                        "-i",
+                        file_path,
+                        "-t",
+                        "#{duration}",
+                        "-vf",
+                        "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
+                        "-c:v",
+                        "libx264",
+                        "-c:a",
+                        "aac",
+                        "-profile:a",
+                        "aac_low",
+                        "-ar",
+                        "44100",
+                        "-ac",
+                        "2",
+                        "-b:a",
+                        "256k",
+                        "-crf",
+                        "23",
+                        "-preset",
+                        "medium",
+                        "-movflags",
+                        "faststart",
+                        "-avoid_negative_ts",
+                        "make_zero",
+                        "-y",
+                        temp_clip_path
+                      ], temp_text_path}
 
-                  [
-                    "-ss",
-                    "#{start_time}",
-                    "-i",
-                    file_path,
-                    "-t",
-                    "#{duration}",
-                    "-vf",
-                    "drawtext=text='#{escaped_text}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
-                    "-c:v",
-                    "libx264",
-                    "-c:a",
-                    "aac",
-                    "-profile:a",
-                    "aac_low",
-                    "-ar",
-                    "44100",
-                    "-ac",
-                    "2",
-                    "-b:a",
-                    "256k",
-                    "-crf",
-                    "23",
-                    "-preset",
-                    "medium",
-                    "-movflags",
-                    "faststart",
-                    "-avoid_negative_ts",
-                    "make_zero",
-                    "-y",
-                    temp_clip_path
-                  ]
+                    {:error, reason} ->
+                      # If we can't write the text file, fall back to no text overlay
+                      Logger.warning("Failed to create temporary text file: #{reason}")
+                      {[
+                        "-ss",
+                        "#{start_time}",
+                        "-i",
+                        file_path,
+                        "-t",
+                        "#{duration}",
+                        "-c:v",
+                        "libx264",
+                        "-c:a",
+                        "aac",
+                        "-profile:a",
+                        "aac_low",
+                        "-ar",
+                        "44100",
+                        "-ac",
+                        "2",
+                        "-b:a",
+                        "256k",
+                        "-crf",
+                        "23",
+                        "-preset",
+                        "medium",
+                        "-movflags",
+                        "faststart",
+                        "-avoid_negative_ts",
+                        "make_zero",
+                        "-y",
+                        temp_clip_path
+                      ], nil}
+                  end
 
                 {text, "true", "gif"} when is_binary(text) and text != "" ->
                   # GIF with text overlay - optimized for speed
-                  escaped_text =
-                    text
-                    |> :unicode.characters_to_binary(:utf8)
+                  # Create a temporary text file for the drawtext filter
+                  temp_text_path = Path.join(System.tmp_dir(), "text_#{UUID.uuid4()}.txt")
 
-                  font_size =
-                    case font_size_param do
-                      size_str when is_binary(size_str) ->
-                        case Integer.parse(size_str) do
-                          {size, ""} when size > 0 and size <= 500 -> size
-                          _ -> nil
+                  # Write text to temporary file
+                  case File.write(temp_text_path, text, [:utf8]) do
+                    :ok ->
+                      font_size =
+                        case font_size_param do
+                          size_str when is_binary(size_str) ->
+                            case Integer.parse(size_str) do
+                              {size, ""} when size > 0 and size <= 500 -> size
+                              _ -> nil
+                            end
+
+                          _ ->
+                            nil
                         end
 
-                      _ ->
-                        nil
-                    end
+                      font_size =
+                        case font_size do
+                          nil ->
+                            calculate_font_size_for_video(file_path, String.length(text))
 
-                  font_size =
-                    case font_size do
-                      nil ->
-                        calculate_font_size_for_video(file_path, String.length(text))
+                          size ->
+                            size
+                        end
 
-                      size ->
-                        size
-                    end
+                      {[
+                        "-ss",
+                        "#{start_time}",
+                        "-i",
+                        file_path,
+                        "-t",
+                        "#{duration}",
+                        "-vf",
+                        "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                        "-loop",
+                        "0",
+                        "-y",
+                        temp_clip_path
+                      ], temp_text_path}
 
-                  [
-                    "-ss",
-                    "#{start_time}",
-                    "-i",
-                    file_path,
-                    "-t",
-                    "#{duration}",
-                    "-vf",
-                    "drawtext=text='#{escaped_text}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-                    "-loop",
-                    "0",
-                    "-y",
-                    temp_clip_path
-                  ]
+                    {:error, reason} ->
+                      # If we can't write the text file, fall back to no text overlay
+                      Logger.warning("Failed to create temporary text file: #{reason}")
+                      {[
+                        "-ss",
+                        "#{start_time}",
+                        "-i",
+                        file_path,
+                        "-t",
+                        "#{duration}",
+                        "-vf",
+                        "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                        "-loop",
+                        "0",
+                        "-y",
+                        temp_clip_path
+                      ], nil}
+                  end
 
                 {_, _, "mp4"} ->
                   # MP4 video without text overlay
-                  [
+                  {[
                     "-ss",
                     "#{start_time}",
                     "-i",
@@ -756,11 +840,11 @@ defmodule Autotranscript.Web.TranscriptController do
                     "make_zero",
                     "-y",
                     temp_clip_path
-                  ]
+                  ], nil}
 
                 {_, _, "gif"} ->
                   # GIF without text overlay
-                  [
+                  {[
                     "-ss",
                     "#{start_time}",
                     "-t",
@@ -773,11 +857,11 @@ defmodule Autotranscript.Web.TranscriptController do
                     "0",
                     "-y",
                     temp_clip_path
-                  ]
+                  ], nil}
 
                 {_, _, "mp3"} ->
                   # MP3 audio extraction
-                  [
+                  {[
                     "-ss",
                     "#{start_time}",
                     "-i",
@@ -795,7 +879,7 @@ defmodule Autotranscript.Web.TranscriptController do
                     "256k",
                     "-y",
                     temp_clip_path
-                  ]
+                  ], nil}
               end
 
             # Use ffmpeg to extract and convert the video clip to MP4, GIF, or MP3
@@ -806,8 +890,9 @@ defmodule Autotranscript.Web.TranscriptController do
                 # Successfully created clip, serve it
                 case File.read(temp_clip_path) do
                   {:ok, clip_data} ->
-                    # Clean up temp file
+                    # Clean up temp files
                     File.rm(temp_clip_path)
+                    if temp_text_path, do: File.rm(temp_text_path)
 
                     content_type = case format do
                       "gif" -> "image/gif"
@@ -820,6 +905,10 @@ defmodule Autotranscript.Web.TranscriptController do
                     |> send_resp(200, clip_data)
 
                   {:error, reason} ->
+                    # Clean up temp files on error
+                    File.rm(temp_clip_path)
+                    if temp_text_path, do: File.rm(temp_text_path)
+
                     conn
                     |> put_status(:internal_server_error)
                     |> put_resp_content_type("text/plain")
@@ -827,8 +916,9 @@ defmodule Autotranscript.Web.TranscriptController do
                 end
 
               {error_output, _exit_code} ->
-                # Clean up temp file if it exists
+                # Clean up temp files if they exist
                 File.rm(temp_clip_path)
+                if temp_text_path, do: File.rm(temp_text_path)
 
                 conn
                 |> put_status(:internal_server_error)
