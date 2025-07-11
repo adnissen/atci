@@ -656,7 +656,6 @@ defmodule Autotranscript.Web.TranscriptController do
               end
 
             temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}#{file_extension}")
-
             # Check if source file needs audio re-encoding (e.g., MKV files)
             source_extension = Path.extname(file_path) |> String.downcase()
             needs_audio_reencoding = source_extension in [".mkv", ".webm", ".avi", ".mov"]
@@ -695,7 +694,7 @@ defmodule Autotranscript.Web.TranscriptController do
 
                       audio_codec_args =
                         if needs_audio_reencoding do
-                          ["-c:a", "aac", "-b:a", "128k"]
+                          ["-c:a", "aac", "-b:a", "256k"]
                         else
                           ["-c:a", "copy"]
                         end
@@ -723,6 +722,10 @@ defmodule Autotranscript.Web.TranscriptController do
                            "-avoid_negative_ts",
                            "make_zero",
                            "-y",
+                           "-map_chapters",
+                           "-1",
+                           "-filter:a",
+                           "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
                            temp_clip_path
                          ], temp_text_path}
 
@@ -739,17 +742,21 @@ defmodule Autotranscript.Web.TranscriptController do
                            "#{duration}",
                            "-i",
                            file_path,
-                           "-c:v",
+                           "-codec",
                            "copy",
                            "-c:a",
                            "aac",
                            "-b:a",
-                           "128k",
+                           "256k",
                            "-movflags",
                            "faststart",
                            "-avoid_negative_ts",
                            "make_zero",
                            "-y",
+                           "-map_chapters",
+                           "-1",
+                           "-filter:a",
+                           "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
                            temp_clip_path
                          ], nil}
                       else
@@ -761,13 +768,17 @@ defmodule Autotranscript.Web.TranscriptController do
                            "#{duration}",
                            "-i",
                            file_path,
-                           "-c",
+                           "-codec",
                            "copy",
                            "-movflags",
                            "faststart",
                            "-avoid_negative_ts",
                            "make_zero",
                            "-y",
+                           "-map_chapters",
+                           "-1",
+                           "-filter:a",
+                           "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
                            temp_clip_path
                          ], nil}
                       end
@@ -848,17 +859,18 @@ defmodule Autotranscript.Web.TranscriptController do
                        "#{duration}",
                        "-i",
                        file_path,
-                       "-c:v",
+                       "-codec",
                        "copy",
                        "-c:a",
                        "aac",
                        "-b:a",
-                       "128k",
+                       "256k",
                        "-movflags",
                        "faststart",
-                       "-avoid_negative_ts",
-                       "make_zero",
-                       "-y",
+                       "-map_chapters",
+                       "-1",
+                       "-filter:a",
+                       "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
                        temp_clip_path
                      ], nil}
                   else
@@ -870,13 +882,14 @@ defmodule Autotranscript.Web.TranscriptController do
                        "#{duration}",
                        "-i",
                        file_path,
-                       "-c",
+                       "-codec",
                        "copy",
                        "-movflags",
                        "faststart",
-                       "-avoid_negative_ts",
-                       "make_zero",
-                       "-y",
+                       "-map_chapters",
+                       "-1",
+                       "-filter:a",
+                       "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
                        temp_clip_path
                      ], nil}
                   end
