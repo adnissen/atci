@@ -4,173 +4,326 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clip Player - <%= @filename %></title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
             margin: 0;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-            background-color: #1a1a1a;
-            color: white;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f8fafc;
+            min-height: 100vh;
+            line-height: 1.6;
         }
+        
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 2rem;
         }
+        
+        .header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .clip-info {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        
         .video-container {
+            position: relative;
             width: 100%;
-            background-color: #000;
-            border-radius: 8px;
+            background: #000;
+            border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            margin-bottom: 2rem;
         }
-        video {
+        
+        video, #gif-player {
             width: 100%;
             height: auto;
             display: block;
         }
-        .title {
-            margin-bottom: 20px;
-            font-size: 24px;
-            font-weight: bold;
-        }
-        .controls {
-            margin-top: 20px;
-            text-align: center;
-        }
-        .back-link {
-            color: #4a9eff;
-            text-decoration: none;
-            font-size: 16px;
-        }
-        .back-link:hover {
-            text-decoration: underline;
-        }
-        .clip-info {
-            margin-bottom: 10px;
-            font-size: 14px;
-            color: #888;
-        }
-        .form-container {
-            background-color: #2a2a2a;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        .form-row {
-            display: flex;
-            gap: 15px;
-            margin-bottom: 15px;
-            flex-wrap: wrap;
-        }
-        .form-group {
-            flex: 1;
-            min-width: 150px;
-        }
-        .form-group label {
-            display: block;
-            margin-bottom: 5px;
-            font-size: 14px;
-            color: #ccc;
-        }
-        .form-group input, .form-group textarea {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #444;
-            border-radius: 4px;
-            background-color: #1a1a1a;
-            color: white;
-            font-size: 14px;
-        }
-        .form-group input:focus, .form-group textarea:focus {
-            outline: none;
-            border-color: #4a9eff;
-        }
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .checkbox-group input[type="checkbox"] {
-            width: auto;
-        }
-        .button-group {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-start;
-        }
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            transition: background-color 0.2s;
-        }
-        .btn-primary {
-            background-color: #4a9eff;
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #357abd;
-        }
-        .btn-secondary {
-            background-color: #6c757d;
-            color: white;
-        }
-        .btn-secondary:hover {
-            background-color: #545b62;
-        }
-        .btn-success {
-            background-color: #28a745;
-            color: white;
-        }
-        .btn-success:hover {
-            background-color: #218838;
-        }
+        
         .loading-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            min-height: 200px;
-            background-color: #000;
-            border-radius: 8px;
-            color: #ccc;
+            min-height: 300px;
+            background: rgba(0, 0, 0, 0.95);
+            backdrop-filter: blur(10px);
+            color: #e2e8f0;
         }
+        
         .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 4px solid #333;
-            border-top: 4px solid #4a9eff;
+            width: 48px;
+            height: 48px;
+            border: 3px solid #334155;
+            border-top: 3px solid #60a5fa;
             border-radius: 50%;
             animation: spin 1s linear infinite;
-            margin-bottom: 16px;
+            margin-bottom: 1.5rem;
         }
+        
         @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        
         .loading-text {
-            font-size: 16px;
-            margin-bottom: 8px;
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
         }
+        
         .loading-subtext {
-            font-size: 14px;
-            color: #888;
+            font-size: 0.875rem;
+            color: #94a3b8;
+        }
+        
+        .form-container {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(148, 163, 184, 0.1);
+            padding: 2rem;
+            border-radius: 16px;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #e2e8f0;
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.025em;
+        }
+        
+        .form-group input, 
+        .form-group textarea {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 2px solid #334155;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.6);
+            color: #f8fafc;
+            font-size: 0.875rem;
+            font-family: inherit;
+            transition: all 0.2s ease;
+        }
+        
+        .form-group input:focus, 
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #60a5fa;
+            box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 0;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid #334155;
+            border-radius: 4px;
+            background: rgba(15, 23, 42, 0.6);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .checkbox-group input[type="checkbox"]:checked {
+            background: #60a5fa;
+            border-color: #60a5fa;
+        }
+        
+        .checkbox-group label {
+            margin: 0;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            color: #e2e8f0;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-top: 1.5rem;
+        }
+        
+        .btn {
+            padding: 0.875rem 2rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.2s ease;
+            letter-spacing: 0.025em;
+            text-transform: uppercase;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.3);
+        }
+        
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px 0 rgba(16, 185, 129, 0.4);
+        }
+        
+        .btn-success:active {
+            transform: translateY(0);
+        }
+        
+        .controls {
+            text-align: center;
+            padding: 2rem 0;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+        }
+        
+        .back-link:hover {
+            color: #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+        }
+        
+        .back-link::before {
+            content: "←";
+            font-size: 1.25rem;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .title {
+                font-size: 2rem;
+            }
+            
+            .form-container {
+                padding: 1.5rem;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            
+            .button-group {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+        
+        /* Smooth animations */
+        .video-container,
+        .form-container {
+            animation: fadeInUp 0.6s ease-out;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="title"><%= @filename %> (Clip)</div>
-        
-        <div class="clip-info">
-            Playing video clip from <%= @start_time %>s to <%= @end_time %>s
+        <div class="header">
+            <h1 class="title"><%= @filename %></h1>
+            <div class="clip-info">
+                Playing <%= if @gif == "true", do: "GIF", else: "video" %> clip from <%= @start_time %>s to <%= @end_time %>s
+            </div>
         </div>
         
         <div class="video-container">
@@ -206,7 +359,7 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="text">Text Overlay</label>
-                        <textarea id="text" name="text" rows="3" placeholder="Enter text to overlay on video"><%= @text %></textarea>
+                        <textarea id="text" name="text" placeholder="Enter text to overlay on video"><%= @text %></textarea>
                     </div>
                 </div>
                 
@@ -226,13 +379,20 @@
                 </div>
                 
                 <div class="button-group">
-                    <a href={@clip_url} download={if @gif == "true", do: "clip.gif", else: "clip.mp4"} class="btn btn-success" id="download-btn">Download {if @gif == "true", do: "GIF", else: "Clip"}</a>
+                    <a href={@clip_url} download={if @gif == "true", do: "clip.gif", else: "clip.mp4"} class="btn btn-success" id="download-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7,10 12,15 17,10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download {if @gif == "true", do: "GIF", else: "Clip"}
+                    </a>
                 </div>
             </form>
         </div>
         
         <div class="controls">
-            <a href="/app" class="back-link">← Back to Transcripts</a>
+            <a href="/app" class="back-link">Back to Transcripts</a>
         </div>
     </div>
 
@@ -410,7 +570,14 @@
                 
                 // Update download link properties (href is set above based on mode)
                 downloadLink.download = filename;
-                downloadLink.textContent = 'Download ' + (gif ? 'GIF' : 'Clip');
+                downloadLink.innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7,10 12,15 17,10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Download ${gif ? 'GIF' : 'Clip'}
+                `;
                 
                 // Update clip info
                 clipInfo.textContent = `Playing ${gif ? 'GIF' : 'video'} clip from ${startTime}s to ${endTime}s`;
