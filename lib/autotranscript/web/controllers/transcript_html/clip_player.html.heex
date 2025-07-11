@@ -323,11 +323,7 @@
         <div class="header">
             <h1 class="title"><%= @filename %></h1>
             <div class="clip-info">
-                Playing <%= case @format do
-                  "gif" -> "GIF"
-                  "mp3" -> "audio"
-                  _ -> "video"
-                end %> clip from <%= @start_time %>s to <%= @end_time %>s
+                Playing video clip from <%= @start_time %>s to <%= @end_time %>s
             </div>
         </div>
         
@@ -337,15 +333,10 @@
                 <div class="loading-text">Processing...</div>
                 <div class="loading-subtext">Generating your clip, please wait</div>
             </div>
-            <video controls autoplay id="video-player" style={if @format == "mp4", do: "display: block;", else: "display: none;"}>
+            <video controls autoplay id="video-player">
                 <source src={@clip_url}>
                 Your browser does not support the video tag.
             </video>
-            <img id="gif-player" src={@clip_url} style={if @format == "gif", do: "display: block;", else: "display: none;"} />
-            <audio controls autoplay id="audio-player" style={if @format == "mp3", do: "display: block;", else: "display: none;"}>
-                <source src={@clip_url}>
-                Your browser does not support the audio element.
-            </audio>
         </div>
         
         <div class="form-container">
@@ -379,32 +370,32 @@
                             <label for="display_text">Show Text Overlay</label>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="format">Format</label>
-                        <select id="format" name="format" style="width: 100%; padding: 0.875rem 1rem; border: 2px solid #3f3f46; border-radius: 8px; background: rgba(9, 9, 11, 0.8); color: #e5e5e5; font-size: 0.875rem; font-family: inherit;">
-                            <option value="mp4" {if @format == "mp4", do: [selected: "selected"], else: []}>MP4 Video</option>
-                            <option value="gif" {if @format == "gif", do: [selected: "selected"], else: []}>GIF</option>
-                            <option value="mp3" {if @format == "mp3", do: [selected: "selected"], else: []}>MP3 Audio</option>
-                        </select>
-                    </div>
                 </div>
                 
                 <div class="button-group">
-                    <a href={@clip_url} download={case @format do
-                        "gif" -> "clip.gif"
-                        "mp3" -> "clip.mp3"
-                        _ -> "clip.mp4"
-                    end} class="btn btn-success" id="download-btn">
+                    <a href="#" download="clip.mp4" class="btn btn-success" id="download-mp4-btn">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                             <polyline points="7,10 12,15 17,10"/>
                             <line x1="12" y1="15" x2="12" y2="3"/>
                         </svg>
-                        Download <%= case @format do
-                          "gif" -> "GIF"
-                          "mp3" -> "MP3"
-                          _ -> "Clip"
-                        end %>
+                        Download MP4
+                    </a>
+                    <a href="#" download="clip.gif" class="btn btn-success" id="download-gif-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7,10 12,15 17,10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download GIF
+                    </a>
+                    <a href="#" download="clip.mp3" class="btn btn-success" id="download-mp3-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7,10 12,15 17,10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download MP3
                     </a>
                 </div>
             </form>
@@ -419,13 +410,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.querySelector('form');
             const video = document.getElementById('video-player');
-            const gifImg = document.getElementById('gif-player');
-            const audio = document.getElementById('audio-player');
             const loadingContainer = document.getElementById('loading-container');
             const loadingText = document.querySelector('.loading-text');
             const loadingSubtext = document.querySelector('.loading-subtext');
             const clipInfo = document.querySelector('.clip-info');
-            const downloadLink = document.querySelector('.btn-success');
             
             // Get form inputs
             const startTimeInput = document.getElementById('start_time');
@@ -433,28 +421,18 @@
             const textInput = document.getElementById('text');
             const fontSizeInput = document.getElementById('font_size');
             const displayTextInput = document.getElementById('display_text');
-            const formatSelect = document.getElementById('format');
             
-            // Cache for GIF blob URL to avoid re-processing
-            let cachedGifBlobUrl = null;
+            // Get download buttons
+            const downloadMp4Btn = document.getElementById('download-mp4-btn');
+            const downloadGifBtn = document.getElementById('download-gif-btn');
+            const downloadMp3Btn = document.getElementById('download-mp3-btn');
             
             // Function to show loading state
-            function showLoading(format = "mp4") {
+            function showLoading() {
                 loadingContainer.style.display = 'flex';
                 video.style.display = 'none';
-                gifImg.style.display = 'none';
-                audio.style.display = 'none';
-                
-                if (format === 'gif') {
-                    loadingText.textContent = 'Generating GIF...';
-                    loadingSubtext.textContent = 'This may take a moment, please wait';
-                } else if (format === 'mp3') {
-                    loadingText.textContent = 'Extracting audio...';
-                    loadingSubtext.textContent = 'Preparing your MP3 clip';
-                } else {
-                    loadingText.textContent = 'Processing video...';
-                    loadingSubtext.textContent = 'Preparing your clip';
-                }
+                loadingText.textContent = 'Processing video...';
+                loadingSubtext.textContent = 'Preparing your clip';
             }
             
             // Function to hide loading state
@@ -462,39 +440,62 @@
                 loadingContainer.style.display = 'none';
             }
             
-            // Function to fetch GIF as blob and create blob URL for download
-            async function fetchGifAsBlob(url) {
-                try {
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error('Failed to fetch GIF');
-                    const blob = await response.blob();
-                    return URL.createObjectURL(blob);
-                } catch (error) {
-                    console.error('Error fetching GIF blob:', error);
-                    return url; // Fallback to original URL
-                }
-            }
-            
-            // Function to update video and download link
-            function updateVideo() {
+            // Function to build clip URL with parameters
+            function buildClipUrl(format = 'mp4') {
                 const startTime = startTimeInput.value;
                 const endTime = endTimeInput.value;
                 const text = textInput.value;
                 const fontSize = fontSizeInput.value;
                 const displayText = displayTextInput.checked;
-                const format = formatSelect.value;
+                
+                const clipParams = new URLSearchParams({
+                    filename: '<%= @filename %>',
+                    start_time: startTime,
+                    end_time: endTime,
+                    format: format
+                });
+                
+                // Add optional parameters
+                if (text && text.trim() !== '') {
+                    clipParams.set('text', text);
+                }
+                if (fontSize && fontSize.trim() !== '') {
+                    clipParams.set('font_size', fontSize);
+                }
+                if (displayText) {
+                    clipParams.set('display_text', 'true');
+                }
+                
+                return '/clip?' + clipParams.toString();
+            }
+            
+            // Function to generate filename
+            function generateFilename(format) {
+                const text = textInput.value;
+                let filename = `clip.${format}`;
+                
+                if (text && text.trim() !== '') {
+                    const sanitizedText = text.trim()
+                        .substring(0, 50)
+                        .replace(/[^a-zA-Z0-9\s\-_]/g, '')
+                        .replace(/\s+/g, '_');
+                    if (sanitizedText) {
+                        filename = sanitizedText + `.${format}`;
+                    }
+                }
+                
+                return filename;
+            }
+            
+            // Function to update video and download links
+            function updateVideo() {
+                const startTime = startTimeInput.value;
+                const endTime = endTimeInput.value;
                 
                 // Validate required fields
                 if (!startTime || !endTime || parseFloat(startTime) < 0 || parseFloat(endTime) <= parseFloat(startTime)) {
                     return;
                 }
-                
-                // Build clip parameters for the video clip
-                const clipParams = new URLSearchParams({
-                    filename: '<%= @filename %>',
-                    start_time: startTime,
-                    end_time: endTime
-                });
                 
                 // Build URL parameters for the page URL
                 const urlParams = new URLSearchParams({
@@ -503,131 +504,51 @@
                 });
                 
                 // Add optional parameters
+                const text = textInput.value;
+                const fontSize = fontSizeInput.value;
+                const displayText = displayTextInput.checked;
+                
                 if (text && text.trim() !== '') {
-                    clipParams.set('text', text);
                     urlParams.set('text', text);
                 }
                 if (fontSize && fontSize.trim() !== '') {
-                    clipParams.set('font_size', fontSize);
                     urlParams.set('font_size', fontSize);
                 }
                 if (displayText) {
-                    clipParams.set('display_text', 'true');
                     urlParams.set('display_text', 'true');
                 }
-                if (format) {
-                    clipParams.set('format', format);
-                    urlParams.set('format', format);
-                }
                 
-                // Update video, gif, or audio source
-                const newClipUrl = '/clip?' + clipParams.toString();
+                // Update video source
+                const newClipUrl = buildClipUrl('mp4');
+                const videoSource = video.querySelector('source');
+                videoSource.src = newClipUrl;
                 
                 // Show loading state
-                showLoading(format);
+                showLoading();
                 
-                // Toggle display between video, gif, and audio
-                if (format === 'gif') {
-                    // Create new image to preload GIF
-                    const tempImg = new Image();
-                    tempImg.onload = function() {
-                        // GIF loaded successfully
-                        gifImg.src = newClipUrl;
-                        hideLoading();
-                        gifImg.style.display = 'block';
-                        
-                        // Cache GIF as blob for efficient downloads
-                        fetchGifAsBlob(newClipUrl).then(blobUrl => {
-                            // Clean up old blob URL
-                            if (cachedGifBlobUrl) {
-                                URL.revokeObjectURL(cachedGifBlobUrl);
-                            }
-                            cachedGifBlobUrl = blobUrl;
-                            
-                            // Update download link to use cached blob
-                            downloadLink.href = cachedGifBlobUrl;
-                        });
-                    };
-                    tempImg.onerror = function() {
-                        // GIF failed to load
-                        hideLoading();
-                        gifImg.style.display = 'block';
-                        gifImg.src = newClipUrl; // Still try to show it
-                    };
-                    tempImg.src = newClipUrl;
-                } else if (format === 'mp3') {
-                    const audioSource = audio.querySelector('source');
-                    audioSource.src = newClipUrl;
-                    
-                    // Clean up cached GIF blob URL if switching away from GIF
-                    if (cachedGifBlobUrl) {
-                        URL.revokeObjectURL(cachedGifBlobUrl);
-                        cachedGifBlobUrl = null;
-                    }
-                    
-                    // Use direct URL for audio downloads
-                    downloadLink.href = newClipUrl;
-                    
-                    // Handle audio loading
-                    audio.onloadeddata = function() {
-                        hideLoading();
-                        audio.style.display = 'block';
-                    };
-                    audio.onerror = function() {
-                        hideLoading();
-                        audio.style.display = 'block'; // Still try to show it
-                    };
-                    audio.load();
-                } else {
-                    const videoSource = video.querySelector('source');
-                    videoSource.src = newClipUrl;
-                    
-                    // Clean up cached GIF blob URL if switching away from GIF
-                    if (cachedGifBlobUrl) {
-                        URL.revokeObjectURL(cachedGifBlobUrl);
-                        cachedGifBlobUrl = null;
-                    }
-                    
-                    // Use direct URL for video downloads
-                    downloadLink.href = newClipUrl;
-                    
-                    // Handle video loading
-                    video.onloadeddata = function() {
-                        hideLoading();
-                        video.style.display = 'block';
-                    };
-                    video.onerror = function() {
-                        hideLoading();
-                        video.style.display = 'block'; // Still try to show it
-                    };
-                    video.load();
-                }
+                // Handle video loading
+                video.onloadeddata = function() {
+                    hideLoading();
+                    video.style.display = 'block';
+                };
+                video.onerror = function() {
+                    hideLoading();
+                    video.style.display = 'block'; // Still try to show it
+                };
+                video.load();
                 
-                // Generate filename from first 50 characters of text input
-                let filename = format === 'gif' ? 'clip.gif' : format === 'mp3' ? 'clip.mp3' : 'clip.mp4';
-                if (text && text.trim() !== '') {
-                    const sanitizedText = text.trim()
-                        .substring(0, 50)
-                        .replace(/[^a-zA-Z0-9\s\-_]/g, '')
-                        .replace(/\s+/g, '_');
-                    if (sanitizedText) {
-                        filename = sanitizedText + (format === 'gif' ? '.gif' : format === 'mp3' ? '.mp3' : '.mp4');
-                    }
-                }
+                // Update download button URLs and filenames
+                downloadMp4Btn.href = buildClipUrl('mp4');
+                downloadMp4Btn.download = generateFilename('mp4');
                 
-                // Update download link properties (href is set above based on mode)
-                downloadLink.download = filename;
-                downloadLink.innerHTML = `
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                        <polyline points="7,10 12,15 17,10"/>
-                        <line x1="12" y1="15" x2="12" y2="3"/>
-                    </svg>
-                    Download ${format === 'gif' ? 'GIF' : format === 'mp3' ? 'MP3' : 'Clip'}
-                `;
+                downloadGifBtn.href = buildClipUrl('gif');
+                downloadGifBtn.download = generateFilename('gif');
+                
+                downloadMp3Btn.href = buildClipUrl('mp3');
+                downloadMp3Btn.download = generateFilename('mp3');
                 
                 // Update clip info
-                clipInfo.textContent = `Playing ${format === 'gif' ? 'GIF' : format === 'mp3' ? 'audio' : 'video'} clip from ${startTime}s to ${endTime}s`;
+                clipInfo.textContent = `Playing video clip from ${startTime}s to ${endTime}s`;
                 
                 // Update browser URL
                 const newUrl = window.location.pathname + '?' + urlParams.toString();
@@ -641,19 +562,9 @@
                 updateTimeout = setTimeout(updateVideo, 500); // 500ms delay
             }
             
-            // Set initial download filename and cache GIF if needed
+            // Set initial state
             updateVideo();
-            
-            // If page loads with GIF mode already enabled, cache the initial GIF
-            if (formatSelect.value === 'gif' && gifImg.src) {
-                hideLoading(); // Make sure loading is hidden on initial load
-                fetchGifAsBlob(gifImg.src).then(blobUrl => {
-                    cachedGifBlobUrl = blobUrl;
-                    downloadLink.href = cachedGifBlobUrl;
-                });
-            } else {
-                hideLoading(); // Make sure loading is hidden on initial load
-            }
+            hideLoading(); // Make sure loading is hidden on initial load
             
             // Listen for input changes
             startTimeInput.addEventListener('input', debouncedUpdate);
@@ -661,14 +572,6 @@
             textInput.addEventListener('input', debouncedUpdate);
             fontSizeInput.addEventListener('input', debouncedUpdate);
             displayTextInput.addEventListener('change', updateVideo); // Immediate update for checkbox
-            formatSelect.addEventListener('change', updateVideo); // Immediate update for format select
-            
-            // Clean up blob URLs when page is unloaded
-            window.addEventListener('beforeunload', function() {
-                if (cachedGifBlobUrl) {
-                    URL.revokeObjectURL(cachedGifBlobUrl);
-                }
-            });
         });
     </script>
 </body>

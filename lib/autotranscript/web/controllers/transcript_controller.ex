@@ -422,7 +422,7 @@ defmodule Autotranscript.Web.TranscriptController do
             text: text || "",
             font_size: font_size || "",
             display_text: display_text || "",
-            format: format
+            format: "mp4"
           )
 
         _ ->
@@ -611,13 +611,13 @@ defmodule Autotranscript.Web.TranscriptController do
               "mp3" -> "mp3"
               _ -> "mp4"
             end
-            
+
             file_extension = case format do
               "gif" -> ".gif"
               "mp3" -> ".mp3"
               _ -> ".mp4"
             end
-            
+
             temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}#{file_extension}")
 
             # Build ffmpeg command based on format and optional text overlay
@@ -759,14 +759,14 @@ defmodule Autotranscript.Web.TranscriptController do
                   ]
 
                 {_, _, "gif"} ->
-                  # GIF without text overlay - optimized for speed
+                  # GIF without text overlay
                   [
                     "-ss",
                     "#{start_time}",
-                    "-i",
-                    file_path,
                     "-t",
                     "#{duration}",
+                    "-i",
+                    file_path,
                     "-vf",
                     "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
                     "-loop",
