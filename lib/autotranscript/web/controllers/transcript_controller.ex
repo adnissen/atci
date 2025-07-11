@@ -191,51 +191,70 @@ defmodule Autotranscript.Web.TranscriptController do
     |> send_resp(200, Jason.encode!(transformed_queue_status))
   end
 
-    def files(conn, params) do
+  def files(conn, params) do
     video_files = VideoInfoCache.get_video_files()
 
     # Filter by watch directories if provided
-    filtered_files = case params["watch_directories"] do
-      nil -> video_files
-      "" -> video_files
-      watch_dirs_param ->
-        # Parse watch directories from comma-separated string
-        watch_dirs = String.split(watch_dirs_param, ",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-        configured_watch_dirs = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
-
-        if Enum.empty?(watch_dirs) or Enum.empty?(configured_watch_dirs) do
+    filtered_files =
+      case params["watch_directories"] do
+        nil ->
           video_files
-        else
-          Enum.filter(video_files, fn file ->
-            # Check which configured watch directory this file belongs to
-            file_watch_dir = Enum.find(configured_watch_dirs, fn watch_dir ->
-              String.starts_with?(file.full_path, watch_dir)
-            end)
 
-            # Include file if its watch directory is in the filter
-            file_watch_dir && Enum.member?(watch_dirs, file_watch_dir)
-          end)
-        end
-    end
+        "" ->
+          video_files
+
+        watch_dirs_param ->
+          # Parse watch directories from comma-separated string
+          watch_dirs =
+            String.split(watch_dirs_param, ",")
+            |> Enum.map(&String.trim/1)
+            |> Enum.reject(&(&1 == ""))
+
+          configured_watch_dirs =
+            Autotranscript.ConfigManager.get_config_value("watch_directories") || []
+
+          if Enum.empty?(watch_dirs) or Enum.empty?(configured_watch_dirs) do
+            video_files
+          else
+            Enum.filter(video_files, fn file ->
+              # Check which configured watch directory this file belongs to
+              file_watch_dir =
+                Enum.find(configured_watch_dirs, fn watch_dir ->
+                  String.starts_with?(file.full_path, watch_dir)
+                end)
+
+              # Include file if its watch directory is in the filter
+              file_watch_dir && Enum.member?(watch_dirs, file_watch_dir)
+            end)
+          end
+      end
 
     # Filter by sources if provided
-    final_filtered_files = case params["sources"] do
-      nil -> filtered_files
-      "" -> filtered_files
-      sources_param ->
-        # Parse sources from comma-separated string
-        sources = String.split(sources_param, ",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
-
-        if Enum.empty?(sources) do
+    final_filtered_files =
+      case params["sources"] do
+        nil ->
           filtered_files
-        else
-          Enum.filter(filtered_files, fn file ->
-            # Include file if its source (model field) is in the filter
-            # Handle nil sources by checking if nil is in the filter
-            file.model && Enum.member?(sources, file.model)
-          end)
-        end
-    end
+
+        "" ->
+          filtered_files
+
+        sources_param ->
+          # Parse sources from comma-separated string
+          sources =
+            String.split(sources_param, ",")
+            |> Enum.map(&String.trim/1)
+            |> Enum.reject(&(&1 == ""))
+
+          if Enum.empty?(sources) do
+            filtered_files
+          else
+            Enum.filter(filtered_files, fn file ->
+              # Include file if its source (model field) is in the filter
+              # Handle nil sources by checking if nil is in the filter
+              file.model && Enum.member?(sources, file.model)
+            end)
+          end
+      end
 
     conn
     |> put_resp_content_type("application/json")
@@ -370,15 +389,15 @@ defmodule Autotranscript.Web.TranscriptController do
     video_exists = PathHelper.video_file_exists?(watch_directory, decoded_filename)
 
     if video_exists do
-              # Extract query parameters
-        query_params = Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params)
+      # Extract query parameters
+      query_params = Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params)
 
-        start_time = query_params["start_time"]
-        end_time = query_params["end_time"]
-        text = query_params["text"]
-        font_size = query_params["font_size"]
-        display_text = query_params["display_text"]
-        format = query_params["format"] || "mp4"
+      start_time = query_params["start_time"]
+      end_time = query_params["end_time"]
+      text = query_params["text"]
+      font_size = query_params["font_size"]
+      display_text = query_params["display_text"]
+      format = query_params["format"] || "mp4"
 
       # Validate required parameters
       case {start_time, end_time} do
@@ -408,8 +427,6 @@ defmodule Autotranscript.Web.TranscriptController do
             if format && format != "",
               do: Map.put(clip_params, "format", format),
               else: clip_params
-
-
 
           # Construct the clip URL
           clip_url = "/clip?" <> URI.encode_query(clip_params)
@@ -481,24 +498,24 @@ defmodule Autotranscript.Web.TranscriptController do
             # Generate a temporary filename for the extracted frame
             temp_frame_path = Path.join(System.tmp_dir(), "frame_at_time_#{UUID.uuid4()}.jpg")
 
-                        # Build ffmpeg command with optional drawtext filter
+            # Build ffmpeg command with optional drawtext filter
             {ffmpeg_args, temp_text_path} =
               case text_param do
                 nil ->
                   {[
-                    "-ss",
-                    "#{time}",
-                    "-i",
-                    file_path,
-                    "-vframes",
-                    "1",
-                    "-q:v",
-                    "2",
-                    "-f",
-                    "image2",
-                    "-y",
-                    temp_frame_path
-                  ], nil}
+                     "-ss",
+                     "#{time}",
+                     "-i",
+                     file_path,
+                     "-vframes",
+                     "1",
+                     "-q:v",
+                     "2",
+                     "-f",
+                     "image2",
+                     "-y",
+                     temp_frame_path
+                   ], nil}
 
                 text ->
                   # Create a temporary text file for the drawtext filter
@@ -518,39 +535,40 @@ defmodule Autotranscript.Web.TranscriptController do
                         end
 
                       {[
-                        "-ss",
-                        "#{time}",
-                        "-i",
-                        file_path,
-                        "-vf",
-                        "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
-                        "-vframes",
-                        "1",
-                        "-q:v",
-                        "2",
-                        "-f",
-                        "image2",
-                        "-y",
-                        temp_frame_path
-                      ], temp_text_path}
+                         "-ss",
+                         "#{time}",
+                         "-i",
+                         file_path,
+                         "-vf",
+                         "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
+                         "-vframes",
+                         "1",
+                         "-q:v",
+                         "2",
+                         "-f",
+                         "image2",
+                         "-y",
+                         temp_frame_path
+                       ], temp_text_path}
 
                     {:error, reason} ->
                       # If we can't write the text file, fall back to no text overlay
                       Logger.warning("Failed to create temporary text file: #{reason}")
+
                       {[
-                        "-ss",
-                        "#{time}",
-                        "-i",
-                        file_path,
-                        "-vframes",
-                        "1",
-                        "-q:v",
-                        "2",
-                        "-f",
-                        "image2",
-                        "-y",
-                        temp_frame_path
-                      ], nil}
+                         "-ss",
+                         "#{time}",
+                         "-i",
+                         file_path,
+                         "-vframes",
+                         "1",
+                         "-q:v",
+                         "2",
+                         "-f",
+                         "image2",
+                         "-y",
+                         temp_frame_path
+                       ], nil}
                   end
               end
 
@@ -632,19 +650,25 @@ defmodule Autotranscript.Web.TranscriptController do
             duration = end_time - start_time
 
             # Generate a temporary filename for the clipped video, GIF, or MP3
-            format = case format_param do
-              "gif" -> "gif"
-              "mp3" -> "mp3"
-              _ -> "mp4"
-            end
+            format =
+              case format_param do
+                "gif" -> "gif"
+                "mp3" -> "mp3"
+                _ -> "mp4"
+              end
 
-            file_extension = case format do
-              "gif" -> ".gif"
-              "mp3" -> ".mp3"
-              _ -> ".mp4"
-            end
+            file_extension =
+              case format do
+                "gif" -> ".gif"
+                "mp3" -> ".mp3"
+                _ -> ".mp4"
+              end
 
             temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}#{file_extension}")
+
+            # Check if source file needs audio re-encoding (e.g., MKV files)
+            source_extension = Path.extname(file_path) |> String.downcase()
+            needs_audio_reencoding = source_extension in [".mkv", ".webm", ".avi", ".mov"]
 
             # Build ffmpeg command based on format and optional text overlay
             {ffmpeg_args, temp_text_path} =
@@ -678,72 +702,84 @@ defmodule Autotranscript.Web.TranscriptController do
                             size
                         end
 
+                      audio_codec_args =
+                        if needs_audio_reencoding do
+                          ["-c:a", "aac", "-b:a", "128k"]
+                        else
+                          ["-c:a", "copy"]
+                        end
+
                       {[
-                        "-ss",
-                        "#{start_time}",
-                        "-i",
-                        file_path,
-                        "-t",
-                        "#{duration}",
-                        "-vf",
-                        "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
-                        "-c:v",
-                        "libx264",
-                        "-c:a",
-                        "aac",
-                        "-profile:a",
-                        "aac_low",
-                        "-ar",
-                        "44100",
-                        "-ac",
-                        "2",
-                        "-b:a",
-                        "256k",
-                        "-crf",
-                        "23",
-                        "-preset",
-                        "medium",
-                        "-movflags",
-                        "faststart",
-                        "-avoid_negative_ts",
-                        "make_zero",
-                        "-y",
-                        temp_clip_path
-                      ], temp_text_path}
+                         "-ss",
+                         "#{start_time}",
+                         "-t",
+                         "#{duration}",
+                         "-i",
+                         file_path,
+                         "-vf",
+                         "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
+                         "-c:v",
+                         "libx264"
+                       ] ++
+                         audio_codec_args ++
+                         [
+                           "-crf",
+                           "28",
+                           "-preset",
+                           "ultrafast",
+                           "-movflags",
+                           "faststart",
+                           "-avoid_negative_ts",
+                           "make_zero",
+                           "-y",
+                           temp_clip_path
+                         ], temp_text_path}
 
                     {:error, reason} ->
                       # If we can't write the text file, fall back to no text overlay
                       Logger.warning("Failed to create temporary text file: #{reason}")
-                      {[
-                        "-ss",
-                        "#{start_time}",
-                        "-i",
-                        file_path,
-                        "-t",
-                        "#{duration}",
-                        "-c:v",
-                        "libx264",
-                        "-c:a",
-                        "aac",
-                        "-profile:a",
-                        "aac_low",
-                        "-ar",
-                        "44100",
-                        "-ac",
-                        "2",
-                        "-b:a",
-                        "256k",
-                        "-crf",
-                        "23",
-                        "-preset",
-                        "medium",
-                        "-movflags",
-                        "faststart",
-                        "-avoid_negative_ts",
-                        "make_zero",
-                        "-y",
-                        temp_clip_path
-                      ], nil}
+
+                      if needs_audio_reencoding do
+                        # Source file needs audio re-encoding (e.g., MKV with incompatible audio codec)
+                        {[
+                           "-ss",
+                           "#{start_time}",
+                           "-t",
+                           "#{duration}",
+                           "-i",
+                           file_path,
+                           "-c:v",
+                           "copy",
+                           "-c:a",
+                           "aac",
+                           "-b:a",
+                           "128k",
+                           "-movflags",
+                           "faststart",
+                           "-avoid_negative_ts",
+                           "make_zero",
+                           "-y",
+                           temp_clip_path
+                         ], nil}
+                      else
+                        # Source file compatible - use full stream copying
+                        {[
+                           "-ss",
+                           "#{start_time}",
+                           "-t",
+                           "#{duration}",
+                           "-i",
+                           file_path,
+                           "-c",
+                           "copy",
+                           "-movflags",
+                           "faststart",
+                           "-avoid_negative_ts",
+                           "make_zero",
+                           "-y",
+                           temp_clip_path
+                         ], nil}
+                      end
                   end
 
                 {text, "true", "gif"} when is_binary(text) and text != "" ->
@@ -776,110 +812,122 @@ defmodule Autotranscript.Web.TranscriptController do
                         end
 
                       {[
-                        "-ss",
-                        "#{start_time}",
-                        "-i",
-                        file_path,
-                        "-t",
-                        "#{duration}",
-                        "-vf",
-                        "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-                        "-loop",
-                        "0",
-                        "-y",
-                        temp_clip_path
-                      ], temp_text_path}
+                         "-ss",
+                         "#{start_time}",
+                         "-t",
+                         "#{duration}",
+                         "-i",
+                         file_path,
+                         "-vf",
+                         "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                         "-loop",
+                         "0",
+                         "-y",
+                         temp_clip_path
+                       ], temp_text_path}
 
                     {:error, reason} ->
                       # If we can't write the text file, fall back to no text overlay
                       Logger.warning("Failed to create temporary text file: #{reason}")
+
                       {[
-                        "-ss",
-                        "#{start_time}",
-                        "-i",
-                        file_path,
-                        "-t",
-                        "#{duration}",
-                        "-vf",
-                        "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-                        "-loop",
-                        "0",
-                        "-y",
-                        temp_clip_path
-                      ], nil}
+                         "-ss",
+                         "#{start_time}",
+                         "-t",
+                         "#{duration}",
+                         "-i",
+                         file_path,
+                         "-vf",
+                         "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                         "-loop",
+                         "0",
+                         "-y",
+                         temp_clip_path
+                       ], nil}
                   end
 
                 {_, _, "mp4"} ->
-                  # MP4 video without text overlay
-                  {[
-                    "-ss",
-                    "#{start_time}",
-                    "-i",
-                    file_path,
-                    "-t",
-                    "#{duration}",
-                    "-c:v",
-                    "libx264",
-                    "-c:a",
-                    "aac",
-                    "-profile:a",
-                    "aac_low",
-                    "-ar",
-                    "44100",
-                    "-ac",
-                    "2",
-                    "-b:a",
-                    "256k",
-                    "-crf",
-                    "23",
-                    "-preset",
-                    "medium",
-                    "-movflags",
-                    "faststart",
-                    "-avoid_negative_ts",
-                    "make_zero",
-                    "-y",
-                    temp_clip_path
-                  ], nil}
+                  # MP4 video without text overlay - use stream copying for fast clipping
+                  if needs_audio_reencoding do
+                    # Source file needs audio re-encoding (e.g., MKV with incompatible audio codec)
+                    {[
+                       "-ss",
+                       "#{start_time}",
+                       "-t",
+                       "#{duration}",
+                       "-i",
+                       file_path,
+                       "-c:v",
+                       "copy",
+                       "-c:a",
+                       "aac",
+                       "-b:a",
+                       "128k",
+                       "-movflags",
+                       "faststart",
+                       "-avoid_negative_ts",
+                       "make_zero",
+                       "-y",
+                       temp_clip_path
+                     ], nil}
+                  else
+                    # Source file compatible - use full stream copying
+                    {[
+                       "-ss",
+                       "#{start_time}",
+                       "-t",
+                       "#{duration}",
+                       "-i",
+                       file_path,
+                       "-c",
+                       "copy",
+                       "-movflags",
+                       "faststart",
+                       "-avoid_negative_ts",
+                       "make_zero",
+                       "-y",
+                       temp_clip_path
+                     ], nil}
+                  end
 
                 {_, _, "gif"} ->
                   # GIF without text overlay
                   {[
-                    "-ss",
-                    "#{start_time}",
-                    "-t",
-                    "#{duration}",
-                    "-i",
-                    file_path,
-                    "-vf",
-                    "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-                    "-loop",
-                    "0",
-                    "-y",
-                    temp_clip_path
-                  ], nil}
+                     "-ss",
+                     "#{start_time}",
+                     "-t",
+                     "#{duration}",
+                     "-i",
+                     file_path,
+                     "-vf",
+                     "fps=8,scale=320:-1:flags=fast_bilinear,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=single[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2",
+                     "-loop",
+                     "0",
+                     "-y",
+                     temp_clip_path
+                   ], nil}
 
                 {_, _, "mp3"} ->
                   # MP3 audio extraction
                   {[
-                    "-ss",
-                    "#{start_time}",
-                    "-i",
-                    file_path,
-                    "-t",
-                    "#{duration}",
-                    "-vn",
-                    "-acodec",
-                    "libmp3lame",
-                    "-ar",
-                    "44100",
-                    "-ac",
-                    "2",
-                    "-b:a",
-                    "256k",
-                    "-y",
-                    temp_clip_path
-                  ], nil}
+                     "-ss",
+                     "#{start_time}",
+                     "-t",
+                     "#{duration}",
+                     "-i",
+                     file_path,
+                     "-vn",
+                     "-acodec",
+                     "libmp3lame",
+                     "-ar",
+                     "44100",
+                     "-ac",
+                     "2",
+                     "-b:a",
+                     "256k",
+                     "-y",
+                     temp_clip_path
+                   ], nil}
               end
 
             # Use ffmpeg to extract and convert the video clip to MP4, GIF, or MP3
@@ -894,11 +942,12 @@ defmodule Autotranscript.Web.TranscriptController do
                     File.rm(temp_clip_path)
                     if temp_text_path, do: File.rm(temp_text_path)
 
-                    content_type = case format do
-                      "gif" -> "image/gif"
-                      "mp3" -> "audio/mpeg"
-                      _ -> "video/mp4"
-                    end
+                    content_type =
+                      case format do
+                        "gif" -> "image/gif"
+                        "mp3" -> "audio/mpeg"
+                        _ -> "video/mp4"
+                      end
 
                     conn
                     |> put_resp_content_type(content_type)
@@ -1526,7 +1575,9 @@ defmodule Autotranscript.Web.TranscriptController do
                     |> put_resp_content_type("application/json")
                     |> send_resp(
                       409,
-                      Jason.encode!(%{error: "A video file with name '#{new_filename}' already exists"})
+                      Jason.encode!(%{
+                        error: "A video file with name '#{new_filename}' already exists"
+                      })
                     )
 
                   File.exists?(new_txt_path) ->
@@ -1535,7 +1586,9 @@ defmodule Autotranscript.Web.TranscriptController do
                     |> put_resp_content_type("application/json")
                     |> send_resp(
                       409,
-                      Jason.encode!(%{error: "A transcript file with name '#{new_filename}' already exists"})
+                      Jason.encode!(%{
+                        error: "A transcript file with name '#{new_filename}' already exists"
+                      })
                     )
 
                   File.exists?(new_meta_path) ->
@@ -1544,19 +1597,30 @@ defmodule Autotranscript.Web.TranscriptController do
                     |> put_resp_content_type("application/json")
                     |> send_resp(
                       409,
-                      Jason.encode!(%{error: "A meta file with name '#{new_filename}' already exists"})
+                      Jason.encode!(%{
+                        error: "A meta file with name '#{new_filename}' already exists"
+                      })
                     )
 
                   true ->
                     # Perform the rename operations
                     rename_results = [
                       {:video, File.rename(old_video_path, new_video_path)},
-                      {:txt, if(File.exists?(old_txt_path), do: File.rename(old_txt_path, new_txt_path), else: :ok)},
-                      {:meta, if(File.exists?(old_meta_path), do: File.rename(old_meta_path, new_meta_path), else: :ok)}
+                      {:txt,
+                       if(File.exists?(old_txt_path),
+                         do: File.rename(old_txt_path, new_txt_path),
+                         else: :ok
+                       )},
+                      {:meta,
+                       if(File.exists?(old_meta_path),
+                         do: File.rename(old_meta_path, new_meta_path),
+                         else: :ok
+                       )}
                     ]
 
                     # Check if all renames were successful
-                    failed_renames = Enum.filter(rename_results, fn {_type, result} -> result != :ok end)
+                    failed_renames =
+                      Enum.filter(rename_results, fn {_type, result} -> result != :ok end)
 
                     case failed_renames do
                       [] ->
@@ -1568,7 +1632,8 @@ defmodule Autotranscript.Web.TranscriptController do
                         |> send_resp(
                           200,
                           Jason.encode!(%{
-                            message: "Successfully renamed '#{decoded_filename}' to '#{new_filename}'"
+                            message:
+                              "Successfully renamed '#{decoded_filename}' to '#{new_filename}'"
                           })
                         )
 
@@ -1577,9 +1642,13 @@ defmodule Autotranscript.Web.TranscriptController do
                         Logger.error("Rename operation failed: #{inspect(failures)}")
 
                         # Attempt rollback of successful renames (best effort)
-                        if File.exists?(new_video_path), do: File.rename(new_video_path, old_video_path)
+                        if File.exists?(new_video_path),
+                          do: File.rename(new_video_path, old_video_path)
+
                         if File.exists?(new_txt_path), do: File.rename(new_txt_path, old_txt_path)
-                        if File.exists?(new_meta_path), do: File.rename(new_meta_path, old_meta_path)
+
+                        if File.exists?(new_meta_path),
+                          do: File.rename(new_meta_path, old_meta_path)
 
                         failed_types = Enum.map(failures, fn {type, _} -> type end)
 
@@ -1589,7 +1658,8 @@ defmodule Autotranscript.Web.TranscriptController do
                         |> send_resp(
                           500,
                           Jason.encode!(%{
-                            error: "Failed to rename files. Failed operations: #{Enum.join(failed_types, ", ")}"
+                            error:
+                              "Failed to rename files. Failed operations: #{Enum.join(failed_types, ", ")}"
                           })
                         )
                     end
