@@ -136,19 +136,16 @@ export default function HomePage() {
     fetchSources()
   }, [])
 
-  // Initialize selectedWatchDirs with all available directories if empty
+  // Initial refresh when component mounts and filters are ready
   useEffect(() => {
-    if (selectedWatchDirs.length === 0 && availableWatchDirs.length > 0) {
-      setSelectedWatchDirs(availableWatchDirs)
+    const hasInitializedWatchDirs = availableWatchDirs.length === 0 || selectedWatchDirs.length > 0
+    const hasInitializedSources = availableSources.length === 0 || selectedSources.length > 0
+    
+    if (hasInitializedWatchDirs && hasInitializedSources) {
+      refreshFiles()
+      refreshQueue()
     }
-  }, [availableWatchDirs])
-
-  // Initialize selectedSources with all available sources if empty
-  useEffect(() => {
-    if (selectedSources.length === 0 && availableSources.length > 0) {
-      setSelectedSources(availableSources)
-    }
-  }, [availableSources])
+  }, [availableWatchDirs, availableSources, selectedWatchDirs, selectedSources])
 
   // Setup intersection observer to track expanded rows visibility
   const setupIntersectionObserver = useCallback(() => {
@@ -562,16 +559,6 @@ export default function HomePage() {
     fetchExpandedTranscripts()
   }, [expandedFiles])
 
-  // Poll for updates every 3 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshFiles()
-      refreshQueue()
-    }, 3000)
-    
-    return () => clearInterval(interval)
-  }, [selectedWatchDirs, selectedSources])
-
   // Refresh files when selectedWatchDirs changes
   useEffect(() => {
     refreshFiles()
@@ -585,7 +572,6 @@ export default function HomePage() {
   const refreshFiles = async () => {
     try {
       const params = new URLSearchParams()
-      
       // Only apply watch directories filter if directories are selected and available
       const shouldFilterWatchDirs = selectedWatchDirs.length > 0 && availableWatchDirs.length > 0 && selectedWatchDirs.length < availableWatchDirs.length
       if (shouldFilterWatchDirs) {
@@ -640,6 +626,16 @@ export default function HomePage() {
       console.error('Error refreshing queue:', error)
     }
   }
+
+  // Poll for updates every 3 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshFiles()
+      refreshQueue()
+    }, 3000)
+    
+    return () => clearInterval(interval)
+  }, [availableWatchDirs, availableSources, selectedWatchDirs, selectedSources])
 
   useEffect(() => {
     handleSearch();
@@ -902,6 +898,7 @@ export default function HomePage() {
   }
 
   const handleWatchDirToggle = (dir: string) => {
+    console.log("handleWatchDirToggle", dir)
     setSelectedWatchDirs(prev => {
       const newSelection = prev.includes(dir) 
         ? prev.filter(d => d !== dir)
@@ -911,10 +908,12 @@ export default function HomePage() {
   }
 
   const handleSelectAllWatchDirs = () => {
+    console.log("handleSelectAllWatchDirs", availableWatchDirs)
     setSelectedWatchDirs(availableWatchDirs)
   }
 
   const handleDeselectAllWatchDirs = () => {
+    console.log("handleDeselectAllWatchDirs")
     setSelectedWatchDirs([])
   }
 
