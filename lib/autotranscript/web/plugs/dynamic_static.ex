@@ -12,50 +12,58 @@ defmodule Autotranscript.Web.Plugs.DynamicStatic do
   def init(opts), do: opts
 
   def call(%Plug.Conn{path_info: ["files" | path]} = conn, _opts) when length(path) > 0 do
-    # Get the watch directory from ConfigManager
-    case Autotranscript.ConfigManager.get_config_value("watch_directory") do
-      nil ->
-        Logger.warning("Watch directory not configured, cannot serve files")
+    # Get the watch directories from ConfigManager
+    watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
 
-        conn
-        |> send_resp(404, "Not Found")
-        |> halt()
+    if Enum.empty?(watch_directories) do
+      Logger.warning("Watch directories not configured, cannot serve files")
 
-      watch_directory ->
-        # Join the path components to get the filename
-        filename = Enum.join(path, "/")
-        decoded_filename = Autotranscript.Web.TranscriptController.decode_filename(filename)
+      conn
+      |> send_resp(404, "Not Found")
+      |> halt()
+    else
+      # Join the path components to get the filename
+      filename = Enum.join(path, "/")
+      decoded_filename = Autotranscript.Web.TranscriptController.decode_filename(filename)
 
-        # Use PathHelper.find_video_file to find the actual video file with extension
-        case PathHelper.find_video_file(watch_directory, decoded_filename) do
-          nil ->
-            conn
-            |> send_resp(404, "Not Found")
-            |> halt()
+      # Search for the video file across all watch directories
+      case find_video_file_in_directories(watch_directories, decoded_filename) do
+        nil ->
+          conn
+          |> send_resp(404, "Not Found")
+          |> halt()
 
-          found_path ->
-            # Get file info for the found path
-            case :prim_file.read_file_info(found_path) do
-              {:ok, file_info(type: :regular) = file_info} ->
-                # Get range header if present
-                range = get_req_header(conn, "range")
+        found_path ->
+          # Get file info for the found path
+          case :prim_file.read_file_info(found_path) do
+            {:ok, file_info(type: :regular) = file_info} ->
+              # Get range header if present
+              range = get_req_header(conn, "range")
 
-                # Serve the file with range support
-                conn
-                |> put_resp_content_type(get_content_type(found_path))
-                |> put_resp_header("accept-ranges", "bytes")
-                |> serve_range(file_info, found_path, range)
+              # Serve the file with range support
+              conn
+              |> put_resp_content_type(get_content_type(found_path))
+              |> put_resp_header("accept-ranges", "bytes")
+              |> serve_range(file_info, found_path, range)
 
-              _ ->
-                conn
-                |> send_resp(404, "Not Found")
-                |> halt()
-            end
-        end
+            _ ->
+              conn
+              |> send_resp(404, "Not Found")
+              |> halt()
+          end
+      end
     end
   end
 
   def call(conn, _opts), do: conn
+
+  # Helper function to search for a video file across all watch directories
+  defp find_video_file_in_directories(watch_directories, decoded_filename) do
+    watch_directories
+    |> Enum.find_value(fn watch_directory ->
+      PathHelper.find_video_file(watch_directory, decoded_filename)
+    end)
+  end
 
   defp serve_range(conn, file_info, path, [range]) do
     file_info(size: file_size) = file_info
