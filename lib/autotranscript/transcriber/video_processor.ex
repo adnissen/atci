@@ -203,10 +203,14 @@ defmodule Autotranscript.VideoProcessor do
     ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
 
     case System.cmd(ffprobe_path, [
-           "-v", "error",
-           "-select_streams", "a",
-           "-show_entries", "stream=index",
-           "-of", "csv=p=0",
+           "-v",
+           "error",
+           "-select_streams",
+           "a",
+           "-show_entries",
+           "stream=index",
+           "-of",
+           "csv=p=0",
            video_path
          ]) do
       {output, 0} ->
@@ -243,20 +247,30 @@ defmodule Autotranscript.VideoProcessor do
         {:ok, true} ->
           # Create unique filename in tmp directory
           base_name = Path.basename(path, Path.extname(path))
-          tmp_filename = "#{base_name}_#{UUID.uuid4()}.mp3"
+          tmp_filename = "#{base_name}.mp3"
           output_path = Path.join(System.tmp_dir(), tmp_filename)
 
           ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
 
           # Use more specific mapping to avoid multiple audio stream issues
           case System.cmd(ffmpeg_path, [
-            "-i", path,
-            "-map", "0:a:0",  # Map first audio stream only
-            "-q:a", "0",
-            "-ac", "1",       # Convert to mono to avoid channel issues
-            "-ar", "16000",   # Set sample rate for consistency
-            output_path
-          ]) do
+                 "-i",
+                 path,
+                 # Map first audio stream only
+                 "-map",
+                 "0:a:0",
+                 "-q:a",
+                 "0",
+                 # Convert to mono to avoid channel issues
+                 "-ac",
+                 "1",
+                 # Set sample rate for consistency
+                 "-ar",
+                 "16000",
+                 # Override existing files
+                 "-y",
+                 output_path
+               ]) do
             {_output, 0} -> {:ok, output_path}
             {error_output, _exit_code} -> {:error, "ffmpeg failed: #{error_output}"}
           end
@@ -277,11 +291,9 @@ defmodule Autotranscript.VideoProcessor do
 
   ## Parameters
     - path: String path to the MP3 file
-    - video_path: Optional string path to the original video file (for getting prompt from meta)
+    - video_path: string path to the original video file (for getting prompt from meta)
 
   ## Examples
-      iex> Autotranscript.VideoProcessor.transcribe_audio("audio.mp3")
-      :ok
 
       iex> Autotranscript.VideoProcessor.transcribe_audio("audio.mp3", "video.mp4")
       :ok
@@ -289,7 +301,7 @@ defmodule Autotranscript.VideoProcessor do
       iex> Autotranscript.VideoProcessor.transcribe_audio("not_audio.txt")
       {:error, :invalid_file_type}
   """
-  def transcribe_audio(path, video_path \\ nil) do
+  def transcribe_audio(path, video_path) do
     if String.ends_with?(path, ".mp3") do
       whispercli = Autotranscript.ConfigManager.get_config_value("whispercli_path")
       model = Autotranscript.ConfigManager.get_config_value("model_path")
@@ -317,17 +329,25 @@ defmodule Autotranscript.VideoProcessor do
 
           # Build command arguments with optional prompt
           args = ["-m", model, "-np", "--max-context", "0", "-ovtt", "-f", path]
-          args = if prompt do
-            args ++ ["--prompt", prompt]
-          else
-            args
-          end
+
+          args =
+            if prompt do
+              args ++ ["--prompt", prompt]
+            else
+              args
+            end
 
           System.cmd(whispercli, args)
           vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
 
           txt_path = String.replace_trailing(vtt_path, ".vtt", ".txt")
-          File.rename(path <> ".vtt", txt_path)
+          File.rename(vtt_path, txt_path)
+
+          # Move txt file to video directory
+          video_dir = Path.dirname(video_path)
+          new_txt_path = Path.join(video_dir, Path.basename(txt_path))
+          File.cp(txt_path, new_txt_path)
+          txt_path = new_txt_path
 
           # Modify the transcript file to add model information
           case TranscriptModifier.add_source_to_meta(txt_path) do
@@ -442,14 +462,15 @@ defmodule Autotranscript.VideoProcessor do
     end
   end
 
-
-
   # Gets the prompt text from a video file's meta file if it exists.
   defp get_prompt_from_meta(video_path) do
     case video_path do
-      nil -> nil
+      nil ->
+        nil
+
       path ->
         meta_path = PathHelper.replace_video_extension_with(path, ".meta")
+
         case MetaFileHandler.get_meta_field(meta_path, "prompt") do
           {:ok, prompt} -> prompt
           {:error, _} -> nil
@@ -567,7 +588,7 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   defp create_temp_video_from_time(video_path, time_seconds) do
-    temp_video_path = Path.join(System.tmp_dir(), "temp_video_#{UUID.uuid4()}.mp4")
+    temp_video_path = Path.join(System.tmp_dir(), "temp_video.mp4")
 
     ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
 
@@ -589,7 +610,7 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   defp convert_temp_video_to_mp3_partial(temp_video_path) do
-    temp_mp3_path = Path.join(System.tmp_dir(), "temp_audio_#{UUID.uuid4()}.mp3")
+    temp_mp3_path = Path.join(System.tmp_dir(), "temp_audio.mp3")
 
     ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
 
@@ -625,7 +646,7 @@ defmodule Autotranscript.VideoProcessor do
       not File.exists?(model) ->
         {:error, "Model file not found at: #{model}"}
 
-            true ->
+      true ->
         # Build command arguments (no prompt needed for partial transcription)
         args = ["-m", model, "-np", "-ovtt", "-f", temp_mp3_path]
 
@@ -849,7 +870,7 @@ defmodule Autotranscript.VideoProcessor do
   """
   def extract_subtitle_stream(video_path, stream_index) do
     txt_path = PathHelper.replace_video_extension_with(video_path, ".txt")
-    temp_srt_path = Path.join(System.tmp_dir(), "temp_subtitle_#{UUID.uuid4()}.srt")
+    temp_srt_path = Path.join(System.tmp_dir(), "temp_subtitle.srt")
 
     # Extract subtitle to temporary SRT file
     ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
