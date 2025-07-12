@@ -724,10 +724,37 @@ defmodule Autotranscript.Web.TranscriptController do
               end
 
             temp_clip_path = Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}#{file_extension}")
-            # Check if source file needs audio re-encoding (e.g., MKV files)
-            source_extension = Path.extname(file_path) |> String.downcase()
-            needs_audio_reencoding = source_extension in [".mkv", ".webm", ".avi", ".mov"]
+            # Check if source file needs audio re-encoding based on audio layout
+            ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
+            needs_advanced_audio_reencoding =
+              case System.cmd(ffprobe_path, [
+                "-v", "error",
+                "-select_streams", "a:0",
+                "-show_entries", "stream=channel_layout",
+                "-of", "csv=p=0",
+                file_path
+              ]) do
+                {output, 0} ->
+                  layout = String.trim(output) |> String.downcase()
+                  layout not in ["mono", "stereo"]
+                _ ->
+                  false  # Default to false if ffprobe fails
+              end
 
+            # Check if source file needs at least some audio re-encoding (e.g., MKV files)
+            source_extension = Path.extname(file_path) |> String.downcase()
+            extension_needs_basic_audio_reencoding = source_extension in [".mkv", ".webm", ".avi", ".mov"]
+            audio_codec_args =
+              if extension_needs_basic_audio_reencoding do
+                if needs_advanced_audio_reencoding do
+                  ["-filter:a", "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1", "-c:a", "aac", "-b:a", "256k"]
+                else
+                  ["-c:a", "aac", "-b:a", "256k"]
+                end
+              else
+                ["-c:a", "copy"]
+              end
+            # we might even need more though, if it's in 5.1 or 7.1, we need to re-encode it
             # Build ffmpeg command based on format and optional text overlay
             {ffmpeg_args, temp_text_path} =
               case {text_param, display_text_param, format} do
@@ -760,13 +787,6 @@ defmodule Autotranscript.Web.TranscriptController do
                             size
                         end
 
-                      audio_codec_args =
-                        if needs_audio_reencoding do
-                          ["-c:a", "aac", "-b:a", "256k"]
-                        else
-                          ["-c:a", "copy"]
-                        end
-
                       {[
                          "-ss",
                          "#{start_time}",
@@ -792,8 +812,6 @@ defmodule Autotranscript.Web.TranscriptController do
                            "-y",
                            "-map_chapters",
                            "-1",
-                           "-filter:a",
-                           "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
                            temp_clip_path
                          ], temp_text_path}
 
@@ -801,55 +819,31 @@ defmodule Autotranscript.Web.TranscriptController do
                       # If we can't write the text file, fall back to no text overlay
                       Logger.warning("Failed to create temporary text file: #{reason}")
 
-                      if needs_audio_reencoding do
-                        # Source file needs audio re-encoding (e.g., MKV with incompatible audio codec)
-                        {[
-                           "-ss",
-                           "#{start_time}",
-                           "-t",
-                           "#{duration}",
-                           "-i",
-                           file_path,
-                           "-codec",
-                           "copy",
-                           "-c:a",
-                           "aac",
-                           "-b:a",
-                           "256k",
-                           "-movflags",
-                           "faststart",
-                           "-avoid_negative_ts",
-                           "make_zero",
-                           "-y",
-                           "-map_chapters",
-                           "-1",
-                           "-filter:a",
-                           "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
-                           temp_clip_path
-                         ], nil}
-                      else
-                        # Source file compatible - use full stream copying
-                        {[
-                           "-ss",
-                           "#{start_time}",
-                           "-t",
-                           "#{duration}",
-                           "-i",
-                           file_path,
-                           "-codec",
-                           "copy",
-                           "-movflags",
-                           "faststart",
-                           "-avoid_negative_ts",
-                           "make_zero",
-                           "-y",
-                           "-map_chapters",
-                           "-1",
-                           "-filter:a",
-                           "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
-                           temp_clip_path
-                         ], nil}
-                      end
+                      {[
+                        "-ss",
+                        "#{start_time}",
+                        "-t",
+                        "#{duration}",
+                        "-i",
+                        file_path,
+                        "-c:v",
+                        "libx264"
+                      ] ++
+                        audio_codec_args ++
+                        [
+                          "-crf",
+                          "28",
+                          "-preset",
+                          "ultrafast",
+                          "-movflags",
+                          "faststart",
+                          "-avoid_negative_ts",
+                          "make_zero",
+                          "-y",
+                          "-map_chapters",
+                          "-1",
+                          temp_clip_path
+                        ], nil}
                   end
 
                 {text, "true", "gif"} when is_binary(text) and text != "" ->
@@ -918,49 +912,31 @@ defmodule Autotranscript.Web.TranscriptController do
 
                 {_, _, "mp4"} ->
                   # MP4 video without text overlay - use stream copying for fast clipping
-                  if needs_audio_reencoding do
-                    # Source file needs audio re-encoding (e.g., MKV with incompatible audio codec)
-                    {[
-                       "-ss",
-                       "#{start_time}",
-                       "-t",
-                       "#{duration}",
-                       "-i",
-                       file_path,
-                       "-codec",
-                       "copy",
-                       "-c:a",
-                       "aac",
-                       "-b:a",
-                       "256k",
-                       "-movflags",
-                       "faststart",
-                       "-map_chapters",
-                       "-1",
-                       "-filter:a",
-                       "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
-                       temp_clip_path
-                     ], nil}
-                  else
-                    # Source file compatible - use full stream copying
-                    {[
-                       "-ss",
-                       "#{start_time}",
-                       "-t",
-                       "#{duration}",
-                       "-i",
-                       file_path,
-                       "-codec",
-                       "copy",
-                       "-movflags",
-                       "faststart",
-                       "-map_chapters",
-                       "-1",
-                       "-filter:a",
-                       "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
-                       temp_clip_path
-                     ], nil}
-                  end
+                  {[
+                    "-ss",
+                    "#{start_time}",
+                    "-t",
+                    "#{duration}",
+                    "-i",
+                    file_path,
+                    "-c:v",
+                    "libx264"
+                  ] ++
+                    audio_codec_args ++
+                    [
+                      "-crf",
+                      "28",
+                      "-preset",
+                      "ultrafast",
+                      "-movflags",
+                      "faststart",
+                      "-avoid_negative_ts",
+                      "make_zero",
+                      "-y",
+                      "-map_chapters",
+                      "-1",
+                      temp_clip_path
+                    ], nil}
 
                 {_, _, "gif"} ->
                   # GIF without text overlay
