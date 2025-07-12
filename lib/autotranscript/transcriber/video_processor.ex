@@ -157,10 +157,8 @@ defmodule Autotranscript.VideoProcessor do
 
             {:ok, :no_subtitles} ->
               # No subtitles, proceed with normal audio extraction and transcription
-              with :ok <- convert_to_mp3(video_path),
-                   mp3_path = PathHelper.find_mp3_file_from_video(video_path),
-                   :ok <- transcribe_audio(mp3_path),
-                   :ok <- delete_mp3(mp3_path),
+              with {:ok, mp3_path} <- convert_to_mp3(video_path),
+                   :ok <- transcribe_audio(mp3_path, video_path),
                    :ok <- save_video_length(video_path) do
                 :ok
               end
@@ -171,11 +169,8 @@ defmodule Autotranscript.VideoProcessor do
                 "Failed to check subtitles: #{inspect(reason)}, falling back to audio transcription"
               )
 
-              with :ok <- convert_to_mp3(video_path),
-                   mp3_path = PathHelper.find_mp3_file_from_video(video_path),
-                   :ok <- transcribe_audio(mp3_path),
-                   :ok <- delete_mp3(mp3_path),
-                   :ok <- save_video_length(video_path) do
+              with {:ok, mp3_path} <- convert_to_mp3(video_path),
+                   :ok <- transcribe_audio(mp3_path, video_path) do
                 :ok
               end
           end
@@ -194,25 +189,84 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @doc """
+  Checks if a video file has any audio streams using ffprobe.
+
+  ## Parameters
+    - video_path: String path to the video file
+
+  ## Returns
+    - {:ok, true} if audio streams are found
+    - {:ok, false} if no audio streams are found
+    - {:error, reason} if ffprobe fails
+  """
+  def check_audio_streams(video_path) do
+    ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
+
+    case System.cmd(ffprobe_path, [
+           "-v", "error",
+           "-select_streams", "a",
+           "-show_entries", "stream=index",
+           "-of", "csv=p=0",
+           video_path
+         ]) do
+      {output, 0} ->
+        # If output is empty, there are no audio streams
+        has_audio = String.trim(output) != ""
+        {:ok, has_audio}
+
+      {error_output, _exit_code} ->
+        {:error, "ffprobe failed: #{error_output}"}
+    end
+  end
+
+  @doc """
   Converts a video file to MP3 audio using ffmpeg.
 
   ## Parameters
     - path: String path to the video file
 
+  ## Returns
+    - {:ok, mp3_path} where mp3_path is the path to the created MP3 file in tmp directory
+    - {:error, reason} if conversion fails
+
   ## Examples
       iex> Autotranscript.VideoProcessor.convert_to_mp3("video.mp4")
-      :ok
+      {:ok, "/tmp/video_12345.mp3"}
 
       iex> Autotranscript.VideoProcessor.convert_to_mp3("not_video.txt")
       {:error, :invalid_file_type}
   """
   def convert_to_mp3(path) do
     if String.ends_with?(path, PathHelper.video_extensions_with_dots()) do
-      output_path = PathHelper.replace_video_extension_with(path, ".mp3")
+      # First check if the video has any audio streams
+      case check_audio_streams(path) do
+        {:ok, true} ->
+          # Create unique filename in tmp directory
+          base_name = Path.basename(path, Path.extname(path))
+          tmp_filename = "#{base_name}_#{UUID.uuid4()}.mp3"
+          output_path = Path.join(System.tmp_dir(), tmp_filename)
 
-      ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
-      System.cmd(ffmpeg_path, ["-i", path, "-q:a", "0", "-map", "a", output_path])
-      :ok
+          ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
+
+          # Use more specific mapping to avoid multiple audio stream issues
+          case System.cmd(ffmpeg_path, [
+            "-i", path,
+            "-map", "0:a:0",  # Map first audio stream only
+            "-q:a", "0",
+            "-ac", "1",       # Convert to mono to avoid channel issues
+            "-ar", "16000",   # Set sample rate for consistency
+            output_path
+          ]) do
+            {_output, 0} -> {:ok, output_path}
+            {error_output, _exit_code} -> {:error, "ffmpeg failed: #{error_output}"}
+          end
+
+        {:ok, false} ->
+          {:error, "No audio stream found in video file"}
+
+        {:error, reason} ->
+          {:error, "Failed to check audio streams: #{reason}"}
+      end
     else
       {:error, :invalid_file_type}
     end
@@ -223,15 +277,19 @@ defmodule Autotranscript.VideoProcessor do
 
   ## Parameters
     - path: String path to the MP3 file
+    - video_path: Optional string path to the original video file (for getting prompt from meta)
 
   ## Examples
       iex> Autotranscript.VideoProcessor.transcribe_audio("audio.mp3")
       :ok
 
+      iex> Autotranscript.VideoProcessor.transcribe_audio("audio.mp3", "video.mp4")
+      :ok
+
       iex> Autotranscript.VideoProcessor.transcribe_audio("not_audio.txt")
       {:error, :invalid_file_type}
   """
-  def transcribe_audio(path) do
+  def transcribe_audio(path, video_path \\ nil) do
     if String.ends_with?(path, ".mp3") do
       whispercli = Autotranscript.ConfigManager.get_config_value("whispercli_path")
       model = Autotranscript.ConfigManager.get_config_value("model_path")
@@ -255,8 +313,8 @@ defmodule Autotranscript.VideoProcessor do
 
         true ->
           # Get prompt from meta file if available
-          prompt = get_prompt_from_meta(path)
-          
+          prompt = get_prompt_from_meta(video_path)
+
           # Build command arguments with optional prompt
           args = ["-m", model, "-np", "--max-context", "0", "-ovtt", "-f", path]
           args = if prompt do
@@ -384,24 +442,14 @@ defmodule Autotranscript.VideoProcessor do
     end
   end
 
-  # Finds the corresponding video file path from an MP3 file path by checking
-  # which video file with the same base name exists.
-  defp find_video_path_from_mp3(mp3_path) do
-    # Get the base path without extension
-    base_path = String.replace_trailing(mp3_path, ".mp3", "")
-    
-    # Check each video extension to see which one exists
-    PathHelper.video_extensions_with_dots()
-    |> Enum.map(fn ext -> base_path <> ext end)
-    |> Enum.find(&File.exists?/1)
-  end
+
 
   # Gets the prompt text from a video file's meta file if it exists.
-  defp get_prompt_from_meta(mp3_path) do
-    case find_video_path_from_mp3(mp3_path) do
+  defp get_prompt_from_meta(video_path) do
+    case video_path do
       nil -> nil
-      video_path ->
-        meta_path = PathHelper.replace_video_extension_with(video_path, ".meta")
+      path ->
+        meta_path = PathHelper.replace_video_extension_with(path, ".meta")
         case MetaFileHandler.get_meta_field(meta_path, "prompt") do
           {:ok, prompt} -> prompt
           {:error, _} -> nil
@@ -577,17 +625,9 @@ defmodule Autotranscript.VideoProcessor do
       not File.exists?(model) ->
         {:error, "Model file not found at: #{model}"}
 
-      true ->
-        # Get prompt from meta file if available
-        prompt = get_prompt_from_meta(temp_mp3_path)
-        
-        # Build command arguments with optional prompt
+            true ->
+        # Build command arguments (no prompt needed for partial transcription)
         args = ["-m", model, "-np", "-ovtt", "-f", temp_mp3_path]
-        args = if prompt do
-          args ++ ["--prompt", prompt]
-        else
-          args
-        end
 
         case System.cmd(whispercli, args) do
           {_output, 0} ->
