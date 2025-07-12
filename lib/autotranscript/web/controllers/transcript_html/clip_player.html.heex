@@ -449,7 +449,7 @@
                 const displayText = displayTextInput.checked;
                 
                 const clipParams = new URLSearchParams({
-                    filename: '<%= @filename %>',
+                    filename: <%= raw(Jason.encode!(@filename)) %>,
                     start_time: startTime,
                     end_time: endTime,
                     format: format
