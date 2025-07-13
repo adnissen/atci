@@ -90,5 +90,11 @@ defmodule Autotranscript.Web.Router do
     # Model management endpoints
     get("/models", ModelController, :list)
     post("/models/download", ModelController, :download)
+
+    # FFmpeg management endpoints
+    get("/ffmpeg/tools", FFmpegController, :list)
+    post("/ffmpeg/download", FFmpegController, :download)
+    post("/ffmpeg/use-downloaded", FFmpegController, :use_downloaded)
+    post("/ffmpeg/use-auto-detection", FFmpegController, :use_auto_detection)
   end
 end
