@@ -206,7 +206,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const contentLineNumber = lineNumbers[lineNumbers.length - 1];
 
   return (
-              <div className={`mb-1 ${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''}`}>
+              <div className={`${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''}`}>
         {startTime && endTime && (
           <div className="group">
             <span className="relative">

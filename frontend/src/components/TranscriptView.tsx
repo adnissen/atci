@@ -72,7 +72,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
   // Parse text into transcript blocks
   const parseTranscriptBlocks = (text: string, visibleLines: number[]): TranscriptBlockData[] => {
-    const lines = text.split('\n');
+    const lines = text.split('\n').flatMap(line => line.split('\r'));
     const allBlocks: TranscriptBlockData[] = [];
     const searchTermLower = searchTerm.toLowerCase();
 
@@ -202,7 +202,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
               </div>
             )}
 
-          {transcriptBlocks.length > 0 && (<div className="space-y-2">
+          {transcriptBlocks.length > 0 && (<div className="space-y-0.5">
             {processedBlocks.map((item, index) => (
               <div key={item.type === 'block' ? `${(item.data as TranscriptBlockData).originalIndex}-${index}` : `message-${index}`}>
                 {item.type === 'block' ? (
