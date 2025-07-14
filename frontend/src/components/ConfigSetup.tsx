@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Trash2, Plus, Download, CheckCircle } from 'lucide-react';
+import { Trash2, Plus, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -27,6 +27,16 @@ interface Model {
   path: string;
 }
 
+interface FFmpegTool {
+  name: string;
+  platform: string;
+  downloaded: boolean;
+  downloaded_path: string;
+  system_available: boolean;
+  system_path: string | null;
+  current_path: string;
+}
+
 const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode = false }) => {
   const [config, setConfig] = useState<ConfigData>({
     watch_directories: [''],
@@ -43,6 +53,8 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [modelSelection, setModelSelection] = useState<'custom' | string>('custom');
   const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
+  const [ffmpegTools, setFfmpegTools] = useState<FFmpegTool[]>([]);
+  const [downloadingTool, setDownloadingTool] = useState<string | null>(null);
 
   // Fetch existing configuration when in edit mode
   useEffect(() => {
@@ -50,6 +62,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       fetchCurrentConfig();
     }
     fetchModels();
+    fetchFFmpegTools();
   }, [isEditMode]);
 
   const fetchModels = async () => {
@@ -97,6 +110,86 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       setErrors(['Network error: Failed to download model']);
     } finally {
       setDownloadingModel(null);
+    }
+  };
+
+  const fetchFFmpegTools = async () => {
+    try {
+      const response = await fetch('/api/ffmpeg/tools');
+      if (response.ok) {
+        const data = await response.json();
+        setFfmpegTools(data.tools);
+      } else {
+        console.error('Failed to fetch FFmpeg tools');
+      }
+    } catch (error) {
+      console.error('Error fetching FFmpeg tools:', error);
+    }
+  };
+
+  const downloadFFmpegTool = async (toolName: string) => {
+    setDownloadingTool(toolName);
+    try {
+      const response = await fetch('/api/ffmpeg/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tool_name: toolName }),
+      });
+
+      if (response.ok) {
+        // Refresh tools list after download
+        await fetchFFmpegTools();
+        await fetchCurrentConfig();
+        setSuccessMessage(`${toolName} downloaded successfully`);
+      } else {
+        const error = await response.json();
+        setErrors([error.message || `Failed to download ${toolName}`]);
+      }
+    } catch (error: any) {
+      console.error('Error downloading tool:', error);
+      setErrors([error.message || `Failed to download ${toolName}`]);
+    } finally {
+      setDownloadingTool(null);
+    }
+  };
+
+  const useDownloadedFFmpegTool = async (toolName: string) => {
+    try {
+      const response = await fetch('/api/ffmpeg/use-downloaded', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tool_name: toolName }),
+      });
+
+      if (response.ok) {
+        await fetchCurrentConfig();
+        await fetchFFmpegTools();
+        setSuccessMessage(`Now using downloaded ${toolName}`);
+      } else {
+        const error = await response.json();
+        setErrors([error.message || `Failed to use downloaded ${toolName}`]);
+      }
+    } catch (error: any) {
+      console.error('Error setting tool path:', error);
+      setErrors([error.message || `Failed to use downloaded ${toolName}`]);
+    }
+  };
+
+  const useAutoDetectionForTool = async (toolName: string) => {
+    const tool = ffmpegTools.find(t => t.name === toolName);
+    if (tool && tool.system_path) {
+      // Directly update the config with the system path
+      setConfig(prev => ({
+        ...prev,
+        [`${toolName}_path`]: tool.system_path
+      }));
+      setSuccessMessage(``);
+    } else {
+      setErrors([`System path not found for ${toolName}`]);
     }
   };
 
@@ -405,40 +498,93 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
         )}
       </div>
 
-      <div>
-        <label htmlFor="ffmpeg_path" className="block text-sm font-medium text-foreground mb-1">
-          FFmpeg Path
-        </label>
-        <input
-          type="text"
-          id="ffmpeg_path"
-          value={config.ffmpeg_path}
-          onChange={(e) => handleInputChange('ffmpeg_path', e.target.value)}
-          placeholder="/path/to/ffmpeg"
-          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-          required
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Path to the ffmpeg executable (auto-detected if available in PATH)
-        </p>
-      </div>
+      {/* FFmpeg Tools Section */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">FFmpeg Tools</h3>
+        
+        {ffmpegTools.map(tool => (
+          <div key={tool.name} className="border border-border rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-foreground capitalize">{tool.name}</h4>
+              <span className="text-xs text-muted-foreground">Platform: {tool.platform}</span>
+            </div>
 
-      <div>
-        <label htmlFor="ffprobe_path" className="block text-sm font-medium text-foreground mb-1">
-          FFprobe Path
-        </label>
-        <input
-          type="text"
-          id="ffprobe_path"
-          value={config.ffprobe_path}
-          onChange={(e) => handleInputChange('ffprobe_path', e.target.value)}
-          placeholder="/path/to/ffprobe"
-          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-          required
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Path to the ffprobe executable (auto-detected if available in PATH)
-        </p>
+            <div className="space-y-2">
+              {/* Status Information */}
+              <div className="text-xs space-y-1">
+                {tool.system_available && (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CheckCircle className="h-3 w-3" />
+                    Available in system PATH: {tool.system_path}
+                  </div>
+                )}
+                {tool.downloaded && (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CheckCircle className="h-3 w-3" />
+                    Downloaded to: {tool.downloaded_path}
+                  </div>
+                )}
+                {!tool.system_available && !tool.downloaded && (
+                  <div className="flex items-center gap-2 text-yellow-600">
+                    <AlertCircle className="h-3 w-3" />
+                    Not found in system PATH or downloads
+                  </div>
+                )}
+              </div>
+
+              {/* Current Path Input */}
+              <div>
+                <label htmlFor={`${tool.name}_path`} className="block text-xs font-medium text-foreground mb-1">
+                  Current Path
+                </label>
+                <input
+                  type="text"
+                  id={`${tool.name}_path`}
+                  value={config[`${tool.name}_path` as keyof ConfigData] as string}
+                  onChange={(e) => handleInputChange(`${tool.name}_path` as keyof Omit<ConfigData, 'watch_directories'>, e.target.value)}
+                  placeholder={`/path/to/${tool.name}`}
+                  className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm"
+                  required
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-2">
+                {!tool.downloaded && (
+                  <button
+                    type="button"
+                    onClick={() => downloadFFmpegTool(tool.name)}
+                    disabled={downloadingTool !== null}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Download className="h-3 w-3" />
+                    {downloadingTool === tool.name ? 'Downloading...' : 'Download'}
+                  </button>
+                )}
+                
+                {tool.downloaded && (
+                  <button
+                    type="button"
+                    onClick={() => useDownloadedFFmpegTool(tool.name)}
+                    className="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Use Downloaded Version
+                  </button>
+                )}
+                
+                {tool.system_available && (
+                  <button
+                    type="button"
+                    onClick={() => useAutoDetectionForTool(tool.name)}
+                    className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                  >
+                    Use System Version
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       {errors.length > 0 && (
