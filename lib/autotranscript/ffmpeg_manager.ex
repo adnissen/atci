@@ -12,9 +12,13 @@ defmodule Autotranscript.FFmpegManager do
       "ffmpeg" => "https://example.com/ffmpeg-windows.exe",
       "ffprobe" => "https://example.com/ffprobe-windows.exe"
     },
-    "macos" => %{
-      "ffmpeg" => "https://example.com/ffmpeg-macos",
-      "ffprobe" => "https://example.com/ffprobe-macos"
+    "macos-arm" => %{
+      "ffmpeg" => "https://www.osxexperts.net/ffmpeg711arm.zip",
+      "ffprobe" => "https://www.osxexperts.net/ffprobe711arm.zip"
+    },
+    "macos-x86" => %{
+      "ffmpeg" => "https://www.osxexperts.net/ffmpeg71intel.zip",
+      "ffprobe" => "https://www.osxexperts.net/ffprobe71intel.zip"
     },
     "linux" => %{
       "ffmpeg" => "https://example.com/ffmpeg-linux",
@@ -43,9 +47,12 @@ defmodule Autotranscript.FFmpegManager do
   def detect_platform do
     case :os.type() do
       {:win32, _} -> "windows"
-      {:unix, :darwin} -> "macos"
+      {:unix, :darwin} ->
+        case System.cmd("uname", ["-m"]) do
+          {"arm64\n", 0} -> "macos-arm"
+          _ -> "macos-x86"
+        end
       {:unix, _} -> "linux"
-      _ -> "unknown"
     end
   end
 
@@ -55,12 +62,12 @@ defmodule Autotranscript.FFmpegManager do
   def list_tools do
     ensure_binaries_directory()
     platform = detect_platform()
-    
+
     ["ffmpeg", "ffprobe"]
     |> Enum.map(fn tool ->
       downloaded_path = get_downloaded_path(tool)
       system_path = find_in_system_path(tool)
-      
+
       %{
         name: tool,
         platform: platform,
@@ -96,7 +103,7 @@ defmodule Autotranscript.FFmpegManager do
   """
   def get_current_path(tool) do
     config_path = Autotranscript.ConfigManager.get_config_value("#{tool}_path")
-    
+
     if config_path && config_path != "" do
       config_path
     else
@@ -109,27 +116,38 @@ defmodule Autotranscript.FFmpegManager do
   """
   def download_tool(tool) when tool in ["ffmpeg", "ffprobe"] do
     platform = detect_platform()
-    
+
     if platform == "unknown" do
       {:error, "Unsupported platform"}
     else
       ensure_binaries_directory()
-      
+
       url = get_in(@download_urls, [platform, tool])
       destination = get_downloaded_path(tool)
-      
+
       Logger.info("Downloading #{tool} for #{platform} from #{url}")
-      
-      case download_file(url, destination) do
+
+      case download_file(url, destination, platform) do
         :ok ->
           # Make the file executable on Unix-like systems
-          if platform in ["macos", "linux"] do
+          if platform in ["macos-arm", "macos-x86", "linux"] do
             File.chmod(destination, 0o755)
           end
-          
+
+          # Handle macOS quarantine removal and code signing
+          if platform in ["macos-arm", "macos-x86"] do
+            case handle_macos_quarantine(destination, platform) do
+              :ok ->
+                Logger.info("Successfully handled macOS quarantine for #{tool}")
+              {:error, reason} ->
+                Logger.warning("Failed to handle macOS quarantine for #{tool}: #{reason}")
+                # Don't fail the download, just log the warning
+            end
+          end
+
           Logger.info("Successfully downloaded #{tool}")
           {:ok, destination}
-          
+
         {:error, reason} ->
           Logger.error("Failed to download #{tool}: #{inspect(reason)}")
           {:error, reason}
@@ -141,7 +159,7 @@ defmodule Autotranscript.FFmpegManager do
     {:error, "Invalid tool name. Only 'ffmpeg' and 'ffprobe' are supported."}
   end
 
-  defp download_file(url, destination) do
+  defp download_file(url, destination, platform) do
     Logger.info("Starting download from #{url}")
 
     options = [
@@ -152,16 +170,22 @@ defmodule Autotranscript.FFmpegManager do
 
     case HTTPoison.get(url, [], options) do
       {:ok, %HTTPoison.Response{status_code: 200, body: body}} ->
-        Logger.info("Download completed, saving to #{destination}")
+        Logger.info("Download completed, processing for #{platform}")
 
-        case File.write(destination, body) do
-          :ok ->
-            Logger.info("Successfully saved to #{destination}")
-            :ok
+        if platform in ["macos-arm", "macos-x86"] do
+          # For macOS, the downloaded file is a zip that needs to be extracted
+          extract_zip_file(body, destination)
+        else
+          # For other platforms, save directly
+          case File.write(destination, body) do
+            :ok ->
+              Logger.info("Successfully saved to #{destination}")
+              :ok
 
-          {:error, reason} ->
-            Logger.error("Failed to write file: #{inspect(reason)}")
-            {:error, "Failed to write file: #{inspect(reason)}"}
+            {:error, reason} ->
+              Logger.error("Failed to write file: #{inspect(reason)}")
+              {:error, "Failed to write file: #{inspect(reason)}"}
+          end
         end
 
       {:ok, %HTTPoison.Response{status_code: status_code}} ->
@@ -171,6 +195,150 @@ defmodule Autotranscript.FFmpegManager do
       {:error, %HTTPoison.Error{reason: reason}} ->
         Logger.error("HTTP request failed: #{inspect(reason)}")
         {:error, "Download failed: #{inspect(reason)}"}
+    end
+  end
+
+  defp extract_zip_file(zip_data, destination) do
+    # Create a temporary file for the zip
+    temp_zip_path = destination <> ".zip"
+
+    case File.write(temp_zip_path, zip_data) do
+      :ok ->
+        Logger.info("Extracting zip file to #{destination}")
+
+        # Extract the zip file
+        case System.cmd("unzip", ["-o", temp_zip_path, "-d", Path.dirname(destination)]) do
+          {_, 0} ->
+            # Find the extracted binary (should be the only file in the zip)
+            case File.ls(Path.dirname(destination)) do
+              {:ok, files} ->
+                extracted_file = Enum.find(files, fn file ->
+                  file != Path.basename(temp_zip_path) and
+                  file != Path.basename(destination) and
+                  not String.ends_with?(file, ".zip")
+                end)
+
+                if extracted_file do
+                  extracted_path = Path.join(Path.dirname(destination), extracted_file)
+
+                  # Move the extracted file to the final destination
+                  case File.cp(extracted_path, destination) do
+                    :ok ->
+                      # Clean up the temp zip file
+                      File.rm(temp_zip_path)
+                      Logger.info("Successfully extracted and moved to #{destination}")
+                      :ok
+                    {:error, reason} ->
+                      File.rm(temp_zip_path)
+                      Logger.error("Failed to move extracted file: #{inspect(reason)}")
+                      {:error, "Failed to move extracted file: #{inspect(reason)}"}
+                  end
+                else
+                  File.rm(temp_zip_path)
+                  Logger.error("No suitable file found in extracted zip")
+                  {:error, "No suitable file found in extracted zip"}
+                end
+              {:error, reason} ->
+                File.rm(temp_zip_path)
+                Logger.error("Failed to list extracted files: #{inspect(reason)}")
+                {:error, "Failed to list extracted files: #{inspect(reason)}"}
+            end
+          {output, _exit_code} ->
+            File.rm(temp_zip_path)
+            Logger.error("Failed to extract zip: #{output}")
+            {:error, "Failed to extract zip: #{output}"}
+        end
+      {:error, reason} ->
+        Logger.error("Failed to write temporary zip file: #{inspect(reason)}")
+        {:error, "Failed to write temporary zip file: #{inspect(reason)}"}
+    end
+  end
+
+  defp handle_macos_quarantine(executable_path, platform) do
+    with :ok <- check_macos_version(),
+         :ok <- remove_quarantine(executable_path),
+         :ok <- handle_arm_mac_signing(executable_path, platform) do
+      :ok
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp check_macos_version do
+    case System.cmd("sw_vers", ["-productVersion"]) do
+      {version_string, 0} ->
+        version_string
+        |> String.trim()
+        |> String.split(".")
+        |> case do
+          [major, minor | _] ->
+            major_int = String.to_integer(major)
+            minor_int = String.to_integer(minor)
+
+            if major_int > 10 or (major_int == 10 and minor_int >= 15) do
+              :ok
+            else
+              {:error, "macOS version too old for quarantine handling"}
+            end
+          _ ->
+            {:error, "Unable to parse macOS version"}
+        end
+      {_, _} ->
+        {:error, "Unable to get macOS version"}
+    end
+  end
+
+  defp remove_quarantine(executable_path) do
+    Logger.info("Removing quarantine from #{executable_path}")
+
+    case System.cmd("xattr", ["-dr", "com.apple.quarantine", executable_path]) do
+      {_, 0} ->
+        Logger.info("Successfully removed quarantine")
+        :ok
+      {output, exit_code} ->
+        Logger.warning("xattr command failed with exit code #{exit_code}: #{output}")
+        {:error, "Failed to remove quarantine: #{output}"}
+    end
+  end
+
+  defp handle_arm_mac_signing(executable_path, platform) do
+    if platform == "macos-arm" do
+      Logger.info("Handling ARM Mac code signing for #{executable_path}")
+
+      with :ok <- clear_extended_attributes(executable_path),
+           :ok <- codesign_executable(executable_path) do
+        :ok
+      else
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      :ok
+    end
+  end
+
+  defp clear_extended_attributes(executable_path) do
+    Logger.info("Clearing extended attributes")
+
+    case System.cmd("xattr", ["-cr", executable_path]) do
+      {_, 0} ->
+        Logger.info("Successfully cleared extended attributes")
+        :ok
+      {output, exit_code} ->
+        Logger.warning("xattr -cr command failed with exit code #{exit_code}: #{output}")
+        {:error, "Failed to clear extended attributes: #{output}"}
+    end
+  end
+
+  defp codesign_executable(executable_path) do
+    Logger.info("Code signing executable")
+
+    case System.cmd("codesign", ["-s", "-", executable_path]) do
+      {_, 0} ->
+        Logger.info("Successfully code signed executable")
+        :ok
+      {output, exit_code} ->
+        Logger.warning("codesign command failed with exit code #{exit_code}: #{output}")
+        {:error, "Failed to code sign executable: #{output}"}
     end
   end
 
@@ -188,7 +356,7 @@ defmodule Autotranscript.FFmpegManager do
   """
   def use_downloaded_version(tool) when tool in ["ffmpeg", "ffprobe"] do
     downloaded_path = get_downloaded_path(tool)
-    
+
     if File.exists?(downloaded_path) do
       set_tool_path(tool, downloaded_path)
     else

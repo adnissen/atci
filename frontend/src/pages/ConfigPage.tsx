@@ -175,26 +175,16 @@ export default function ConfigPage() {
   };
 
   const useAutoDetectionForTool = async (toolName: string) => {
-    try {
-      const response = await fetch('/api/ffmpeg/use-auto-detection', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ tool_name: toolName }),
-      });
-
-      if (response.ok) {
-        await fetchCurrentConfig();
-        await fetchFFmpegTools();
-        setSuccessMessage(`Now using auto-detection for ${toolName}`);
-      } else {
-        const error = await response.json();
-        setErrors([error.message || `Failed to set auto-detection for ${toolName}`]);
-      }
-    } catch (error: any) {
-      console.error('Error setting auto-detection:', error);
-      setErrors([error.message || `Failed to set auto-detection for ${toolName}`]);
+    const tool = ffmpegTools.find(t => t.name === toolName);
+    if (tool && tool.system_path) {
+      // Directly update the config with the system path
+      setConfig(prev => ({
+        ...prev,
+        [`${toolName}_path`]: tool.system_path
+      }));
+      setSuccessMessage(``);
+    } else {
+      setErrors([`System path not found for ${toolName}`]);
     }
   };
 
