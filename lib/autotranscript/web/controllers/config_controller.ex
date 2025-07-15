@@ -32,7 +32,8 @@ defmodule Autotranscript.Web.ConfigController do
       "model_path" => params["model_path"],
       "model_name" => params["model_name"],
       "ffmpeg_path" => params["ffmpeg_path"],
-      "ffprobe_path" => params["ffprobe_path"]
+      "ffprobe_path" => params["ffprobe_path"],
+      "nonlocal_password" => params["nonlocal_password"]
     }
 
     # Validate the parameters
@@ -220,6 +221,8 @@ defmodule Autotranscript.Web.ConfigController do
         _ ->
           ["ffprobe_path must be a string" | errors]
       end
+
+    # No validation required for nonlocal_password (optional)
 
     # Filter out nil values from config before returning
     cleaned_config =

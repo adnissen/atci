@@ -7,6 +7,7 @@ import {
   TableCell,
   TableRow,
 } from '../components/ui/table';
+import { addTimestamp } from '../lib/utils';
 
 interface ConfigData {
   watch_directories: string[];
@@ -15,6 +16,7 @@ interface ConfigData {
   model_name?: string;
   ffmpeg_path: string;
   ffprobe_path: string;
+  nonlocal_password?: string;
 }
 
 interface Model {
@@ -63,7 +65,7 @@ export default function ConfigPage() {
   const fetchModels = async () => {
     setIsLoadingModels(true);
     try {
-      const response = await fetch('/api/models');
+      const response = await fetch(addTimestamp('/api/models'));
       if (response.ok) {
         const data = await response.json();
         setModels(data.models || []);
@@ -78,7 +80,7 @@ export default function ConfigPage() {
   const downloadModel = async (modelName: string) => {
     setDownloadingModel(modelName);
     try {
-      const response = await fetch('/api/models/download', {
+      const response = await fetch(addTimestamp('/api/models/download'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -110,7 +112,7 @@ export default function ConfigPage() {
 
   const fetchFFmpegTools = async () => {
     try {
-      const response = await fetch('/api/ffmpeg/tools');
+      const response = await fetch(addTimestamp('/api/ffmpeg/tools'));
       if (response.ok) {
         const data = await response.json();
         setFfmpegTools(data.tools);
@@ -125,7 +127,7 @@ export default function ConfigPage() {
   const downloadFFmpegTool = async (toolName: string) => {
     setDownloadingTool(toolName);
     try {
-      const response = await fetch('/api/ffmpeg/download', {
+      const response = await fetch(addTimestamp('/api/ffmpeg/download'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -152,7 +154,7 @@ export default function ConfigPage() {
 
   const useDownloadedFFmpegTool = async (toolName: string) => {
     try {
-      const response = await fetch('/api/ffmpeg/use-downloaded', {
+      const response = await fetch(addTimestamp('/api/ffmpeg/use-downloaded'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -191,7 +193,7 @@ export default function ConfigPage() {
   const fetchCurrentConfig = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/config', {
+      const response = await fetch(addTimestamp('/config'), {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -209,7 +211,8 @@ export default function ConfigPage() {
             model_path: data.config.model_path || '',
             model_name: data.config.model_name || '',
             ffmpeg_path: data.config.ffmpeg_path || '',
-            ffprobe_path: data.config.ffprobe_path || ''
+            ffprobe_path: data.config.ffprobe_path || '',
+            nonlocal_password: data.config.nonlocal_password || ''
           };
           setConfig(configData);
           
@@ -326,8 +329,12 @@ export default function ConfigPage() {
       submitData.model_name = modelSelection;
     }
 
+    if (config.nonlocal_password !== undefined) {
+      submitData.nonlocal_password = config.nonlocal_password;
+    }
+
     try {
-      const response = await fetch('/config', {
+      const response = await fetch(addTimestamp('/config'), {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -622,6 +629,24 @@ export default function ConfigPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+
+                  {/* API Password */}
+                  <div>
+                    <label htmlFor="nonlocal_password" className="block text-sm font-medium text-foreground mb-1">
+                      API Password (optional)
+                    </label>
+                    <input
+                      type="password"
+                      id="nonlocal_password"
+                      value={config.nonlocal_password || ''}
+                      onChange={(e) => handleInputChange('nonlocal_password', e.target.value)}
+                      placeholder="Set or clear API password (leave blank to disable)"
+                      className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      If set, all non-local API requests require this password (via Basic Auth or cookie).
+                    </p>
                   </div>
 
                   {/* Error Messages */}

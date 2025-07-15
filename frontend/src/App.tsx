@@ -5,6 +5,7 @@ import { useLSState } from './hooks/useLSState'
 import HomePage from './pages/HomePage'
 import ConfigPage from './pages/ConfigPage'
 import ConfigSetup from './components/ConfigSetup'
+import { addTimestamp } from './lib/utils'
 
 function App() {
   // Configuration state
@@ -49,7 +50,7 @@ function App() {
   useEffect(() => {
     const checkConfiguration = async () => {
       try {
-        const response = await fetch('/config', {
+        const response = await fetch(addTimestamp('/config'), {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'

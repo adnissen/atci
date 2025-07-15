@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Edit2 } from 'lucide-react';
 import DualEditDialog from './DualEditDialog';
+import { addTimestamp } from '../lib/utils';
 
 interface TranscriptBlockProps {
   startTime?: string;
@@ -78,7 +79,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
 
-      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/partial_reprocess`, {
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}/partial_reprocess`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -116,7 +117,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(`/transcripts/${encodeURIComponent(name)}/replace`, {
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(name)}/replace`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -164,7 +165,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(`/transcripts/${encodeURIComponent(name)}/replace`, {
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(name)}/replace`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',

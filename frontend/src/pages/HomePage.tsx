@@ -20,6 +20,7 @@ import DualEditDialog from '../components/DualEditDialog'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLSState } from '../hooks/useLSState'
 import { useNavigate } from 'react-router-dom'
+import { addTimestamp } from '../lib/utils'
 
 export default function HomePage() {
   const navigate = useNavigate()
@@ -106,7 +107,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchWatchDirectories = async () => {
       try {
-        const response = await fetch('/watch_directories')
+        const response = await fetch(addTimestamp('/watch_directories'))
         if (response.ok) {
           const dirs = await response.json()
           setAvailableWatchDirs(dirs || [])
@@ -123,7 +124,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchSources = async () => {
       try {
-        const response = await fetch('/sources')
+        const response = await fetch(addTimestamp('/sources'))
         if (response.ok) {
           const sources = await response.json()
           setAvailableSources(sources || [])
@@ -484,7 +485,7 @@ export default function HomePage() {
     }))
 
     try {
-      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}`)
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}`))
       
       if (!response.ok) {
         throw new Error(`Failed to fetch transcript: ${response.status} ${response.statusText}`)
@@ -527,7 +528,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchWatchDirectory = async () => {
       try {
-        const response = await fetch('/watch_directory')
+        const response = await fetch(addTimestamp('/watch_directory'))
         if (response.ok) {
           const data = await response.text()
           setWatchDirectory(data)
@@ -587,7 +588,7 @@ export default function HomePage() {
       const queryString = params.toString()
       const url = queryString ? `/files?${queryString}` : '/files'
       
-      const response = await fetch(url)
+      const response = await fetch(addTimestamp(url))
       if (response.ok) {
         const data = await response.json()
         setFiles(data || [])
@@ -599,7 +600,7 @@ export default function HomePage() {
 
   const refreshQueue = async () => {
     try {
-      const response = await fetch('/queue')
+      const response = await fetch(addTimestamp('/queue'))
       if (response.ok) {
         const data = await response.json()
         setQueue(data.queue || [])
@@ -650,7 +651,7 @@ export default function HomePage() {
     setIsSearching(true)
 
     try {
-      const response = await fetch(`/grep/${encodeURIComponent(searchTerm)}`)
+      const response = await fetch(addTimestamp(`/grep/${encodeURIComponent(searchTerm)}`))
       if (response.ok) {
         const data = await response.json()
         setSearchLineNumbers(data || {})
@@ -670,7 +671,7 @@ export default function HomePage() {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     try {
-      const response = await fetch(`/regenerate/${encodeURIComponent(filename)}`, {
+      const response = await fetch(addTimestamp(`/regenerate/${encodeURIComponent(filename)}`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -711,7 +712,7 @@ export default function HomePage() {
     
     try {
       // Fetch the current transcript
-      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}`)
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}`))
       if (response.ok) {
         const transcriptContent = await response.text()
         setReplaceTranscriptFilename(filename)
@@ -739,7 +740,7 @@ export default function HomePage() {
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(`/transcripts/${encodeURIComponent(replaceTranscriptFilename)}/replace`, {
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(replaceTranscriptFilename)}/replace`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -823,7 +824,7 @@ export default function HomePage() {
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(`/transcripts/${encodeURIComponent(renameFilename)}/rename`, {
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(renameFilename)}/rename`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
@@ -868,7 +869,7 @@ export default function HomePage() {
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     try {
-      const response = await fetch(`/regenerate-meta/${encodeURIComponent(filename)}`, {
+      const response = await fetch(addTimestamp(`/regenerate-meta/${encodeURIComponent(filename)}`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',

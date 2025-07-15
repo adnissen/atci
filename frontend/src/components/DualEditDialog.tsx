@@ -1,4 +1,5 @@
 import React from 'react';
+import { addTimestamp } from '../lib/utils';
 
 interface DualEditDialogProps {
   isOpen: boolean;
@@ -73,7 +74,7 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
     
     setIsLoadingMeta(true);
     try {
-      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/meta`);
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}/meta`));
       if (response.ok) {
         const data = await response.json();
         setMetaContent(data.content || '');
@@ -94,7 +95,7 @@ const DualEditDialog: React.FC<DualEditDialogProps> = ({
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(`/transcripts/${encodeURIComponent(filename)}/meta`, {
+      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}/meta`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',

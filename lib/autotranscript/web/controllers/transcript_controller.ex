@@ -234,7 +234,6 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def files(conn, params) do
     video_files = VideoInfoCache.get_video_files()
-
     # Filter by watch directories if provided
     filtered_files =
       case params["watch_directories"] do

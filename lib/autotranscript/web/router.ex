@@ -16,6 +16,8 @@ defmodule Autotranscript.Web.Router do
       pass: ["*/*"],
       json_decoder: Phoenix.json_library()
     )
+
+    plug(Autotranscript.Web.Plugs.NonlocalPassword)
   end
 
   pipeline :api do
@@ -26,6 +28,8 @@ defmodule Autotranscript.Web.Router do
       pass: ["*/*"],
       json_decoder: Phoenix.json_library()
     )
+
+    plug(Autotranscript.Web.Plugs.NonlocalPassword)
   end
 
   pipeline :config do
@@ -41,6 +45,8 @@ defmodule Autotranscript.Web.Router do
     )
 
     # Note: No CSRF protection for config endpoints
+
+    plug(Autotranscript.Web.Plugs.NonlocalPassword)
   end
 
   scope "/", Autotranscript.Web do

@@ -63,6 +63,74 @@ defmodule Autotranscript.Web.ErrorView do
     """
   end
 
+  def render("401.html", assigns) do
+    ~H"""
+    <div class="container">
+      <h1>Authentication Required</h1>
+      <p>This endpoint requires a password. Please enter it below.</p>
+      <form id="auth-form" onsubmit="return submitAuth(event)">
+        <input type="password" id="password" name="password" placeholder="Password" required style="padding:0.5em; width:200px;" />
+        <button type="submit" style="padding:0.5em 1em; margin-left:0.5em;">Login</button>
+      </form>
+      <p id="error-message" style="color:#d32f2f;"></p>
+    </div>
+    <script>
+      function submitAuth(event) {
+        event.preventDefault();
+        var password = document.getElementById('password').value;
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '/app', true);
+        xhr.setRequestHeader('Authorization', 'Basic ' + btoa('user:' + password));
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              window.location.href = '/app';
+            } else {
+              document.getElementById('error-message').textContent = 'Incorrect password.';
+            }
+          }
+        };
+        xhr.send();
+        return false;
+      }
+    </script>
+    <style>
+      .container {
+        max-width: 400px;
+        margin: 4em auto;
+        background: #fff;
+        padding: 2em;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        text-align: center;
+      }
+      h1 {
+        color: #1976d2;
+        margin-bottom: 1rem;
+      }
+      body {
+        font-family: sans-serif;
+        background: #f9f9f9;
+        color: #222;
+      }
+      input[type=password] {
+        font-size: 1em;
+      }
+      button {
+        font-size: 1em;
+        background: #1976d2;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #1565c0;
+      }
+    </style>
+    """
+  end
+
   # Handle JSON error responses
   def render("404.json", _assigns) do
     %{error: "Not found"}
