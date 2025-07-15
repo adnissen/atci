@@ -224,7 +224,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                   <span className="text-muted-foreground text-xs mr-2 flex-shrink-0 text-right w-8">{timestampLineNumber}</span>
                   <span>
                     <a 
-                      href={`/player/${encodeURIComponent(name)}?time=${timestampToSeconds(startTime)}`}
+                      href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`}
                       className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
                       target="_blank"
                     >
@@ -232,7 +232,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                     </a>
                     {' --> '}
                     <a 
-                      href={`/player/${encodeURIComponent(name)}?time=${timestampToSeconds(endTime)}`}
+                      href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`}
                       className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
                       target="_blank"
                     >
