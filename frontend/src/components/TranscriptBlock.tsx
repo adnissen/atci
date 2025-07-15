@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import { Edit2, MoreHorizontal, Camera, Video, RotateCcw } from 'lucide-react';
 import DualEditDialog from './DualEditDialog';
 import { addTimestamp } from '../lib/utils';
@@ -19,6 +19,7 @@ interface TranscriptBlockProps {
   lineNumbers: number[];
   onEditSuccess?: () => void;
   fullTranscript?: string; // Full transcript text for editing
+  isSmallScreen?: boolean;
 }
 
 const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
@@ -30,7 +31,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   isSearchResult = false,
   lineNumbers,
   onEditSuccess,
-  fullTranscript = ''
+  fullTranscript = '',
+  isSmallScreen = false
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -256,7 +258,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
               </div>
               
               {/* Dropdown menu - positioned at the exact midpoint between timestamp and content */}
-              <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 z-10 ${isSmallScreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
                 <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
                     <button className="flex items-center justify-center w-6 h-6 rounded-full hover:bg-gray-100 transition-colors">
@@ -310,7 +312,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
             <div className="col-span-1 text-muted-foreground text-sm font-mono flex items-center gap-2">
               <div className="flex items-center gap-2 justify-end">
                 {/* Dropdown menu for content lines without timestamps */}
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className={`${isSmallScreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <button className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 transition-colors">

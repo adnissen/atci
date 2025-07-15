@@ -17,13 +17,16 @@ import {
 } from '../components/ui/dropdown-menu'
 import TranscriptView from '../components/TranscriptView'
 import DualEditDialog from '../components/DualEditDialog'
+import FileCard from '../components/FileCard'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLSState } from '../hooks/useLSState'
+import { useIsSmallScreen } from '../hooks/useMediaQuery'
 import { useNavigate } from 'react-router-dom'
 import { addTimestamp } from '../lib/utils'
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const isSmallScreen = useIsSmallScreen()
   
   // Sample data for the table
   type FileRow = {
@@ -1254,21 +1257,82 @@ export default function HomePage() {
             </div>
           )}
 
-          <Table className="table-fixed w-full">
-            <TableHeader>
-              <TableRow>
-                <TableHead 
-                  className="text-center w-[16%] cursor-pointer hover:bg-accent transition-colors"
-                  onClick={() => handleSort('name')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    Filename
-                    {getSortIndicator('name')}
+          {isSmallScreen ? (
+            // Mobile view - render cards
+            <div className="space-y-4">
+              {sortedFiles.map((file) => {
+                if (searchTerm !== '' && !searchResults.includes(file.base_name)) {
+                  return null;
+                }
+                
+                const transcriptInfo = transcriptData[file.base_name] || { text: '', loading: false, error: null }
+                const isExpanded = expandedFiles.has(file.base_name)
+                
+                return (
+                  <div key={file.base_name} className="space-y-4">
+                    <FileCard
+                      file={file}
+                      onExpand={() => {
+                        if (file.transcript) {
+                          setExpandedFiles(prev => {
+                            const newSet = new Set(prev)
+                            if (newSet.has(file.base_name)) {
+                              newSet.delete(file.base_name)
+                            } else {
+                              newSet.add(file.base_name)
+                            }
+                            return newSet
+                          })
+                        }
+                      }}
+                      isExpanded={isExpanded}
+                      isRegenerating={regeneratingFiles.has(file.base_name)}
+                      isReplacing={replacingFiles.has(file.base_name)}
+                      isProcessing={isFileBeingProcessed(file.base_name)}
+                      onRegenerate={(e) => handleRegenerate(file.base_name, e)}
+                      onReplace={(e) => handleReplace(file.base_name, e)}
+                      onRename={(e) => handleRename(file.base_name, e)}
+                      onRegenerateMeta={(e) => handleRegenerateMeta(file.base_name, e)}
+                      formatDate={formatDate}
+                      getModelChipColor={getModelChipColor}
+                    />
+                    {isExpanded && (
+                      <TranscriptView
+                        visible={true}
+                        name={file.base_name}
+                        className="w-full"
+                        searchTerm={searchTerm}
+                        text={transcriptInfo.text}
+                        loading={transcriptInfo.loading}
+                        error={transcriptInfo.error}
+                        visibleLines={searchLineNumbers[file.base_name] || []}
+                        expandContext={expandContext}
+                        expandAll={expandAll}
+                        onEditSuccess={() => { fetchTranscript(file.base_name) }}
+                        isSmallScreen={true}
+                      />
+                    )}
                   </div>
-                  {searchTerm && searchResults.length > 0 && (
-                                            <span className="text-xs text-primary ml-2">(Search Results)</span>
-                  )}
-                </TableHead>
+                )
+              })}
+            </div>
+          ) : (
+            // Desktop view - render table
+            <Table className="table-fixed w-full">
+              <TableHeader>
+                <TableRow>
+                  <TableHead 
+                    className="text-center w-[16%] cursor-pointer hover:bg-accent transition-colors"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Filename
+                      {getSortIndicator('name')}
+                    </div>
+                    {searchTerm && searchResults.length > 0 && (
+                                              <span className="text-xs text-primary ml-2">(Search Results)</span>
+                    )}
+                  </TableHead>
                 <TableHead 
                   className="text-center w-[14%] cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('created_at')}
@@ -1499,6 +1563,7 @@ export default function HomePage() {
               )})}
             </TableBody>
           </Table>
+          )}
         </div>
       </div>
 
