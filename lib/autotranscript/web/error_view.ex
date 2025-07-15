@@ -66,8 +66,7 @@ defmodule Autotranscript.Web.ErrorView do
   def render("401.html", assigns) do
     ~H"""
     <div class="container">
-      <h1>Authentication Required</h1>
-      <p>This endpoint requires a password. Please enter it below.</p>
+      <h1>Password?</h1>
       <form id="auth-form" onsubmit="return submitAuth(event)">
         <input type="password" id="password" name="password" placeholder="Password" required style="padding:0.5em; width:200px;" />
         <button type="submit" style="padding:0.5em 1em; margin-left:0.5em;">Login</button>

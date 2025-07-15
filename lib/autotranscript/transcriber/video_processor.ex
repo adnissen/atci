@@ -339,7 +339,6 @@ defmodule Autotranscript.VideoProcessor do
           end
           txt_path = new_txt_path
 
-          # Modify the transcript file to add model information
           case TranscriptModifier.add_source_to_meta(txt_path) do
             :ok ->
               Logger.info("Transcript file modified successfully: #{txt_path}")
@@ -880,6 +879,7 @@ defmodule Autotranscript.VideoProcessor do
           :ok ->
             File.rm(temp_srt_path)
             Logger.info("Successfully extracted subtitles from #{video_path}")
+                      # Replace carriage returns with newlines in transcript file
             {:ok, :extracted}
 
           {:error, reason} ->
@@ -945,6 +945,7 @@ defmodule Autotranscript.VideoProcessor do
     blocks =
       content
       |> String.trim()
+      |> String.replace("\r", "")
       |> String.split(~r/\n\n+/)
       |> Enum.filter(&(&1 != ""))
 

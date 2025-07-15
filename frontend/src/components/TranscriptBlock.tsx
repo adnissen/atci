@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Edit2 } from 'lucide-react';
+import { Edit2, MoreHorizontal, Camera, Video, RotateCcw } from 'lucide-react';
 import DualEditDialog from './DualEditDialog';
 import { addTimestamp } from '../lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 interface TranscriptBlockProps {
   startTime?: string;
@@ -249,63 +255,51 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                 </div>
               </div>
               
-              {/* Icons - positioned at the exact midpoint between timestamp and content */}
+              {/* Dropdown menu - positioned at the exact midpoint between timestamp and content */}
               <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="grid grid-cols-2 gap-1">
-                  {/* Camera icon */}
-                  <span className="inline-flex items-center cursor-pointer text-muted-foreground">
-                    <a href={`/frame/${encodeURIComponent(name)}/${timestampToSeconds(startTime) + (timestampToSeconds(endTime) - timestampToSeconds(startTime)) / 2}?text=${encodeURIComponent(text)}`} target="_blank" className="inline-flex items-baseline">
-                      <div className="border-2 border-[#6d28d9] rounded-full w-6 h-6 flex items-center justify-center hover:bg-[#6d28d9]/10 transition-colors z-50 relative">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block hover:stroke-[#6d28d9] stroke-[#6d28d9]">
-                          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
-                          <circle cx="12" cy="13" r="3"/>
-                        </svg>
-                      </div>
-                    </a>
-                  </span>
-                  
-                  {/* Video icon */}
-                  <span className="inline-flex items-center cursor-pointer text-muted-foreground">
-                    <a href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`} target="_blank" className="inline-flex items-baseline">
-                      <div className="border-2 border-[#be185d] rounded-full w-6 h-6 flex items-center justify-center hover:bg-[#be185d]/10 transition-colors z-50 relative">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block hover:stroke-[#be185d] stroke-[#be185d]">
-                          <polygon points="23 7 16 12 23 17 23 7"/>
-                          <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
-                        </svg>
-                      </div>
-                    </a>
-                  </span>
-                  
-                  {/* Regenerate icon */}
-                  <span className="inline-flex items-center cursor-pointer text-muted-foreground">
-                    <button 
+                <DropdownMenu modal={false}>
+                  <DropdownMenuTrigger asChild>
+                    <button className="flex items-center justify-center w-6 h-6 rounded-full hover:bg-gray-100 transition-colors">
+                      <MoreHorizontal size={14} className="text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" side="right" sideOffset={8}>
+                    <DropdownMenuItem asChild>
+                      <a 
+                        href={`/frame/${encodeURIComponent(name)}/${timestampToSeconds(startTime) + (timestampToSeconds(endTime) - timestampToSeconds(startTime)) / 2}?text=${encodeURIComponent(text)}`} 
+                        target="_blank"
+                        className="flex items-center gap-2 w-full"
+                      >
+                        <Camera size={16} className="text-[#6d28d9]" />
+                        View Frame
+                      </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <a 
+                        href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`} 
+                        target="_blank"
+                        className="flex items-center gap-2 w-full"
+                      >
+                        <Video size={16} className="text-[#be185d]" />
+                        Play Clip
+                      </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
                       onClick={() => handleRegenerate(name, startTime)}
-                      className="inline-flex items-baseline p-0 border-none bg-transparent"
-                      title={`Regenerate transcript from ${startTime}`}
+                      className="flex items-center gap-2"
                     >
-                      <div className="border-2 border-[#059669] rounded-full w-6 h-6 flex items-center justify-center hover:bg-[#059669]/10 transition-colors z-50 relative">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="inline-block hover:stroke-[#059669] stroke-[#059669]">
-                          <polyline points="23 4 23 10 17 10"/>
-                          <polyline points="1 20 1 14 7 14"/>
-                          <path d="m20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                        </svg>
-                      </div>
-                    </button>
-                  </span>
-                  
-                  {/* Edit icon for timestamp line */}
-                  <span className="inline-flex items-center cursor-pointer text-muted-foreground">
-                    <button 
+                      <RotateCcw size={16} className="text-[#059669]" />
+                      Regenerate from {startTime}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
                       onClick={() => handleEditTimestamp()}
-                      className="inline-flex items-baseline p-0 border-none bg-transparent"
-                      title="Edit this timestamp line"
+                      className="flex items-center gap-2"
                     >
-                      <div className="border-2 border-[#3b82f6] rounded-full w-6 h-6 flex items-center justify-center hover:bg-[#3b82f6]/10 transition-colors z-50 relative">
-                        <Edit2 size={12} className="hover:stroke-[#3b82f6] stroke-[#3b82f6]" />
-                      </div>
-                    </button>
-                  </span>
-                </div>
+                      <Edit2 size={16} className="text-[#3b82f6]" />
+                      Edit Line
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </span>
           </div>
@@ -315,18 +309,25 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
 
             <div className="col-span-1 text-muted-foreground text-sm font-mono flex items-center gap-2">
               <div className="flex items-center gap-2 justify-end">
-                {/* Edit icon for content lines IF there's no start and end time */}
-                <span className="inline-flex items-center cursor-pointer text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button 
-                    onClick={handleEdit}
-                    className="inline-flex items-baseline p-0 border-none bg-transparent"
-                    title="Edit this line"
-                  >
-                    <div className="border-2 border-[#3b82f6] rounded-full w-7 h-7 flex items-center justify-center hover:bg-[#3b82f6]/10 transition-colors z-50 relative">
-                      <Edit2 size={14} className="hover:stroke-[#3b82f6] stroke-[#3b82f6]" />
-                    </div>
-                  </button>
-                </span>
+                {/* Dropdown menu for content lines without timestamps */}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 transition-colors">
+                        <MoreHorizontal size={14} className="text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" side="right" sideOffset={8}>
+                      <DropdownMenuItem 
+                        onClick={handleEdit}
+                        className="flex items-center gap-2"
+                      >
+                        <Edit2 size={16} className="text-[#3b82f6]" />
+                        Edit Line
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
             <div className="col-span-23 text-muted-foreground text-sm font-mono flex items-center gap-2">

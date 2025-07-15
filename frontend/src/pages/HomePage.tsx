@@ -53,6 +53,7 @@ export default function HomePage() {
   const [searchLineNumbers, setSearchLineNumbers] = useState<Record<string, number[]>>({})
   const [isSearching, setIsSearching] = useState(false)
   const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
+  const [isBulkRegenerating, setIsBulkRegenerating] = useState(false)
   type QueueItem = {
     video_path: string
     process_type: string
@@ -935,6 +936,80 @@ export default function HomePage() {
     setSelectedSources([])
   }
 
+  const handleBulkRegenerate = async () => {
+    // Get all files that are currently displayed
+    const displayedFiles = sortedFiles.filter(file => {
+      // Filter out files that don't match search if there's a search term
+      if (searchTerm && !searchResults.includes(file.base_name)) {
+        return false
+      }
+      // Only include files that have transcripts
+      return file.transcript
+    })
+
+    if (displayedFiles.length === 0) {
+      alert('No files with transcripts to regenerate')
+      return
+    }
+
+    const selectedSource = selectedSources[0]
+    const fileCount = displayedFiles.length
+    const confirmMessage = `Regenerate ${fileCount} file${fileCount === 1 ? '' : 's'} using "${selectedSource}" source?`
+    
+    if (!confirm(confirmMessage)) {
+      return
+    }
+
+    setIsBulkRegenerating(true)
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+
+    try {
+      let successCount = 0
+      let errorCount = 0
+      
+      // Process files in parallel
+      const results = await Promise.allSettled(
+        displayedFiles.map(async (file) => {
+          const response = await fetch(addTimestamp(`/regenerate/${encodeURIComponent(file.base_name)}`), {
+            method: 'POST',
+            headers: {
+              'X-CSRF-Token': csrfToken || '',
+              'Content-Type': 'application/json',
+            },
+          })
+          
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+            throw new Error(`${file.base_name}: ${errorData.error}`)
+          }
+          
+          return file.base_name
+        })
+      )
+      
+      // Count successes and failures
+      results.forEach((result) => {
+        if (result.status === 'fulfilled') {
+          successCount++
+        } else {
+          errorCount++
+          console.error('Bulk regeneration error:', result.reason)
+        }
+      })
+      
+      if (errorCount > 0) {
+        alert(`Bulk regeneration completed with ${successCount} successes and ${errorCount} errors. Check console for details.`)
+      } else {
+        alert(`Successfully queued ${successCount} files for regeneration`)
+      }
+    } catch (error) {
+      console.error('Bulk regeneration error:', error)
+      alert('Error during bulk regeneration. Please try again.')
+    } finally {
+      setIsBulkRegenerating(false)
+    }
+  }
+
   return (
     <>
       {/* Watch Directory Bar - Fixed to top */}
@@ -1121,6 +1196,44 @@ export default function HomePage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+          </div>
+        )}
+
+        {/* Bulk Regenerate Button */}
+        {selectedSources.length === 1 && (
+          <div className="mb-6 flex items-center justify-between">
+            <button
+              onClick={handleBulkRegenerate}
+              disabled={isBulkRegenerating}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isBulkRegenerating ? (
+                <>
+                  <svg className="w-4 h-4 mr-2 animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Regenerating...
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Regenerate All ({selectedSources[0]})
+                </>
+              )}
+            </button>
+            <span className="text-sm text-muted-foreground">
+              {(() => {
+                const displayedFiles = sortedFiles.filter(file => {
+                  if (searchTerm && !searchResults.includes(file.base_name)) {
+                    return false
+                  }
+                  return file.transcript
+                })
+                return `${displayedFiles.length} file${displayedFiles.length === 1 ? '' : 's'} with transcripts`
+              })()}
+            </span>
           </div>
         )}
 
