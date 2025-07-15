@@ -188,7 +188,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   }
 
   return (
-    <div className={`w-full p-6 bg-card border border-border ${className}`}>
+    <div className={`w-full ${isSmallScreen ? 'px-4 py-4 bg-transparent' : 'p-3 sm:p-6 bg-card border border-border'} ${className}`}>
       <div className="space-y-4">
         {loading && (
           <div className="text-muted-foreground">Loading transcript...</div>

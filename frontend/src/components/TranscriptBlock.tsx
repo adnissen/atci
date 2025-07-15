@@ -37,6 +37,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const [isEditing, setIsEditing] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isEditingTimestamp, setIsEditingTimestamp] = React.useState(false);
+  const [hoveredLineNumber, setHoveredLineNumber] = React.useState<number | null>(null);
+  const [activeDropdown, setActiveDropdown] = React.useState<'timestamp' | 'content' | null>(null);
 
   // Sync with props
   React.useEffect(() => {
@@ -220,15 +222,27 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
           <div className="group">
             <span className="relative">
               {/* Timestamp line */}
-              <div className="grid grid-cols-24 gap-1">
-                <div className="col-span-1 text-muted-foreground text-sm font-mono flex items-center gap-2"></div>
-                <div className="col-span-23 text-muted-foreground text-sm font-mono flex items-center gap-2">      
-                  <span className="text-muted-foreground text-xs mr-2 flex-shrink-0 text-right w-8">{timestampLineNumber}</span>
-                  <span>
+              <div className="flex items-center gap-1 min-w-0">
+                <div className="text-muted-foreground text-sm font-mono flex items-center gap-2 min-w-0">      
+                  <span 
+                    className={`text-xs mr-2 flex-shrink-0 text-right w-8 cursor-pointer transition-colors duration-200 ${
+                      hoveredLineNumber === timestampLineNumber || activeDropdown === 'timestamp' 
+                        ? 'text-blue-600 hover:text-blue-700' 
+                        : 'text-muted-foreground hover:text-blue-500'
+                    }`}
+                    onClick={() => setActiveDropdown(activeDropdown === 'timestamp' ? null : 'timestamp')}
+                    onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
+                    onMouseLeave={() => setHoveredLineNumber(null)}
+                  >
+                    {timestampLineNumber}
+                  </span>
+                  <span className="min-w-0">
                     <a 
                       href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`}
                       className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
                       target="_blank"
+                      onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
+                      onMouseLeave={() => setHoveredLineNumber(null)}
                     >
                       {startTime}
                     </a>
@@ -237,6 +251,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                       href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`}
                       className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
                       target="_blank"
+                      onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
+                      onMouseLeave={() => setHoveredLineNumber(null)}
                     >
                       {endTime}
                     </a>
@@ -245,82 +261,114 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
               </div>
               
               {/* Content line */}
-              <div className="grid grid-cols-24 gap-1">
-                <div className="col-span-1 text-muted-foreground text-sm font-mono flex items-center gap-2"></div>
-                <div className="col-span-23 text-muted-foreground text-sm font-mono flex items-center gap-2">
-                  <span className="text-muted-foreground text-xs mr-2 flex-shrink-0 text-right w-8">{contentLineNumber}</span>
-                  <div className="w-4"></div>
+              <div className="flex items-center gap-1 min-w-0">
+                <div className="text-muted-foreground text-sm font-mono flex items-center gap-2 min-w-0 flex-1">
+                  <span 
+                    className={`text-xs mr-2 flex-shrink-0 text-right w-8 cursor-pointer transition-colors duration-200 ${
+                      hoveredLineNumber === contentLineNumber || activeDropdown === 'content' 
+                        ? 'text-blue-600 hover:text-blue-700' 
+                        : 'text-muted-foreground hover:text-blue-500'
+                    }`}
+                    onClick={() => setActiveDropdown(activeDropdown === 'content' ? null : 'content')}
+                    onMouseEnter={() => setHoveredLineNumber(contentLineNumber)}
+                    onMouseLeave={() => setHoveredLineNumber(null)}
+                  >
+                    {contentLineNumber}
+                  </span>
                   <div 
-                    className="text-foreground font-mono text-sm leading-relaxed whitespace-pre-wrap break-words w-full"
+                    className="text-foreground font-mono text-sm leading-relaxed whitespace-pre-wrap break-words flex-1 min-w-0"
                     dangerouslySetInnerHTML={{ __html: processedText }}
+                    onMouseEnter={() => setHoveredLineNumber(contentLineNumber)}
+                    onMouseLeave={() => setHoveredLineNumber(null)}
                   />
                 </div>
               </div>
               
-              {/* Dropdown menu - positioned at the exact midpoint between timestamp and content */}
-              <div className={`absolute left-0 top-1/2 transform -translate-y-1/2 z-10 ${isSmallScreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-                <DropdownMenu modal={false}>
-                  <DropdownMenuTrigger asChild>
-                    <button className="flex items-center justify-center w-6 h-6 rounded-full hover:bg-gray-100 transition-colors">
-                      <MoreHorizontal size={14} className="text-muted-foreground" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="start" side="right" sideOffset={8}>
-                    <DropdownMenuItem asChild>
-                      <a 
-                        href={`/frame/${encodeURIComponent(name)}/${timestampToSeconds(startTime) + (timestampToSeconds(endTime) - timestampToSeconds(startTime)) / 2}?text=${encodeURIComponent(text)}`} 
-                        target="_blank"
-                        className="flex items-center gap-2 w-full"
+              {/* Dropdown menu - positioned relative to clicked line number */}
+              {activeDropdown && (
+                <div className="absolute left-0 top-0 z-10 dropdown-menu-container">
+                  <DropdownMenu modal={false} open={activeDropdown === 'timestamp' || activeDropdown === 'content'} onOpenChange={(open) => !open && setActiveDropdown(null)}>
+                    <DropdownMenuTrigger asChild>
+                      <div className="invisible"></div>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" side="right" sideOffset={8}>
+                      <DropdownMenuItem asChild>
+                        <a 
+                          href={`/frame/${encodeURIComponent(name)}/${timestampToSeconds(startTime) + (timestampToSeconds(endTime) - timestampToSeconds(startTime)) / 2}?text=${encodeURIComponent(text)}`} 
+                          target="_blank"
+                          className="flex items-center gap-2 w-full"
+                        >
+                          <Camera size={16} className="text-[#6d28d9]" />
+                          View Frame
+                        </a>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <a 
+                          href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`} 
+                          target="_blank"
+                          className="flex items-center gap-2 w-full"
+                        >
+                          <Video size={16} className="text-[#be185d]" />
+                          Play Clip
+                        </a>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleRegenerate(name, startTime)}
+                        className="flex items-center gap-2"
                       >
-                        <Camera size={16} className="text-[#6d28d9]" />
-                        View Frame
-                      </a>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <a 
-                        href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`} 
-                        target="_blank"
-                        className="flex items-center gap-2 w-full"
+                        <RotateCcw size={16} className="text-[#059669]" />
+                        Regenerate from {startTime}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleEditTimestamp()}
+                        className="flex items-center gap-2"
                       >
-                        <Video size={16} className="text-[#be185d]" />
-                        Play Clip
-                      </a>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => handleRegenerate(name, startTime)}
-                      className="flex items-center gap-2"
-                    >
-                      <RotateCcw size={16} className="text-[#059669]" />
-                      Regenerate from {startTime}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem 
-                      onClick={() => handleEditTimestamp()}
-                      className="flex items-center gap-2"
-                    >
-                      <Edit2 size={16} className="text-[#3b82f6]" />
-                      Edit Line
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                        <Edit2 size={16} className="text-[#3b82f6]" />
+                        Edit Line
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
             </span>
           </div>
         )}
         {text != undefined && !startTime && !endTime && (
-          <div className="grid grid-cols-24 gap-1 group">
+          <div className="group">
+            <span className="relative">
+              {/* Content line */}
+              <div className="flex items-center gap-1 min-w-0">
+                <div className="text-muted-foreground text-sm font-mono flex items-center gap-2 min-w-0 flex-1">
+                  <span 
+                    className={`text-xs mr-2 flex-shrink-0 text-right w-8 cursor-pointer transition-colors duration-200 ${
+                      hoveredLineNumber === contentLineNumber || activeDropdown === 'content' 
+                        ? 'text-blue-600 hover:text-blue-700' 
+                        : 'text-muted-foreground hover:text-blue-500'
+                    }`}
+                    onClick={() => setActiveDropdown(activeDropdown === 'content' ? null : 'content')}
+                    onMouseEnter={() => setHoveredLineNumber(contentLineNumber)}
+                    onMouseLeave={() => setHoveredLineNumber(null)}
+                  >
+                    {contentLineNumber}
+                  </span>
+                  <div 
+                    className="text-foreground font-mono text-sm leading-relaxed whitespace-pre-wrap break-words flex-1 min-w-0"
+                    dangerouslySetInnerHTML={{ __html: processedText }}
+                    onMouseEnter={() => setHoveredLineNumber(contentLineNumber)}
+                    onMouseLeave={() => setHoveredLineNumber(null)}
+                  />
+                </div>
+              </div>
 
-            <div className="col-span-1 text-muted-foreground text-sm font-mono flex items-center gap-2">
-              <div className="flex items-center gap-2 justify-end">
-                {/* Dropdown menu for content lines without timestamps */}
-                <div className={`${isSmallScreen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-                  <DropdownMenu modal={false}>
+              {/* Dropdown menu - positioned relative to clicked line number */}
+              {activeDropdown === 'content' && (
+                <div className="absolute left-0 top-0 z-10 dropdown-menu-container">
+                  <DropdownMenu modal={false} open={true} onOpenChange={(open) => !open && setActiveDropdown(null)}>
                     <DropdownMenuTrigger asChild>
-                      <button className="flex items-center justify-center w-7 h-7 rounded-full hover:bg-gray-100 transition-colors">
-                        <MoreHorizontal size={14} className="text-muted-foreground" />
-                      </button>
+                      <div className="invisible"></div>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start" side="right" sideOffset={8}>
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={handleEdit}
                         className="flex items-center gap-2"
                       >
@@ -330,16 +378,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
-              </div>
-            </div>
-            <div className="col-span-23 text-muted-foreground text-sm font-mono flex items-center gap-2">
-            <span className="text-muted-foreground text-xs mr-2 flex-shrink-0 text-right w-8">{contentLineNumber}</span>
-            <div className="w-4"></div>
-            <div 
-                className="text-foreground font-mono text-sm leading-relaxed whitespace-pre-wrap break-words w-full"
-                dangerouslySetInnerHTML={{ __html: processedText }}
-            />
-          </div>
+              )}
+            </span>
           </div>
         )}
       
