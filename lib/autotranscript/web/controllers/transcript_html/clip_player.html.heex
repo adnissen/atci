@@ -161,6 +161,47 @@
             min-height: 100px;
         }
         
+        .time-control-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .time-navigation {
+            display: flex;
+            gap: 0.25rem;
+        }
+        
+        .nav-btn {
+            padding: 0.5rem;
+            border: 1px solid #3f3f46;
+            border-radius: 4px;
+            background: rgba(9, 9, 11, 0.8);
+            color: #d4d4d8;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2rem;
+        }
+        
+        .nav-btn:hover {
+            background: #3f3f46;
+            border-color: #52525b;
+        }
+        
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .nav-btn:disabled:hover {
+            background: rgba(9, 9, 11, 0.8);
+            border-color: #3f3f46;
+        }
+        
         .checkbox-group {
             display: flex;
             align-items: center;
@@ -344,11 +385,23 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="start_time">Start Time (seconds)</label>
-                        <input type="number" id="start_time" name="start_time" value={@start_time} step="0.1" min="0" required>
+                        <div class="time-control-group">
+                            <div class="time-navigation">
+                                <button type="button" id="start-prev-btn" class="nav-btn" title="Previous marker">⏮</button>
+                                <button type="button" id="start-next-btn" class="nav-btn" title="Next marker">⏭</button>
+                            </div>
+                            <input type="number" id="start_time" name="start_time" value={@start_time} step="0.1" min="0" required>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="end_time">End Time (seconds)</label>
-                        <input type="number" id="end_time" name="end_time" value={@end_time} step="0.1" min="0" required>
+                        <div class="time-control-group">
+                            <div class="time-navigation">
+                                <button type="button" id="end-prev-btn" class="nav-btn" title="Previous marker">⏮</button>
+                                <button type="button" id="end-next-btn" class="nav-btn" title="Next marker">⏭</button>
+                            </div>
+                            <input type="number" id="end_time" name="end_time" value={@end_time} step="0.1" min="0" required>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="font_size">Font Size</label>
@@ -401,12 +454,24 @@
             </form>
         </div>
         
+        <%= if @transcript && @transcript != "" do %>
+            <div class="form-container">
+                <h3 style="margin-bottom: 1rem; color: #d4d4d8; font-size: 1.25rem; font-weight: 600;">Transcript</h3>
+                <div class="transcript-container">
+                    <pre style="white-space: pre-wrap; font-family: 'Inter', monospace; font-size: 0.875rem; line-height: 1.5; color: #a1a1aa; background: rgba(9, 9, 11, 0.6); padding: 1rem; border-radius: 8px; border: 1px solid #27272a; max-height: 400px; overflow-y: auto;"><%= @transcript %></pre>
+                </div>
+            </div>
+        <% end %>
+        
         <div class="controls">
             <a href="/app" class="back-link">Back to Transcripts</a>
         </div>
     </div>
 
     <script>
+        // Transcript data passed from the server
+        const transcriptData = <%= raw(Jason.encode!(@transcript)) %>;
+        
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.querySelector('form');
             const video = document.getElementById('video-player');
@@ -426,6 +491,12 @@
             const downloadMp4Btn = document.getElementById('download-mp4-btn');
             const downloadGifBtn = document.getElementById('download-gif-btn');
             const downloadMp3Btn = document.getElementById('download-mp3-btn');
+            
+            // Get navigation buttons
+            const startPrevBtn = document.getElementById('start-prev-btn');
+            const startNextBtn = document.getElementById('start-next-btn');
+            const endPrevBtn = document.getElementById('end-prev-btn');
+            const endNextBtn = document.getElementById('end-next-btn');
             
             // Function to show loading state
             function showLoading() {
@@ -485,6 +556,62 @@
                 }
                 
                 return filename;
+            }
+            
+            // Function to parse transcript and extract timestamps
+            function parseTranscriptTimestamps() {
+                if (!transcriptData) return [];
+                
+                const timestampRegex = /(\d{2}:\d{2}:\d{2}\.\d{3})/g;
+                const timestamps = [];
+                let match;
+                
+                while ((match = timestampRegex.exec(transcriptData)) !== null) {
+                    const timestampStr = match[1];
+                    const seconds = timestampToSeconds(timestampStr);
+                    timestamps.push(seconds);
+                }
+                
+                // Remove duplicates and sort
+                return [...new Set(timestamps)].sort((a, b) => a - b);
+            }
+            
+            // Function to convert timestamp (HH:MM:SS.mmm) to seconds
+            function timestampToSeconds(timestamp) {
+                const parts = timestamp.split(':');
+                const hours = parseInt(parts[0], 10);
+                const minutes = parseInt(parts[1], 10);
+                const seconds = parseFloat(parts[2]);
+                
+                return hours * 3600 + minutes * 60 + seconds;
+            }
+            
+            // Function to find next timestamp
+            function findNextTimestamp(currentTime, timestamps) {
+                return timestamps.find(t => t > currentTime) || null;
+            }
+            
+            // Function to find previous timestamp
+            function findPrevTimestamp(currentTime, timestamps) {
+                const prev = timestamps.filter(t => t < currentTime);
+                return prev.length > 0 ? prev[prev.length - 1] : null;
+            }
+            
+            // Function to update navigation buttons
+            function updateNavigationButtons() {
+                const timestamps = parseTranscriptTimestamps();
+                const startTime = parseFloat(startTimeInput.value) || 0;
+                const endTime = parseFloat(endTimeInput.value) || 0;
+                
+                const startNext = findNextTimestamp(startTime, timestamps);
+                const startPrev = findPrevTimestamp(startTime, timestamps);
+                const endNext = findNextTimestamp(endTime, timestamps);
+                const endPrev = findPrevTimestamp(endTime, timestamps);
+                
+                startNextBtn.disabled = !startNext;
+                startPrevBtn.disabled = !startPrev;
+                endNextBtn.disabled = !endNext;
+                endPrevBtn.disabled = !endPrev;
             }
             
             // Function to update video and download links
@@ -567,11 +694,69 @@
             hideLoading(); // Make sure loading is hidden on initial load
             
             // Listen for input changes
-            startTimeInput.addEventListener('input', debouncedUpdate);
-            endTimeInput.addEventListener('input', debouncedUpdate);
+            startTimeInput.addEventListener('input', function() {
+                debouncedUpdate();
+                updateNavigationButtons();
+            });
+            endTimeInput.addEventListener('input', function() {
+                debouncedUpdate();
+                updateNavigationButtons();
+            });
             textInput.addEventListener('input', debouncedUpdate);
             fontSizeInput.addEventListener('input', debouncedUpdate);
             displayTextInput.addEventListener('change', updateVideo); // Immediate update for checkbox
+            
+            // Add navigation button event listeners
+            startPrevBtn.addEventListener('click', function() {
+                const timestamps = parseTranscriptTimestamps();
+                const currentTime = parseFloat(startTimeInput.value) || 0;
+                const prevTime = findPrevTimestamp(currentTime, timestamps);
+                
+                if (prevTime !== null) {
+                    startTimeInput.value = prevTime.toFixed(1);
+                    updateVideo();
+                    updateNavigationButtons();
+                }
+            });
+            
+            startNextBtn.addEventListener('click', function() {
+                const timestamps = parseTranscriptTimestamps();
+                const currentTime = parseFloat(startTimeInput.value) || 0;
+                const nextTime = findNextTimestamp(currentTime, timestamps);
+                
+                if (nextTime !== null) {
+                    startTimeInput.value = nextTime.toFixed(1);
+                    updateVideo();
+                    updateNavigationButtons();
+                }
+            });
+            
+            endPrevBtn.addEventListener('click', function() {
+                const timestamps = parseTranscriptTimestamps();
+                const currentTime = parseFloat(endTimeInput.value) || 0;
+                const prevTime = findPrevTimestamp(currentTime, timestamps);
+                
+                if (prevTime !== null) {
+                    endTimeInput.value = prevTime.toFixed(1);
+                    updateVideo();
+                    updateNavigationButtons();
+                }
+            });
+            
+            endNextBtn.addEventListener('click', function() {
+                const timestamps = parseTranscriptTimestamps();
+                const currentTime = parseFloat(endTimeInput.value) || 0;
+                const nextTime = findNextTimestamp(currentTime, timestamps);
+                
+                if (nextTime !== null) {
+                    endTimeInput.value = nextTime.toFixed(1);
+                    updateVideo();
+                    updateNavigationButtons();
+                }
+            });
+            
+            // Initialize navigation buttons
+            updateNavigationButtons();
         });
     </script>
 </body>

@@ -454,6 +454,16 @@ defmodule Autotranscript.Web.TranscriptController do
       video_exists = video_file_exists_in_watch_directories?(watch_directories, decoded_filename)
 
       if video_exists do
+        # Load transcript data
+        transcript_data = case find_transcript_file(watch_directories, decoded_filename) do
+          nil -> ""
+          path -> 
+            case File.read(path) do
+              {:ok, content} -> content
+              {:error, _reason} -> ""
+            end
+        end
+
         # Extract query parameters
         query_params = Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params)
 
@@ -504,7 +514,8 @@ defmodule Autotranscript.Web.TranscriptController do
               text: text || "",
               font_size: font_size || "",
               display_text: display_text || "",
-              format: "mp4"
+              format: "mp4",
+              transcript: transcript_data
             )
 
           _ ->
