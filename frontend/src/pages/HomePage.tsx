@@ -17,13 +17,16 @@ import {
 } from '../components/ui/dropdown-menu'
 import TranscriptView from '../components/TranscriptView'
 import DualEditDialog from '../components/DualEditDialog'
+import FileCard from '../components/FileCard'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLSState } from '../hooks/useLSState'
+import { useIsSmallScreen } from '../hooks/useMediaQuery'
 import { useNavigate } from 'react-router-dom'
 import { addTimestamp } from '../lib/utils'
 
 export default function HomePage() {
   const navigate = useNavigate()
+  const isSmallScreen = useIsSmallScreen()
   
   // Sample data for the table
   type FileRow = {
@@ -1014,11 +1017,11 @@ export default function HomePage() {
     <>
       {/* Watch Directory Bar - Fixed to top */}
       {watchDirectory && (
-        <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-4 py-2 z-10 backdrop-blur-sm">
-          <div className="container mx-auto">
-            <div className="flex gap-6 justify-between items-center">
-              <div className="flex gap-6 items-center flex-1">
-                <div className="flex gap-2 items-center">
+        <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-2 sm:px-4 py-2 z-10 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex gap-2 sm:gap-6 justify-between items-center">
+              <div className="flex gap-2 sm:gap-6 items-center flex-1 min-w-0">
+                <div className="flex gap-2 items-center flex-shrink-0">
                   <button
                     onClick={() => navigate('/config')}
                     className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors group"
@@ -1032,18 +1035,18 @@ export default function HomePage() {
                 </div>
                 
                 {/* Search Bar in Top Bar */}
-                <div className="flex gap-2 items-center">
+                <div className="flex gap-2 items-center flex-1 min-w-0">
                   <input
                     type="text"
                     placeholder="Search transcripts..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="px-2 py-1 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-48"
+                    className="px-2 py-1 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-full sm:w-48 min-w-0"
                   />
                   <button
                     onClick={handleSearch}
                     disabled={isSearching}
-                    className="px-2 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-2 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                   >
                     {isSearching ? 'Searching...' : 'Search'}
                   </button>
@@ -1052,17 +1055,17 @@ export default function HomePage() {
               
               {/* Scroll and Collapse Links */}
               {outOfViewExpandedFile && (
-                <div className="flex gap-4 items-center">
+                <div className="flex gap-2 sm:gap-4 items-center flex-shrink-0">
                   <button
                     onClick={handleScrollToTop}
-                    className="text-sm text-primary hover:text-primary/80 underline transition-colors"
+                    className="text-xs sm:text-sm text-primary hover:text-primary/80 underline transition-colors"
                     title={`Scroll to ${outOfViewExpandedFile}`}
                   >
                     scroll to row
                   </button>
                   <button
                     onClick={handleCollapseExpanded}
-                    className="text-sm text-primary hover:text-primary/80 underline transition-colors"
+                    className="text-xs sm:text-sm text-primary hover:text-primary/80 underline transition-colors"
                     title={`Collapse ${outOfViewExpandedFile}`}
                   >
                     collapse
@@ -1070,14 +1073,14 @@ export default function HomePage() {
                 </div>
               )}
               
-              <div className="flex gap-4 items-center">
+              <div className="flex gap-2 sm:gap-4 items-center flex-shrink-0">
                 {currentProcessingFile && (
-                  <div className="text-sm text-primary font-medium">
+                  <div className="text-xs sm:text-sm text-primary font-medium hidden sm:block">
                     Processing: {currentProcessingFile.video_path.split('/').pop()} ({currentProcessingFile.process_type})
                   </div>
                 )}
                 <div className="relative group">
-                  <div className="text-sm text-foreground font-medium">
+                  <div className="text-xs sm:text-sm text-foreground font-medium">
                     Queue: {queue.length}
                   </div>
                 </div>
@@ -1088,10 +1091,10 @@ export default function HomePage() {
       )}
 
       {/* Main content with top padding to account for fixed header */}
-      <div className={`container mx-auto py-10 ${watchDirectory ? 'pt-16' : ''}`}>
+      <div className={`${isSmallScreen ? 'px-0 py-4' : 'max-w-7xl mx-auto px-2 sm:px-4 py-10'} ${watchDirectory ? 'pt-16' : ''}`}>
         {/* Filters */}
         {(availableWatchDirs.length > 1 || availableSources.length > 1) && (
-          <div className="mb-6 flex items-center gap-4">
+          <div className={`mb-6 flex items-center gap-4 ${isSmallScreen ? 'px-4' : ''}`}>
             {/* Watch Directory Filter */}
             {availableWatchDirs.length > 1 && (
               <DropdownMenu modal={false}>
@@ -1201,7 +1204,7 @@ export default function HomePage() {
 
         {/* Bulk Regenerate Button */}
         {selectedSources.length === 1 && (
-          <div className="mb-6 flex items-center justify-between">
+          <div className={`mb-6 flex items-center justify-between ${isSmallScreen ? 'px-4' : ''}`}>
             <button
               onClick={handleBulkRegenerate}
               disabled={isBulkRegenerating}
@@ -1238,37 +1241,99 @@ export default function HomePage() {
         )}
 
         {/* File List - Full Width */}
-        <div>
+        <div className={isSmallScreen ? '' : ''}>
           {/* Search Results */}
           {searchResults.length > 0 && (
-                    <div className="mb-6 p-4 bg-accent/10 border border-accent/20 rounded-md">
-          <h3 className="text-sm font-medium text-accent-foreground mb-2">
+            <div className={`mb-6 p-4 bg-accent/10 border border-accent/20 rounded-md ${isSmallScreen ? 'mx-4' : ''}`}>
+              <h3 className="text-sm font-medium text-accent-foreground mb-2">
                 Found in {searchResults.length} file(s)
               </h3>
             </div>
           )}
           
           {searchTerm && searchResults.length === 0 && !isSearching && (
-            <div className="mb-6 p-4 bg-muted border border-border rounded-md">
+            <div className={`mb-6 p-4 bg-muted border border-border rounded-md ${isSmallScreen ? 'mx-4' : ''}`}>
               <p className="text-sm text-muted-foreground">No files found containing "{searchTerm}"</p>
             </div>
           )}
 
-          <Table className="table-fixed w-full">
-            <TableHeader>
-              <TableRow>
-                <TableHead 
-                  className="text-center w-[16%] cursor-pointer hover:bg-accent transition-colors"
-                  onClick={() => handleSort('name')}
-                >
-                  <div className="flex items-center justify-center gap-1">
-                    Filename
-                    {getSortIndicator('name')}
+          {isSmallScreen ? (
+            // Mobile view - render cards
+            <div className="divide-y divide-border">
+              {sortedFiles.map((file) => {
+                if (searchTerm !== '' && !searchResults.includes(file.base_name)) {
+                  return null;
+                }
+                
+                const transcriptInfo = transcriptData[file.base_name] || { text: '', loading: false, error: null }
+                const isExpanded = expandedFiles.has(file.base_name)
+                
+                return (
+                  <div key={file.base_name} className="w-full">
+                    <FileCard
+                      file={file}
+                      onExpand={() => {
+                        if (file.transcript) {
+                          setExpandedFiles(prev => {
+                            const newSet = new Set(prev)
+                            if (newSet.has(file.base_name)) {
+                              newSet.delete(file.base_name)
+                            } else {
+                              newSet.add(file.base_name)
+                            }
+                            return newSet
+                          })
+                        }
+                      }}
+                      isExpanded={isExpanded}
+                      isRegenerating={regeneratingFiles.has(file.base_name)}
+                      isReplacing={replacingFiles.has(file.base_name)}
+                      isProcessing={isFileBeingProcessed(file.base_name)}
+                      onRegenerate={(e) => handleRegenerate(file.base_name, e)}
+                      onReplace={(e) => handleReplace(file.base_name, e)}
+                      onRename={(e) => handleRename(file.base_name, e)}
+                      onRegenerateMeta={(e) => handleRegenerateMeta(file.base_name, e)}
+                      formatDate={formatDate}
+                      getModelChipColor={getModelChipColor}
+                      isSmallScreen={true}
+                    />
+                    {isExpanded && (
+                      <TranscriptView
+                        visible={true}
+                        name={file.base_name}
+                        className="w-full"
+                        searchTerm={searchTerm}
+                        text={transcriptInfo.text}
+                        loading={transcriptInfo.loading}
+                        error={transcriptInfo.error}
+                        visibleLines={searchLineNumbers[file.base_name] || []}
+                        expandContext={expandContext}
+                        expandAll={expandAll}
+                        onEditSuccess={() => { fetchTranscript(file.base_name) }}
+                        isSmallScreen={true}
+                      />
+                    )}
                   </div>
-                  {searchTerm && searchResults.length > 0 && (
-                                            <span className="text-xs text-primary ml-2">(Search Results)</span>
-                  )}
-                </TableHead>
+                )
+              })}
+            </div>
+          ) : (
+            // Desktop view - render table
+            <Table className="table-fixed w-full">
+              <TableHeader>
+                <TableRow>
+                  <TableHead 
+                    className="text-center w-[16%] cursor-pointer hover:bg-accent transition-colors"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      Filename
+                      {getSortIndicator('name')}
+                    </div>
+                    {searchTerm && searchResults.length > 0 && (
+                                              <span className="text-xs text-primary ml-2">(Search Results)</span>
+                    )}
+                  </TableHead>
                 <TableHead 
                   className="text-center w-[14%] cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('created_at')}
@@ -1318,7 +1383,7 @@ export default function HomePage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedFiles.map((file, index) => {
+              {sortedFiles.map((file) => {
                 if (searchTerm != '' && !searchResults.includes(file.base_name)) {
                   return <></>;
                 }
@@ -1328,7 +1393,7 @@ export default function HomePage() {
                 return (
                 <>
                 <TableRow 
-                  key={index} 
+                  key={file.base_name} 
                   ref={(el) => { fileRowRefs.current[file.base_name] = el }}
                   data-filename={file.base_name}
                   className={flashingRow === file.base_name ? 'animate-pulse bg-primary/10' : ''}
@@ -1499,6 +1564,7 @@ export default function HomePage() {
               )})}
             </TableBody>
           </Table>
+          )}
         </div>
       </div>
 

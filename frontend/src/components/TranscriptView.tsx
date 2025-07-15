@@ -13,6 +13,7 @@ interface TranscriptViewProps {
   expandContext: (filename: string, direction: "up" | "down", line: number) => void;
   expandAll?: ((filename: string) => void) | undefined;
   onEditSuccess?: () => void;
+  isSmallScreen?: boolean;
 }
 
 // Extend Window interface for our custom handlers
@@ -44,7 +45,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   visibleLines = [],
   expandContext,
   expandAll = undefined,
-  onEditSuccess
+  onEditSuccess,
+  isSmallScreen = false
 }) => {
   if (!visible) {
     return null;
@@ -186,7 +188,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   }
 
   return (
-    <div className={`w-full p-6 bg-card border border-border ${className}`}>
+    <div className={`w-full ${isSmallScreen ? 'px-4 py-4 bg-transparent' : 'p-3 sm:p-6 bg-card border border-border'} ${className}`}>
       <div className="space-y-4">
         {loading && (
           <div className="text-muted-foreground">Loading transcript...</div>
@@ -216,6 +218,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     lineNumbers={(item.data as TranscriptBlockData).lineNumbers}
                     onEditSuccess={onEditSuccess}
                     fullTranscript={text}
+                    isSmallScreen={isSmallScreen}
                   />
                 ) : (
                   <div className="text-muted-foreground italic">
