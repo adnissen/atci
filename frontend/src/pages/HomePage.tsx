@@ -1346,13 +1346,25 @@ export default function HomePage() {
                     })
                   }
                 }}>
-                  <TableCell className="font-medium w-[16%]">
-                    <div className="block truncate text-right" title={file.name}>
-                      <span className="inline-block w-full truncate" style={{ direction: 'rtl', textAlign: 'left' }}>
-                        <bdi>
-                          {file.name}
-                        </bdi>
-                      </span>
+                  <TableCell className="font-medium w-[16%] max-w-0">
+                    <div 
+                      className="leading-tight overflow-hidden"
+                      style={{ 
+                        direction: 'rtl', 
+                        textAlign: 'left',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        fontSize: (() => {
+                          const filename = file.name.split('/').pop()?.split('\\').pop() || file.name;
+                          const length = filename.length;
+                          if (length <= 15) return '14px';
+                          if (length <= 20) return '13px';
+                          return '12px';
+                        })()
+                      }}
+                      title={file.name}
+                    >
+                      {file.name.split('/').pop()?.split('\\').pop() || file.name}
                     </div>
                   </TableCell>
                   <TableCell className="w-[14%] pr-10 text-foreground">{formatDate(file.created_at)}</TableCell>
