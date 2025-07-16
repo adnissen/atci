@@ -161,6 +161,68 @@
             min-height: 100px;
         }
         
+        .time-control-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .time-navigation {
+            display: flex;
+            gap: 0.25rem;
+        }
+        
+        .nav-btn {
+            padding: 0.5rem;
+            border: 1px solid #3f3f46;
+            border-radius: 4px;
+            background: rgba(9, 9, 11, 0.8);
+            color: #d4d4d8;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 2rem;
+        }
+        
+        .nav-btn:hover {
+            background: #3f3f46;
+            border-color: #52525b;
+        }
+        
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .nav-btn:disabled:hover {
+            background: rgba(9, 9, 11, 0.8);
+            border-color: #3f3f46;
+        }
+        
+        .form-group input[type="text"] {
+            font-family: 'Courier New', monospace;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-group input:invalid {
+            border-color: #dc2626;
+            box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+        }
+        
+        .transcript-line {
+            display: block;
+            padding: 0;
+            transition: color 0.2s ease;
+        }
+        
+        .transcript-line.highlighted {
+            color: #ffffff;
+            font-weight: 500;
+        }
+        
         .checkbox-group {
             display: flex;
             align-items: center;
@@ -323,7 +385,7 @@
         <div class="header">
             <h1 class="title"><%= @filename %></h1>
             <div class="clip-info">
-                Playing video clip from <%= @start_time %>s to <%= @end_time %>s
+                Playing video clip from <%= @start_time_formatted %> to <%= @end_time_formatted %>
             </div>
         </div>
         
@@ -343,12 +405,24 @@
             <form method="GET" action={"/clip_player/#{URI.encode(@filename)}"}>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="start_time">Start Time (seconds)</label>
-                        <input type="number" id="start_time" name="start_time" value={@start_time} step="0.1" min="0" required>
+                        <label for="start_time">Start Time (hh:mm:ss.sss)</label>
+                        <div class="time-control-group">
+                            <div class="time-navigation">
+                                <button type="button" id="start-prev-btn" class="nav-btn" title="Previous marker">⏮</button>
+                                <button type="button" id="start-next-btn" class="nav-btn" title="Next marker">⏭</button>
+                            </div>
+                            <input type="text" id="start_time" name="start_time" value={@start_time_formatted} pattern="^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$" placeholder="00:00:00.000" required>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="end_time">End Time (seconds)</label>
-                        <input type="number" id="end_time" name="end_time" value={@end_time} step="0.1" min="0" required>
+                        <label for="end_time">End Time (hh:mm:ss.sss)</label>
+                        <div class="time-control-group">
+                            <div class="time-navigation">
+                                <button type="button" id="end-prev-btn" class="nav-btn" title="Previous marker">⏮</button>
+                                <button type="button" id="end-next-btn" class="nav-btn" title="Next marker">⏭</button>
+                            </div>
+                            <input type="text" id="end_time" name="end_time" value={@end_time_formatted} pattern="^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$" placeholder="00:00:00.000" required>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="font_size">Font Size</label>
@@ -401,12 +475,24 @@
             </form>
         </div>
         
+        <%= if @transcript && @transcript != "" do %>
+            <div class="form-container">
+                <h3 style="margin-bottom: 1rem; color: #d4d4d8; font-size: 1.25rem; font-weight: 600;">Transcript</h3>
+                <div class="transcript-container">
+                    <div id="transcript-display" style="white-space: pre-wrap; font-family: 'Inter', monospace; font-size: 0.875rem; line-height: 0.75; color: #a1a1aa; background: rgba(9, 9, 11, 0.6); padding: 1rem; border-radius: 8px; border: 1px solid #27272a; max-height: 400px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        <% end %>
+        
         <div class="controls">
             <a href="/app" class="back-link">Back to Transcripts</a>
         </div>
     </div>
 
     <script>
+        // Transcript data passed from the server
+        const transcriptData = <%= raw(Jason.encode!(@transcript)) %>;
+        
         document.addEventListener('DOMContentLoaded', function() {
             const form = document.querySelector('form');
             const video = document.getElementById('video-player');
@@ -426,6 +512,12 @@
             const downloadMp4Btn = document.getElementById('download-mp4-btn');
             const downloadGifBtn = document.getElementById('download-gif-btn');
             const downloadMp3Btn = document.getElementById('download-mp3-btn');
+            
+            // Get navigation buttons
+            const startPrevBtn = document.getElementById('start-prev-btn');
+            const startNextBtn = document.getElementById('start-next-btn');
+            const endPrevBtn = document.getElementById('end-prev-btn');
+            const endNextBtn = document.getElementById('end-next-btn');
             
             // Function to show loading state
             function showLoading() {
@@ -448,10 +540,14 @@
                 const fontSize = fontSizeInput.value;
                 const displayText = displayTextInput.checked;
                 
+                // Convert timestamp strings to seconds for API
+                const startTimeSeconds = timestampToSeconds(startTime);
+                const endTimeSeconds = timestampToSeconds(endTime);
+                
                 const clipParams = new URLSearchParams({
                     filename: <%= raw(Jason.encode!(@filename)) %>,
-                    start_time: startTime,
-                    end_time: endTime,
+                    start_time: startTimeSeconds.toString(),
+                    end_time: endTimeSeconds.toString(),
                     format: format
                 });
                 
@@ -487,20 +583,297 @@
                 return filename;
             }
             
+            // Function to parse transcript and extract blocks with start/end times
+            function parseTranscriptBlocks() {
+                if (!transcriptData) return [];
+                
+                const blockRegex = /(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/g;
+                const blocks = [];
+                let match;
+                
+                while ((match = blockRegex.exec(transcriptData)) !== null) {
+                    const startTime = match[1];
+                    const endTime = match[2];
+                    blocks.push({
+                        start_time: startTime,
+                        end_time: endTime
+                    });
+                }
+                
+                // Sort blocks by start time
+                return blocks.sort((a, b) => timestampToSeconds(a.start_time) - timestampToSeconds(b.start_time));
+            }
+            
+            // Function to convert timestamp (HH:MM:SS.mmm) to seconds
+            function timestampToSeconds(timestamp) {
+                const parts = timestamp.split(':');
+                const hours = parseInt(parts[0], 10);
+                const minutes = parseInt(parts[1], 10);
+                const seconds = parseFloat(parts[2]);
+                
+                return hours * 3600 + minutes * 60 + seconds;
+            }
+            
+            // Function to find which block index a given time falls within
+            function findBlockIndex(currentTime, blocks) {
+                const currentSeconds = timestampToSeconds(currentTime);
+                
+                for (let i = 0; i < blocks.length; i++) {
+                    const block = blocks[i];
+                    const blockStartSeconds = timestampToSeconds(block.start_time);
+                    const blockEndSeconds = timestampToSeconds(block.end_time);
+                    
+                    if (currentSeconds >= blockStartSeconds && currentSeconds <= blockEndSeconds) {
+                        return i;
+                    }
+                }
+                
+                // If not found within any block, find the closest block
+                // Check if time is before all blocks
+                if (currentSeconds < timestampToSeconds(blocks[0].start_time)) {
+                    return 0;
+                }
+                
+                // Check if time is after all blocks
+                if (currentSeconds > timestampToSeconds(blocks[blocks.length - 1].end_time)) {
+                    return blocks.length - 1;
+                }
+                
+                // Find the closest block for times between blocks
+                for (let i = 0; i < blocks.length - 1; i++) {
+                    const currentBlockEnd = timestampToSeconds(blocks[i].end_time);
+                    const nextBlockStart = timestampToSeconds(blocks[i + 1].start_time);
+                    
+                    if (currentSeconds > currentBlockEnd && currentSeconds < nextBlockStart) {
+                        // Choose the closer block
+                        const distToCurrent = currentSeconds - currentBlockEnd;
+                        const distToNext = nextBlockStart - currentSeconds;
+                        return distToCurrent <= distToNext ? i : i + 1;
+                    }
+                }
+                
+                return 0; // Fallback
+            }
+            
+            // Function to parse transcript into lines with timestamps
+            function parseTranscriptLines() {
+                if (!transcriptData) return [];
+                
+                const lines = transcriptData.split('\n');
+                const timestampRegex = /^(\d{2}:\d{2}:\d{2}\.\d{3})/;
+                const parsedLines = [];
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    const match = line.match(timestampRegex);
+                    
+                    parsedLines.push({
+                        index: i,
+                        text: line,
+                        timestamp: match ? match[1] : null,
+                        timestampSeconds: match ? timestampToSeconds(match[1]) : null
+                    });
+                }
+                
+                return parsedLines;
+            }
+            
+            // Function to highlight transcript lines within time range using blocks
+            function highlightTranscriptLines(startTime, endTime) {
+                const transcriptDisplay = document.getElementById('transcript-display');
+                if (!transcriptDisplay) return;
+                
+                const lines = parseTranscriptLines();
+                const blocks = parseTranscriptBlocks();
+                const startSeconds = timestampToSeconds(startTime);
+                const endSeconds = timestampToSeconds(endTime);
+                
+                // Find which blocks are within the selected time range
+                const selectedBlocks = blocks.filter(block => {
+                    const blockStart = timestampToSeconds(block.start_time);
+                    const blockEnd = timestampToSeconds(block.end_time);
+                    
+                    // Block is selected if it overlaps with the selected time range
+                    return blockStart <= endSeconds && blockEnd >= startSeconds;
+                });
+                
+                // First pass: identify highlighted lines
+                let highlightedIndices = [];
+                let inSelectedBlock = false;
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    let isHighlighted = false;
+                    
+                    // Check if this line contains a block timestamp
+                    const blockMatch = line.text.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/);
+                    
+                    if (blockMatch) {
+                        const blockStartTime = blockMatch[1];
+                        const blockEndTime = blockMatch[2];
+                        
+                        // Check if this block is in our selected blocks
+                        inSelectedBlock = selectedBlocks.some(block => 
+                            block.start_time === blockStartTime && block.end_time === blockEndTime
+                        );
+                        
+                        if (inSelectedBlock) {
+                            isHighlighted = true;
+                        }
+                    } else if (inSelectedBlock) {
+                        // Content line within selected block
+                        isHighlighted = true;
+                    }
+                    
+                    if (isHighlighted) {
+                        highlightedIndices.push(i);
+                    }
+                }
+                
+                // If no highlighted lines, show all lines (fallback behavior)
+                if (highlightedIndices.length === 0) {
+                    let highlightedHTML = '';
+                    for (let i = 0; i < lines.length; i++) {
+                        const line = lines[i];
+                        highlightedHTML += `<span class="transcript-line" data-line-index="${i}">${escapeHtml(line.text)}</span>\n`;
+                    }
+                    transcriptDisplay.innerHTML = highlightedHTML;
+                    return;
+                }
+                
+                // Determine the range of lines to display (highlighted + context blocks)
+                const firstHighlightedIndex = Math.min(...highlightedIndices);
+                const lastHighlightedIndex = Math.max(...highlightedIndices);
+                
+                // Find the start and end of context blocks (previous and next blocks)
+                let contextStartIndex = 0;
+                let contextEndIndex = lines.length - 1;
+                
+                // Find the start of the previous block
+                for (let i = firstHighlightedIndex - 1; i >= 0; i--) {
+                    const line = lines[i];
+                    if (line.text.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/)) {
+                        contextStartIndex = i;
+                        break;
+                    }
+                }
+                
+                // Find the end of the next block
+                let foundNextBlock = false;
+                for (let i = lastHighlightedIndex + 1; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (line.text.match(/(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})/)) {
+                        if (foundNextBlock) {
+                            contextEndIndex = i - 1;
+                            break;
+                        }
+                        foundNextBlock = true;
+                    }
+                }
+                
+                // Generate HTML for the visible range
+                let highlightedHTML = '';
+                for (let i = contextStartIndex; i <= contextEndIndex; i++) {
+                    const line = lines[i];
+                    let cssClass = 'transcript-line';
+                    
+                    if (highlightedIndices.includes(i)) {
+                        cssClass += ' highlighted';
+                    }
+                    
+                    highlightedHTML += `<span class="${cssClass}" data-line-index="${i}">${escapeHtml(line.text)}</span>\n`;
+                }
+                
+                transcriptDisplay.innerHTML = highlightedHTML;
+                
+                // Scroll to the first highlighted line
+                const firstHighlightedElement = transcriptDisplay.querySelector(`[data-line-index="${firstHighlightedIndex}"]`);
+                if (firstHighlightedElement) {
+                    firstHighlightedElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+            
+            // Function to escape HTML characters
+            function escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+            
+            // Function to update navigation buttons
+            function updateNavigationButtons() {
+                const blocks = parseTranscriptBlocks();
+                const startTime = startTimeInput.value || "00:00:00.000";
+                const endTime = endTimeInput.value || "00:00:00.000";
+                
+                if (blocks.length === 0) {
+                    startNextBtn.disabled = true;
+                    startPrevBtn.disabled = true;
+                    endNextBtn.disabled = true;
+                    endPrevBtn.disabled = true;
+                    return;
+                }
+                
+                const startBlockIndex = findBlockIndex(startTime, blocks);
+                const endBlockIndex = findBlockIndex(endTime, blocks);
+                
+                // Start time navigation
+                startNextBtn.disabled = startBlockIndex >= blocks.length - 1;
+                startPrevBtn.disabled = startBlockIndex <= 0;
+                
+                // End time navigation
+                endNextBtn.disabled = endBlockIndex >= blocks.length - 1;
+                endPrevBtn.disabled = endBlockIndex <= 0;
+                
+                // Update transcript highlighting
+                if (isValidTimestamp(startTime) && isValidTimestamp(endTime)) {
+                    highlightTranscriptLines(startTime, endTime);
+                }
+            }
+            
+            // Function to validate timestamp format
+            function isValidTimestamp(timestamp) {
+                const timestampRegex = /^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$/;
+                return timestampRegex.test(timestamp);
+            }
+            
+            // Function to initialize transcript display
+            function initializeTranscriptDisplay() {
+                const transcriptDisplay = document.getElementById('transcript-display');
+                if (!transcriptDisplay || !transcriptData) return;
+                
+                const lines = parseTranscriptLines();
+                let html = '';
+                
+                for (const line of lines) {
+                    html += `<span class="transcript-line">${escapeHtml(line.text)}</span>\n`;
+                }
+                
+                transcriptDisplay.innerHTML = html;
+            }
+            
             // Function to update video and download links
             function updateVideo() {
                 const startTime = startTimeInput.value;
                 const endTime = endTimeInput.value;
                 
-                // Validate required fields
-                if (!startTime || !endTime || parseFloat(startTime) < 0 || parseFloat(endTime) <= parseFloat(startTime)) {
+                // Validate required fields and format
+                if (!startTime || !endTime || !isValidTimestamp(startTime) || !isValidTimestamp(endTime)) {
                     return;
                 }
                 
-                // Build URL parameters for the page URL
+                // Convert to seconds for comparison
+                const startSeconds = timestampToSeconds(startTime);
+                const endSeconds = timestampToSeconds(endTime);
+                
+                if (startSeconds < 0 || endSeconds <= startSeconds) {
+                    return;
+                }
+                
+                // Build URL parameters for the page URL (keep timestamps as strings)
                 const urlParams = new URLSearchParams({
-                    start_time: startTime,
-                    end_time: endTime
+                    start_time: startSeconds.toString(),
+                    end_time: endSeconds.toString()
                 });
                 
                 // Add optional parameters
@@ -548,11 +921,14 @@
                 downloadMp3Btn.download = generateFilename('mp3');
                 
                 // Update clip info
-                clipInfo.textContent = `Playing video clip from ${startTime}s to ${endTime}s`;
+                clipInfo.textContent = `Playing video clip from ${startTime} to ${endTime}`;
                 
                 // Update browser URL
                 const newUrl = window.location.pathname + '?' + urlParams.toString();
                 history.replaceState(null, '', newUrl);
+                
+                // Update transcript highlighting
+                highlightTranscriptLines(startTime, endTime);
             }
             
             // Add event listeners with debouncing
@@ -563,15 +939,107 @@
             }
             
             // Set initial state
+            initializeTranscriptDisplay();
             updateVideo();
             hideLoading(); // Make sure loading is hidden on initial load
             
+            // Function to validate and format timestamp input
+            function validateTimestampInput(input) {
+                const value = input.value;
+                const isValid = isValidTimestamp(value);
+                
+                if (isValid) {
+                    input.setCustomValidity('');
+                } else if (value.length > 0) {
+                    input.setCustomValidity('Please enter time in format hh:mm:ss.sss (e.g., 00:01:30.500)');
+                }
+                
+                return isValid;
+            }
+            
             // Listen for input changes
-            startTimeInput.addEventListener('input', debouncedUpdate);
-            endTimeInput.addEventListener('input', debouncedUpdate);
+            startTimeInput.addEventListener('input', function() {
+                validateTimestampInput(this);
+                debouncedUpdate();
+                updateNavigationButtons();
+            });
+            endTimeInput.addEventListener('input', function() {
+                validateTimestampInput(this);
+                debouncedUpdate();
+                updateNavigationButtons();
+            });
             textInput.addEventListener('input', debouncedUpdate);
             fontSizeInput.addEventListener('input', debouncedUpdate);
             displayTextInput.addEventListener('change', updateVideo); // Immediate update for checkbox
+            
+            // Add navigation button event listeners
+            startPrevBtn.addEventListener('click', function() {
+                const blocks = parseTranscriptBlocks();
+                const currentTime = startTimeInput.value || "00:00:00.000";
+                const currentBlockIndex = findBlockIndex(currentTime, blocks);
+                
+                if (currentBlockIndex > 0) {
+                    const prevBlockIndex = currentBlockIndex - 1;
+                    const prevBlock = blocks[prevBlockIndex];
+                    startTimeInput.value = prevBlock.start_time;
+                    updateVideo();
+                    updateNavigationButtons();
+                }
+            });
+            
+            startNextBtn.addEventListener('click', function() {
+                const blocks = parseTranscriptBlocks();
+                const currentTime = startTimeInput.value || "00:00:00.000";
+                const currentBlockIndex = findBlockIndex(currentTime, blocks);
+                
+                if (currentBlockIndex < blocks.length - 1) {
+                    const nextBlockIndex = currentBlockIndex + 1;
+                    const nextBlock = blocks[nextBlockIndex];
+                    startTimeInput.value = nextBlock.start_time;
+                    updateVideo();
+                    updateNavigationButtons();
+                }
+            });
+            
+            endPrevBtn.addEventListener('click', function() {
+                const blocks = parseTranscriptBlocks();
+                const currentTime = endTimeInput.value || "00:00:00.000";
+                const currentBlockIndex = findBlockIndex(currentTime, blocks);
+                
+                if (currentBlockIndex > 0) {
+                    const prevBlockIndex = currentBlockIndex - 1;
+                    const prevBlock = blocks[prevBlockIndex];
+                    endTimeInput.value = prevBlock.end_time;
+                    
+                    // Ensure end time index is not less than start time index
+                    const startTime = startTimeInput.value || "00:00:00.000";
+                    const startBlockIndex = findBlockIndex(startTime, blocks);
+                    
+                    if (prevBlockIndex < startBlockIndex) {
+                        endTimeInput.value = blocks[startBlockIndex].end_time;
+                    }
+                    
+                    updateVideo();
+                    updateNavigationButtons();
+                }
+            });
+            
+            endNextBtn.addEventListener('click', function() {
+                const blocks = parseTranscriptBlocks();
+                const currentTime = endTimeInput.value || "00:00:00.000";
+                const currentBlockIndex = findBlockIndex(currentTime, blocks);
+                
+                if (currentBlockIndex < blocks.length - 1) {
+                    const nextBlockIndex = currentBlockIndex + 1;
+                    const nextBlock = blocks[nextBlockIndex];
+                    endTimeInput.value = nextBlock.end_time;
+                    updateVideo();
+                    updateNavigationButtons();
+                }
+            });
+            
+            // Initialize navigation buttons
+            updateNavigationButtons();
         });
     </script>
 </body>
