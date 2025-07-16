@@ -13,6 +13,25 @@ defmodule Autotranscript.Web.TranscriptController do
 
   def decode_filename(filename), do: filename
 
+  # Helper function to convert seconds to timestamp format (hh:mm:ss.sss)
+  defp seconds_to_timestamp(seconds) when is_binary(seconds) do
+    case Float.parse(seconds) do
+      {float_seconds, ""} -> seconds_to_timestamp(float_seconds)
+      _ -> "00:00:00.000"
+    end
+  end
+
+  defp seconds_to_timestamp(seconds) when is_number(seconds) do
+    hours = div(trunc(seconds), 3600)
+    minutes = div(trunc(seconds) - hours * 3600, 60)
+    secs = seconds - hours * 3600 - minutes * 60
+
+    :io_lib.format("~2..0B:~2..0B:~6.3.0f", [hours, minutes, secs])
+    |> IO.iodata_to_binary()
+  end
+
+  defp seconds_to_timestamp(_), do: "00:00:00.000"
+
   # Helper function to search for a transcript file across all watch directories
   defp find_transcript_file(watch_directories, decoded_filename) do
     watch_directories
@@ -457,7 +476,7 @@ defmodule Autotranscript.Web.TranscriptController do
         # Load transcript data
         transcript_data = case find_transcript_file(watch_directories, decoded_filename) do
           nil -> ""
-          path -> 
+          path ->
             case File.read(path) do
               {:ok, content} -> content
               {:error, _reason} -> ""
@@ -511,6 +530,8 @@ defmodule Autotranscript.Web.TranscriptController do
               clip_url: clip_url,
               start_time: start_time,
               end_time: end_time,
+              start_time_formatted: seconds_to_timestamp(start_time),
+              end_time_formatted: seconds_to_timestamp(end_time),
               text: text || "",
               font_size: font_size || "",
               display_text: display_text || "",
