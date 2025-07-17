@@ -198,6 +198,34 @@ defmodule Autotranscript.FFmpegManager do
     end
   end
 
+  defp validate_extracted_binary(binary_path, expected_tool) do
+    # Make the binary executable first
+    File.chmod(binary_path, 0o755)
+
+    # Run the binary with --version to check what it actually is
+    case System.cmd(binary_path, ["--version"], stderr_to_stdout: true) do
+      {output, 0} ->
+        output_lower = String.downcase(output)
+
+        # Check if the output contains the expected tool name
+        if String.contains?(output_lower, expected_tool) do
+          # Also check that it doesn't contain the OTHER tool name
+          other_tool = if expected_tool == "ffmpeg", do: "ffprobe", else: "ffmpeg"
+
+          if String.contains?(output_lower, other_tool) and not String.contains?(output_lower, expected_tool) do
+            {:error, "Binary reports as #{other_tool}, not #{expected_tool}"}
+          else
+            :ok
+          end
+        else
+          {:error, "Binary does not report as #{expected_tool}"}
+        end
+
+      {output, _} ->
+        {:error, "Failed to run binary: #{output}"}
+    end
+  end
+
   defp extract_zip_file(zip_data, destination) do
     # Create a temporary file for the zip
     temp_zip_path = destination <> ".zip"
@@ -209,40 +237,8 @@ defmodule Autotranscript.FFmpegManager do
         # Extract the zip file
         case System.cmd("unzip", ["-o", temp_zip_path, "-d", Path.dirname(destination)]) do
           {_, 0} ->
-            # Find the extracted binary (should be the only file in the zip)
-            case File.ls(Path.dirname(destination)) do
-              {:ok, files} ->
-                extracted_file = Enum.find(files, fn file ->
-                  file != Path.basename(temp_zip_path) and
-                  file != Path.basename(destination) and
-                  not String.ends_with?(file, ".zip")
-                end)
-
-                if extracted_file do
-                  extracted_path = Path.join(Path.dirname(destination), extracted_file)
-
-                  # Move the extracted file to the final destination
-                  case File.cp(extracted_path, destination) do
-                    :ok ->
-                      # Clean up the temp zip file
-                      File.rm(temp_zip_path)
-                      Logger.info("Successfully extracted and moved to #{destination}")
-                      :ok
-                    {:error, reason} ->
-                      File.rm(temp_zip_path)
-                      Logger.error("Failed to move extracted file: #{inspect(reason)}")
-                      {:error, "Failed to move extracted file: #{inspect(reason)}"}
-                  end
-                else
-                  File.rm(temp_zip_path)
-                  Logger.error("No suitable file found in extracted zip")
-                  {:error, "No suitable file found in extracted zip"}
-                end
-              {:error, reason} ->
-                File.rm(temp_zip_path)
-                Logger.error("Failed to list extracted files: #{inspect(reason)}")
-                {:error, "Failed to list extracted files: #{inspect(reason)}"}
-            end
+            Logger.info("Successfully extracted zip file to #{destination}")
+            :ok
           {output, _exit_code} ->
             File.rm(temp_zip_path)
             Logger.error("Failed to extract zip: #{output}")
