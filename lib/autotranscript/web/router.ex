@@ -102,5 +102,11 @@ defmodule Autotranscript.Web.Router do
     post("/ffmpeg/download", FFmpegController, :download)
     post("/ffmpeg/use-downloaded", FFmpegController, :use_downloaded)
     post("/ffmpeg/use-auto-detection", FFmpegController, :use_auto_detection)
+
+    # Whisper-CLI management endpoints
+    get("/whisper-cli/tools", WhisperCliController, :list)
+    post("/whisper-cli/download", WhisperCliController, :download)
+    post("/whisper-cli/use-downloaded", WhisperCliController, :use_downloaded)
+    post("/whisper-cli/use-auto-detection", WhisperCliController, :use_auto_detection)
   end
 end
