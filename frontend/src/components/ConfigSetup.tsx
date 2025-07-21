@@ -39,6 +39,16 @@ interface FFmpegTool {
   current_path: string;
 }
 
+interface WhisperCliTool {
+  name: string;
+  platform: string;
+  downloaded: boolean;
+  downloaded_path: string;
+  system_available: boolean;
+  system_path: string | null;
+  current_path: string;
+}
+
 const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode = false }) => {
   const [config, setConfig] = useState<ConfigData>({
     watch_directories: [''],
@@ -57,6 +67,8 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
   const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
   const [ffmpegTools, setFfmpegTools] = useState<FFmpegTool[]>([]);
   const [downloadingTool, setDownloadingTool] = useState<string | null>(null);
+  const [whisperCliTools, setWhisperCliTools] = useState<WhisperCliTool[]>([]);
+  const [downloadingWhisperTool, setDownloadingWhisperTool] = useState<string | null>(null);
 
   // Fetch existing configuration when in edit mode
   useEffect(() => {
@@ -65,6 +77,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
     }
     fetchModels();
     fetchFFmpegTools();
+    fetchWhisperCliTools();
   }, [isEditMode]);
 
   const fetchModels = async () => {
@@ -129,6 +142,20 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
     }
   };
 
+  const fetchWhisperCliTools = async () => {
+    try {
+      const response = await fetch(addTimestamp('/api/whisper-cli/tools'));
+      if (response.ok) {
+        const data = await response.json();
+        setWhisperCliTools(data.tools);
+      } else {
+        console.error('Failed to fetch Whisper-CLI tools');
+      }
+    } catch (error) {
+      console.error('Error fetching Whisper-CLI tools:', error);
+    }
+  };
+
   const downloadFFmpegTool = async (toolName: string) => {
     setDownloadingTool(toolName);
     try {
@@ -180,6 +207,69 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
 
   const useAutoDetectionForTool = async (toolName: string) => {
     const tool = ffmpegTools.find(t => t.name === toolName);
+    if (tool && tool.system_path) {
+      // Directly update the config with the system path
+      setConfig(prev => ({
+        ...prev,
+        [`${toolName}_path`]: tool.system_path
+      }));
+      setSuccessMessage(``);
+    } else {
+      setErrors([`System path not found for ${toolName}`]);
+    }
+  };
+
+  const downloadWhisperCliTool = async (toolName: string) => {
+    setDownloadingWhisperTool(toolName);
+    try {
+      const response = await fetch(addTimestamp('/api/whisper-cli/download'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tool_name: toolName }),
+      });
+
+      if (response.ok) {
+        // Refresh both lists after download
+        await fetchWhisperCliTools();
+        await fetchCurrentConfig();
+      } else {
+        const error = await response.json();
+        setErrors([error.message || 'Failed to download Whisper-CLI tool']);
+      }
+    } catch (error) {
+      setErrors(['Network error: Failed to download Whisper-CLI tool']);
+    } finally {
+      setDownloadingWhisperTool(null);
+    }
+  };
+
+  const useDownloadedWhisperCliTool = async (toolName: string) => {
+    try {
+      const response = await fetch(addTimestamp('/api/whisper-cli/use-downloaded'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tool_name: toolName }),
+      });
+
+      if (response.ok) {
+        // Refresh both lists after using downloaded tool
+        await fetchCurrentConfig();
+        await fetchWhisperCliTools();
+      } else {
+        const error = await response.json();
+        setErrors([error.message || 'Failed to use downloaded Whisper-CLI tool']);
+      }
+    } catch (error) {
+      setErrors(['Network error: Failed to use downloaded Whisper-CLI tool']);
+    }
+  };
+
+  const useAutoDetectionForWhisperCli = async (toolName: string) => {
+    const tool = whisperCliTools.find(t => t.name === toolName);
     if (tool && tool.system_path) {
       // Directly update the config with the system path
       setConfig(prev => ({
@@ -417,22 +507,93 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
         </p>
       </div>
 
-      <div>
-        <label htmlFor="whispercli_path" className="block text-sm font-medium text-foreground mb-1">
-          Whisper CLI Path
-        </label>
-        <input
-          type="text"
-          id="whispercli_path"
-          value={config.whispercli_path}
-          onChange={(e) => handleInputChange('whispercli_path', e.target.value)}
-          placeholder="/path/to/whisper-cli"
-          className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
-          required
-        />
-        <p className="text-xs text-muted-foreground mt-1">
-          Path to the whisper.cpp CLI executable
-        </p>
+      {/* Whisper-CLI Tools Section */}
+      <div className="space-y-4">
+        <h3 className="text-sm font-semibold text-foreground">Whisper-CLI Tool</h3>
+        
+        {whisperCliTools.map(tool => (
+          <div key={tool.name} className="border border-border rounded-lg p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-foreground">Whisper CLI</h4>
+              <span className="text-xs text-muted-foreground">Platform: {tool.platform}</span>
+            </div>
+
+            <div className="space-y-2">
+              {/* Status Information */}
+              <div className="text-xs space-y-1">
+                {tool.system_available && (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CheckCircle className="h-3 w-3" />
+                    Available in system PATH: {tool.system_path}
+                  </div>
+                )}
+                {tool.downloaded && (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CheckCircle className="h-3 w-3" />
+                    Downloaded to: {tool.downloaded_path}
+                  </div>
+                )}
+                {!tool.system_available && !tool.downloaded && (
+                  <div className="flex items-center gap-2 text-yellow-600">
+                    <AlertCircle className="h-3 w-3" />
+                    Not found in system PATH or downloads
+                  </div>
+                )}
+              </div>
+
+              {/* Current Path Input */}
+              <div>
+                <label htmlFor="whispercli_path" className="block text-xs font-medium text-foreground mb-1">
+                  Current Path
+                </label>
+                <input
+                  type="text"
+                  id="whispercli_path"
+                  value={config.whispercli_path}
+                  onChange={(e) => handleInputChange('whispercli_path', e.target.value)}
+                  placeholder="/path/to/whisper-cli"
+                  className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent text-sm"
+                  required
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-2">
+                {!tool.downloaded && (
+                  <button
+                    type="button"
+                    onClick={() => downloadWhisperCliTool(tool.name)}
+                    disabled={downloadingWhisperTool !== null}
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Download className="h-3 w-3" />
+                    {downloadingWhisperTool === tool.name ? 'Downloading...' : 'Download'}
+                  </button>
+                )}
+                
+                {tool.downloaded && (
+                  <button
+                    type="button"
+                    onClick={() => useDownloadedWhisperCliTool(tool.name)}
+                    className="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Use Downloaded Version
+                  </button>
+                )}
+                
+                {tool.system_available && (
+                  <button
+                    type="button"
+                    onClick={() => useAutoDetectionForWhisperCli(tool.name)}
+                    className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                  >
+                    Use System Version
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div>
