@@ -17,52 +17,65 @@ Autotranscript is a powerful web-based video transcription system that automatic
 
 ### Prerequisites
 
-1. **Elixir 1.18+** - [Install Elixir](https://elixir-lang.org/install.html)
-2. **Node.js 18+** - [Install Node.js](https://nodejs.org/)
-3. **FFmpeg** - [Install FFmpeg](https://ffmpeg.org/download.html)
-4. **Whisper.cpp** - [Install whisper.cpp](https://github.com/ggerganov/whisper.cpp)
-   ```bash
-   git clone https://github.com/ggerganov/whisper.cpp
-   cd whisper.cpp
-   make
-   # Download a model (e.g., base model)
-   bash ./models/download-ggml-model.sh base
-   ```
+**For M-series (ARM) Mac users**: The software can automatically download and configure ffprobe, ffmpeg, whisper.cpp, and the AI model for you! Just run the application and follow the guided setup.
+
+**For other users, you'll need:**
+
+1. **FFprobe** - Required for video analysis [Install FFmpeg](https://ffmpeg.org/download.html) (includes ffprobe)
+2. **FFmpeg** - Required for video processing [Install FFmpeg](https://ffmpeg.org/download.html)
+3. **Whisper.cpp** - For AI transcription [Install whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
 ### Installation
 
-1. **Clone the repository**
+1. **Download a prebuilt release**
+   Download the latest release from the GitHub releases page for your platform.
+
+2. **Run the application**
    ```bash
-   git clone https://github.com/adnissen/autotranscript.git
-   cd autotranscript
+   ./autotranscript
    ```
 
-2. **Install dependencies**
-   ```bash
-   mix deps.get
-   cd frontend && npm install && cd ..
-   ```
-
-3. **Build the frontend**
-   ```bash
-   cd frontend && npm run build && cd ..
-   ```
-
-4. **Start the application**
-   ```bash
-   mix phx.server
-   ```
-
-5. **Open your browser**
+3. **Open your browser**
    Navigate to [http://localhost:4000](http://localhost:4000)
 
-6. **Configure the application**
-   - Click on the configuration page
+4. **Follow the guided setup**
+   - The application will guide you through configuration
    - Set your watch directories (where your videos are stored)
-   - Set the path to your whisper.cpp executable
-   - Set the path to your Whisper model file
+   - Configure paths to required tools (or let the app download them automatically on M-series Macs)
+   - Choose and download an AI model for transcription
 
 That's it! Drop video files (MP4, MOV, MKV) into your watch directories and Autotranscript will automatically process them.
+
+## ⚙️ Configuration File (.atconfig)
+
+The application stores its configuration in a `.atconfig` file in your home directory. This JSON file contains the following properties:
+
+```json
+{
+  "watch_directories": ["/path/to/videos1", "/path/to/videos2"],
+  "whispercli_path": "/path/to/whisper_cli",
+  "ffmpeg_path": "/path/to/ffmpeg",
+  "ffprobe_path": "/path/to/ffprobe",
+  "model_path": "/path/to/model.bin",
+  "model_name": "ggml-base",
+  "nonlocal_password": ""
+```
+
+**Configuration Properties:**
+
+- **`watch_directories`** (array): List of directories to monitor for new video files
+- **`whispercli_path`** (string): Path to the whisper.cpp executable
+- **`ffmpeg_path`** (string): Path to the ffmpeg executable  
+- **`ffprobe_path`** (string): Path to the ffprobe executable
+- **`model_path`** (string): Direct path to a Whisper model file (.bin) (alternative to model_name)
+- **`model_name`** (string): Name of a model to use from ~/.autotranscript/models/ (alternative to model_path)
+- **`nonlocal_password`** (string): Optional password for connections with a non-localhost origin
+
+**Notes:**
+- Either `model_path` or `model_name` must be specified
+- Watch directories cannot be subdirectories of each other
+- All paths are validated for existence when the configuration is loaded
+- The configuration can be edited through the web interface or by directly editing the file
 
 ## 💻 Developer Guide
 
@@ -102,18 +115,15 @@ autotranscript/
    # In one terminal - Phoenix server with live reload
    mix phx.server
    
-   # In another terminal - Vite dev server for React hot reload
+   # In another terminal - Vite build with watch (constantly builds static files on change)
    cd frontend
-   npm run dev
+   npx vite build --watch
    ```
 
 3. **Run tests**
    ```bash
    # Elixir tests
    mix test
-   
-   # Frontend tests (if configured)
-   cd frontend && npm test
    ```
 
 ### Key Components
@@ -122,8 +132,12 @@ autotranscript/
 
 - **VideoProcessor**: Manages the transcription queue and processing pipeline
 - **Transcriber**: Handles the actual transcription using whisper.cpp
-- **ConfigManager**: Manages application configuration
+- **ConfigManager**: Manages application configuration and .atconfig file
 - **MetaFileHandler**: Handles metadata storage for transcripts
+- **FFmpegManager**: Manages FFmpeg and FFprobe binaries, including downloading them for different platforms
+- **ModelManager**: Manages Whisper models, including listing available models and downloading them from Hugging Face
+- **WhisperCLIManager**: Manages whisper-cli binaries, including downloading them for different platforms
+- **VideoInfoCache**: Maintains a cache of video file information and updates when videos are processed
 - **Web Controllers**: RESTful API endpoints for the frontend
 
 #### Frontend (React/TypeScript)
@@ -135,35 +149,60 @@ autotranscript/
 
 ### API Endpoints
 
-- `GET /api/transcripts` - List all transcripts
-- `GET /api/transcripts/:id` - Get specific transcript
-- `PUT /api/transcripts/:id` - Update transcript text
-- `POST /api/transcripts/reprocess` - Reprocess a video
-- `GET /api/config` - Get configuration
-- `PUT /api/config` - Update configuration
-- `GET /api/queue` - Get processing queue status
+#### Main Routes
+- `GET /` - Main application entry point
+- `GET /app` - React application
+- `GET /app/*path` - React application catch-all
 
-### Adding New Features
+#### Transcript Routes
+- `GET /transcripts/:filename` - Get specific transcript content
+- `POST /transcripts/:filename/replace` - Replace entire transcript
+- `POST /transcripts/:filename/partial_reprocess` - Reprocess part of transcript
+- `POST /transcripts/:filename/set_line` - Update specific line in transcript
+- `POST /transcripts/:filename/rename` - Rename transcript and associated files
+- `GET /transcripts/:filename/meta` - Get transcript metadata
+- `POST /transcripts/:filename/meta` - Set transcript metadata
 
-1. **Backend Feature**
-   ```elixir
-   # Add new module in lib/autotranscript/
-   # Add route in lib/autotranscript/web/router.ex
-   # Add controller action in appropriate controller
-   ```
+#### Processing Routes
+- `POST /regenerate/:filename` - Reprocess entire video
+- `POST /regenerate-meta/:filename` - Regenerate metadata
+- `GET /queue` - Get processing queue status
 
-2. **Frontend Feature**
-   ```typescript
-   // Add component in frontend/src/components/
-   // Update or create new page in frontend/src/pages/
-   // Add API calls as needed
-   ```
+#### Search and Browse Routes
+- `GET /grep/:text` - Search across all transcripts
+- `GET /files` - List all video files with metadata
+- `GET /sources` - Get unique transcript sources (models used)
+- `GET /watch_directory` - Get watch directory info
+- `GET /watch_directories` - Get all watch directories
+
+#### Video Player Routes
+- `GET /player/:filename` - Video player interface
+- `GET /clip_player/:filename` - Clip player interface
+- `GET /frame/:filename/:time` - Get video frame at specific time
+- `GET /random_frame` - Get random frame from random video
+- `GET /clip` - Generate video/audio clip
+
+#### Configuration Routes
+- `GET /config` - Get configuration
+- `POST /config` - Update configuration
+
+#### API Routes (JSON)
+- `GET /api/models` - List available Whisper models
+- `POST /api/models/download` - Download a Whisper model
+- `GET /api/ffmpeg/tools` - List FFmpeg/FFprobe tools status
+- `POST /api/ffmpeg/download` - Download FFmpeg tools
+- `POST /api/ffmpeg/use-downloaded` - Use downloaded FFmpeg tools
+- `POST /api/ffmpeg/use-auto-detection` - Use auto-detected FFmpeg tools
+- `GET /api/whisper-cli/tools` - List Whisper CLI tools status
+- `POST /api/whisper-cli/download` - Download Whisper CLI tools
+- `POST /api/whisper-cli/use-downloaded` - Use downloaded Whisper CLI tools
+- `POST /api/whisper-cli/use-auto-detection` - Use auto-detected Whisper CLI tools
 
 ### Building for Production
 
 ```bash
 # Build frontend assets
-cd frontend && npm run build && cd ..
+cd frontend && npx vite build && cd ..
 
 # Create production release
 MIX_ENV=prod mix release
@@ -171,11 +210,3 @@ MIX_ENV=prod mix release
 # Run the release
 _build/prod/rel/autotranscript/bin/autotranscript start
 ```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-## 📝 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
