@@ -33,10 +33,10 @@ defmodule Autotranscript.FFmpegManagerTest do
   describe "list_tools/0" do
     test "returns a list of ffmpeg and ffprobe with their status" do
       tools = FFmpegManager.list_tools()
-      
+
       assert length(tools) == 2
       assert Enum.all?(tools, &(&1.name in ["ffmpeg", "ffprobe"]))
-      
+
       # Check that all required fields are present
       Enum.each(tools, fn tool ->
         assert Map.has_key?(tool, :name)

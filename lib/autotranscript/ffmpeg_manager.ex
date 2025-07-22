@@ -46,13 +46,17 @@ defmodule Autotranscript.FFmpegManager do
   """
   def detect_platform do
     case :os.type() do
-      {:win32, _} -> "windows"
+      {:win32, _} ->
+        "windows"
+
       {:unix, :darwin} ->
         case System.cmd("uname", ["-m"]) do
           {"arm64\n", 0} -> "macos-arm"
           _ -> "macos-x86"
         end
-      {:unix, _} -> "linux"
+
+      {:unix, _} ->
+        "linux"
     end
   end
 
@@ -139,6 +143,7 @@ defmodule Autotranscript.FFmpegManager do
             case handle_macos_quarantine(destination, platform) do
               :ok ->
                 Logger.info("Successfully handled macOS quarantine for #{tool}")
+
               {:error, reason} ->
                 Logger.warning("Failed to handle macOS quarantine for #{tool}: #{reason}")
                 # Don't fail the download, just log the warning
@@ -163,8 +168,10 @@ defmodule Autotranscript.FFmpegManager do
     Logger.info("Starting download from #{url}")
 
     options = [
-      timeout: 300_000,      # 5 minutes timeout
-      recv_timeout: 300_000, # 5 minutes receive timeout
+      # 5 minutes timeout
+      timeout: 300_000,
+      # 5 minutes receive timeout
+      recv_timeout: 300_000,
       follow_redirect: true
     ]
 
@@ -212,7 +219,8 @@ defmodule Autotranscript.FFmpegManager do
           # Also check that it doesn't contain the OTHER tool name
           other_tool = if expected_tool == "ffmpeg", do: "ffprobe", else: "ffmpeg"
 
-          if String.contains?(output_lower, other_tool) and not String.contains?(output_lower, expected_tool) do
+          if String.contains?(output_lower, other_tool) and
+               not String.contains?(output_lower, expected_tool) do
             {:error, "Binary reports as #{other_tool}, not #{expected_tool}"}
           else
             :ok
@@ -239,11 +247,13 @@ defmodule Autotranscript.FFmpegManager do
           {_, 0} ->
             Logger.info("Successfully extracted zip file to #{destination}")
             :ok
+
           {output, _exit_code} ->
             File.rm(temp_zip_path)
             Logger.error("Failed to extract zip: #{output}")
             {:error, "Failed to extract zip: #{output}"}
         end
+
       {:error, reason} ->
         Logger.error("Failed to write temporary zip file: #{inspect(reason)}")
         {:error, "Failed to write temporary zip file: #{inspect(reason)}"}
@@ -276,9 +286,11 @@ defmodule Autotranscript.FFmpegManager do
             else
               {:error, "macOS version too old for quarantine handling"}
             end
+
           _ ->
             {:error, "Unable to parse macOS version"}
         end
+
       {_, _} ->
         {:error, "Unable to get macOS version"}
     end
@@ -291,6 +303,7 @@ defmodule Autotranscript.FFmpegManager do
       {_, 0} ->
         Logger.info("Successfully removed quarantine")
         :ok
+
       {output, exit_code} ->
         Logger.warning("xattr command failed with exit code #{exit_code}: #{output}")
         {:error, "Failed to remove quarantine: #{output}"}
@@ -319,6 +332,7 @@ defmodule Autotranscript.FFmpegManager do
       {_, 0} ->
         Logger.info("Successfully cleared extended attributes")
         :ok
+
       {output, exit_code} ->
         Logger.warning("xattr -cr command failed with exit code #{exit_code}: #{output}")
         {:error, "Failed to clear extended attributes: #{output}"}
@@ -332,6 +346,7 @@ defmodule Autotranscript.FFmpegManager do
       {_, 0} ->
         Logger.info("Successfully code signed executable")
         :ok
+
       {output, exit_code} ->
         Logger.warning("codesign command failed with exit code #{exit_code}: #{output}")
         {:error, "Failed to code sign executable: #{output}"}

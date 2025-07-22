@@ -474,14 +474,17 @@ defmodule Autotranscript.Web.TranscriptController do
 
       if video_exists do
         # Load transcript data
-        transcript_data = case find_transcript_file(watch_directories, decoded_filename) do
-          nil -> ""
-          path ->
-            case File.read(path) do
-              {:ok, content} -> content
-              {:error, _reason} -> ""
-            end
-        end
+        transcript_data =
+          case find_transcript_file(watch_directories, decoded_filename) do
+            nil ->
+              ""
+
+            path ->
+              case File.read(path) do
+                {:ok, content} -> content
+                {:error, _reason} -> ""
+              end
+          end
 
         # Extract query parameters
         query_params = Plug.Conn.fetch_query_params(conn) |> Map.get(:query_params)
@@ -740,6 +743,31 @@ defmodule Autotranscript.Web.TranscriptController do
     format_param = query_params["format"] || "mp4"
     watch_directories = Autotranscript.ConfigManager.get_config_value("watch_directories") || []
 
+    # Create a static filename with start/end times and caption
+    caption_part =
+      case display_text_param || text_param do
+        nil ->
+          ""
+
+        text ->
+          # Sanitize text for filename - remove/replace problematic characters
+          sanitized_text =
+            text
+            # Remove special chars except word chars, spaces, hyphens
+            |> String.replace(~r/[^\w\s-]/, "")
+            # Replace spaces with underscores
+            |> String.replace(~r/\s+/, "_")
+            # Limit length
+            |> String.slice(0, 50)
+
+          "_#{sanitized_text}"
+      end
+
+    temp_clip_name = "clip_#{start_time_str}_#{end_time_str}#{caption_part}.#{format_param}"
+
+    temp_clip_path =
+      Path.join(System.tmp_dir(), temp_clip_name)
+
     if Enum.empty?(watch_directories) do
       conn
       |> put_status(:service_unavailable)
@@ -748,369 +776,380 @@ defmodule Autotranscript.Web.TranscriptController do
         503,
         "Watch directories not configured. Please configure the application first."
       )
-    else
-      # Parse and validate the time parameters
-      case {Float.parse(start_time_str || ""), Float.parse(end_time_str || "")} do
-        {{start_time, ""}, {end_time, ""}} when start_time >= 0 and end_time > start_time ->
-          # Check if the video file exists in any watch directory
-          video_file = find_video_file_in_watch_directories(watch_directories, decoded_filename)
+    end
 
-          case video_file do
-            nil ->
-              conn
-              |> put_status(:not_found)
-              |> put_resp_content_type("text/plain")
-              |> send_resp(404, "Video file '#{decoded_filename}' not found")
+    case File.read(temp_clip_path) do
+      {:ok, clip_data} ->
+        Logger.info("Serving existing clip from #{temp_clip_path}")
 
-            file_path ->
-              # Calculate duration
-              duration = end_time - start_time
+        conn
+        |> put_resp_content_type("video/mp4")
+        |> send_resp(200, clip_data)
 
-              # Generate a temporary filename for the clipped video, GIF, or MP3
-              format =
-                case format_param do
-                  "gif" -> "gif"
-                  "mp3" -> "mp3"
-                  _ -> "mp4"
-                end
+      {:error, _reason} ->
+        # File doesn't exist or can't be read, continue with generation
+        # Parse and validate the time parameters
+        case {Float.parse(start_time_str || ""), Float.parse(end_time_str || "")} do
+          {{start_time, ""}, {end_time, ""}} when start_time >= 0 and end_time > start_time ->
+            # Check if the video file exists in any watch directory
+            video_file = find_video_file_in_watch_directories(watch_directories, decoded_filename)
 
-              file_extension =
-                case format do
-                  "gif" -> ".gif"
-                  "mp3" -> ".mp3"
-                  _ -> ".mp4"
-                end
+            case video_file do
+              nil ->
+                conn
+                |> put_status(:not_found)
+                |> put_resp_content_type("text/plain")
+                |> send_resp(404, "Video file '#{decoded_filename}' not found")
 
-              temp_clip_path =
-                Path.join(System.tmp_dir(), "clip_#{UUID.uuid4()}#{file_extension}")
+              file_path ->
+                # Calculate duration
+                duration = end_time - start_time
 
-              # Check if source file needs audio re-encoding based on audio layout
-              ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
-
-              needs_advanced_audio_reencoding =
-                case System.cmd(ffprobe_path, [
-                       "-v",
-                       "error",
-                       "-select_streams",
-                       "a:0",
-                       "-show_entries",
-                       "stream=channel_layout",
-                       "-of",
-                       "csv=p=0",
-                       file_path
-                     ]) do
-                  {output, 0} ->
-                    layout = String.trim(output) |> String.downcase()
-                    layout not in ["mono", "stereo"]
-
-                  _ ->
-                    # Default to false if ffprobe fails
-                    false
-                end
-
-              # Check if source file needs at least some audio re-encoding (e.g., MKV files)
-              source_extension = Path.extname(file_path) |> String.downcase()
-
-              extension_needs_basic_audio_reencoding =
-                source_extension in [".mkv", ".webm", ".avi", ".mov"]
-
-              audio_codec_args =
-                if extension_needs_basic_audio_reencoding do
-                  if needs_advanced_audio_reencoding do
-                    [
-                      "-filter:a",
-                      "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
-                      "-c:a",
-                      "aac",
-                      "-b:a",
-                      "256k"
-                    ]
-                  else
-                    ["-c:a", "aac", "-b:a", "256k"]
+                # Generate a temporary filename for the clipped video, GIF, or MP3
+                format =
+                  case format_param do
+                    "gif" -> "gif"
+                    "mp3" -> "mp3"
+                    _ -> "mp4"
                   end
-                else
-                  ["-c:a", "copy"]
-                end
 
-              # we might even need more though, if it's in 5.1 or 7.1, we need to re-encode it
-              # Build ffmpeg command based on format and optional text overlay
-              {ffmpeg_args, temp_text_path} =
-                case {text_param, display_text_param, format} do
-                  {text, "true", "mp4"} when is_binary(text) and text != "" ->
-                    # MP4 video with text overlay
-                    # Create a temporary text file for the drawtext filter
-                    temp_text_path = Path.join(System.tmp_dir(), "text_#{UUID.uuid4()}.txt")
+                file_extension =
+                  case format do
+                    "gif" -> ".gif"
+                    "mp3" -> ".mp3"
+                    _ -> ".mp4"
+                  end
 
-                    # Write text to temporary file
-                    case File.write(temp_text_path, text, [:utf8]) do
-                      :ok ->
-                        font_size =
-                          case font_size_param do
-                            size_str when is_binary(size_str) ->
-                              case Integer.parse(size_str) do
-                                {size, ""} when size > 0 and size <= 500 -> size
-                                _ -> nil
-                              end
+                # Check if source file needs audio re-encoding based on audio layout
+                ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
 
-                            _ ->
-                              nil
-                          end
+                needs_advanced_audio_reencoding =
+                  case System.cmd(ffprobe_path, [
+                         "-v",
+                         "error",
+                         "-select_streams",
+                         "a:0",
+                         "-show_entries",
+                         "stream=channel_layout",
+                         "-of",
+                         "csv=p=0",
+                         file_path
+                       ]) do
+                    {output, 0} ->
+                      layout = String.trim(output) |> String.downcase()
+                      layout not in ["mono", "stereo"]
 
-                        font_size =
-                          case font_size do
-                            nil ->
-                              calculate_font_size_for_video(file_path, String.length(text))
+                    _ ->
+                      # Default to false if ffprobe fails
+                      false
+                  end
 
-                            size ->
-                              size
-                          end
+                # Check if source file needs at least some audio re-encoding (e.g., MKV files)
+                source_extension = Path.extname(file_path) |> String.downcase()
 
-                        {[
-                           "-ss",
-                           "#{start_time}",
-                           "-t",
-                           "#{duration}",
-                           "-i",
-                           file_path,
-                           "-vf",
-                           "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
-                           "-c:v",
-                           "libx264"
-                         ] ++
-                           audio_codec_args ++
-                           [
-                             "-crf",
-                             "28",
-                             "-preset",
-                             "ultrafast",
-                             "-movflags",
-                             "faststart",
-                             "-avoid_negative_ts",
-                             "make_zero",
+                extension_needs_basic_audio_reencoding =
+                  source_extension in [".mkv", ".webm", ".avi", ".mov"]
+
+                audio_codec_args =
+                  if extension_needs_basic_audio_reencoding do
+                    if needs_advanced_audio_reencoding do
+                      [
+                        "-filter:a",
+                        "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "256k"
+                      ]
+                    else
+                      ["-c:a", "aac", "-b:a", "256k"]
+                    end
+                  else
+                    ["-c:a", "copy"]
+                  end
+
+                # we might even need more though, if it's in 5.1 or 7.1, we need to re-encode it
+                # Build ffmpeg command based on format and optional text overlay
+                {ffmpeg_args, temp_text_path} =
+                  case {text_param, display_text_param, format} do
+                    {text, "true", "mp4"} when is_binary(text) and text != "" ->
+                      # MP4 video with text overlay
+                      # Create a temporary text file for the drawtext filter
+                      temp_text_path = Path.join(System.tmp_dir(), "text_#{UUID.uuid4()}.txt")
+
+                      # Write text to temporary file
+                      case File.write(temp_text_path, text, [:utf8]) do
+                        :ok ->
+                          font_size =
+                            case font_size_param do
+                              size_str when is_binary(size_str) ->
+                                case Integer.parse(size_str) do
+                                  {size, ""} when size > 0 and size <= 500 -> size
+                                  _ -> nil
+                                end
+
+                              _ ->
+                                nil
+                            end
+
+                          font_size =
+                            case font_size do
+                              nil ->
+                                calculate_font_size_for_video(file_path, String.length(text))
+
+                              size ->
+                                size
+                            end
+
+                          {[
+                             "-ss",
+                             "#{start_time}",
+                             "-t",
+                             "#{duration}",
+                             "-i",
+                             file_path,
+                             "-vf",
+                             "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
+                             "-c:v",
+                             "libx264"
+                           ] ++
+                             audio_codec_args ++
+                             [
+                               "-crf",
+                               "28",
+                               "-preset",
+                               "ultrafast",
+                               "-movflags",
+                               "faststart",
+                               "-avoid_negative_ts",
+                               "make_zero",
+                               "-y",
+                               "-map_chapters",
+                               "-1",
+                               temp_clip_path
+                             ], temp_text_path}
+
+                        {:error, reason} ->
+                          # If we can't write the text file, fall back to no text overlay
+                          Logger.warning("Failed to create temporary text file: #{reason}")
+
+                          {[
+                             "-ss",
+                             "#{start_time}",
+                             "-t",
+                             "#{duration}",
+                             "-i",
+                             file_path,
+                             "-c:v",
+                             "libx264"
+                           ] ++
+                             audio_codec_args ++
+                             [
+                               "-crf",
+                               "28",
+                               "-preset",
+                               "ultrafast",
+                               "-movflags",
+                               "faststart",
+                               "-avoid_negative_ts",
+                               "make_zero",
+                               "-y",
+                               "-map_chapters",
+                               "-1",
+                               temp_clip_path
+                             ], nil}
+                      end
+
+                    {text, "true", "gif"} when is_binary(text) and text != "" ->
+                      # GIF with text overlay - optimized for speed
+                      # Create a temporary text file for the drawtext filter
+                      temp_text_path = Path.join(System.tmp_dir(), "text_#{UUID.uuid4()}.txt")
+
+                      # Write text to temporary file
+                      case File.write(temp_text_path, text, [:utf8]) do
+                        :ok ->
+                          font_size =
+                            case font_size_param do
+                              size_str when is_binary(size_str) ->
+                                case Integer.parse(size_str) do
+                                  {size, ""} when size > 0 and size <= 500 -> size
+                                  _ -> nil
+                                end
+
+                              _ ->
+                                nil
+                            end
+
+                          font_size =
+                            case font_size do
+                              nil ->
+                                calculate_font_size_for_video(file_path, String.length(text))
+
+                              size ->
+                                size
+                            end
+
+                          {[
+                             "-ss",
+                             "#{start_time}",
+                             "-t",
+                             "#{duration}",
+                             "-i",
+                             file_path,
+                             "-vf",
+                             "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                             "-loop",
+                             "0",
                              "-y",
-                             "-map_chapters",
-                             "-1",
                              temp_clip_path
                            ], temp_text_path}
 
-                      {:error, reason} ->
-                        # If we can't write the text file, fall back to no text overlay
-                        Logger.warning("Failed to create temporary text file: #{reason}")
+                        {:error, reason} ->
+                          # If we can't write the text file, fall back to no text overlay
+                          Logger.warning("Failed to create temporary text file: #{reason}")
 
-                        {[
-                           "-ss",
-                           "#{start_time}",
-                           "-t",
-                           "#{duration}",
-                           "-i",
-                           file_path,
-                           "-c:v",
-                           "libx264"
-                         ] ++
-                           audio_codec_args ++
-                           [
-                             "-crf",
-                             "28",
-                             "-preset",
-                             "ultrafast",
-                             "-movflags",
-                             "faststart",
-                             "-avoid_negative_ts",
-                             "make_zero",
+                          {[
+                             "-ss",
+                             "#{start_time}",
+                             "-t",
+                             "#{duration}",
+                             "-i",
+                             file_path,
+                             "-vf",
+                             "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                             "-loop",
+                             "0",
                              "-y",
-                             "-map_chapters",
-                             "-1",
                              temp_clip_path
                            ], nil}
-                    end
+                      end
 
-                  {text, "true", "gif"} when is_binary(text) and text != "" ->
-                    # GIF with text overlay - optimized for speed
-                    # Create a temporary text file for the drawtext filter
-                    temp_text_path = Path.join(System.tmp_dir(), "text_#{UUID.uuid4()}.txt")
-
-                    # Write text to temporary file
-                    case File.write(temp_text_path, text, [:utf8]) do
-                      :ok ->
-                        font_size =
-                          case font_size_param do
-                            size_str when is_binary(size_str) ->
-                              case Integer.parse(size_str) do
-                                {size, ""} when size > 0 and size <= 500 -> size
-                                _ -> nil
-                              end
-
-                            _ ->
-                              nil
-                          end
-
-                        font_size =
-                          case font_size do
-                            nil ->
-                              calculate_font_size_for_video(file_path, String.length(text))
-
-                            size ->
-                              size
-                          end
-
-                        {[
-                           "-ss",
-                           "#{start_time}",
-                           "-t",
-                           "#{duration}",
-                           "-i",
-                           file_path,
-                           "-vf",
-                           "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-                           "-loop",
-                           "0",
+                    {_, _, "mp4"} ->
+                      # MP4 video without text overlay - use stream copying for fast clipping
+                      {[
+                         "-ss",
+                         "#{start_time}",
+                         "-t",
+                         "#{duration}",
+                         "-i",
+                         file_path,
+                         "-c:v",
+                         "libx264"
+                       ] ++
+                         audio_codec_args ++
+                         [
+                           "-crf",
+                           "28",
+                           "-preset",
+                           "ultrafast",
+                           "-movflags",
+                           "faststart",
+                           "-avoid_negative_ts",
+                           "make_zero",
                            "-y",
-                           temp_clip_path
-                         ], temp_text_path}
-
-                      {:error, reason} ->
-                        # If we can't write the text file, fall back to no text overlay
-                        Logger.warning("Failed to create temporary text file: #{reason}")
-
-                        {[
-                           "-ss",
-                           "#{start_time}",
-                           "-t",
-                           "#{duration}",
-                           "-i",
-                           file_path,
-                           "-vf",
-                           "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-                           "-loop",
-                           "0",
-                           "-y",
+                           "-map_chapters",
+                           "-1",
                            temp_clip_path
                          ], nil}
-                    end
 
-                  {_, _, "mp4"} ->
-                    # MP4 video without text overlay - use stream copying for fast clipping
-                    {[
-                       "-ss",
-                       "#{start_time}",
-                       "-t",
-                       "#{duration}",
-                       "-i",
-                       file_path,
-                       "-c:v",
-                       "libx264"
-                     ] ++
-                       audio_codec_args ++
-                       [
-                         "-crf",
-                         "28",
-                         "-preset",
-                         "ultrafast",
-                         "-movflags",
-                         "faststart",
-                         "-avoid_negative_ts",
-                         "make_zero",
+                    {_, _, "gif"} ->
+                      # GIF without text overlay
+                      {[
+                         "-ss",
+                         "#{start_time}",
+                         "-t",
+                         "#{duration}",
+                         "-i",
+                         file_path,
+                         "-vf",
+                         "fps=8,scale=320:-1:flags=fast_bilinear,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=single[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2",
+                         "-loop",
+                         "0",
                          "-y",
-                         "-map_chapters",
-                         "-1",
                          temp_clip_path
                        ], nil}
 
-                  {_, _, "gif"} ->
-                    # GIF without text overlay
-                    {[
-                       "-ss",
-                       "#{start_time}",
-                       "-t",
-                       "#{duration}",
-                       "-i",
-                       file_path,
-                       "-vf",
-                       "fps=8,scale=320:-1:flags=fast_bilinear,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=single[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2",
-                       "-loop",
-                       "0",
-                       "-y",
-                       temp_clip_path
-                     ], nil}
-
-                  {_, _, "mp3"} ->
-                    # MP3 audio extraction
-                    {[
-                       "-ss",
-                       "#{start_time}",
-                       "-t",
-                       "#{duration}",
-                       "-i",
-                       file_path,
-                       "-vn",
-                       "-acodec",
-                       "libmp3lame",
-                       "-ar",
-                       "44100",
-                       "-ac",
-                       "2",
-                       "-b:a",
-                       "256k",
-                       "-y",
-                       temp_clip_path
-                     ], nil}
-                end
-
-              # Use ffmpeg to extract and convert the video clip to MP4, GIF, or MP3
-              ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
-
-              case System.cmd(ffmpeg_path, ffmpeg_args) do
-                {_output, 0} ->
-                  # Successfully created clip, serve it
-                  case File.read(temp_clip_path) do
-                    {:ok, clip_data} ->
-                      # Clean up temp files
-                      File.rm(temp_clip_path)
-                      if temp_text_path, do: File.rm(temp_text_path)
-
-                      content_type =
-                        case format do
-                          "gif" -> "image/gif"
-                          "mp3" -> "audio/mpeg"
-                          _ -> "video/mp4"
-                        end
-
-                      conn
-                      |> put_resp_content_type(content_type)
-                      |> send_resp(200, clip_data)
-
-                    {:error, reason} ->
-                      # Clean up temp files on error
-                      File.rm(temp_clip_path)
-                      if temp_text_path, do: File.rm(temp_text_path)
-
-                      conn
-                      |> put_status(:internal_server_error)
-                      |> put_resp_content_type("text/plain")
-                      |> send_resp(500, "Error reading clipped #{format}: #{reason}")
+                    {_, _, "mp3"} ->
+                      # MP3 audio extraction
+                      {[
+                         "-ss",
+                         "#{start_time}",
+                         "-t",
+                         "#{duration}",
+                         "-i",
+                         file_path,
+                         "-vn",
+                         "-acodec",
+                         "libmp3lame",
+                         "-ar",
+                         "44100",
+                         "-ac",
+                         "2",
+                         "-b:a",
+                         "256k",
+                         "-y",
+                         temp_clip_path
+                       ], nil}
                   end
 
-                {error_output, _exit_code} ->
-                  # Clean up temp files if they exist
-                  File.rm(temp_clip_path)
-                  if temp_text_path, do: File.rm(temp_text_path)
+                # Use ffmpeg to extract and convert the video clip to MP4, GIF, or MP3
+                ffmpeg_path = ConfigManager.get_config_value("ffmpeg_path") || "ffmpeg"
 
-                  conn
-                  |> put_status(:internal_server_error)
-                  |> put_resp_content_type("text/plain")
-                  |> send_resp(500, "Error creating #{format} clip with ffmpeg: #{error_output}")
-              end
-          end
+                case System.cmd(ffmpeg_path, ffmpeg_args) do
+                  {_output, 0} ->
+                    # Successfully created clip, serve it
+                    case File.read(temp_clip_path) do
+                      {:ok, clip_data} ->
+                        # Clean up temp files
+                        File.rm(temp_clip_path)
+                        if temp_text_path, do: File.rm(temp_text_path)
 
-        _ ->
-          conn
-          |> put_status(:bad_request)
-          |> put_resp_content_type("text/plain")
-          |> send_resp(
-            400,
-            "Invalid time parameters. Start time must be non-negative and end time must be greater than start time."
-          )
-      end
+                        content_type =
+                          case format do
+                            "gif" -> "image/gif"
+                            "mp3" -> "audio/mpeg"
+                            _ -> "video/mp4"
+                          end
+
+                        conn
+                        |> put_resp_content_type(content_type)
+                        |> send_resp(200, clip_data)
+
+                      {:error, reason} ->
+                        # Clean up temp files on error
+                        File.rm(temp_clip_path)
+                        if temp_text_path, do: File.rm(temp_text_path)
+
+                        conn
+                        |> put_status(:internal_server_error)
+                        |> put_resp_content_type("text/plain")
+                        |> send_resp(500, "Error reading clipped #{format}: #{reason}")
+                    end
+
+                  {error_output, _exit_code} ->
+                    # Clean up temp files if they exist
+                    File.rm(temp_clip_path)
+                    if temp_text_path, do: File.rm(temp_text_path)
+
+                    conn
+                    |> put_status(:internal_server_error)
+                    |> put_resp_content_type("text/plain")
+                    |> send_resp(
+                      500,
+                      "Error creating #{format} clip with ffmpeg: #{error_output}"
+                    )
+                end
+            end
+
+          _ ->
+            conn
+            |> put_status(:bad_request)
+            |> put_resp_content_type("text/plain")
+            |> send_resp(
+              400,
+              "Invalid time parameters. Start time must be non-negative and end time must be greater than start time."
+            )
+        end
     end
   end
 

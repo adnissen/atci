@@ -548,7 +548,8 @@
                     filename: <%= raw(Jason.encode!(@filename)) %>,
                     start_time: startTimeSeconds.toString(),
                     end_time: endTimeSeconds.toString(),
-                    format: format
+                    format: format,
+                    cachebuster: Date.now().toString()
                 });
                 
                 // Add optional parameters

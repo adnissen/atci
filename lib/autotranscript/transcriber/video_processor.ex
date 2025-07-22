@@ -203,10 +203,14 @@ defmodule Autotranscript.VideoProcessor do
     ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
 
     case System.cmd(ffprobe_path, [
-           "-v", "error",
-           "-select_streams", "a",
-           "-show_entries", "stream=index",
-           "-of", "csv=p=0",
+           "-v",
+           "error",
+           "-select_streams",
+           "a",
+           "-show_entries",
+           "stream=index",
+           "-of",
+           "csv=p=0",
            video_path
          ]) do
       {output, 0} ->
@@ -250,14 +254,23 @@ defmodule Autotranscript.VideoProcessor do
 
           # Use more specific mapping to avoid multiple audio stream issues
           case System.cmd(ffmpeg_path, [
-            "-i", path,
-            "-map", "0:a:0",  # Map first audio stream only
-            "-q:a", "0",
-            "-ac", "1",       # Convert to mono to avoid channel issues
-            "-ar", "16000",   # Set sample rate for consistency
-            "-y",             # Override existing files
-            output_path
-          ]) do
+                 "-i",
+                 path,
+                 # Map first audio stream only
+                 "-map",
+                 "0:a:0",
+                 "-q:a",
+                 "0",
+                 # Convert to mono to avoid channel issues
+                 "-ac",
+                 "1",
+                 # Set sample rate for consistency
+                 "-ar",
+                 "16000",
+                 # Override existing files
+                 "-y",
+                 output_path
+               ]) do
             {_output, 0} -> {:ok, output_path}
             {error_output, _exit_code} -> {:error, "ffmpeg failed: #{error_output}"}
           end
@@ -316,11 +329,13 @@ defmodule Autotranscript.VideoProcessor do
 
           # Build command arguments with optional prompt
           args = ["-m", model, "-np", "--max-context", "0", "-ovtt", "-f", path]
-          args = if prompt do
-            args ++ ["--prompt", prompt]
-          else
-            args
-          end
+
+          args =
+            if prompt do
+              args ++ ["--prompt", prompt]
+            else
+              args
+            end
 
           System.cmd(whispercli, args)
           vtt_path = String.replace_trailing(path, ".mp3", ".vtt")
@@ -331,12 +346,16 @@ defmodule Autotranscript.VideoProcessor do
           # Move txt file to video directory
           video_dir = Path.dirname(video_path)
           new_txt_path = Path.join(video_dir, Path.basename(txt_path))
+
           case File.cp(txt_path, new_txt_path) do
-            :ok -> :ok
+            :ok ->
+              :ok
+
             {:error, reason} ->
               Logger.error("Failed to move transcript file: #{inspect(reason)}")
               {:error, reason}
           end
+
           txt_path = new_txt_path
 
           case TranscriptModifier.add_source_to_meta(txt_path) do
@@ -451,14 +470,15 @@ defmodule Autotranscript.VideoProcessor do
     end
   end
 
-
-
   # Gets the prompt text from a video file's meta file if it exists.
   defp get_prompt_from_meta(video_path) do
     case video_path do
-      nil -> nil
+      nil ->
+        nil
+
       path ->
         meta_path = PathHelper.replace_video_extension_with(path, ".meta")
+
         case MetaFileHandler.get_meta_field(meta_path, "prompt") do
           {:ok, prompt} -> prompt
           {:error, _} -> nil
@@ -634,7 +654,7 @@ defmodule Autotranscript.VideoProcessor do
       not File.exists?(model) ->
         {:error, "Model file not found at: #{model}"}
 
-            true ->
+      true ->
         # Build command arguments (no prompt needed for partial transcription)
         args = ["-m", model, "-np", "-ovtt", "-f", temp_mp3_path]
 
@@ -879,7 +899,7 @@ defmodule Autotranscript.VideoProcessor do
           :ok ->
             File.rm(temp_srt_path)
             Logger.info("Successfully extracted subtitles from #{video_path}")
-                      # Replace carriage returns with newlines in transcript file
+            # Replace carriage returns with newlines in transcript file
             {:ok, :extracted}
 
           {:error, reason} ->

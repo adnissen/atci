@@ -17,11 +17,16 @@ defmodule Autotranscript.Web.Plugs.NonlocalPassword do
       cond do
         cookie_password_valid?(conn, password) ->
           conn
+
         true ->
           case get_basic_auth(conn) do
             {:ok, input_password} when input_password == password ->
               conn
-              |> put_resp_cookie("nonlocal_password", password, http_only: true, same_site: "Strict")
+              |> put_resp_cookie("nonlocal_password", password,
+                http_only: true,
+                same_site: "Strict"
+              )
+
             _ ->
               if html_request?(conn) do
                 conn
@@ -58,6 +63,7 @@ defmodule Autotranscript.Web.Plugs.NonlocalPassword do
     case fetch_cookies(conn) do
       %{cookies: %{"nonlocal_password" => cookie_pw}} when cookie_pw == password ->
         true
+
       _ ->
         false
     end

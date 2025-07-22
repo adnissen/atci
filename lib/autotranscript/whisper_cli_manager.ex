@@ -42,13 +42,17 @@ defmodule Autotranscript.WhisperCliManager do
   """
   def detect_platform do
     case :os.type() do
-      {:win32, _} -> "windows"
+      {:win32, _} ->
+        "windows"
+
       {:unix, :darwin} ->
         case System.cmd("uname", ["-m"]) do
           {"arm64\n", 0} -> "macos-arm"
           _ -> "macos-x86"
         end
-      {:unix, _} -> "linux"
+
+      {:unix, _} ->
+        "linux"
     end
   end
 
@@ -136,6 +140,7 @@ defmodule Autotranscript.WhisperCliManager do
             case handle_macos_quarantine(destination, platform) do
               :ok ->
                 Logger.info("Successfully handled macOS quarantine for #{tool}")
+
               {:error, reason} ->
                 Logger.warning("Failed to handle macOS quarantine for #{tool}: #{reason}")
                 # Don't fail the download, just log the warning
@@ -160,8 +165,10 @@ defmodule Autotranscript.WhisperCliManager do
     Logger.info("Starting download from #{url}")
 
     options = [
-      timeout: 300_000,      # 5 minutes timeout
-      recv_timeout: 300_000, # 5 minutes receive timeout
+      # 5 minutes timeout
+      timeout: 300_000,
+      # 5 minutes receive timeout
+      recv_timeout: 300_000,
       follow_redirect: true
     ]
 
@@ -216,9 +223,11 @@ defmodule Autotranscript.WhisperCliManager do
             else
               {:error, "macOS version too old for quarantine handling"}
             end
+
           _ ->
             {:error, "Unable to parse macOS version"}
         end
+
       {_, _} ->
         {:error, "Unable to get macOS version"}
     end
@@ -231,6 +240,7 @@ defmodule Autotranscript.WhisperCliManager do
       {_, 0} ->
         Logger.info("Successfully removed quarantine")
         :ok
+
       {output, exit_code} ->
         Logger.warning("xattr command failed with exit code #{exit_code}: #{output}")
         {:error, "Failed to remove quarantine: #{output}"}
@@ -259,6 +269,7 @@ defmodule Autotranscript.WhisperCliManager do
       {_, 0} ->
         Logger.info("Successfully cleared extended attributes")
         :ok
+
       {output, exit_code} ->
         Logger.warning("xattr -cr command failed with exit code #{exit_code}: #{output}")
         {:error, "Failed to clear extended attributes: #{output}"}
@@ -272,6 +283,7 @@ defmodule Autotranscript.WhisperCliManager do
       {_, 0} ->
         Logger.info("Successfully code signed executable")
         :ok
+
       {output, exit_code} ->
         Logger.warning("codesign command failed with exit code #{exit_code}: #{output}")
         {:error, "Failed to code sign executable: #{output}"}
