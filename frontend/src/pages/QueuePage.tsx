@@ -147,6 +147,28 @@ export default function QueuePage() {
     await updateQueueOrder(newQueue)
   }
 
+  // Send item to top of queue
+  const handleSendToTop = async (index: number) => {
+    if (index === 0) return // Already at top
+
+    const newQueue = [...queueStatus.queue]
+    const [movedItem] = newQueue.splice(index, 1)
+    newQueue.unshift(movedItem)
+
+    await updateQueueOrder(newQueue)
+  }
+
+  // Send item to bottom of queue
+  const handleSendToBottom = async (index: number) => {
+    if (index === queueStatus.queue.length - 1) return // Already at bottom
+
+    const newQueue = [...queueStatus.queue]
+    const [movedItem] = newQueue.splice(index, 1)
+    newQueue.push(movedItem)
+
+    await updateQueueOrder(newQueue)
+  }
+
   // Update queue order
   const updateQueueOrder = async (newQueue: QueueItem[]) => {
     try {
@@ -338,6 +360,26 @@ export default function QueuePage() {
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleSendToTop(index)}
+                            disabled={index === 0}
+                            className="focus:text-primary"
+                          >
+                            <span>Send to top</span>
+                            <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                            </svg>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleSendToBottom(index)}
+                            disabled={index === queueStatus.queue.length - 1}
+                            className="focus:text-primary"
+                          >
+                            <span>Send to bottom</span>
+                            <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                            </svg>
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             onClick={() => handleRemoveItem(item)}
                             className="text-destructive focus:text-destructive"

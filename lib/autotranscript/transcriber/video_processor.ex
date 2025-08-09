@@ -103,7 +103,7 @@ defmodule Autotranscript.VideoProcessor do
       # Job is already queued or being processed, don't add it again
       {:noreply, state}
     else
-      new_queue = [job_tuple | queue]
+      new_queue = queue ++ [job_tuple]
 
       if not processing do
         # Start processing if not already processing
@@ -117,7 +117,10 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast(:process_next, %{queue: [], processing: _processing, current_file: nil, current_task: nil} = state) do
+  def handle_cast(
+        :process_next,
+        %{queue: [], processing: _processing, current_file: nil, current_task: nil} = state
+      ) do
     # No more files to process
     {:noreply, %{state | processing: false}}
   end
@@ -134,17 +137,18 @@ defmodule Autotranscript.VideoProcessor do
       ) do
     # Start processing the next file in the queue asynchronously using Task
     # Keep the file in the queue until processing is complete
-    task = Task.async(fn ->
-      case process_video_file(job_info, process_type) do
-        :ok ->
-          IO.puts("Successfully processed #{video_path} with type #{process_type}")
-          {:ok, job_tuple}
+    task =
+      Task.async(fn ->
+        case process_video_file(job_info, process_type) do
+          :ok ->
+            IO.puts("Successfully processed #{video_path} with type #{process_type}")
+            {:ok, job_tuple}
 
-        {:error, reason} ->
-          IO.puts("Error processing #{video_path}: #{inspect(reason)}")
-          {{:error, reason}, job_tuple}
-      end
-    end)
+          {:error, reason} ->
+            IO.puts("Error processing #{video_path}: #{inspect(reason)}")
+            {{:error, reason}, job_tuple}
+        end
+      end)
 
     {:noreply, %{state | current_file: job_tuple, current_task: task}}
   end
@@ -152,7 +156,12 @@ defmodule Autotranscript.VideoProcessor do
   @impl true
   def handle_cast(
         {:processing_complete, job_tuple, _result},
-        %{queue: queue, processing: _processing, current_file: _current_file, current_task: _current_task} = state
+        %{
+          queue: queue,
+          processing: _processing,
+          current_file: _current_file,
+          current_task: _current_task
+        } = state
       ) do
     # Remove the completed job from the queue
     new_queue = Enum.reject(queue, fn tuple -> tuple == job_tuple end)
@@ -163,7 +172,9 @@ defmodule Autotranscript.VideoProcessor do
     else
       # Continue with next file
       GenServer.cast(__MODULE__, :process_next)
-      {:noreply, %{state | queue: new_queue, processing: true, current_file: nil, current_task: nil}}
+
+      {:noreply,
+       %{state | queue: new_queue, processing: true, current_file: nil, current_task: nil}}
     end
   end
 
@@ -180,7 +191,12 @@ defmodule Autotranscript.VideoProcessor do
   def handle_call(
         {:remove_from_queue, job_tuple},
         _from,
-        %{queue: queue, processing: processing, current_file: current_file, current_task: current_task} = state
+        %{
+          queue: queue,
+          processing: processing,
+          current_file: current_file,
+          current_task: current_task
+        } = state
       ) do
     cond do
       # Job is currently being processed
@@ -211,11 +227,12 @@ defmodule Autotranscript.VideoProcessor do
         new_state = %{state | queue: new_queue}
 
         # If queue is now empty and nothing is processing, update processing state
-        final_state = if new_queue == [] and not processing do
-          %{new_state | processing: false}
-        else
-          new_state
-        end
+        final_state =
+          if new_queue == [] and not processing do
+            %{new_state | processing: false}
+          else
+            new_state
+          end
 
         {:reply, :ok, final_state}
 
@@ -229,7 +246,12 @@ defmodule Autotranscript.VideoProcessor do
   def handle_call(
         {:reorder_queue, new_queue},
         _from,
-        %{queue: _old_queue, processing: _processing, current_file: current_file, current_task: current_task} = state
+        %{
+          queue: _old_queue,
+          processing: _processing,
+          current_file: current_file,
+          current_task: current_task
+        } = state
       ) do
     # Check if current job is in the new queue
     current_job_in_new_queue = current_file == nil or current_file in new_queue
@@ -261,7 +283,12 @@ defmodule Autotranscript.VideoProcessor do
   def handle_call(
         :cancel_current_job,
         _from,
-        %{queue: queue, processing: _processing, current_file: current_file, current_task: current_task} = state
+        %{
+          queue: queue,
+          processing: _processing,
+          current_file: current_file,
+          current_task: current_task
+        } = state
       ) do
     if current_file == nil do
       {:reply, {:error, :no_current_job}, state}
@@ -292,11 +319,13 @@ defmodule Autotranscript.VideoProcessor do
   def handle_info(
         {ref, result},
         %{current_task: %Task{ref: task_ref}} = state
-      ) when ref == task_ref do
+      )
+      when ref == task_ref do
     # Task completed successfully
     case result do
       {:ok, job_tuple} ->
         GenServer.cast(__MODULE__, {:processing_complete, job_tuple, :ok})
+
       {{:error, reason}, job_tuple} ->
         GenServer.cast(__MODULE__, {:processing_complete, job_tuple, {:error, reason}})
     end

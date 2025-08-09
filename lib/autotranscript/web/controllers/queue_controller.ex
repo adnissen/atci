@@ -10,11 +10,33 @@ defmodule Autotranscript.Web.QueueController do
   def status(conn, _params) do
     queue_status = VideoProcessor.get_queue_status()
 
+    # Transform tuples to maps for JSON serialization
+    transformed_queue_status = %{
+      queue:
+        Enum.map(queue_status.queue, fn {process_type, %{path: video_path, time: time}} ->
+          %{
+            path: video_path,
+            process_type: process_type,
+            time: time
+          }
+        end),
+      processing_state: if(queue_status.processing, do: "processing", else: "idle"),
+      current_processing:
+        case queue_status.current_file do
+          {process_type, %{path: video_path, time: time}} ->
+            %{path: video_path, process_type: process_type, time: time}
+
+          nil ->
+            nil
+        end
+    }
+
     conn
     |> put_resp_content_type("application/json")
-    |> send_resp(200, Jason.encode!(queue_status))
+    |> send_resp(200, Jason.encode!(transformed_queue_status))
   end
 
+  @spec remove_job(Plug.Conn.t(), any()) :: Plug.Conn.t()
   @doc """
   Removes a specific job from the queue.
   Expects JSON body with process_type, path, and optional time.
