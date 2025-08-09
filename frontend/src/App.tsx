@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useLSState } from './hooks/useLSState'
 import HomePage from './pages/HomePage'
 import ConfigPage from './pages/ConfigPage'
+import QueuePage from './pages/QueuePage'
 import ConfigSetup from './components/ConfigSetup'
 import { addTimestamp } from './lib/utils'
 
@@ -146,6 +147,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/config" element={<ConfigPage />} />
+        <Route path="/queue" element={<QueuePage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 

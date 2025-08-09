@@ -108,5 +108,11 @@ defmodule Autotranscript.Web.Router do
     post("/whisper-cli/download", WhisperCliController, :download)
     post("/whisper-cli/use-downloaded", WhisperCliController, :use_downloaded)
     post("/whisper-cli/use-auto-detection", WhisperCliController, :use_auto_detection)
+
+    # Queue management endpoints
+    get("/queue/status", QueueController, :status)
+    delete("/queue/remove", QueueController, :remove_job)
+    post("/queue/reorder", QueueController, :reorder)
+    delete("/queue/cancel-current", QueueController, :cancel_current)
   end
 end

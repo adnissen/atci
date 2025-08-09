@@ -16,7 +16,7 @@ defmodule Autotranscript.VideoProcessor do
 
   @impl true
   def init(:ok) do
-    {:ok, %{queue: [], processing: false, current_file: nil}}
+    {:ok, %{queue: [], processing: false, current_file: nil, current_task: nil}}
   end
 
   @doc """
@@ -26,6 +26,57 @@ defmodule Autotranscript.VideoProcessor do
     time = Map.get(opts, :time, nil)
     job_info = %{path: video_path, time: time}
     GenServer.cast(__MODULE__, {:add_to_queue, {process_type, job_info}})
+  end
+
+  @doc """
+  Removes a specific job from the queue. If the job is currently being processed,
+  the processing will be cancelled and the next job will start.
+
+  ## Parameters
+    - job_tuple: The {process_type, job_info} tuple to remove
+
+  ## Returns
+    - :ok if the job was found and removed
+    - {:error, :not_found} if the job was not in the queue
+
+  ## Examples
+      iex> job = {:all, %{path: "video.mp4", time: nil}}
+      iex> Autotranscript.VideoProcessor.remove_from_queue(job)
+      :ok
+  """
+  def remove_from_queue(job_tuple) do
+    GenServer.call(__MODULE__, {:remove_from_queue, job_tuple})
+  end
+
+  @doc """
+  Reorders the queue to match the provided list of job tuples.
+  Jobs not in the new list will be removed from the queue.
+  The currently processing job (if any) will continue unless it's not in the new list.
+
+  ## Parameters
+    - new_queue: List of {process_type, job_info} tuples in the desired order
+
+  ## Returns
+    - :ok
+
+  ## Examples
+      iex> new_order = [{:all, %{path: "video2.mp4", time: nil}}, {:length, %{path: "video1.mp4", time: nil}}]
+      iex> Autotranscript.VideoProcessor.reorder_queue(new_order)
+      :ok
+  """
+  def reorder_queue(new_queue) do
+    GenServer.call(__MODULE__, {:reorder_queue, new_queue})
+  end
+
+  @doc """
+  Cancels the currently processing job and moves to the next job in the queue.
+
+  ## Returns
+    - :ok if a job was cancelled
+    - {:error, :no_current_job} if no job is currently processing
+  """
+  def cancel_current_job do
+    GenServer.call(__MODULE__, :cancel_current_job)
   end
 
   @doc """
@@ -66,7 +117,7 @@ defmodule Autotranscript.VideoProcessor do
   end
 
   @impl true
-  def handle_cast(:process_next, %{queue: [], processing: _processing, current_file: nil} = state) do
+  def handle_cast(:process_next, %{queue: [], processing: _processing, current_file: nil, current_task: nil} = state) do
     # No more files to process
     {:noreply, %{state | processing: false}}
   end
@@ -77,41 +128,42 @@ defmodule Autotranscript.VideoProcessor do
         %{
           queue: [{process_type, %{path: video_path} = job_info} = job_tuple | _rest],
           processing: _processing,
-          current_file: nil
+          current_file: nil,
+          current_task: nil
         } = state
       ) do
-    # Start processing the next file in the queue asynchronously
+    # Start processing the next file in the queue asynchronously using Task
     # Keep the file in the queue until processing is complete
-    spawn(fn ->
+    task = Task.async(fn ->
       case process_video_file(job_info, process_type) do
         :ok ->
           IO.puts("Successfully processed #{video_path} with type #{process_type}")
-          GenServer.cast(__MODULE__, {:processing_complete, job_tuple, :ok})
+          {:ok, job_tuple}
 
         {:error, reason} ->
           IO.puts("Error processing #{video_path}: #{inspect(reason)}")
-          GenServer.cast(__MODULE__, {:processing_complete, job_tuple, {:error, reason}})
+          {{:error, reason}, job_tuple}
       end
     end)
 
-    {:noreply, %{state | current_file: job_tuple}}
+    {:noreply, %{state | current_file: job_tuple, current_task: task}}
   end
 
   @impl true
   def handle_cast(
         {:processing_complete, job_tuple, _result},
-        %{queue: queue, processing: _processing, current_file: _current_file} = state
+        %{queue: queue, processing: _processing, current_file: _current_file, current_task: _current_task} = state
       ) do
     # Remove the completed job from the queue
     new_queue = Enum.reject(queue, fn tuple -> tuple == job_tuple end)
 
     if new_queue == [] do
       # No more files to process
-      {:noreply, %{state | queue: [], processing: false, current_file: nil}}
+      {:noreply, %{state | queue: [], processing: false, current_file: nil, current_task: nil}}
     else
       # Continue with next file
       GenServer.cast(__MODULE__, :process_next)
-      {:noreply, %{state | queue: new_queue, processing: true, current_file: nil}}
+      {:noreply, %{state | queue: new_queue, processing: true, current_file: nil, current_task: nil}}
     end
   end
 
@@ -122,6 +174,146 @@ defmodule Autotranscript.VideoProcessor do
         %{queue: queue, processing: processing, current_file: current_file} = state
       ) do
     {:reply, %{queue: queue, processing: processing, current_file: current_file}, state}
+  end
+
+  @impl true
+  def handle_call(
+        {:remove_from_queue, job_tuple},
+        _from,
+        %{queue: queue, processing: processing, current_file: current_file, current_task: current_task} = state
+      ) do
+    cond do
+      # Job is currently being processed
+      job_tuple == current_file ->
+        # Cancel the current task
+        if current_task do
+          Task.shutdown(current_task, :brutal_kill)
+        end
+
+        # Remove from queue and continue with next job
+        new_queue = Enum.reject(queue, fn tuple -> tuple == job_tuple end)
+
+        new_state = %{state | queue: new_queue, current_file: nil, current_task: nil}
+
+        if new_queue == [] do
+          # No more jobs to process
+          final_state = %{new_state | processing: false}
+          {:reply, :ok, final_state}
+        else
+          # Continue with next job
+          GenServer.cast(__MODULE__, :process_next)
+          {:reply, :ok, new_state}
+        end
+
+      # Job is in the queue but not currently processing
+      job_tuple in queue ->
+        new_queue = Enum.reject(queue, fn tuple -> tuple == job_tuple end)
+        new_state = %{state | queue: new_queue}
+
+        # If queue is now empty and nothing is processing, update processing state
+        final_state = if new_queue == [] and not processing do
+          %{new_state | processing: false}
+        else
+          new_state
+        end
+
+        {:reply, :ok, final_state}
+
+      # Job not found
+      true ->
+        {:reply, {:error, :not_found}, state}
+    end
+  end
+
+  @impl true
+  def handle_call(
+        {:reorder_queue, new_queue},
+        _from,
+        %{queue: _old_queue, processing: _processing, current_file: current_file, current_task: current_task} = state
+      ) do
+    # Check if current job is in the new queue
+    current_job_in_new_queue = current_file == nil or current_file in new_queue
+
+    if current_job_in_new_queue do
+      # Current job stays, just update the queue
+      {:reply, :ok, %{state | queue: new_queue}}
+    else
+      # Current job needs to be cancelled
+      if current_task do
+        Task.shutdown(current_task, :brutal_kill)
+      end
+
+      new_state = %{state | queue: new_queue, current_file: nil, current_task: nil}
+
+      if new_queue == [] do
+        # No jobs left
+        final_state = %{new_state | processing: false}
+        {:reply, :ok, final_state}
+      else
+        # Start next job
+        GenServer.cast(__MODULE__, :process_next)
+        {:reply, :ok, new_state}
+      end
+    end
+  end
+
+  @impl true
+  def handle_call(
+        :cancel_current_job,
+        _from,
+        %{queue: queue, processing: _processing, current_file: current_file, current_task: current_task} = state
+      ) do
+    if current_file == nil do
+      {:reply, {:error, :no_current_job}, state}
+    else
+      # Cancel the current task
+      if current_task do
+        Task.shutdown(current_task, :brutal_kill)
+      end
+
+      # Remove current job from queue
+      new_queue = Enum.reject(queue, fn tuple -> tuple == current_file end)
+      new_state = %{state | queue: new_queue, current_file: nil, current_task: nil}
+
+      if new_queue == [] do
+        # No more jobs
+        final_state = %{new_state | processing: false}
+        {:reply, :ok, final_state}
+      else
+        # Continue with next job
+        GenServer.cast(__MODULE__, :process_next)
+        {:reply, :ok, new_state}
+      end
+    end
+  end
+
+  # Handle task completion messages
+  @impl true
+  def handle_info(
+        {ref, result},
+        %{current_task: %Task{ref: task_ref}} = state
+      ) when ref == task_ref do
+    # Task completed successfully
+    case result do
+      {:ok, job_tuple} ->
+        GenServer.cast(__MODULE__, {:processing_complete, job_tuple, :ok})
+      {{:error, reason}, job_tuple} ->
+        GenServer.cast(__MODULE__, {:processing_complete, job_tuple, {:error, reason}})
+    end
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:DOWN, _ref, :process, _pid, _reason}, state) do
+    # Task was terminated, this is expected when we cancel tasks
+    {:noreply, state}
+  end
+
+  # Handle any other messages
+  @impl true
+  def handle_info(_msg, state) do
+    {:noreply, state}
   end
 
   @doc """
