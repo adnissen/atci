@@ -12,7 +12,7 @@ defmodule Autotranscript.WhisperCliManager do
       "whisper-cli" => "https://example.com/whisper-cli-windows.exe"
     },
     "macos-arm" => %{
-      "whisper-cli" => "https://example.com/whisper-cli-macos-arm"
+      "whisper-cli" => "https://autotranscript.s3.us-east-1.amazonaws.com/binaries/whisper-cli"
     },
     "macos-x86" => %{
       "whisper-cli" => "https://example.com/whisper-cli-macos-x86"
