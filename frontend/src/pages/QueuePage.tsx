@@ -96,7 +96,7 @@ export default function QueuePage() {
     }
   }
 
-  // Cancel current job
+  // Cancel current job from "Currently Processing" section
   const handleCancelCurrent = async () => {
     if (!queueStatus.current_processing) return
 
@@ -122,6 +122,33 @@ export default function QueuePage() {
     } catch (err) {
       console.error('Error cancelling job:', err)
       alert('Failed to cancel current job')
+    }
+  }
+
+  // Cancel processing job from queue table
+  const handleCancelProcessing = async (item: QueueItem) => {
+    if (!confirm(`Cancel processing of "${item.path.split('/').pop()}"?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/queue/cancel-current', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+
+      if (response.ok) {
+        // Refresh queue status
+        await fetchQueueStatus()
+      } else {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        alert(`Failed to cancel job: ${errorData.message}`)
+      }
+    } catch (err) {
+      console.error('Error cancelling job:', err)
+      alert('Failed to cancel processing job')
     }
   }
 
@@ -331,9 +358,15 @@ export default function QueuePage() {
                   </TableCell>
                   <TableCell>
                     {index === 0 ? (
-                      <div className="text-sm text-muted-foreground italic">
-                        Processing...
-                      </div>
+                      <button
+                        onClick={() => handleCancelProcessing(item)}
+                        className="p-1.5 border border-red-500 text-red-500 bg-transparent rounded hover:bg-red-50 hover:border-red-600 hover:text-red-600 dark:hover:bg-red-950/20 focus:outline-none focus:ring-1 focus:ring-red-500 transition-colors"
+                        title="Cancel processing"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     ) : (
                       <div className="flex items-center gap-1">
                         {/* Move up button */}
