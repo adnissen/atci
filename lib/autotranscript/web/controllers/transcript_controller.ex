@@ -257,10 +257,10 @@ defmodule Autotranscript.Web.TranscriptController do
     filtered_files =
       case params["watch_directories"] do
         nil ->
-          video_files
+          []
 
         "" ->
-          video_files
+          []
 
         watch_dirs_param ->
           # Parse watch directories from comma-separated string
@@ -292,10 +292,10 @@ defmodule Autotranscript.Web.TranscriptController do
     final_filtered_files =
       case params["sources"] do
         nil ->
-          filtered_files
+          []
 
         "" ->
-          filtered_files
+          []
 
         sources_param ->
           # Parse sources from comma-separated string
@@ -781,7 +781,6 @@ defmodule Autotranscript.Web.TranscriptController do
     case File.read(temp_clip_path) do
       {:ok, clip_data} ->
         Logger.info("Serving existing clip from #{temp_clip_path}")
-
         conn
         |> put_resp_content_type("video/mp4")
         |> send_resp(200, clip_data)

@@ -577,17 +577,9 @@ export default function HomePage() {
   const refreshFiles = async () => {
     try {
       const params = new URLSearchParams()
-      // Only apply watch directories filter if directories are selected and available
-      const shouldFilterWatchDirs = selectedWatchDirs.length > 0 && availableWatchDirs.length > 0 && selectedWatchDirs.length < availableWatchDirs.length
-      if (shouldFilterWatchDirs) {
-        params.append('watch_directories', selectedWatchDirs.join(','))
-      }
-      
-      // Only apply sources filter if sources are selected and available
-      const shouldFilterSources = selectedSources.length > 0 && availableSources.length > 0 && selectedSources.length < availableSources.length
-      if (shouldFilterSources) {
-        params.append('sources', selectedSources.join(','))
-      }
+      params.append('watch_directories', selectedWatchDirs.join(','))
+      params.append('sources', selectedSources.join(','))
+
       
       const queryString = params.toString()
       const url = queryString ? `/files?${queryString}` : '/files'
@@ -1168,9 +1160,9 @@ export default function HomePage() {
                 <DropdownMenuTrigger asChild>
                   <button className="inline-flex items-center justify-center whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
                     {selectedSources.length === availableSources.length 
-                      ? "All Sources" 
+                      ? "All Transcript Sources" 
                       : selectedSources.length === 0 
-                      ? "No Sources" 
+                      ? "No Transcript Sources" 
                       : `${selectedSources.length} Source${selectedSources.length === 1 ? '' : 's'}`}
                     <svg className="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
