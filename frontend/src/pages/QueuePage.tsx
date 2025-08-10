@@ -127,7 +127,7 @@ export default function QueuePage() {
 
   // Move item up in queue
   const handleMoveUp = async (index: number) => {
-    if (index === 0) return // Can't move first item up
+    if (index <= 1) return // Can't move first item (processing) or second item up above processing
 
     const newQueue = [...queueStatus.queue]
     const [movedItem] = newQueue.splice(index, 1)
@@ -138,7 +138,7 @@ export default function QueuePage() {
 
   // Move item down in queue
   const handleMoveDown = async (index: number) => {
-    if (index === queueStatus.queue.length - 1) return // Can't move last item down
+    if (index === 0 || index === queueStatus.queue.length - 1) return // Can't move processing item or last item down
 
     const newQueue = [...queueStatus.queue]
     const [movedItem] = newQueue.splice(index, 1)
@@ -149,18 +149,19 @@ export default function QueuePage() {
 
   // Send item to top of queue
   const handleSendToTop = async (index: number) => {
-    if (index === 0) return // Already at top
+    if (index <= 1) return // Can't move processing item or item already at position #2
 
     const newQueue = [...queueStatus.queue]
     const [movedItem] = newQueue.splice(index, 1)
-    newQueue.unshift(movedItem)
+    // Insert at position 1 (after the processing item at position 0)
+    newQueue.splice(1, 0, movedItem)
 
     await updateQueueOrder(newQueue)
   }
 
   // Send item to bottom of queue
   const handleSendToBottom = async (index: number) => {
-    if (index === queueStatus.queue.length - 1) return // Already at bottom
+    if (index === 0 || index === queueStatus.queue.length - 1) return // Can't move processing item or item already at bottom
 
     const newQueue = [...queueStatus.queue]
     const [movedItem] = newQueue.splice(index, 1)
@@ -306,7 +307,14 @@ export default function QueuePage() {
               {queueStatus.queue.map((item, index) => (
                 <TableRow key={`${item.path}-${item.process_type}-${index}`}>
                   <TableCell className="font-mono text-sm">
-                    #{index + 1}
+                    {index === 0 ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span className="text-orange-600 dark:text-orange-400">Processing</span>
+                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                      </span>
+                    ) : (
+                      `#${index + 1}`
+                    )}
                   </TableCell>
                   <TableCell className="font-medium">
                     <div className="max-w-xs truncate" title={item.path}>
@@ -322,76 +330,82 @@ export default function QueuePage() {
                     {item.time || '-'}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      {/* Move up button */}
-                      <button
-                        onClick={() => handleMoveUp(index)}
-                        disabled={index === 0}
-                        className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Move up"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        </svg>
-                      </button>
-                      
-                      {/* Move down button */}
-                      <button
-                        onClick={() => handleMoveDown(index)}
-                        disabled={index === queueStatus.queue.length - 1}
-                        className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                        title="Move down"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                      
-                      {/* Remove button */}
-                      <DropdownMenu modal={false}>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
-                            title="More actions"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                            </svg>
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => handleSendToTop(index)}
-                            disabled={index === 0}
-                            className="focus:text-primary"
-                          >
-                            <span>Send to top</span>
-                            <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                            </svg>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleSendToBottom(index)}
-                            disabled={index === queueStatus.queue.length - 1}
-                            className="focus:text-primary"
-                          >
-                            <span>Send to bottom</span>
-                            <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                            </svg>
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleRemoveItem(item)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <span>Remove from queue</span>
-                            <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
+                    {index === 0 ? (
+                      <div className="text-sm text-muted-foreground italic">
+                        Processing...
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        {/* Move up button */}
+                        <button
+                          onClick={() => handleMoveUp(index)}
+                          disabled={index === 1} // Disable for position #2 since it can't move above processing item
+                          className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Move up"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        </button>
+                        
+                        {/* Move down button */}
+                        <button
+                          onClick={() => handleMoveDown(index)}
+                          disabled={index === queueStatus.queue.length - 1}
+                          className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                          title="Move down"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        
+                        {/* More actions dropdown */}
+                        <DropdownMenu modal={false}>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
+                              title="More actions"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                              </svg>
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => handleSendToTop(index)}
+                              disabled={index === 1} // Can't send to top above processing item
+                              className="focus:text-primary"
+                            >
+                              <span>Send to top</span>
+                              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                              </svg>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleSendToBottom(index)}
+                              disabled={index === queueStatus.queue.length - 1}
+                              className="focus:text-primary"
+                            >
+                              <span>Send to bottom</span>
+                              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                              </svg>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleRemoveItem(item)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <span>Remove from queue</span>
+                              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
