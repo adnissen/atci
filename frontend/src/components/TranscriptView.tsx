@@ -14,6 +14,7 @@ interface TranscriptViewProps {
   expandAll?: ((filename: string) => void) | undefined;
   onEditSuccess?: () => void;
   isSmallScreen?: boolean;
+  onSetRightPaneUrl?: (url: string) => void;
 }
 
 // Extend Window interface for our custom handlers
@@ -46,7 +47,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   expandContext,
   expandAll = undefined,
   onEditSuccess,
-  isSmallScreen = false
+  isSmallScreen = false,
+  onSetRightPaneUrl
 }) => {
   if (!visible) {
     return null;
@@ -219,6 +221,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     onEditSuccess={onEditSuccess}
                     fullTranscript={text}
                     isSmallScreen={isSmallScreen}
+                    onSetRightPaneUrl={onSetRightPaneUrl}
                   />
                 ) : (
                   <div className="text-muted-foreground italic">

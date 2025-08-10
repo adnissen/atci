@@ -1360,6 +1360,7 @@ export default function HomePage() {
                         expandAll={expandAll}
                         onEditSuccess={() => { fetchTranscript(file.base_name) }}
                         isSmallScreen={true}
+                        onSetRightPaneUrl={handleSetRightPaneUrl}
                       />
                     )}
                   </div>
@@ -1606,6 +1607,7 @@ export default function HomePage() {
                     expandContext={expandContext}
                     expandAll={expandAll}
                     onEditSuccess={() => { fetchTranscript(file.base_name) }}
+                    onSetRightPaneUrl={handleSetRightPaneUrl}
                   />
                 </TableCell>
                 </TableRow>

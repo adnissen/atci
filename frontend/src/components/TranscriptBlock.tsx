@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, MoreHorizontal, Camera, Video, RotateCcw } from 'lucide-react';
+import { Edit2, Camera, Video, RotateCcw } from 'lucide-react';
 import DualEditDialog from './DualEditDialog';
 import { addTimestamp } from '../lib/utils';
 import {
@@ -20,6 +20,7 @@ interface TranscriptBlockProps {
   onEditSuccess?: () => void;
   fullTranscript?: string; // Full transcript text for editing
   isSmallScreen?: boolean;
+  onSetRightPaneUrl?: (url: string) => void;
 }
 
 const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
@@ -32,7 +33,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   lineNumbers,
   onEditSuccess,
   fullTranscript = '',
-  isSmallScreen = false
+  isSmallScreen = false,
+  onSetRightPaneUrl
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -48,6 +50,25 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   React.useEffect(() => {
     // No need to sync editedTimestamp anymore since we're using fullTranscript
   }, [startTime, endTime]);
+
+  // Handle clicks on timestamp links in processed content
+  React.useEffect(() => {
+    const handleTimestampClick = (event: Event) => {
+      const target = event.target as HTMLElement;
+      if (target.classList.contains('timestamp-link')) {
+        event.preventDefault();
+        const url = target.getAttribute('data-url');
+        if (url && onSetRightPaneUrl) {
+          onSetRightPaneUrl(url);
+        }
+      }
+    };
+
+    document.addEventListener('click', handleTimestampClick);
+    return () => {
+      document.removeEventListener('click', handleTimestampClick);
+    };
+  }, [onSetRightPaneUrl]);
 
   if (!visible || text === "WEBVTT") {
     return null;
@@ -65,14 +86,14 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
   };
 
-  // Process content to replace timestamps with clickable links
+  // Process content to replace timestamps with clickable spans
   const processContentWithTimestamps = (text: string): string => {
     // Regex to match timestamp format 00:00:00.000
     const timestampRegex = /(\d{2}:\d{2}:\d{2}\.\d{3})/g;
     
     return text.replace(timestampRegex, (match) => {
       const seconds = timestampToSeconds(match);
-      return `<a href="/player/${encodeURIComponent(name)}?time=${seconds}" class="text-sky-700 hover:text-sky-600 underline cursor-pointer timestamp-link" data-timestamp="${match}">${match}</a>`;
+      return `<span class="text-sky-700 hover:text-sky-600 underline cursor-pointer timestamp-link" data-timestamp="${match}" data-url="/player/${encodeURIComponent(name)}?time=${seconds}">${match}</span>`;
     });
   };
 
@@ -237,25 +258,23 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                     {timestampLineNumber}
                   </span>
                   <span className="min-w-0">
-                    <a 
-                      href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`}
+                    <span 
+                      onClick={() => onSetRightPaneUrl && onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`)}
                       className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
-                      target="_blank"
                       onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
                       onMouseLeave={() => setHoveredLineNumber(null)}
                     >
                       {startTime}
-                    </a>
+                    </span>
                     {' --> '}
-                    <a 
-                      href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`}
+                    <span 
+                      onClick={() => onSetRightPaneUrl && onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`)}
                       className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
-                      target="_blank"
                       onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
                       onMouseLeave={() => setHoveredLineNumber(null)}
                     >
                       {endTime}
-                    </a>
+                    </span>
                   </span>
                 </div>
               </div>
@@ -302,15 +321,12 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                           View Frame
                         </a>
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
-                        <a 
-                          href={`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`} 
-                          target="_blank"
-                          className="flex items-center gap-2 w-full"
-                        >
-                          <Video size={16} className="text-[#be185d]" />
-                          Play Clip
-                        </a>
+                      <DropdownMenuItem 
+                        onClick={() => onSetRightPaneUrl && onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`)}
+                        className="flex items-center gap-2"
+                      >
+                        <Video size={16} className="text-[#be185d]" />
+                        Play Clip
                       </DropdownMenuItem>
                       <DropdownMenuItem 
                         onClick={() => handleRegenerate(name, startTime)}
