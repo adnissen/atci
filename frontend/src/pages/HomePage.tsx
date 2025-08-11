@@ -253,7 +253,7 @@ export default function HomePage() {
       const topBarHeight = watchDirectory ? 64 : 0 // Approximate height of top bar
       const elementTop = fileRowRefs.current[outOfViewExpandedFile]?.offsetTop
       const scrollTop = elementTop ? elementTop - topBarHeight : 0
-      window.scrollTo({ top: scrollTop, behavior: 'smooth' })
+      window.scrollTo({ top: scrollTop })
     }
   }
 
@@ -1122,7 +1122,7 @@ export default function HomePage() {
       )}
 
       {/* Main content with top padding to account for fixed header */}
-      <div className={`${rightPaneUrl && !isSmallScreen ? 'flex h-screen' : isSmallScreen ? 'px-0 py-4' : 'max-w-7xl mx-auto px-2 sm:px-4 py-10'} ${watchDirectory ? 'pt-16' : ''}`}>
+      <div className={`${rightPaneUrl && !isSmallScreen ? 'flex h-screen' : isSmallScreen ? 'px-0 py-4' : 'max-w-7xl mx-auto px-2 sm:px-4 py-10'}`}>
         {/* Left Pane - File List and Filters */}
         <div className={`${rightPaneUrl && !isSmallScreen ? 'w-1/2 overflow-y-auto' : 'w-full'} ${!isSmallScreen && rightPaneUrl ? 'px-2 sm:px-4 py-10' : ''}`}>
           {/* Close button for right pane */}
@@ -1622,20 +1622,6 @@ export default function HomePage() {
         {/* Right Pane - Iframe */}
         {rightPaneUrl && !isSmallScreen && (
           <div className="w-1/2 border-l border-border flex flex-col">
-            {/* Header with download helper */}
-            <div className="bg-muted/30 border-b border-border p-2 flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Clip Player</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-amber-600">⚠️ Downloads may not work in this view</span>
-                <button
-                  onClick={() => window.open(rightPaneUrl, '_blank')}
-                  className="text-xs text-primary hover:text-primary/80 underline whitespace-nowrap"
-                  title="Open in new tab where downloads will work"
-                >
-                  Open in new tab
-                </button>
-              </div>
-            </div>
             <iframe
               src={rightPaneUrl}
               className="w-full flex-1"

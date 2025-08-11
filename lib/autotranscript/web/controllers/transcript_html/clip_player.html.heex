@@ -320,6 +320,13 @@
         }
         
         /* Responsive design */
+        @media (min-width: 769px) {
+            /* Hide filename title on desktop */
+            .title {
+                display: none;
+            }
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -385,7 +392,7 @@
         <div class="header">
             <h1 class="title"><%= @filename %></h1>
             <div class="clip-info">
-                Playing video clip from <%= @start_time_formatted %> to <%= @end_time_formatted %>
+                <%= @start_time_formatted %> to <%= @end_time_formatted %>
             </div>
         </div>
         
@@ -904,10 +911,14 @@
                 video.onloadeddata = function() {
                     hideLoading();
                     video.style.display = 'block';
+                    // Scroll to top when video loads
+                    window.scrollTo({ top: 0 });
                 };
                 video.onerror = function() {
                     hideLoading();
                     video.style.display = 'block'; // Still try to show it
+                    // Scroll to top even on error for consistent behavior
+                    window.scrollTo({ top: 0 });
                 };
                 video.load();
                 
@@ -922,7 +933,7 @@
                 downloadMp3Btn.download = generateFilename('mp3');
                 
                 // Update clip info
-                clipInfo.textContent = `Playing video clip from ${startTime} to ${endTime}`;
+                clipInfo.textContent = `${startTime} to ${endTime}`;
                 
                 // Update browser URL
                 const newUrl = window.location.pathname + '?' + urlParams.toString();
