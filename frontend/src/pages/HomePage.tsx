@@ -17,7 +17,8 @@ import {
 } from '../components/ui/dropdown-menu'
 import TranscriptView from '../components/TranscriptView'
 import DualEditDialog from '../components/DualEditDialog'
-import FileCard from '../components/FileCard'
+import RightPanePlaceholder from '../components/RightPanePlaceholder'
+import MobileTranscriptList from '../components/MobileTranscriptList'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLSState } from '../hooks/useLSState'
 import { useIsSmallScreen } from '../hooks/useMediaQuery'
@@ -94,10 +95,13 @@ export default function HomePage() {
   
   // Right pane URL state
   const [rightPaneUrl, setRightPaneUrl] = useState<string>('')
+  const [leftPaneWidth, setLeftPaneWidth] = useState<number>(0)
+  const [isLeftPaneWidthMeasured, setIsLeftPaneWidthMeasured] = useState<boolean>(false)
   const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const observerRef = useRef<IntersectionObserver | null>(null)
   const transcriptObserverRef = useRef<IntersectionObserver | null>(null)
+  const leftPaneRef = useRef<HTMLDivElement | null>(null)
 
   // Helper function to check if a file is currently being processed
   const isFileBeingProcessed = (filename: string): boolean => {
@@ -110,6 +114,9 @@ export default function HomePage() {
   const searchResults = Object.keys(searchLineNumbers).filter(filename => 
     searchLineNumbers[filename] && (searchLineNumbers[filename].length > 0)
   )
+
+  // Determine if we should use mobile view based on left pane width or screen size
+  const shouldUseMobileView = isSmallScreen || (isLeftPaneWidthMeasured && leftPaneWidth < 753)
 
   // Fetch configured watch directories from the API
   useEffect(() => {
@@ -461,7 +468,7 @@ export default function HomePage() {
   }
 
   // Function to format date from YYYY-MM-DD HH:MM:SS to MM-DD-YYYY x:xxpm
-  const formatDate = (dateString: string): string => {
+  const formatDate = (dateString: string, includeTime: boolean = true): string => {
     if (!dateString || dateString === 'N/A') return 'N/A'
     
     try {
@@ -471,6 +478,10 @@ export default function HomePage() {
       const month = (date.getMonth() + 1).toString().padStart(2, '0')
       const day = date.getDate().toString().padStart(2, '0')
       const year = date.getFullYear()
+      
+      if (!includeTime) {
+        return `${month}-${day}-${year}`
+      }
       
       let hours = date.getHours()
       const minutes = date.getMinutes().toString().padStart(2, '0')
@@ -562,6 +573,24 @@ export default function HomePage() {
       }
     }
   }, [setupIntersectionObserver])
+
+  // Set up ResizeObserver to track left pane width
+  useEffect(() => {
+    if (!leftPaneRef.current) return
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setLeftPaneWidth(entry.contentRect.width)
+        setIsLeftPaneWidthMeasured(true)
+      }
+    })
+
+    resizeObserver.observe(leftPaneRef.current)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
 
   // Fetch transcripts when files are expanded
   useEffect(() => {
@@ -964,6 +993,19 @@ export default function HomePage() {
     }
   }
 
+  // Helper function to handle file expansion
+  const handleExpandFile = (filename: string) => {
+    setExpandedFiles(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(filename)) {
+        newSet.delete(filename)
+      } else {
+        newSet.add(filename)
+      }
+      return newSet
+    })
+  }
+
   // Make the function available globally for testing
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -1050,7 +1092,7 @@ export default function HomePage() {
       {/* Watch Directory Bar - Fixed to top */}
       {watchDirectory && (
         <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-2 sm:px-4 py-2 z-10 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto">
+          <div className="w-full">
             <div className="flex gap-2 sm:gap-6 justify-between items-center">
               <div className="flex gap-2 sm:gap-6 items-center flex-1 min-w-0">
                 <div className="flex gap-2 items-center flex-shrink-0">
@@ -1073,48 +1115,51 @@ export default function HomePage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                     </svg>
                   </button>
+                  
+                  {/* Search Bar in Top Bar - Left justified with nav buttons */}
+                  <div className="flex gap-1 items-center">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search transcripts..."
+                        value={searchTerm}
+                        onChange={(e) => {
+                          const newValue = e.target.value
+                          setSearchTerm(newValue)
+                          // If user deletes all text, clear the filtering
+                          if (newValue.trim() === '') {
+                            setActiveSearchTerm('')
+                            setSearchLineNumbers({})
+                            setExpandedFiles(new Set())
+                          }
+                        }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                        className="px-2 py-1 pr-8 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-48 min-w-0"
+                      />
+                      {(searchTerm || activeSearchTerm) && (
+                        <button
+                          onClick={handleClearSearch}
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          title="Clear search"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleSearch}
+                      disabled={isSearching}
+                      className="px-2 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    >
+                      {isSearching ? 'Searching...' : 'Search'}
+                    </button>
+                  </div>
                 </div>
                 
-                {/* Search Bar in Top Bar */}
-                <div className="flex gap-2 items-center flex-1 min-w-0">
-                  <div className="relative flex-1 min-w-0">
-                    <input
-                      type="text"
-                      placeholder="Search transcripts..."
-                      value={searchTerm}
-                      onChange={(e) => {
-                        const newValue = e.target.value
-                        setSearchTerm(newValue)
-                        // If user deletes all text, clear the filtering
-                        if (newValue.trim() === '') {
-                          setActiveSearchTerm('')
-                          setSearchLineNumbers({})
-                          setExpandedFiles(new Set())
-                        }
-                      }}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                      className="px-2 py-1 pr-8 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-full sm:w-48 min-w-0"
-                    />
-                    {(searchTerm || activeSearchTerm) && (
-                      <button
-                        onClick={handleClearSearch}
-                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        title="Clear search"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleSearch}
-                    disabled={isSearching}
-                    className="px-2 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                  >
-                    {isSearching ? 'Searching...' : 'Search'}
-                  </button>
-                </div>
+                {/* Spacer to push right content to the right */}
+                <div className="flex-1"></div>
               </div>
               
               {/* Scroll and Collapse Links */}
@@ -1159,28 +1204,15 @@ export default function HomePage() {
       )}
 
       {/* Main content with top padding to account for fixed header */}
-      <div className={`${rightPaneUrl && !isSmallScreen ? 'flex h-screen' : isSmallScreen ? 'px-0 py-4' : 'max-w-7xl mx-auto px-2 sm:px-4 py-10'}`}>
+      <div className={`${!isSmallScreen ? 'flex h-screen' : 'px-0 py-4'}`}>
         {/* Left Pane - File List and Filters */}
-        <div className={`${rightPaneUrl && !isSmallScreen ? 'w-1/2 overflow-y-auto' : 'w-full'} ${!isSmallScreen && rightPaneUrl ? 'px-2 sm:px-4 py-10' : ''}`}>
-          {/* Close button for right pane */}
-          {rightPaneUrl && !isSmallScreen && (
-            <div className="mb-4 flex justify-end">
-              <button
-                onClick={() => setRightPaneUrl('')}
-                className="inline-flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-input bg-background hover:bg-accent rounded-md transition-colors"
-                title="Close right pane"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Close
-              </button>
-            </div>
-          )}
-          
+        <div 
+          ref={leftPaneRef}
+          className={`${!isSmallScreen ? `w-1/2 overflow-y-auto scrollbar-hide px-2 sm:px-4 ${watchDirectory ? 'pt-20 pb-4' : 'py-10'}` : 'w-full'} relative`}
+        >  
           {/* Filters */}
         {(availableWatchDirs.length > 1 || availableSources.length > 1) && (
-          <div className={`mb-6 flex items-center gap-4 ${isSmallScreen ? 'px-4' : ''}`}>
+          <div className={`mb-6 flex items-center gap-4 ${shouldUseMobileView ? 'px-4' : ''}`}>
             {/* Watch Directory Filter */}
             {availableWatchDirs.length > 1 && (
               <DropdownMenu modal={false}>
@@ -1290,7 +1322,7 @@ export default function HomePage() {
 
         {/* Bulk Regenerate Button */}
         {selectedSources.length === 1 && (
-          <div className={`mb-6 flex items-center justify-between ${isSmallScreen ? 'px-4' : ''}`}>
+          <div className={`mb-6 flex items-center justify-between ${shouldUseMobileView ? 'px-4' : ''}`}>
             <button
               onClick={handleBulkRegenerate}
               disabled={isBulkRegenerating}
@@ -1327,10 +1359,10 @@ export default function HomePage() {
         )}
 
         {/* File List - Full Width */}
-        <div className={isSmallScreen ? '' : ''}>
+        <div>
           {/* Search Results */}
           {searchResults.length > 0 && (
-            <div className={`mb-6 p-4 bg-accent/10 border border-accent/20 rounded-md ${isSmallScreen ? 'mx-4' : ''}`}>
+            <div className={`mb-6 p-4 bg-accent/10 border border-accent/20 rounded-md ${shouldUseMobileView ? 'mx-4' : ''}`}>
               <h3 className="text-sm font-medium text-accent-foreground mb-2">
                 Found in {searchResults.length} file(s)
               </h3>
@@ -1338,79 +1370,52 @@ export default function HomePage() {
           )}
           
           {activeSearchTerm && searchResults.length === 0 && !isSearching && (
-            <div className={`mb-6 p-4 bg-muted border border-border rounded-md ${isSmallScreen ? 'mx-4' : ''}`}>
+            <div className={`mb-6 p-4 bg-muted border border-border rounded-md ${shouldUseMobileView ? 'mx-4' : ''}`}>
               <p className="text-sm text-muted-foreground">No files found containing "{activeSearchTerm}"</p>
             </div>
           )}
 
-          {isSmallScreen ? (
-            // Mobile view - render cards
-            <div className="divide-y divide-border">
-              {sortedFiles.map((file) => {
-                if (activeSearchTerm !== '' && !searchResults.includes(file.base_name)) {
-                  return null;
-                }
-                
-                const transcriptInfo = transcriptData[file.base_name] || { text: '', loading: false, error: null }
-                const isExpanded = expandedFiles.has(file.base_name)
-                
-                return (
-                  <div key={file.base_name} className="w-full">
-                    <FileCard
-                      file={file}
-                      onExpand={() => {
-                        if (file.transcript) {
-                          setExpandedFiles(prev => {
-                            const newSet = new Set(prev)
-                            if (newSet.has(file.base_name)) {
-                              newSet.delete(file.base_name)
-                            } else {
-                              newSet.add(file.base_name)
-                            }
-                            return newSet
-                          })
-                        }
-                      }}
-                      isExpanded={isExpanded}
-                      isRegenerating={regeneratingFiles.has(file.base_name)}
-                      isReplacing={replacingFiles.has(file.base_name)}
-                      isProcessing={isFileBeingProcessed(file.base_name)}
-                      onRegenerate={(e) => handleRegenerate(file.base_name, e)}
-                      onReplace={(e) => handleReplace(file.base_name, e)}
-                      onRename={(e) => handleRename(file.base_name, e)}
-                      onRegenerateMeta={(e) => handleRegenerateMeta(file.base_name, e)}
-                      formatDate={formatDate}
-                      getModelChipColor={getModelChipColor}
-                      isSmallScreen={true}
-                    />
-                    {isExpanded && (
-                      <TranscriptView
-                        visible={true}
-                        name={file.base_name}
-                        className="w-full"
-                        searchTerm={activeSearchTerm}
-                        text={transcriptInfo.text}
-                        loading={transcriptInfo.loading}
-                        error={transcriptInfo.error}
-                        visibleLines={searchLineNumbers[file.base_name] || []}
-                        expandContext={expandContext}
-                        expandAll={expandAll}
-                        onEditSuccess={() => { fetchTranscript(file.base_name) }}
-                        isSmallScreen={true}
-                        onSetRightPaneUrl={handleSetRightPaneUrl}
-                      />
-                    )}
-                  </div>
-                )
-              })}
+          {!isSmallScreen && !isLeftPaneWidthMeasured ? (
+            // Loading state - don't render anything until width is measured on desktop
+            <div className="flex items-center justify-center py-20">
+              <div className="text-muted-foreground">Loading...</div>
             </div>
+          ) : shouldUseMobileView ? (
+            // Mobile/Narrow view - render cards
+            <MobileTranscriptList
+              sortedFiles={sortedFiles}
+              activeSearchTerm={activeSearchTerm}
+              searchResults={searchResults}
+              transcriptData={transcriptData}
+              expandedFiles={expandedFiles}
+              regeneratingFiles={regeneratingFiles}
+              replacingFiles={replacingFiles}
+              searchLineNumbers={searchLineNumbers}
+              onExpandFile={(filename) => {
+                const file = sortedFiles.find(f => f.base_name === filename)
+                if (file?.transcript) {
+                  handleExpandFile(filename)
+                }
+              }}
+              onRegenerate={handleRegenerate}
+              onReplace={handleReplace}
+              onRename={handleRename}
+              onRegenerateMeta={handleRegenerateMeta}
+              onFetchTranscript={fetchTranscript}
+              onSetRightPaneUrl={handleSetRightPaneUrl}
+              isFileBeingProcessed={isFileBeingProcessed}
+              formatDate={(dateString: string) => formatDate(dateString, leftPaneWidth >= 1129)}
+              getModelChipColor={getModelChipColor}
+              expandContext={expandContext}
+              expandAll={expandAll}
+            />
           ) : (
             // Desktop view - render table
             <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
                   <TableHead 
-                    className="text-center w-[16%] cursor-pointer hover:bg-accent transition-colors"
+                    className="text-center w-[34%] cursor-pointer hover:bg-accent transition-colors"
                     onClick={() => handleSort('name')}
                   >
                     <div className="flex items-center justify-center gap-1">
@@ -1435,7 +1440,7 @@ export default function HomePage() {
                   onClick={() => handleSort('last_generated')}
                 >
                   <div className="flex items-center justify-center gap-1">
-                    Last Generated
+                    Generated
                     {getSortIndicator('last_generated')}
                   </div>
                 </TableHead>
@@ -1458,7 +1463,7 @@ export default function HomePage() {
                   </div>
                 </TableHead>
                 <TableHead 
-                  className="text-center w-[16%] cursor-pointer hover:bg-accent transition-colors"
+                  className="text-center w-[8%] cursor-pointer hover:bg-accent transition-colors"
                   onClick={() => handleSort('model')}
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -1466,7 +1471,7 @@ export default function HomePage() {
                     {getSortIndicator('model')}
                   </div>
                 </TableHead>
-                <TableHead className="text-center w-[20%]">Actions</TableHead>
+                <TableHead className="text-center w-[10%]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1498,7 +1503,7 @@ export default function HomePage() {
                     })
                   }
                 }}>
-                  <TableCell className="font-medium w-[16%] max-w-0">
+                  <TableCell className="font-medium w-[34%] max-w-0">
                     <div 
                       className="leading-tight overflow-hidden"
                       style={{ 
@@ -1519,8 +1524,8 @@ export default function HomePage() {
                       {file.name.split('/').pop()?.split('\\').pop() || file.name}
                     </div>
                   </TableCell>
-                  <TableCell className="w-[14%] pr-10 text-foreground">{formatDate(file.created_at)}</TableCell>
-                  <TableCell className="w-[14%] pl-10 text-foreground">{formatDate(file.last_generated || '')}</TableCell>
+                  <TableCell className="w-[14%] pr-10 text-foreground">{formatDate(file.created_at, leftPaneWidth >= 1129)}</TableCell>
+                  <TableCell className="w-[14%] text-center text-foreground">{formatDate(file.last_generated || '', leftPaneWidth >= 1129)}</TableCell>
                   <TableCell className="w-[10%] text-foreground">{file.line_count || 0}</TableCell>
                   <TableCell className="w-[10%] text-foreground">
                     {file.length ? (
@@ -1544,16 +1549,31 @@ export default function HomePage() {
                       </button>
                     )}
                   </TableCell>
-                  <TableCell className="w-[16%] text-center">
+                  <TableCell className="w-[8%] text-center">
                     {file.model ? (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getModelChipColor(file.model)}`}>
-                        {file.model}
-                      </span>
+                      leftPaneWidth >= 1129 ? (
+                        <div className="flex justify-center">
+                          <span className={`inline-flex items-center rounded-full font-medium ${getModelChipColor(file.model)} ${
+                            file.model.length > 10 
+                              ? 'px-1.5 py-0.5 text-xs scale-75' 
+                              : 'px-2.5 py-0.5 text-xs'
+                          }`}>
+                            {file.model}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex justify-center">
+                          <div 
+                            className={`w-3 h-3 rounded-full ${getModelChipColor(file.model).split(' ').find(cls => cls.startsWith('dark:bg-')) || 'bg-gray-200'}`}
+                            title={file.model}
+                          />
+                        </div>
+                      )
                     ) : (
                       <span className="text-muted-foreground">-</span>
                     )}
                   </TableCell>
-                                    <TableCell className="w-[20%] text-center">
+                                    <TableCell className="w-[10%] text-center p-2">
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <button
@@ -1656,16 +1676,20 @@ export default function HomePage() {
         </div>
         </div>
         
-        {/* Right Pane - Iframe */}
-        {rightPaneUrl && !isSmallScreen && (
-          <div className="w-1/2 border-l border-border flex flex-col">
-            <iframe
-              src={rightPaneUrl}
-              className="w-full flex-1"
-              title="Right Pane Content"
-              frameBorder="0"
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-            />
+        {/* Right Pane - Always visible on desktop */}
+        {!isSmallScreen && (
+          <div className="w-1/2 border-l border-border flex flex-col scrollbar-hide">
+            {rightPaneUrl ? (
+              <iframe
+                src={rightPaneUrl}
+                className="w-full flex-1 scrollbar-hide"
+                title="Right Pane Content"
+                frameBorder="0"
+                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+              />
+            ) : (
+              <RightPanePlaceholder />
+            )}
           </div>
         )}
       </div>
