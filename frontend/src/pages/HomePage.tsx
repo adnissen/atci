@@ -1106,15 +1106,22 @@ export default function HomePage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11a2 2 0 100-4 2 2 0 000 4z" />
                     </svg>
                   </button>
-                  <button
-                    onClick={() => navigate('/queue')}
-                    className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
-                    title="View processing queue"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => navigate('/queue')}
+                      className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
+                      title="View processing queue"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      </svg>
+                    </button>
+                    {queue.length > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {queue.length}
+                      </div>
+                    )}
+                  </div>
                   
                   {/* Search Bar in Top Bar - Left justified with nav buttons */}
                   <div className="flex gap-1 items-center">
@@ -1188,15 +1195,7 @@ export default function HomePage() {
                     Processing: {currentProcessingFile.video_path.split('/').pop()} ({currentProcessingFile.process_type})
                   </div>
                 )}
-                <div className="relative group">
-                  <button
-                    onClick={() => navigate('/queue')}
-                    className="text-xs sm:text-sm text-primary font-medium hover:text-primary/80 underline transition-colors"
-                    title="View queue details"
-                  >
-                    Queue: {queue.length}
-                  </button>
-                </div>
+
               </div>
             </div>
           </div>
