@@ -778,7 +778,8 @@ defmodule Autotranscript.Web.TranscriptController do
       )
     end
 
-    case File.read(temp_clip_path) do
+    #case File.read(temp_clip_path) do
+    case {:error, :enoent} do
       {:ok, clip_data} ->
         Logger.info("Serving existing clip from #{temp_clip_path}")
         conn
@@ -803,7 +804,6 @@ defmodule Autotranscript.Web.TranscriptController do
               file_path ->
                 # Calculate duration
                 duration = end_time - start_time
-
                 # Generate a temporary filename for the clipped video, GIF, or MP3
                 format =
                   case format_param do
@@ -901,16 +901,20 @@ defmodule Autotranscript.Web.TranscriptController do
                             end
 
                           {[
-                             "-ss",
-                             "#{start_time}",
-                             "-t",
-                             "#{duration}",
-                             "-i",
-                             file_path,
-                             "-vf",
+                            "-ss",
+                            "#{start_time}",
+                            "-i",
+                            file_path,
+                            "-ss",
+                            "00:00:01",
+                            "-t",
+                            "#{duration}",
+                            "-vf",
                              "drawtext=textfile='#{temp_text_path}':fontcolor=white:fontsize=#{font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-th-10",
-                             "-c:v",
-                             "libx264"
+                            "-frames:v",
+                            "#{trunc(duration * 30)}", # copy to 30fps, ensure whole number
+                            "-c:v",
+                            "libx264",
                            ] ++
                              audio_codec_args ++
                              [
@@ -1026,14 +1030,18 @@ defmodule Autotranscript.Web.TranscriptController do
                     {_, _, "mp4"} ->
                       # MP4 video without text overlay - use stream copying for fast clipping
                       {[
-                         "-ss",
-                         "#{start_time}",
-                         "-t",
-                         "#{duration}",
-                         "-i",
-                         file_path,
-                         "-c:v",
-                         "libx264"
+                          "-ss",
+                          "#{start_time}",
+                          "-i",
+                          file_path,
+                          "-ss",
+                          "00:00:01",
+                          "-t",
+                          "#{duration}",
+                          "-frames:v",
+                          "#{trunc(duration * 30)}", # copy to 30fps, ensure whole number
+                          "-c:v",
+                          "libx264",
                        ] ++
                          audio_codec_args ++
                          [
