@@ -1505,12 +1505,11 @@ export default function HomePage() {
                 }}>
                   <TableCell className="font-medium w-[34%] max-w-0">
                     <div 
-                      className="leading-tight overflow-hidden"
+                      className="leading-tight overflow-hidden whitespace-nowrap text-ellipsis"
                       style={{ 
                         direction: 'rtl', 
                         textAlign: 'left',
-                        whiteSpace: 'nowrap',
-                        textOverflow: 'ellipsis',
+                        unicodeBidi: 'plaintext',
                         fontSize: (() => {
                           const filename = file.name.split('/').pop()?.split('\\').pop() || file.name;
                           const length = filename.length;
