@@ -90,6 +90,9 @@ export default function HomePage() {
   // State for tracking out-of-view expanded rows
   const [outOfViewExpandedFile, setOutOfViewExpandedFile] = useState<string | null>(null)
   const [flashingRow, setFlashingRow] = useState<string | null>(null)
+  
+  // Right pane URL state
+  const [rightPaneUrl, setRightPaneUrl] = useState<string>('')
   const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -638,6 +641,12 @@ export default function HomePage() {
     handleSearch();
   }, [searchTerm])
 
+  // useEffect for right pane URL changes
+  useEffect(() => {
+    // This effect will trigger when rightPaneUrl changes
+    // The layout change will be handled in the render section
+  }, [rightPaneUrl])
+
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
       setSearchLineNumbers({})
@@ -931,6 +940,23 @@ export default function HomePage() {
     setSelectedSources([])
   }
 
+  const handleSetRightPaneUrl = (url: string) => {
+    if (isSmallScreen) {
+      // On mobile, open URL in new browser window
+      window.open(url, '_blank')
+    } else {
+      // On desktop, set the state variable
+      setRightPaneUrl(url)
+    }
+  }
+
+  // Make the function available globally for testing
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      (window as any).handleSetRightPaneUrl = handleSetRightPaneUrl
+    }
+  }, [handleSetRightPaneUrl])
+
   const handleBulkRegenerate = async () => {
     // Get all files that are currently displayed
     const displayedFiles = sortedFiles.filter(file => {
@@ -1096,8 +1122,26 @@ export default function HomePage() {
       )}
 
       {/* Main content with top padding to account for fixed header */}
-      <div className={`${isSmallScreen ? 'px-0 py-4' : 'max-w-7xl mx-auto px-2 sm:px-4 py-10'} ${watchDirectory ? 'pt-16' : ''}`}>
-        {/* Filters */}
+      <div className={`${rightPaneUrl && !isSmallScreen ? 'flex h-screen' : isSmallScreen ? 'px-0 py-4' : 'max-w-7xl mx-auto px-2 sm:px-4 py-10'} ${watchDirectory ? 'pt-16' : ''}`}>
+        {/* Left Pane - File List and Filters */}
+        <div className={`${rightPaneUrl && !isSmallScreen ? 'w-1/2 overflow-y-auto' : 'w-full'} ${!isSmallScreen && rightPaneUrl ? 'px-2 sm:px-4 py-10' : ''}`}>
+          {/* Close button for right pane */}
+          {rightPaneUrl && !isSmallScreen && (
+            <div className="mb-4 flex justify-end">
+              <button
+                onClick={() => setRightPaneUrl('')}
+                className="inline-flex items-center px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground border border-input bg-background hover:bg-accent rounded-md transition-colors"
+                title="Close right pane"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Close
+              </button>
+            </div>
+          )}
+          
+          {/* Filters */}
         {(availableWatchDirs.length > 1 || availableSources.length > 1) && (
           <div className={`mb-6 flex items-center gap-4 ${isSmallScreen ? 'px-4' : ''}`}>
             {/* Watch Directory Filter */}
@@ -1316,6 +1360,7 @@ export default function HomePage() {
                         expandAll={expandAll}
                         onEditSuccess={() => { fetchTranscript(file.base_name) }}
                         isSmallScreen={true}
+                        onSetRightPaneUrl={handleSetRightPaneUrl}
                       />
                     )}
                   </div>
@@ -1562,6 +1607,7 @@ export default function HomePage() {
                     expandContext={expandContext}
                     expandAll={expandAll}
                     onEditSuccess={() => { fetchTranscript(file.base_name) }}
+                    onSetRightPaneUrl={handleSetRightPaneUrl}
                   />
                 </TableCell>
                 </TableRow>
@@ -1571,6 +1617,34 @@ export default function HomePage() {
           </Table>
           )}
         </div>
+        </div>
+        
+        {/* Right Pane - Iframe */}
+        {rightPaneUrl && !isSmallScreen && (
+          <div className="w-1/2 border-l border-border flex flex-col">
+            {/* Header with download helper */}
+            <div className="bg-muted/30 border-b border-border p-2 flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Clip Player</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-amber-600">⚠️ Downloads may not work in this view</span>
+                <button
+                  onClick={() => window.open(rightPaneUrl, '_blank')}
+                  className="text-xs text-primary hover:text-primary/80 underline whitespace-nowrap"
+                  title="Open in new tab where downloads will work"
+                >
+                  Open in new tab
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={rightPaneUrl}
+              className="w-full flex-1"
+              title="Right Pane Content"
+              frameBorder="0"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+            />
+          </div>
+        )}
       </div>
 
       {/* Replace Transcript Dialog */}
