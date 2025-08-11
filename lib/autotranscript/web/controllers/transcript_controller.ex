@@ -803,7 +803,8 @@ defmodule Autotranscript.Web.TranscriptController do
 
               file_path ->
                 # Calculate duration
-                duration = end_time - start_time
+                # Add a couple of tenths to ensure we don't cut off early
+                duration = end_time - start_time + 0.1
                 # Generate a temporary filename for the clipped video, GIF, or MP3
                 format =
                   case format_param do
@@ -906,7 +907,7 @@ defmodule Autotranscript.Web.TranscriptController do
                             "-i",
                             file_path,
                             "-ss",
-                            "00:00:01",
+                            "00:00:00.001",
                             "-t",
                             "#{duration}",
                             "-vf",
@@ -1035,7 +1036,7 @@ defmodule Autotranscript.Web.TranscriptController do
                           "-i",
                           file_path,
                           "-ss",
-                          "00:00:01",
+                          "00:00:00.001",
                           "-t",
                           "#{duration}",
                           "-frames:v",
