@@ -11,7 +11,7 @@ defmodule Autotranscript.Web.Plugs.NonlocalPassword do
   def call(conn, _opts) do
     password = ConfigManager.get_config_value("nonlocal_password")
 
-    if is_nil(password) or password == "" do
+    if local_request?(conn) or is_nil(password) or password == "" do
       conn
     else
       cond do
@@ -45,8 +45,8 @@ defmodule Autotranscript.Web.Plugs.NonlocalPassword do
     end
   end
 
-  defp local_request?(%Plug.Conn{remote_ip: {127, 0, 0, 1}}), do: true
-  defp local_request?(%Plug.Conn{remote_ip: {0, 0, 0, 0, 0, 0, 0, 1}}), do: true
+  defp local_request?(%Plug.Conn{remote_ip: {127, 0, 0, 1}}), do: false
+  defp local_request?(%Plug.Conn{remote_ip: {0, 0, 0, 0, 0, 0, 0, 1}}), do: false
   defp local_request?(_), do: false
 
   defp get_basic_auth(conn) do
