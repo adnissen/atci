@@ -53,6 +53,7 @@ export default function HomePage() {
   const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeSearchTerm, setActiveSearchTerm] = useState('')
   const [searchLineNumbers, setSearchLineNumbers] = useState<Record<string, number[]>>({})
   const [isSearching, setIsSearching] = useState(false)
   const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
@@ -637,9 +638,7 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [availableWatchDirs, availableSources, selectedWatchDirs, selectedSources])
 
-  useEffect(() => {
-    handleSearch();
-  }, [searchTerm])
+
 
   // useEffect for right pane URL changes
   useEffect(() => {
@@ -650,6 +649,7 @@ export default function HomePage() {
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
       setSearchLineNumbers({})
+      setActiveSearchTerm('')
       return
     }
 
@@ -660,12 +660,19 @@ export default function HomePage() {
       if (response.ok) {
         const data = await response.json()
         setSearchLineNumbers(data || {})
+        setActiveSearchTerm(searchTerm)
       }
     } catch (error) {
       console.error('Error searching:', error)
     } finally {
       setIsSearching(false)
     }
+  }
+
+  const handleClearSearch = () => {
+    setSearchTerm('')
+    setActiveSearchTerm('')
+    setSearchLineNumbers({})
   }
 
   const handleRegenerate = async (filename: string, e: React.MouseEvent) => {
@@ -960,8 +967,8 @@ export default function HomePage() {
   const handleBulkRegenerate = async () => {
     // Get all files that are currently displayed
     const displayedFiles = sortedFiles.filter(file => {
-      // Filter out files that don't match search if there's a search term
-      if (searchTerm && !searchResults.includes(file.base_name)) {
+      // Filter out files that don't match search if there's an active search
+      if (activeSearchTerm && !searchResults.includes(file.base_name)) {
         return false
       }
       // Only include files that have transcripts
@@ -1063,13 +1070,27 @@ export default function HomePage() {
                 
                 {/* Search Bar in Top Bar */}
                 <div className="flex gap-2 items-center flex-1 min-w-0">
-                  <input
-                    type="text"
-                    placeholder="Search transcripts..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="px-2 py-1 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-full sm:w-48 min-w-0"
-                  />
+                  <div className="relative flex-1 min-w-0">
+                    <input
+                      type="text"
+                      placeholder="Search transcripts..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                      className="px-2 py-1 pr-8 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-full sm:w-48 min-w-0"
+                    />
+                    {(searchTerm || activeSearchTerm) && (
+                      <button
+                        onClick={handleClearSearch}
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        title="Clear search"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                   <button
                     onClick={handleSearch}
                     disabled={isSearching}
@@ -1278,7 +1299,7 @@ export default function HomePage() {
             <span className="text-sm text-muted-foreground">
               {(() => {
                 const displayedFiles = sortedFiles.filter(file => {
-                  if (searchTerm && !searchResults.includes(file.base_name)) {
+                  if (activeSearchTerm && !searchResults.includes(file.base_name)) {
                     return false
                   }
                   return file.transcript
@@ -1300,9 +1321,9 @@ export default function HomePage() {
             </div>
           )}
           
-          {searchTerm && searchResults.length === 0 && !isSearching && (
+          {activeSearchTerm && searchResults.length === 0 && !isSearching && (
             <div className={`mb-6 p-4 bg-muted border border-border rounded-md ${isSmallScreen ? 'mx-4' : ''}`}>
-              <p className="text-sm text-muted-foreground">No files found containing "{searchTerm}"</p>
+              <p className="text-sm text-muted-foreground">No files found containing "{activeSearchTerm}"</p>
             </div>
           )}
 
@@ -1310,7 +1331,7 @@ export default function HomePage() {
             // Mobile view - render cards
             <div className="divide-y divide-border">
               {sortedFiles.map((file) => {
-                if (searchTerm !== '' && !searchResults.includes(file.base_name)) {
+                if (activeSearchTerm !== '' && !searchResults.includes(file.base_name)) {
                   return null;
                 }
                 
@@ -1351,7 +1372,7 @@ export default function HomePage() {
                         visible={true}
                         name={file.base_name}
                         className="w-full"
-                        searchTerm={searchTerm}
+                        searchTerm={activeSearchTerm}
                         text={transcriptInfo.text}
                         loading={transcriptInfo.loading}
                         error={transcriptInfo.error}
@@ -1380,7 +1401,7 @@ export default function HomePage() {
                       Filename
                       {getSortIndicator('name')}
                     </div>
-                    {searchTerm && searchResults.length > 0 && (
+                    {activeSearchTerm && searchResults.length > 0 && (
                                               <span className="text-xs text-primary ml-2">(Search Results)</span>
                     )}
                   </TableHead>
@@ -1434,7 +1455,7 @@ export default function HomePage() {
             </TableHeader>
             <TableBody>
               {sortedFiles.map((file) => {
-                if (searchTerm != '' && !searchResults.includes(file.base_name)) {
+                if (activeSearchTerm != '' && !searchResults.includes(file.base_name)) {
                   return <></>;
                 }
                 
@@ -1599,7 +1620,7 @@ export default function HomePage() {
                     visible={expandedFiles.has(file.base_name)}
                     name={file.base_name}
                     className="w-full"
-                    searchTerm={searchTerm}
+                    searchTerm={activeSearchTerm}
                     text={transcriptInfo.text}
                     loading={transcriptInfo.loading}
                     error={transcriptInfo.error}
