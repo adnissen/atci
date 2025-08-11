@@ -14,7 +14,7 @@
             margin: 0;
             padding: 0;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #0f0f0f 100%);
+            background-color: rgb(11, 11, 11);
             color: #e5e5e5;
             min-height: 100vh;
             line-height: 1.6;
@@ -31,14 +31,11 @@
             text-align: center;
         }
         
-        .title {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        .filename-info {
+            font-size: 0.875rem;
+            color: #71717a;
+            font-weight: 400;
+            margin-top: 0.5rem;
         }
         
         .clip-info {
@@ -320,20 +317,10 @@
         }
         
         /* Responsive design */
-        @media (min-width: 769px) {
-            /* Hide filename title on desktop */
-            .title {
-                display: none;
-            }
-        }
         
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
-            }
-            
-            .title {
-                font-size: 2rem;
             }
             
             .form-container {
@@ -390,9 +377,11 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1 class="title"><%= @filename %></h1>
             <div class="clip-info">
                 <%= @start_time_formatted %> to <%= @end_time_formatted %>
+            </div>
+            <div class="filename-info">
+                <%= @filename %>
             </div>
         </div>
         
