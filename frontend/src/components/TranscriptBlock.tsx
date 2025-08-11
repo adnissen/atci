@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, Camera, Video, RotateCcw } from 'lucide-react';
+import { Edit2, Camera, Video } from 'lucide-react';
 import DualEditDialog from './DualEditDialog';
 import { addTimestamp } from '../lib/utils';
 import {
@@ -100,37 +100,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   // Process the text content (only timestamps, no icons)
   const processedText = processContentWithTimestamps(text);
 
-  // Handle regenerate action
-  const handleRegenerate = async (filename: string, time: string) => {
-    if (!time) return;
-    
-    const confirmed = window.confirm(`Are you sure you want to regenerate the transcript from ${time}? This will reprocess the video from this timestamp onwards.`);
-    if (!confirmed) return;
 
-    try {
-      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
-
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}/partial_reprocess`), {
-        method: 'POST',
-        headers: {
-          'X-CSRF-Token': csrfToken || '',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ time }),
-      });
-
-      if (response.ok) {
-        // Reload the page to show updated transcript
-        window.location.reload();
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.error || 'Failed to regenerate transcript'}`);
-      }
-    } catch (error) {
-      console.error('Error calling partial reprocess:', error);
-      alert('Error: Failed to regenerate transcript. Please try again.');
-    }
-  };
 
   // Handle edit action
   const handleEdit = () => {
@@ -327,13 +297,6 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                       >
                         <Video size={16} className="text-[#be185d]" />
                         Play Clip
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
-                        onClick={() => handleRegenerate(name, startTime)}
-                        className="flex items-center gap-2"
-                      >
-                        <RotateCcw size={16} className="text-[#059669]" />
-                        Regenerate from {startTime}
                       </DropdownMenuItem>
                       <DropdownMenuItem 
                         onClick={() => handleEditTimestamp()}
