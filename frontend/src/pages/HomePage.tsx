@@ -1082,7 +1082,16 @@ export default function HomePage() {
                       type="text"
                       placeholder="Search transcripts..."
                       value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setSearchTerm(newValue)
+                        // If user deletes all text, clear the filtering
+                        if (newValue.trim() === '') {
+                          setActiveSearchTerm('')
+                          setSearchLineNumbers({})
+                          setExpandedFiles(new Set())
+                        }
+                      }}
                       onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                       className="px-2 py-1 pr-8 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-full sm:w-48 min-w-0"
                     />
