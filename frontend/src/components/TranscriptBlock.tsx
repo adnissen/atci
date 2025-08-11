@@ -33,7 +33,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   lineNumbers,
   onEditSuccess,
   fullTranscript = '',
-  isSmallScreen = false,
+  isSmallScreen: _isSmallScreen = false,
   onSetRightPaneUrl
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);

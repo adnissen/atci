@@ -154,26 +154,34 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
       const block = transcriptBlocks[i];
       
       if (block.visible) {
-        // If we have accumulated hidden blocks, add a message
+        // If we have accumulated hidden blocks, add a "lines above" message
         if (hiddenCount > 0) {
           result.push({ type: 'message', data: { count: hiddenCount, line: block.lineNumbers[block.lineNumbers.length - 1], direction: "up" } });
           hiddenCount = 0;
         }
         // Add the visible block
         result.push({ type: 'block', data: block });
+        
+        // Look ahead to see if there are hidden blocks after this visible block
+        let lookAheadHiddenCount = 0;
+        
+        for (let j = i + 1; j < transcriptBlocks.length; j++) {
+          const lookAheadBlock = transcriptBlocks[j];
+          if (lookAheadBlock.visible) {
+            break;
+          } else {
+            lookAheadHiddenCount += lookAheadBlock.lineNumbers.length;
+          }
+        }
+        
+        // If there are hidden blocks before the next visible block, add a "lines below" message
+        if (lookAheadHiddenCount > 0) {
+          result.push({ type: 'message', data: { count: lookAheadHiddenCount, line: block.lineNumbers[block.lineNumbers.length - 1], direction: "down" } });
+        }
       } else {
         // Count hidden blocks
         hiddenCount += block.lineNumbers.length;
       }
-    }
-
-    // If there are hidden blocks at the end, add a final message
-    if (hiddenCount > 0) {
-      // For "down" expansion, use a line number that's guaranteed to be in the current visible lines
-      // Use the last line number from the sorted visible lines array
-      const sortedVisibleLines = [...visibleLines].sort((a, b) => b - a); // Sort descending
-      const downExpansionLine = sortedVisibleLines.length > 0 ? sortedVisibleLines[0] : transcriptBlocks[transcriptBlocks.length - 1].lineNumbers[0];
-      result.push({ type: 'message', data: { count: hiddenCount, line: downExpansionLine, direction: "down" } });
     }
 
     return result;
