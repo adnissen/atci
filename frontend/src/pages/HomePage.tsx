@@ -1621,13 +1621,27 @@ export default function HomePage() {
         
         {/* Right Pane - Iframe */}
         {rightPaneUrl && !isSmallScreen && (
-          <div className="w-1/2 border-l border-border">
+          <div className="w-1/2 border-l border-border flex flex-col">
+            {/* Header with download helper */}
+            <div className="bg-muted/30 border-b border-border p-2 flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Clip Player</span>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-amber-600">⚠️ Downloads may not work in this view</span>
+                <button
+                  onClick={() => window.open(rightPaneUrl, '_blank')}
+                  className="text-xs text-primary hover:text-primary/80 underline whitespace-nowrap"
+                  title="Open in new tab where downloads will work"
+                >
+                  Open in new tab
+                </button>
+              </div>
+            </div>
             <iframe
               src={rightPaneUrl}
-              className="w-full h-full"
+              className="w-full flex-1"
               title="Right Pane Content"
               frameBorder="0"
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
             />
           </div>
         )}
