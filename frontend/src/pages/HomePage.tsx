@@ -661,6 +661,12 @@ export default function HomePage() {
         const data = await response.json()
         setSearchLineNumbers(data || {})
         setActiveSearchTerm(searchTerm)
+        
+        // Expand all files that have search results
+        const filesWithResults = Object.keys(data || {}).filter(filename => 
+          data[filename] && data[filename].length > 0
+        )
+        setExpandedFiles(new Set(filesWithResults))
       }
     } catch (error) {
       console.error('Error searching:', error)
@@ -673,6 +679,7 @@ export default function HomePage() {
     setSearchTerm('')
     setActiveSearchTerm('')
     setSearchLineNumbers({})
+    setExpandedFiles(new Set()) // Collapse all expanded files
   }
 
   const handleRegenerate = async (filename: string, e: React.MouseEvent) => {
