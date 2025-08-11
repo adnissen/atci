@@ -150,7 +150,7 @@ export default function FileCard({
             </div>
             <div className="min-w-0">
               <span className="text-muted-foreground">Length:</span>
-              <div className="font-medium flex items-center gap-1">
+              <div className="font-medium flex items-center justify-center gap-1">
                 {file.length ? (
                   file.length
                 ) : (
@@ -304,7 +304,7 @@ export default function FileCard({
           </div>
           <div className="min-w-0">
             <span className="text-muted-foreground">Length:</span>
-            <div className="font-medium flex items-center gap-1">
+            <div className="font-medium flex items-center justify-center gap-1">
               {file.length ? (
                 file.length
               ) : (
