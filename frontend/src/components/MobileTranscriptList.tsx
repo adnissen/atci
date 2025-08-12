@@ -40,10 +40,11 @@ interface MobileTranscriptListProps {
   getModelChipColor: (model: string | undefined) => string
   clipStart: number | null
   clipEnd: number | null
-  onSetClipStart: (time: number) => void
-  onSetClipEnd: (time: number) => void
+  clipTranscript: string | null
+  onSetClipStart: (time: number, transcript: string) => void
+  onSetClipEnd: (time: number, transcript: string) => void
   onClearClip: () => void
-  onPlayClip: (filename: string) => void
+  onPlayClip: () => void
   expandContext: (filename: string, direction: "up" | "down", line: number) => void
   expandAll: (filename: string) => void
 }
@@ -71,6 +72,7 @@ export default function MobileTranscriptList({
   expandAll,
   clipStart,
   clipEnd,
+  clipTranscript,
   onSetClipStart,
   onSetClipEnd,
   onClearClip,
@@ -120,10 +122,11 @@ export default function MobileTranscriptList({
                 onSetRightPaneUrl={onSetRightPaneUrl}
                 clipStart={clipStart}
                 clipEnd={clipEnd}
-                onSetClipStart={onSetClipStart}
-                onSetClipEnd={onSetClipEnd}
+                clipTranscript={clipTranscript}
+                onSetClipStart={(time) => onSetClipStart(time, file.base_name)}
+                onSetClipEnd={(time) => onSetClipEnd(time, file.base_name)}
                 onClearClip={onClearClip}
-                onPlayClip={() => onPlayClip(file.base_name)}
+                onPlayClip={onPlayClip}
               />
             )}
           </div>

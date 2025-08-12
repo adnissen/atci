@@ -101,6 +101,7 @@ export default function HomePage() {
   // Clip state variables
   const [clipStart, setClipStart] = useState<number | null>(null)
   const [clipEnd, setClipEnd] = useState<number | null>(null)
+  const [clipTranscript, setClipTranscript] = useState<string | null>(null)
   const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -998,23 +999,42 @@ export default function HomePage() {
   }
 
   // Clip management methods
-  const handleSetClipStart = (time: number) => {
-    setClipStart(time)
+  const handleSetClipStart = (time: number, transcript: string) => {
+    if (clipTranscript && clipTranscript !== transcript) {
+      // Different transcript - clear existing clip and set new start
+      setClipStart(time)
+      setClipEnd(null)
+      setClipTranscript(transcript)
+    } else {
+      // Same transcript or no existing clip
+      setClipStart(time)
+      setClipTranscript(transcript)
+    }
   }
 
-  const handleSetClipEnd = (time: number) => {
-    setClipEnd(time)
+  const handleSetClipEnd = (time: number, transcript: string) => {
+    if (clipTranscript && clipTranscript !== transcript) {
+      // Different transcript - clear existing clip and set new end
+      setClipStart(null)
+      setClipEnd(time)
+      setClipTranscript(transcript)
+    } else {
+      // Same transcript or no existing clip
+      setClipEnd(time)
+      setClipTranscript(transcript)
+    }
   }
 
   const handleClearClip = () => {
     setClipStart(null)
     setClipEnd(null)
+    setClipTranscript(null)
   }
 
   // Handle play clip functionality when both clip times are set
-  const handlePlayClip = (filename: string) => {
-    if (clipStart !== null && clipEnd !== null) {
-      const url = `/clip_player/${encodeURIComponent(filename)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+  const handlePlayClip = () => {
+    if (clipStart !== null && clipEnd !== null && clipTranscript) {
+      const url = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
       handleSetRightPaneUrl(url)
     }
   }
@@ -1435,6 +1455,7 @@ export default function HomePage() {
               expandAll={expandAll}
               clipStart={clipStart}
               clipEnd={clipEnd}
+              clipTranscript={clipTranscript}
               onSetClipStart={handleSetClipStart}
               onSetClipEnd={handleSetClipEnd}
               onClearClip={handleClearClip}
@@ -1697,10 +1718,11 @@ export default function HomePage() {
                     onSetRightPaneUrl={handleSetRightPaneUrl}
                     clipStart={clipStart}
                     clipEnd={clipEnd}
-                    onSetClipStart={handleSetClipStart}
-                    onSetClipEnd={handleSetClipEnd}
+                    clipTranscript={clipTranscript}
+                    onSetClipStart={(time) => handleSetClipStart(time, file.base_name)}
+                    onSetClipEnd={(time) => handleSetClipEnd(time, file.base_name)}
                     onClearClip={handleClearClip}
-                    onPlayClip={() => handlePlayClip(file.base_name)}
+                    onPlayClip={handlePlayClip}
                   />
                 </TableCell>
                 </TableRow>
