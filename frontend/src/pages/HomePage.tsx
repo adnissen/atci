@@ -64,6 +64,9 @@ export default function HomePage() {
   const [showConfigInRightPane, setShowConfigInRightPane] = useState<boolean>(false)
   const [showQueueInRightPane, setShowQueueInRightPane] = useState<boolean>(true)
 
+  // Mobile clip player state
+  const [mobileClipPlayerComponent, setMobileClipPlayerComponent] = useState<React.ReactNode | null>(null)
+
   // Clip state variables
   const [clipStart, setClipStart] = useState<number | null>(null)
   const [clipEnd, setClipEnd] = useState<number | null>(null)
@@ -327,10 +330,15 @@ export default function HomePage() {
 
 
 
-  const handleSetRightPaneComponent = useCallback((component: React.ReactNode | null, fallbackUrl?: string) => {
-    if (isSmallScreen && fallbackUrl) {
-      // On mobile, open URL in new browser window if fallback URL is provided
-      window.open(fallbackUrl, '_blank')
+  const handleSetRightPaneComponent = useCallback((component: React.ReactNode | null, _fallbackUrl?: string) => {
+    if (isSmallScreen) {
+      if (component) {
+        // On mobile, show component inline instead of opening new window
+        setMobileClipPlayerComponent(component)
+      } else {
+        // Clear mobile clip player
+        setMobileClipPlayerComponent(null)
+      }
     } else {
       // On desktop, set the component directly
       setRightPaneComponent(component)
@@ -380,8 +388,14 @@ export default function HomePage() {
             text=""
             display_text={false}
             onBack={() => {
-              setRightPaneComponent(null)
-              handleClearClip()
+              if (isSmallScreen) {
+                // On mobile, just hide the clip player but keep clip times
+                setMobileClipPlayerComponent(null)
+              } else {
+                // On desktop, clear everything as before
+                setRightPaneComponent(null)
+                handleClearClip()
+              }
             }}
           />
         </div>
@@ -407,8 +421,14 @@ export default function HomePage() {
             text=""
             display_text={false}
             onBack={() => {
-              setRightPaneComponent(null)
-              handleClearClip()
+              if (isSmallScreen) {
+                // On mobile, just hide the clip player but keep clip times
+                setMobileClipPlayerComponent(null)
+              } else {
+                // On desktop, clear everything as before
+                setRightPaneComponent(null)
+                handleClearClip()
+              }
             }}
           />
         </div>
@@ -448,8 +468,9 @@ export default function HomePage() {
     setClipStart(null)
     setClipEnd(null)
     setClipTranscript(null)
-    // Clear right pane to show placeholder
+    // Clear panes to show placeholder
     setRightPaneComponent(null)
+    setMobileClipPlayerComponent(null)
     setShowConfigInRightPane(false)
     setShowQueueInRightPane(false)
   }
@@ -475,8 +496,14 @@ export default function HomePage() {
             text=""
             display_text={false}
             onBack={() => {
-              setRightPaneComponent(null)
-              handleClearClip()
+              if (isSmallScreen) {
+                // On mobile, just hide the clip player but keep clip times
+                setMobileClipPlayerComponent(null)
+              } else {
+                // On desktop, clear everything as before
+                setRightPaneComponent(null)
+                handleClearClip()
+              }
             }}
           />
         </div>
@@ -485,9 +512,13 @@ export default function HomePage() {
       handleSetRightPaneComponent(clipPlayerComponent, fallbackUrl)
     } else if (clipStart !== null || clipEnd !== null) {
       // If we have partial clip data, clear the right pane to show placeholder
-      setRightPaneComponent(null)
+      if (isSmallScreen) {
+        setMobileClipPlayerComponent(null)
+      } else {
+        setRightPaneComponent(null)
+      }
     }
-  }, [clipStart, clipEnd, clipTranscript, handleSetRightPaneComponent])
+  }, [clipStart, clipEnd, clipTranscript, handleSetRightPaneComponent, isSmallScreen])
 
   // Make the function available globally for testing
   useEffect(() => {
@@ -520,49 +551,57 @@ export default function HomePage() {
 
       {/* Main content with top padding to account for fixed header */}
       <div className={`${!isSmallScreen ? 'flex h-screen' : 'px-0 py-4'}`}>
-        {/* Left Pane - TranscriptList */}
-        <TranscriptList
-          watchDirectory={watchDirectory}
-          isSmallScreen={isSmallScreen}
-          files={files}
-          setFiles={setFiles}
-          activeSearchTerm={activeSearchTerm}
-          searchLineNumbers={searchLineNumbers}
-          setSearchLineNumbers={setSearchLineNumbers}
-          expandedFiles={expandedFiles}
-          setExpandedFiles={setExpandedFiles}
-          regeneratingFiles={regeneratingFiles}
-          setRegeneratingFiles={setRegeneratingFiles}
-          replacingFiles={replacingFiles}
-          setReplacingFiles={setReplacingFiles}
-          transcriptData={transcriptData}
-          setTranscriptData={setTranscriptData}
-          currentProcessingFile={currentProcessingFile}
-          selectedWatchDirs={selectedWatchDirs}
-          setSelectedWatchDirs={setSelectedWatchDirs}
-          availableWatchDirs={availableWatchDirs}
-          setAvailableWatchDirs={setAvailableWatchDirs}
-          selectedSources={selectedSources}
-          setSelectedSources={setSelectedSources}
-          availableSources={availableSources}
-          setAvailableSources={setAvailableSources}
-          flashingRow={flashingRow}
-          leftPaneWidth={leftPaneWidth}
-          setLeftPaneWidth={setLeftPaneWidth}
-          isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}
-          setIsLeftPaneWidthMeasured={setIsLeftPaneWidthMeasured}
-          clipStart={clipStart}
-          clipEnd={clipEnd}
-          clipTranscript={clipTranscript}
-          fileRowRefs={fileRowRefs}
-          transcriptRowRefs={transcriptRowRefs}
-          leftPaneRef={leftPaneRef}
-          onSetRightPaneUrl={handleSetRightPaneComponent}
-          onSetClipStart={handleSetClipStart}
-          onSetClipEnd={handleSetClipEnd}
-          onClearClip={handleClearClip}
-          onClipBlock={handleClipBlock}
-        />
+        {/* Conditional rendering for mobile */}
+        {isSmallScreen && mobileClipPlayerComponent ? (
+          // Show clip player on mobile when active
+          <div className="w-full">
+            {mobileClipPlayerComponent}
+          </div>
+        ) : (
+          // Show transcript list (default view)
+          <TranscriptList
+            watchDirectory={watchDirectory}
+            isSmallScreen={isSmallScreen}
+            files={files}
+            setFiles={setFiles}
+            activeSearchTerm={activeSearchTerm}
+            searchLineNumbers={searchLineNumbers}
+            setSearchLineNumbers={setSearchLineNumbers}
+            expandedFiles={expandedFiles}
+            setExpandedFiles={setExpandedFiles}
+            regeneratingFiles={regeneratingFiles}
+            setRegeneratingFiles={setRegeneratingFiles}
+            replacingFiles={replacingFiles}
+            setReplacingFiles={setReplacingFiles}
+            transcriptData={transcriptData}
+            setTranscriptData={setTranscriptData}
+            currentProcessingFile={currentProcessingFile}
+            selectedWatchDirs={selectedWatchDirs}
+            setSelectedWatchDirs={setSelectedWatchDirs}
+            availableWatchDirs={availableWatchDirs}
+            setAvailableWatchDirs={setAvailableWatchDirs}
+            selectedSources={selectedSources}
+            setSelectedSources={setSelectedSources}
+            availableSources={availableSources}
+            setAvailableSources={setAvailableSources}
+            flashingRow={flashingRow}
+            leftPaneWidth={leftPaneWidth}
+            setLeftPaneWidth={setLeftPaneWidth}
+            isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}
+            setIsLeftPaneWidthMeasured={setIsLeftPaneWidthMeasured}
+            clipStart={clipStart}
+            clipEnd={clipEnd}
+            clipTranscript={clipTranscript}
+            fileRowRefs={fileRowRefs}
+            transcriptRowRefs={transcriptRowRefs}
+            leftPaneRef={leftPaneRef}
+            onSetRightPaneUrl={handleSetRightPaneComponent}
+            onSetClipStart={handleSetClipStart}
+            onSetClipEnd={handleSetClipEnd}
+            onClearClip={handleClearClip}
+            onClipBlock={handleClipBlock}
+          />
+        )}
         
         {/* Right Pane - Always visible on desktop */}
         {!isSmallScreen && (
