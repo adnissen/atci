@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Checkbox } from './ui/checkbox'
-import { Download, ArrowLeft } from 'lucide-react'
+import { Download, X } from 'lucide-react'
 
 interface ClipPlayerProps {
   filename: string
