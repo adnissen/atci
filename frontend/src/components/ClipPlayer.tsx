@@ -113,17 +113,25 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
 
     const startSeconds = timestampToSeconds(startTime)
     const endSeconds = timestampToSeconds(endTime)
-    
+    console.log("updateVideo")
+    console.log(startSeconds)
+    console.log(endSeconds)
     if (startSeconds < 0 || endSeconds <= startSeconds) {
       return
     }
 
+   
     const newClipUrl = buildClipUrl('mp4')
     if (newClipUrl) {
-      setIsLoading(true)
       setCurrentClipUrl(newClipUrl)
     }
   }
+
+  useEffect(() => {
+    if (currentClipUrl) {
+      videoRef.current?.load()
+    }
+  }, [currentClipUrl])
 
   // Debounced update function
   const debouncedUpdate = () => {
@@ -149,9 +157,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   // Validate timestamp input
   const validateTimestampInput = (value: string, setter: (value: string) => void) => {
     setter(value)
-    if (isValidTimestamp(value)) {
-      debouncedUpdate()
-    }
+    // Note: Video reloading is now handled by useEffect below
   }
 
   // Update state when props change
@@ -163,6 +169,13 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     setShowTextOverlay(display_text)
     setCurrentClipUrl(clip_url || '')
   }, [start_time_formatted, end_time_formatted, font_size, text, display_text, clip_url])
+
+  // Reload video when both start and end times are valid and complete
+  useEffect(() => {
+    if (isValidTimestamp(startTime) && isValidTimestamp(endTime)) {
+      updateVideo()
+    }
+  }, [startTime, endTime])
 
   // Initialize video on mount and when key props change
   useEffect(() => {
