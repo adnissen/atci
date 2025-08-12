@@ -85,7 +85,7 @@ interface TranscriptListProps {
   fileRowRefs: React.MutableRefObject<Record<string, HTMLTableRowElement | null>>
   transcriptRowRefs: React.MutableRefObject<Record<string, HTMLTableRowElement | null>>
   leftPaneRef: React.MutableRefObject<HTMLDivElement | null>
-  onSetRightPaneUrl: (url: string) => void
+  onSetRightPaneUrl: (component: React.ReactNode | null, fallbackUrl?: string) => void
   onSetClipStart: (time: number, transcript: string) => void
   onSetClipEnd: (time: number, transcript: string) => void
   onClearClip: () => void

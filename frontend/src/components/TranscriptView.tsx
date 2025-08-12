@@ -14,7 +14,7 @@ interface TranscriptViewProps {
   expandAll?: ((filename: string) => void) | undefined;
   onEditSuccess?: () => void;
   isSmallScreen?: boolean;
-  onSetRightPaneUrl?: (url: string) => void;
+  onSetRightPaneUrl?: (component: React.ReactNode | null, fallbackUrl?: string) => void;
   clipStart?: number | null;
   clipEnd?: number | null;
   clipTranscript?: string | null;

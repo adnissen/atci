@@ -154,7 +154,17 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     }
   }
 
-  // Initialize video on mount
+  // Update state when props change
+  useEffect(() => {
+    setStartTime(start_time_formatted)
+    setEndTime(end_time_formatted)
+    setFontSize(font_size)
+    setTextOverlay(text)
+    setShowTextOverlay(display_text)
+    setCurrentClipUrl(clip_url || '')
+  }, [start_time_formatted, end_time_formatted, font_size, text, display_text, clip_url])
+
+  // Initialize video on mount and when key props change
   useEffect(() => {
     updateVideo()
     return () => {
@@ -162,7 +172,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
         clearTimeout(updateTimeoutRef.current)
       }
     }
-  }, [])
+  }, [filename, start_time_formatted, end_time_formatted])
 
   return (
     <div className="container max-w-6xl mx-auto p-4 space-y-6">

@@ -2,6 +2,7 @@ import React from 'react';
 import { Edit2, Camera, Video } from 'lucide-react';
 import DualEditDialog from './DualEditDialog';
 import ClipMenu from './ClipMenu';
+import ClipPlayer from './ClipPlayer';
 import { addTimestamp } from '../lib/utils';
 import {
   DropdownMenu,
@@ -21,7 +22,7 @@ interface TranscriptBlockProps {
   onEditSuccess?: () => void;
   fullTranscript?: string; // Full transcript text for editing
   isSmallScreen?: boolean;
-  onSetRightPaneUrl?: (url: string) => void;
+  onSetRightPaneUrl?: (component: React.ReactNode | null, fallbackUrl?: string) => void;
   clipStart?: number | null;
   clipEnd?: number | null;
   clipTranscript?: string | null;
@@ -29,6 +30,17 @@ interface TranscriptBlockProps {
   onSetClipEnd?: (time: number) => void;
   onClearClip?: () => void;
   onClipBlock?: (startTime: number, endTime: number) => void;
+}
+
+// Helper function to convert seconds to timestamp format
+const secondsToTimestamp = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  const remainingSeconds = seconds % 60
+  const wholeSeconds = Math.floor(remainingSeconds)
+  const milliseconds = Math.round((remainingSeconds - wholeSeconds) * 1000)
+  
+  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${wholeSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
 }
 
 const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
@@ -416,7 +428,24 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                         onClick={() => {
                           if (startTime && endTime) {
                             // Play current block
-                            onSetRightPaneUrl && onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`);
+                            const fallbackUrl = `/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`
+                            const clipPlayerComponent = (
+                              <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
+                                <ClipPlayer
+                                  key={`${name}-${timestampToSeconds(startTime)}-${timestampToSeconds(endTime)}`}
+                                  filename={name}
+                                  start_time_formatted={secondsToTimestamp(timestampToSeconds(startTime))}
+                                  end_time_formatted={secondsToTimestamp(timestampToSeconds(endTime))}
+                                  font_size=""
+                                  text={text}
+                                  display_text={false}
+                                  onBack={() => {
+                                    onSetRightPaneUrl && onSetRightPaneUrl(null)
+                                  }}
+                                />
+                              </div>
+                            )
+                            onSetRightPaneUrl && onSetRightPaneUrl(clipPlayerComponent, fallbackUrl);
                           }
                         }}
                         className="flex items-center gap-2"

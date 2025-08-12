@@ -57,8 +57,8 @@ export default function HomePage() {
   const [outOfViewExpandedFile, setOutOfViewExpandedFile] = useState<string | null>(null)
   const [flashingRow, setFlashingRow] = useState<string | null>(null)
 
-  // Right pane URL state
-  const [rightPaneUrl, setRightPaneUrl] = useState<string>('')
+  // Right pane component state
+  const [rightPaneComponent, setRightPaneComponent] = useState<React.ReactNode | null>(null)
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(0)
   const [isLeftPaneWidthMeasured, setIsLeftPaneWidthMeasured] = useState<boolean>(false)
   const [showConfigInRightPane, setShowConfigInRightPane] = useState<boolean>(false)
@@ -325,42 +325,15 @@ export default function HomePage() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${wholeSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
   }
 
-  const parseClipPlayerUrl = (url: string) => {
-    const match = url.match(/\/clip_player\/([^?]+)\?(.+)/)
-    if (!match) return null
-    
-    const filename = decodeURIComponent(match[1])
-    const searchParams = new URLSearchParams(match[2])
-    
-    const startTime = searchParams.get('start_time')
-    const endTime = searchParams.get('end_time')
-    const text = searchParams.get('text') || ''
-    const fontSize = searchParams.get('font_size') || ''
-    const displayText = searchParams.get('display_text') === 'true'
-    
-    if (!startTime || !endTime) return null
-    
-    return {
-      filename,
-      start_time_formatted: secondsToTimestamp(parseFloat(startTime)),
-      end_time_formatted: secondsToTimestamp(parseFloat(endTime)),
-      font_size: fontSize,
-      text,
-      display_text: displayText
-    }
-  }
 
-  const isClipPlayerUrl = (url: string): boolean => {
-    return url.includes('/clip_player/')
-  }
 
-  const handleSetRightPaneUrl = useCallback((url: string) => {
-    if (isSmallScreen) {
-      // On mobile, open URL in new browser window
-      window.open(url, '_blank')
+  const handleSetRightPaneComponent = useCallback((component: React.ReactNode | null, fallbackUrl?: string) => {
+    if (isSmallScreen && fallbackUrl) {
+      // On mobile, open URL in new browser window if fallback URL is provided
+      window.open(fallbackUrl, '_blank')
     } else {
-      // On desktop, set the state variable
-      setRightPaneUrl(url)
+      // On desktop, set the component directly
+      setRightPaneComponent(component)
       setShowConfigInRightPane(false) // Hide config when showing other content
       setShowQueueInRightPane(false) // Hide queue when showing other content
     }
@@ -374,7 +347,7 @@ export default function HomePage() {
       // On desktop, show config in right pane
       setShowConfigInRightPane(true)
       setShowQueueInRightPane(false) // Hide queue when showing config
-      setRightPaneUrl('') // Clear any existing URL
+      setRightPaneComponent(null) // Clear any existing component
     }
   }
 
@@ -386,7 +359,7 @@ export default function HomePage() {
       // On desktop, show queue in right pane
       setShowQueueInRightPane(true)
       setShowConfigInRightPane(false) // Hide config when showing queue
-      setRightPaneUrl('') // Clear any existing URL
+      setRightPaneComponent(null) // Clear any existing component
     }
   }
 
@@ -395,8 +368,25 @@ export default function HomePage() {
     
     // If we have clip start and end values, restore the clip player
     if (clipStart !== null && clipEnd !== null && clipTranscript) {
-      const url = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
-      handleSetRightPaneUrl(url)
+      const fallbackUrl = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      const clipPlayerComponent = (
+        <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
+          <ClipPlayer
+            key={`${clipTranscript}-${clipStart}-${clipEnd}`}
+            filename={clipTranscript}
+            start_time_formatted={secondsToTimestamp(clipStart)}
+            end_time_formatted={secondsToTimestamp(clipEnd)}
+            font_size=""
+            text=""
+            display_text={false}
+            onBack={() => {
+              setRightPaneComponent(null)
+              handleClearClip()
+            }}
+          />
+        </div>
+      )
+      handleSetRightPaneComponent(clipPlayerComponent, fallbackUrl)
     }
   }
 
@@ -405,8 +395,25 @@ export default function HomePage() {
     
     // If we have clip start and end values, restore the clip player
     if (clipStart !== null && clipEnd !== null && clipTranscript) {
-      const url = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
-      handleSetRightPaneUrl(url)
+      const fallbackUrl = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      const clipPlayerComponent = (
+        <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
+          <ClipPlayer
+            key={`${clipTranscript}-${clipStart}-${clipEnd}`}
+            filename={clipTranscript}
+            start_time_formatted={secondsToTimestamp(clipStart)}
+            end_time_formatted={secondsToTimestamp(clipEnd)}
+            font_size=""
+            text=""
+            display_text={false}
+            onBack={() => {
+              setRightPaneComponent(null)
+              handleClearClip()
+            }}
+          />
+        </div>
+      )
+      handleSetRightPaneComponent(clipPlayerComponent, fallbackUrl)
     }
   }
 
@@ -442,7 +449,7 @@ export default function HomePage() {
     setClipEnd(null)
     setClipTranscript(null)
     // Clear right pane to show placeholder
-    setRightPaneUrl('')
+    setRightPaneComponent(null)
     setShowConfigInRightPane(false)
     setShowQueueInRightPane(false)
   }
@@ -456,20 +463,38 @@ export default function HomePage() {
   // Auto-update right pane when both clip start and end are set, or clear when incomplete
   useEffect(() => {
     if (clipStart !== null && clipEnd !== null && clipTranscript) {
-      const url = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
-      handleSetRightPaneUrl(url)
+      const fallbackUrl = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      const clipPlayerComponent = (
+        <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
+          <ClipPlayer
+            key={`${clipTranscript}-${clipStart}-${clipEnd}`}
+            filename={clipTranscript}
+            start_time_formatted={secondsToTimestamp(clipStart)}
+            end_time_formatted={secondsToTimestamp(clipEnd)}
+            font_size=""
+            text=""
+            display_text={false}
+            onBack={() => {
+              setRightPaneComponent(null)
+              handleClearClip()
+            }}
+          />
+        </div>
+      )
+      console.log(secondsToTimestamp(clipStart), secondsToTimestamp(clipEnd))
+      handleSetRightPaneComponent(clipPlayerComponent, fallbackUrl)
     } else if (clipStart !== null || clipEnd !== null) {
       // If we have partial clip data, clear the right pane to show placeholder
-      setRightPaneUrl('')
+      setRightPaneComponent(null)
     }
-  }, [clipStart, clipEnd, clipTranscript, handleSetRightPaneUrl])
+  }, [clipStart, clipEnd, clipTranscript, handleSetRightPaneComponent])
 
   // Make the function available globally for testing
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      (window as any).handleSetRightPaneUrl = handleSetRightPaneUrl
+      (window as any).handleSetRightPaneComponent = handleSetRightPaneComponent
     }
-  }, [handleSetRightPaneUrl])
+  }, [handleSetRightPaneComponent])
 
   return (
     <>
@@ -532,7 +557,7 @@ export default function HomePage() {
           fileRowRefs={fileRowRefs}
           transcriptRowRefs={transcriptRowRefs}
           leftPaneRef={leftPaneRef}
-          onSetRightPaneUrl={handleSetRightPaneUrl}
+          onSetRightPaneUrl={handleSetRightPaneComponent}
           onSetClipStart={handleSetClipStart}
           onSetClipEnd={handleSetClipEnd}
           onClearClip={handleClearClip}
@@ -546,39 +571,8 @@ export default function HomePage() {
               <ConfigPage onClose={handleCloseConfig} />
             ) : showQueueInRightPane ? (
               <QueuePage onClose={handleCloseQueue} />
-            ) : rightPaneUrl ? (
-              isClipPlayerUrl(rightPaneUrl) ? (
-                (() => {
-                  const clipProps = parseClipPlayerUrl(rightPaneUrl)
-                  return clipProps ? (
-                    <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
-                      <ClipPlayer
-                        {...clipProps}
-                        onBack={() => {
-                          setRightPaneUrl('')
-                          handleClearClip()
-                        }}
-                      />
-                    </div>
-                  ) : (
-                    <iframe
-                      src={rightPaneUrl}
-                      className="w-full flex-1 scrollbar-hide"
-                      title="Right Pane Content"
-                      frameBorder="0"
-                      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-                    />
-                  )
-                })()
-              ) : (
-                <iframe
-                  src={rightPaneUrl}
-                  className="w-full flex-1 scrollbar-hide"
-                  title="Right Pane Content"
-                  frameBorder="0"
-                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-                />
-              )
+            ) : rightPaneComponent ? (
+              rightPaneComponent
             ) : (
               <RightPanePlaceholder />
             )}

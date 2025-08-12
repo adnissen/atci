@@ -34,7 +34,7 @@ interface MobileTranscriptListProps {
   onRename: (filename: string, e: React.MouseEvent) => void
   onRegenerateMeta: (filename: string, e: React.MouseEvent) => void
   onFetchTranscript: (filename: string) => void
-  onSetRightPaneUrl: (url: string) => void
+  onSetRightPaneUrl: (component: React.ReactNode | null, fallbackUrl?: string) => void
   isFileBeingProcessed: (filename: string) => boolean
   formatDate: (dateString: string) => string
   getModelChipColor: (model: string | undefined) => string
