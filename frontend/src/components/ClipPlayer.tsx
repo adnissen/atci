@@ -113,9 +113,6 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
 
     const startSeconds = timestampToSeconds(startTime)
     const endSeconds = timestampToSeconds(endTime)
-    console.log("updateVideo")
-    console.log(startSeconds)
-    console.log(endSeconds)
     if (startSeconds < 0 || endSeconds <= startSeconds) {
       return
     }
