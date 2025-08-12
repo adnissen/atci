@@ -56,6 +56,7 @@ export default function HomePage() {
   // State for tracking out-of-view expanded rows
   const [outOfViewExpandedFile, setOutOfViewExpandedFile] = useState<string | null>(null)
   const [flashingRow, setFlashingRow] = useState<string | null>(null)
+  const [isAtTop, setIsAtTop] = useState<boolean>(true)
 
   // Right pane component state
   const [rightPaneComponent, setRightPaneComponent] = useState<React.ReactNode | null>(null)
@@ -97,6 +98,26 @@ export default function HomePage() {
     
     fetchWatchDirectory()
   }, [])
+
+  // Track scroll position of left pane to show/hide scroll to top button
+  useEffect(() => {
+    const leftPaneContainer = leftPaneRef.current
+    if (!leftPaneContainer) return
+
+    const handleScroll = () => {
+      const scrollTop = leftPaneContainer.scrollTop
+      setIsAtTop(scrollTop <= 10) // Allow small tolerance for "at top"
+    }
+
+    leftPaneContainer.addEventListener('scroll', handleScroll)
+    
+    // Initial check
+    handleScroll()
+
+    return () => {
+      leftPaneContainer.removeEventListener('scroll', handleScroll)
+    }
+  }, [])  // Empty dependency array since we want this to run once when component mounts
 
   // Setup intersection observer to track expanded rows visibility
   const setupIntersectionObserver = useCallback(() => {
@@ -203,6 +224,17 @@ export default function HomePage() {
       }
     }
   }, [setupIntersectionObserver])
+
+  // Handle scroll to top
+  const handleScrollToTop = () => {
+    const leftPaneContainer = leftPaneRef.current
+    if (leftPaneContainer) {
+      leftPaneContainer.scrollTo({ 
+        top: 0, 
+        behavior: 'smooth' 
+      })
+    }
+  }
 
   // Handle collapse all expanded files
   const handleCollapseAll = () => {
@@ -548,8 +580,10 @@ export default function HomePage() {
         queue={queue}
         currentProcessingFile={currentProcessingFile}
         outOfViewExpandedFile={outOfViewExpandedFile}
+        isAtTop={isAtTop}
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
+        onScrollToTop={handleScrollToTop}
         onCollapseExpanded={handleCollapseExpanded}
         onCollapseAll={handleCollapseAll}
         onConfigClick={handleConfigClick}

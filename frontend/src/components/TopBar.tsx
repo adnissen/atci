@@ -1,4 +1,5 @@
 
+import { Button } from "./ui/button"
 
 interface TopBarProps {
   watchDirectory: string
@@ -13,8 +14,10 @@ interface TopBarProps {
   queue: Array<{ video_path: string; process_type: string }>
   currentProcessingFile: { video_path: string; process_type: string } | null
   outOfViewExpandedFile: string | null
+  isAtTop: boolean
   onSearch: () => void
   onClearSearch: () => void
+  onScrollToTop: () => void
   onCollapseExpanded: () => void
   onCollapseAll: () => void
   onConfigClick: () => void
@@ -34,8 +37,10 @@ export default function TopBar({
   queue,
   currentProcessingFile,
   outOfViewExpandedFile,
+  isAtTop,
   onSearch,
   onClearSearch,
+  onScrollToTop,
   onCollapseExpanded,
   onCollapseAll,
   onConfigClick,
@@ -90,7 +95,7 @@ export default function TopBar({
                     <div className="relative">
                       <input
                         type="text"
-                        placeholder="Search transcripts..."
+                        placeholder="Search"
                         value={searchTerm}
                         onChange={(e) => {
                           const newValue = e.target.value
@@ -103,7 +108,7 @@ export default function TopBar({
                           }
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-                        className="px-2 py-1 pr-8 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-48 min-w-0"
+                        className="px-2 py-1 pr-8 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-24 sm:w-48 min-w-0"
                       />
                       {(searchTerm || activeSearchTerm) && (
                         <button
@@ -121,8 +126,17 @@ export default function TopBar({
                       onClick={onSearch}
                       disabled={isSearching}
                       className="px-2 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                      title="Search"
                     >
-                      {isSearching ? 'Searching...' : 'Search'}
+                      <svg
+                        className={`w-4 h-4 ${isSearching ? "animate-spin" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle cx="11" cy="11" r="7" strokeWidth={2} />
+                        <line x1="16.5" y1="16.5" x2="21" y2="21" strokeWidth={2} strokeLinecap="round" />
+                      </svg>
                     </button>
                   </div>
                 </div>
@@ -131,37 +145,57 @@ export default function TopBar({
                 <div className="flex-1"></div>
               </div>
               
-              {/* Collapse Links */}
-              {(outOfViewExpandedFile || expandedFiles.size > 0) && (
-                <div className="flex gap-2 sm:gap-4 items-center flex-shrink-0">
+              {/* Scroll and Collapse Buttons */}
+              {(!isAtTop || outOfViewExpandedFile || expandedFiles.size > 0) && (
+                <div className="flex gap-2 items-center flex-shrink-0">
                   {outOfViewExpandedFile && (
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={onCollapseExpanded}
-                      className="text-xs sm:text-sm text-primary hover:text-primary/80 underline transition-colors"
                       title={`Collapse ${outOfViewExpandedFile}`}
+                      className="gap-1 px-2 py-1 h-7 text-xs"
                     >
-                      collapse current
-                    </button>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                      <span className="hidden sm:inline">Collapse Current</span>
+                      <span className="sm:hidden">Collapse</span>
+                    </Button>
                   )}
                   {expandedFiles.size > 0 && (
-                    <button
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={onCollapseAll}
-                      className="text-xs sm:text-sm text-primary hover:text-primary/80 underline transition-colors"
                       title="Collapse all expanded files"
+                      className="gap-1 px-2 py-1 h-7 text-xs"
                     >
-                      collapse all
-                    </button>
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14l5-5 5 5" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5-5 5 5" />
+                      </svg>
+                      <span className="hidden sm:inline">Collapse All</span>
+                      <span className="sm:hidden">All</span>
+                    </Button>
+                  )}
+                  {!isAtTop && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={onScrollToTop}
+                      title="Scroll to top"
+                      className="gap-1 px-2 py-1 h-7 text-xs"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                      </svg>
+                      <span className="hidden sm:inline">Scroll to Top</span>
+                      <span className="sm:hidden">Top</span>
+                    </Button>
                   )}
                 </div>
               )}
-              
-              <div className="flex gap-2 sm:gap-4 items-center flex-shrink-0">
-                {currentProcessingFile && (
-                  <div className="text-xs sm:text-sm text-primary font-medium hidden sm:block">
-                    Processing: {currentProcessingFile.video_path.split('/').pop()} ({currentProcessingFile.process_type})
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
