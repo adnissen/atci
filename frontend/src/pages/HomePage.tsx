@@ -204,14 +204,19 @@ export default function HomePage() {
     }
   }, [setupIntersectionObserver])
 
-  // Handle scroll to top
-  const handleScrollToTop = () => {
-    if (outOfViewExpandedFile) {
-      const topBarHeight = watchDirectory ? 64 : 0 // Approximate height of top bar
-      const elementTop = fileRowRefs.current[outOfViewExpandedFile]?.offsetTop
-      const scrollTop = elementTop ? elementTop - topBarHeight : 0
-      window.scrollTo({ top: scrollTop })
+  // Handle collapse all expanded files
+  const handleCollapseAll = () => {
+    // Scroll to the top of the left pane container
+    const leftPaneContainer = leftPaneRef.current
+    if (leftPaneContainer) {
+      leftPaneContainer.scrollTo({ 
+        top: 0, 
+        behavior: 'smooth' 
+      })
     }
+    
+    setExpandedFiles(new Set())
+    setOutOfViewExpandedFile(null)
   }
 
   // Handle collapse
@@ -219,30 +224,45 @@ export default function HomePage() {
     if (outOfViewExpandedFile) {
       const targetFile = outOfViewExpandedFile
       
-      // Collapse the row
-      setExpandedFiles(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(targetFile)
-        return newSet
-      })
+      // First scroll to the row in the left pane container
+      const rowElement = fileRowRefs.current[targetFile]
+      const leftPaneContainer = leftPaneRef.current
       
-      // Clear the out-of-view file
-      setOutOfViewExpandedFile(null)
+      if (rowElement && leftPaneContainer) {
+        // Calculate the position relative to the scrollable container
+        const containerRect = leftPaneContainer.getBoundingClientRect()
+        const rowRect = rowElement.getBoundingClientRect()
+        const currentScrollTop = leftPaneContainer.scrollTop
+        
+        // Account for the top bar height to avoid hiding content behind it
+        const topBarHeight = watchDirectory ? 64 : 0
+        
+        // Calculate where to scroll to position the row with top bar offset
+        const targetScrollTop = currentScrollTop + (rowRect.top - containerRect.top) - topBarHeight
+        
+        leftPaneContainer.scrollTo({ 
+          top: targetScrollTop, 
+          behavior: 'smooth' 
+        })
+      }
       
-      // Scroll to the row and flash it
+      // Wait for scroll to complete, then collapse the row
       setTimeout(() => {
-        const rowElement = fileRowRefs.current[targetFile]
-        if (rowElement) {
-          const topBarHeight = watchDirectory ? 64 : 0
-          const elementTop = rowElement.offsetTop
-          const scrollTop = elementTop - topBarHeight
-          window.scrollTo({ top: scrollTop, behavior: 'smooth' })
-          
-          // Flash the row
+        setExpandedFiles(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(targetFile)
+          return newSet
+        })
+        
+        // Clear the out-of-view file
+        setOutOfViewExpandedFile(null)
+        
+        // Flash the row after collapsing
+        setTimeout(() => {
           setFlashingRow(targetFile)
           setTimeout(() => setFlashingRow(null), 1000) // Flash for 1 second
-        }
-      }, 100) // Small delay to ensure DOM updates
+        }, 100) // Small delay to ensure DOM updates
+      }, 500) // Wait for smooth scroll to complete (typically 300-500ms)
     }
   }
 
@@ -523,14 +543,15 @@ export default function HomePage() {
         setActiveSearchTerm={setActiveSearchTerm}
         setSearchLineNumbers={setSearchLineNumbers}
         setExpandedFiles={setExpandedFiles}
+        expandedFiles={expandedFiles}
         isSearching={isSearching}
         queue={queue}
         currentProcessingFile={currentProcessingFile}
         outOfViewExpandedFile={outOfViewExpandedFile}
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
-        onScrollToTop={handleScrollToTop}
         onCollapseExpanded={handleCollapseExpanded}
+        onCollapseAll={handleCollapseAll}
         onConfigClick={handleConfigClick}
         onQueueClick={handleQueueClick}
       />

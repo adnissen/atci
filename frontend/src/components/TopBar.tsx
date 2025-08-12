@@ -8,14 +8,15 @@ interface TopBarProps {
   setActiveSearchTerm: (term: string) => void
   setSearchLineNumbers: (lineNumbers: Record<string, number[]>) => void
   setExpandedFiles: (files: Set<string>) => void
+  expandedFiles: Set<string>
   isSearching: boolean
   queue: Array<{ video_path: string; process_type: string }>
   currentProcessingFile: { video_path: string; process_type: string } | null
   outOfViewExpandedFile: string | null
   onSearch: () => void
   onClearSearch: () => void
-  onScrollToTop: () => void
   onCollapseExpanded: () => void
+  onCollapseAll: () => void
   onConfigClick: () => void
   onQueueClick: () => void
 }
@@ -28,14 +29,15 @@ export default function TopBar({
   setActiveSearchTerm,
   setSearchLineNumbers,
   setExpandedFiles,
+  expandedFiles,
   isSearching,
   queue,
   currentProcessingFile,
   outOfViewExpandedFile,
   onSearch,
   onClearSearch,
-  onScrollToTop,
   onCollapseExpanded,
+  onCollapseAll,
   onConfigClick,
   onQueueClick
 }: TopBarProps) {
@@ -129,23 +131,27 @@ export default function TopBar({
                 <div className="flex-1"></div>
               </div>
               
-              {/* Scroll and Collapse Links */}
-              {outOfViewExpandedFile && (
+              {/* Collapse Links */}
+              {(outOfViewExpandedFile || expandedFiles.size > 0) && (
                 <div className="flex gap-2 sm:gap-4 items-center flex-shrink-0">
-                  <button
-                    onClick={onScrollToTop}
-                    className="text-xs sm:text-sm text-primary hover:text-primary/80 underline transition-colors"
-                    title={`Scroll to ${outOfViewExpandedFile}`}
-                  >
-                    scroll to row
-                  </button>
-                  <button
-                    onClick={onCollapseExpanded}
-                    className="text-xs sm:text-sm text-primary hover:text-primary/80 underline transition-colors"
-                    title={`Collapse ${outOfViewExpandedFile}`}
-                  >
-                    collapse
-                  </button>
+                  {outOfViewExpandedFile && (
+                    <button
+                      onClick={onCollapseExpanded}
+                      className="text-xs sm:text-sm text-primary hover:text-primary/80 underline transition-colors"
+                      title={`Collapse ${outOfViewExpandedFile}`}
+                    >
+                      collapse current
+                    </button>
+                  )}
+                  {expandedFiles.size > 0 && (
+                    <button
+                      onClick={onCollapseAll}
+                      className="text-xs sm:text-sm text-primary hover:text-primary/80 underline transition-colors"
+                      title="Collapse all expanded files"
+                    >
+                      collapse all
+                    </button>
+                  )}
                 </div>
               )}
               
