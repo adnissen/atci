@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Checkbox } from './ui/checkbox'
-import { Download, X } from 'lucide-react'
+import { Download, ChevronLeft } from 'lucide-react'
 
 interface ClipPlayerProps {
   filename: string
@@ -167,12 +167,23 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   return (
     <div className="container max-w-6xl mx-auto p-4 space-y-6">
       {/* Header */}
-      <div className="text-center space-y-2">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-lg font-semibold">{filename}</h2>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Close
+          </button>
+        )}
+      </div>
+      
+      {/* Clip Info */}
+      <div className="text-center mb-4">
         <div className="text-lg font-medium text-muted-foreground">
           {startTime} to {endTime}
-        </div>
-        <div className="text-sm text-muted-foreground">
-          {filename}
         </div>
       </div>
 
@@ -323,16 +334,6 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
           </div>
         </CardContent>
       </Card>
-
-      {/* Back Button */}
-      {onBack && (
-        <div className="text-center pt-4">
-          <Button variant="outline" onClick={onBack} className="inline-flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Transcripts
-          </Button>
-        </div>
-      )}
     </div>
   )
 }
