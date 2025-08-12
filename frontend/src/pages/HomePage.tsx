@@ -1,6 +1,7 @@
 import TopBar from '../components/TopBar'
 import TranscriptList from '../components/TranscriptList'
 import RightPanePlaceholder from '../components/RightPanePlaceholder'
+import ClipPlayer from '../components/ClipPlayer'
 import ConfigPage from './ConfigPage'
 import QueuePage from './QueuePage'
 import { useEffect, useState, useRef, useCallback } from 'react'
@@ -313,6 +314,46 @@ export default function HomePage() {
     setExpandedFiles(new Set()) // Collapse all expanded files
   }
 
+  // Helper functions for ClipPlayer
+  const secondsToTimestamp = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const remainingSeconds = seconds % 60
+    const wholeSeconds = Math.floor(remainingSeconds)
+    const milliseconds = Math.round((remainingSeconds - wholeSeconds) * 1000)
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${wholeSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
+  }
+
+  const parseClipPlayerUrl = (url: string) => {
+    const match = url.match(/\/clip_player\/([^?]+)\?(.+)/)
+    if (!match) return null
+    
+    const filename = decodeURIComponent(match[1])
+    const searchParams = new URLSearchParams(match[2])
+    
+    const startTime = searchParams.get('start_time')
+    const endTime = searchParams.get('end_time')
+    const text = searchParams.get('text') || ''
+    const fontSize = searchParams.get('font_size') || ''
+    const displayText = searchParams.get('display_text') === 'true'
+    
+    if (!startTime || !endTime) return null
+    
+    return {
+      filename,
+      start_time_formatted: secondsToTimestamp(parseFloat(startTime)),
+      end_time_formatted: secondsToTimestamp(parseFloat(endTime)),
+      font_size: fontSize,
+      text,
+      display_text: displayText
+    }
+  }
+
+  const isClipPlayerUrl = (url: string): boolean => {
+    return url.includes('/clip_player/')
+  }
+
   const handleSetRightPaneUrl = useCallback((url: string) => {
     if (isSmallScreen) {
       // On mobile, open URL in new browser window
@@ -506,13 +547,38 @@ export default function HomePage() {
             ) : showQueueInRightPane ? (
               <QueuePage onClose={handleCloseQueue} />
             ) : rightPaneUrl ? (
-              <iframe
-                src={rightPaneUrl}
-                className="w-full flex-1 scrollbar-hide"
-                title="Right Pane Content"
-                frameBorder="0"
-                sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-              />
+              isClipPlayerUrl(rightPaneUrl) ? (
+                (() => {
+                  const clipProps = parseClipPlayerUrl(rightPaneUrl)
+                  return clipProps ? (
+                    <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
+                      <ClipPlayer
+                        {...clipProps}
+                        onBack={() => {
+                          setRightPaneUrl('')
+                          handleClearClip()
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <iframe
+                      src={rightPaneUrl}
+                      className="w-full flex-1 scrollbar-hide"
+                      title="Right Pane Content"
+                      frameBorder="0"
+                      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                    />
+                  )
+                })()
+              ) : (
+                <iframe
+                  src={rightPaneUrl}
+                  className="w-full flex-1 scrollbar-hide"
+                  title="Right Pane Content"
+                  frameBorder="0"
+                  sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+                />
+              )
             ) : (
               <RightPanePlaceholder />
             )}
