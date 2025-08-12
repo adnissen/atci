@@ -78,22 +78,36 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
 
   // Handle timestamp clicks
   const handleTimestampClick = (time: number, type: 'start' | 'end') => {
-    if (clipStart === null && clipEnd === null) {
-      // No clip exists - execute current logic (set clip to current block times)
-      if (startTime && endTime && onSetClipStart && onSetClipEnd) {
-        const blockStart = timestampToSeconds(startTime);
-        const blockEnd = timestampToSeconds(endTime);
-        onSetClipStart(blockStart);
-        onSetClipEnd(blockEnd);
+    try {
+      if (clipStart === null && clipEnd === null) {
+        // No clip exists - execute current logic AND set clip to current block times
+        // First play the current block immediately
+        if (onSetRightPaneUrl && startTime && endTime) {
+          onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`);
+        }
+        
+        // Then set the clip state in the next tick to avoid conflicts
+        if (startTime && endTime && onSetClipStart && onSetClipEnd) {
+          const blockStart = timestampToSeconds(startTime);
+          const blockEnd = timestampToSeconds(endTime);
+          
+          // Use React's automatic batching with setTimeout
+          setTimeout(() => {
+            onSetClipStart(blockStart);
+            onSetClipEnd(blockEnd);
+          }, 10);
+        }
+      } else {
+        // Clip exists - show menu
+        setSelectedTimestamp({time, type});
+        setClipMenuOpen(true);
       }
-             // Also execute the original logic to play the clip
-       if (onSetRightPaneUrl && startTime && endTime) {
-         onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`);
-       }
-    } else {
-      // Clip exists - show menu
-      setSelectedTimestamp({time, type});
-      setClipMenuOpen(true);
+    } catch (error) {
+      console.error('Error in handleTimestampClick:', error);
+      // Fallback to original behavior
+      if (onSetRightPaneUrl && startTime && endTime) {
+        onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`);
+      }
     }
   };
 
@@ -262,8 +276,24 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const timestampLineNumber = lineNumbers[0];
   const contentLineNumber = lineNumbers[lineNumbers.length - 1];
 
+  // Determine background and border styling
+  const getContainerClasses = () => {
+    const baseClasses = [];
+    
+    if (isSearchResult && hasClipHighlight) {
+      // Both search and clip highlighting - combine both
+      baseClasses.push('bg-gradient-to-r', 'from-primary/10', 'to-amber-50/50', 'border-l-4', 'border-primary', 'pl-2');
+    } else if (isSearchResult) {
+      baseClasses.push('bg-primary/10', 'border-l-4', 'border-primary', 'pl-2');
+    } else if (hasClipHighlight) {
+      baseClasses.push('bg-amber-50', 'border-l-4', 'border-amber-400', 'pl-2');
+    }
+    
+    return baseClasses.join(' ');
+  };
+
   return (
-              <div className={`${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''} ${hasClipHighlight ? 'bg-amber-50 border-l-4 border-amber-400 pl-2' : ''}`}>
+              <div className={getContainerClasses()}>
         {hasClipHighlight && (
           <div className="flex items-center gap-1 text-xs text-amber-700 mb-1">
             <div className="flex items-center gap-1">
