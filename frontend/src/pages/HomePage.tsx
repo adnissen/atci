@@ -988,7 +988,7 @@ export default function HomePage() {
     setSelectedSources([])
   }
 
-  const handleSetRightPaneUrl = (url: string) => {
+  const handleSetRightPaneUrl = useCallback((url: string) => {
     if (isSmallScreen) {
       // On mobile, open URL in new browser window
       window.open(url, '_blank')
@@ -996,7 +996,7 @@ export default function HomePage() {
       // On desktop, set the state variable
       setRightPaneUrl(url)
     }
-  }
+  }, [isSmallScreen])
 
   // Clip management methods
   const handleSetClipStart = (time: number, transcript: string) => {
@@ -1038,6 +1038,14 @@ export default function HomePage() {
       handleSetRightPaneUrl(url)
     }
   }
+
+  // Auto-update right pane when both clip start and end are set
+  useEffect(() => {
+    if (clipStart !== null && clipEnd !== null && clipTranscript) {
+      const url = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      handleSetRightPaneUrl(url)
+    }
+  }, [clipStart, clipEnd, clipTranscript, handleSetRightPaneUrl])
 
   // Helper function to handle file expansion
   const handleExpandFile = (filename: string) => {
