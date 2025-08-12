@@ -59,6 +59,23 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const [clipMenuOpen, setClipMenuOpen] = React.useState(false);
   const [selectedTimestamp, setSelectedTimestamp] = React.useState<{time: number, type: 'start' | 'end'} | null>(null);
 
+  // Check if this block contains clip start or end times
+  const blockContainsClipStart = React.useMemo(() => {
+    if (!startTime || !endTime || clipStart === null || clipStart === undefined || clipTranscript !== name) return false;
+    const blockStart = timestampToSeconds(startTime);
+    const blockEnd = timestampToSeconds(endTime);
+    return clipStart >= blockStart && clipStart <= blockEnd;
+  }, [startTime, endTime, clipStart, clipTranscript, name]);
+
+  const blockContainsClipEnd = React.useMemo(() => {
+    if (!startTime || !endTime || clipEnd === null || clipEnd === undefined || clipTranscript !== name) return false;
+    const blockStart = timestampToSeconds(startTime);
+    const blockEnd = timestampToSeconds(endTime);
+    return clipEnd >= blockStart && clipEnd <= blockEnd;
+  }, [startTime, endTime, clipEnd, clipTranscript, name]);
+
+  const hasClipHighlight = blockContainsClipStart || blockContainsClipEnd;
+
   // Handle timestamp clicks
   const handleTimestampClick = (time: number, type: 'start' | 'end') => {
     if (clipStart === null && clipEnd === null) {
@@ -246,7 +263,23 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const contentLineNumber = lineNumbers[lineNumbers.length - 1];
 
   return (
-              <div className={`${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''}`}>
+              <div className={`${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''} ${hasClipHighlight ? 'bg-amber-50 border-l-4 border-amber-400 pl-2' : ''}`}>
+        {hasClipHighlight && (
+          <div className="flex items-center gap-1 text-xs text-amber-700 mb-1">
+            <div className="flex items-center gap-1">
+              {blockContainsClipStart && (
+                <span className="bg-amber-200 px-1 py-0.5 rounded text-amber-800 font-medium">
+                  Clip Start
+                </span>
+              )}
+              {blockContainsClipEnd && (
+                <span className="bg-amber-200 px-1 py-0.5 rounded text-amber-800 font-medium">
+                  Clip End
+                </span>
+              )}
+            </div>
+          </div>
+        )}
         {startTime && endTime && (
           <div className="group">
             <span className="relative">
