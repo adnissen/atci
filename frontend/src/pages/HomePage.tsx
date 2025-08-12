@@ -591,7 +591,7 @@ export default function HomePage() {
       />
 
       {/* Main content with top padding to account for fixed header */}
-      <div className={`${!isSmallScreen ? 'flex h-screen' : 'px-0 py-4'}`}>
+      <div className={`flex h-screen`}>
         {/* Conditional rendering for mobile */}
         {isSmallScreen && (mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent) ? (
           // Show active mobile component

@@ -35,7 +35,6 @@ export default function TopBar({
   expandedFiles,
   isSearching,
   queue,
-  currentProcessingFile,
   outOfViewExpandedFile,
   isAtTop,
   onSearch,

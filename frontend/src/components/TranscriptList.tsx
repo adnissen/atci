@@ -881,7 +881,7 @@ export default function TranscriptList({
       {/* Main content with top padding to account for fixed header */}
       <div 
         ref={leftPaneRef}
-        className={`${!isSmallScreen ? `w-full overflow-y-auto scrollbar-hide px-2 sm:px-4 ${watchDirectory ? 'pt-20 pb-4' : 'py-10'}` : 'w-full'} relative`}
+        className={`${`w-full overflow-y-auto scrollbar-hide px-2 sm:px-4 ${watchDirectory ? 'pt-20 pb-4' : 'py-10'}`}`}
       >  
         {/* Filters */}
         {(availableWatchDirs.length > 1 || availableSources.length > 1) && (
