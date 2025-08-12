@@ -67,6 +67,10 @@ export default function HomePage() {
   // Mobile clip player state
   const [mobileClipPlayerComponent, setMobileClipPlayerComponent] = useState<React.ReactNode | null>(null)
 
+  // Mobile config and queue state
+  const [mobileConfigComponent, setMobileConfigComponent] = useState<React.ReactNode | null>(null)
+  const [mobileQueueComponent, setMobileQueueComponent] = useState<React.ReactNode | null>(null)
+
   // Clip state variables
   const [clipStart, setClipStart] = useState<number | null>(null)
   const [clipEnd, setClipEnd] = useState<number | null>(null)
@@ -335,6 +339,9 @@ export default function HomePage() {
       if (component) {
         // On mobile, show component inline instead of opening new window
         setMobileClipPlayerComponent(component)
+        // Clear other mobile components
+        setMobileConfigComponent(null)
+        setMobileQueueComponent(null)
       } else {
         // Clear mobile clip player
         setMobileClipPlayerComponent(null)
@@ -349,8 +356,16 @@ export default function HomePage() {
 
   const handleConfigClick = () => {
     if (isSmallScreen) {
-      // On mobile, navigate to config page
-      window.location.href = '/config'
+      // On mobile, show config component
+      const configComponent = (
+        <div className="w-full">
+          <ConfigPage onClose={() => setMobileConfigComponent(null)} />
+        </div>
+      )
+      setMobileConfigComponent(configComponent)
+      // Clear other mobile components
+      setMobileClipPlayerComponent(null)
+      setMobileQueueComponent(null)
     } else {
       // On desktop, show config in right pane
       setShowConfigInRightPane(true)
@@ -361,8 +376,16 @@ export default function HomePage() {
 
   const handleQueueClick = () => {
     if (isSmallScreen) {
-      // On mobile, navigate to queue page
-      window.location.href = '/queue'
+      // On mobile, show queue component
+      const queueComponent = (
+        <div className="w-full">
+          <QueuePage onClose={() => setMobileQueueComponent(null)} />
+        </div>
+      )
+      setMobileQueueComponent(queueComponent)
+      // Clear other mobile components
+      setMobileClipPlayerComponent(null)
+      setMobileConfigComponent(null)
     } else {
       // On desktop, show queue in right pane
       setShowQueueInRightPane(true)
@@ -471,6 +494,8 @@ export default function HomePage() {
     // Clear panes to show placeholder
     setRightPaneComponent(null)
     setMobileClipPlayerComponent(null)
+    setMobileConfigComponent(null)
+    setMobileQueueComponent(null)
     setShowConfigInRightPane(false)
     setShowQueueInRightPane(false)
   }
@@ -552,10 +577,10 @@ export default function HomePage() {
       {/* Main content with top padding to account for fixed header */}
       <div className={`${!isSmallScreen ? 'flex h-screen' : 'px-0 py-4'}`}>
         {/* Conditional rendering for mobile */}
-        {isSmallScreen && mobileClipPlayerComponent ? (
-          // Show clip player on mobile when active
+        {isSmallScreen && (mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent) ? (
+          // Show active mobile component
           <div className="w-full">
-            {mobileClipPlayerComponent}
+            {mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent}
           </div>
         ) : (
           // Show transcript list (default view)
