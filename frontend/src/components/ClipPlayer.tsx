@@ -359,34 +359,43 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
           </div>
 
           {/* Download Buttons */}
-          <div className="flex flex-col gap-3 items-center pt-4">
-            <Button asChild className="bg-emerald-600 hover:bg-emerald-700">
+          <div className="flex items-center gap-1 justify-center flex-wrap pt-4">
+            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
+              borderColor: '#22c55e',
+              color: '#22c55e'
+            }}>
               <a
                 href={buildClipUrl('mp4')}
                 download={generateFilename('mp4')}
                 className="inline-flex items-center gap-2"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-3 h-3" />
                 Download MP4
               </a>
             </Button>
-            <Button asChild className="bg-emerald-600 hover:bg-emerald-700">
+            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
+              borderColor: '#22c55e',
+              color: '#22c55e'
+            }}>
               <a
                 href={buildClipUrl('gif')}
                 download={generateFilename('gif')}
                 className="inline-flex items-center gap-2"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-3 h-3" />
                 Download GIF
               </a>
             </Button>
-            <Button asChild className="bg-emerald-600 hover:bg-emerald-700">
+            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
+              borderColor: '#22c55e',
+              color: '#22c55e'
+            }}>
               <a
                 href={buildClipUrl('mp3')}
                 download={generateFilename('mp3')}
                 className="inline-flex items-center gap-2"
               >
-                <Download className="w-4 h-4" />
+                <Download className="w-3 h-3" />
                 Download MP3
               </a>
             </Button>
