@@ -15,6 +15,12 @@ interface TranscriptViewProps {
   onEditSuccess?: () => void;
   isSmallScreen?: boolean;
   onSetRightPaneUrl?: (url: string) => void;
+  clipStart?: number | null;
+  clipEnd?: number | null;
+  onSetClipStart?: (time: number) => void;
+  onSetClipEnd?: (time: number) => void;
+  onClearClip?: () => void;
+  onPlayClip?: () => void;
 }
 
 // Extend Window interface for our custom handlers
@@ -48,7 +54,13 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   expandAll = undefined,
   onEditSuccess,
   isSmallScreen = false,
-  onSetRightPaneUrl
+  onSetRightPaneUrl,
+  clipStart,
+  clipEnd,
+  onSetClipStart,
+  onSetClipEnd,
+  onClearClip,
+  onPlayClip
 }) => {
   if (!visible) {
     return null;

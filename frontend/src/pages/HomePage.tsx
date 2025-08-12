@@ -97,6 +97,10 @@ export default function HomePage() {
   const [rightPaneUrl, setRightPaneUrl] = useState<string>('')
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(0)
   const [isLeftPaneWidthMeasured, setIsLeftPaneWidthMeasured] = useState<boolean>(false)
+  
+  // Clip state variables
+  const [clipStart, setClipStart] = useState<number | null>(null)
+  const [clipEnd, setClipEnd] = useState<number | null>(null)
   const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -993,6 +997,28 @@ export default function HomePage() {
     }
   }
 
+  // Clip management methods
+  const handleSetClipStart = (time: number) => {
+    setClipStart(time)
+  }
+
+  const handleSetClipEnd = (time: number) => {
+    setClipEnd(time)
+  }
+
+  const handleClearClip = () => {
+    setClipStart(null)
+    setClipEnd(null)
+  }
+
+  // Handle play clip functionality when both clip times are set
+  const handlePlayClip = (filename: string) => {
+    if (clipStart !== null && clipEnd !== null) {
+      const url = `/clip_player/${encodeURIComponent(filename)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      handleSetRightPaneUrl(url)
+    }
+  }
+
   // Helper function to handle file expansion
   const handleExpandFile = (filename: string) => {
     setExpandedFiles(prev => {
@@ -1407,6 +1433,12 @@ export default function HomePage() {
               getModelChipColor={getModelChipColor}
               expandContext={expandContext}
               expandAll={expandAll}
+              clipStart={clipStart}
+              clipEnd={clipEnd}
+              onSetClipStart={handleSetClipStart}
+              onSetClipEnd={handleSetClipEnd}
+              onClearClip={handleClearClip}
+              onPlayClip={handlePlayClip}
             />
           ) : (
             // Desktop view - render table
@@ -1663,6 +1695,12 @@ export default function HomePage() {
                     expandAll={expandAll}
                     onEditSuccess={() => { fetchTranscript(file.base_name) }}
                     onSetRightPaneUrl={handleSetRightPaneUrl}
+                    clipStart={clipStart}
+                    clipEnd={clipEnd}
+                    onSetClipStart={handleSetClipStart}
+                    onSetClipEnd={handleSetClipEnd}
+                    onClearClip={handleClearClip}
+                    onPlayClip={() => handlePlayClip(file.base_name)}
                   />
                 </TableCell>
                 </TableRow>
