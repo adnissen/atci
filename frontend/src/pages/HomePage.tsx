@@ -1,6 +1,8 @@
 import TopBar from '../components/TopBar'
 import TranscriptList from '../components/TranscriptList'
 import RightPanePlaceholder from '../components/RightPanePlaceholder'
+import ConfigPage from './ConfigPage'
+import QueuePage from './QueuePage'
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLSState } from '../hooks/useLSState'
 import { useIsSmallScreen } from '../hooks/useMediaQuery'
@@ -58,6 +60,8 @@ export default function HomePage() {
   const [rightPaneUrl, setRightPaneUrl] = useState<string>('')
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(0)
   const [isLeftPaneWidthMeasured, setIsLeftPaneWidthMeasured] = useState<boolean>(false)
+  const [showConfigInRightPane, setShowConfigInRightPane] = useState<boolean>(false)
+  const [showQueueInRightPane, setShowQueueInRightPane] = useState<boolean>(true)
 
   // Clip state variables
   const [clipStart, setClipStart] = useState<number | null>(null)
@@ -316,8 +320,54 @@ export default function HomePage() {
     } else {
       // On desktop, set the state variable
       setRightPaneUrl(url)
+      setShowConfigInRightPane(false) // Hide config when showing other content
+      setShowQueueInRightPane(false) // Hide queue when showing other content
     }
   }, [isSmallScreen])
+
+  const handleConfigClick = () => {
+    if (isSmallScreen) {
+      // On mobile, navigate to config page
+      window.location.href = '/config'
+    } else {
+      // On desktop, show config in right pane
+      setShowConfigInRightPane(true)
+      setShowQueueInRightPane(false) // Hide queue when showing config
+      setRightPaneUrl('') // Clear any existing URL
+    }
+  }
+
+  const handleQueueClick = () => {
+    if (isSmallScreen) {
+      // On mobile, navigate to queue page
+      window.location.href = '/queue'
+    } else {
+      // On desktop, show queue in right pane
+      setShowQueueInRightPane(true)
+      setShowConfigInRightPane(false) // Hide config when showing queue
+      setRightPaneUrl('') // Clear any existing URL
+    }
+  }
+
+  const handleCloseConfig = () => {
+    setShowConfigInRightPane(false)
+    
+    // If we have clip start and end values, restore the clip player
+    if (clipStart !== null && clipEnd !== null && clipTranscript) {
+      const url = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      handleSetRightPaneUrl(url)
+    }
+  }
+
+  const handleCloseQueue = () => {
+    setShowQueueInRightPane(false)
+    
+    // If we have clip start and end values, restore the clip player
+    if (clipStart !== null && clipEnd !== null && clipTranscript) {
+      const url = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      handleSetRightPaneUrl(url)
+    }
+  }
 
   // Clip management methods
   const handleSetClipStart = (time: number, transcript: string) => {
@@ -352,6 +402,8 @@ export default function HomePage() {
     setClipTranscript(null)
     // Clear right pane to show placeholder
     setRightPaneUrl('')
+    setShowConfigInRightPane(false)
+    setShowQueueInRightPane(false)
   }
 
   const handleClipBlock = (startTime: number, endTime: number, transcript: string) => {
@@ -396,6 +448,8 @@ export default function HomePage() {
         onClearSearch={handleClearSearch}
         onScrollToTop={handleScrollToTop}
         onCollapseExpanded={handleCollapseExpanded}
+        onConfigClick={handleConfigClick}
+        onQueueClick={handleQueueClick}
       />
 
       {/* Main content with top padding to account for fixed header */}
@@ -447,7 +501,11 @@ export default function HomePage() {
         {/* Right Pane - Always visible on desktop */}
         {!isSmallScreen && (
           <div className="w-1/2 border-l border-border flex flex-col scrollbar-hide">
-            {rightPaneUrl ? (
+            {showConfigInRightPane ? (
+              <ConfigPage onClose={handleCloseConfig} />
+            ) : showQueueInRightPane ? (
+              <QueuePage onClose={handleCloseQueue} />
+            ) : rightPaneUrl ? (
               <iframe
                 src={rightPaneUrl}
                 className="w-full flex-1 scrollbar-hide"

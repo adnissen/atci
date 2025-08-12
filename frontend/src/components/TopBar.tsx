@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+
 
 interface TopBarProps {
   watchDirectory: string
@@ -16,6 +16,8 @@ interface TopBarProps {
   onClearSearch: () => void
   onScrollToTop: () => void
   onCollapseExpanded: () => void
+  onConfigClick: () => void
+  onQueueClick: () => void
 }
 
 export default function TopBar({
@@ -33,10 +35,10 @@ export default function TopBar({
   onSearch,
   onClearSearch,
   onScrollToTop,
-  onCollapseExpanded
+  onCollapseExpanded,
+  onConfigClick,
+  onQueueClick
 }: TopBarProps) {
-  const navigate = useNavigate()
-
   const handleClearSearch = () => {
     setSearchTerm('')
     setActiveSearchTerm('')
@@ -55,7 +57,7 @@ export default function TopBar({
               <div className="flex gap-2 sm:gap-6 items-center flex-1 min-w-0">
                 <div className="flex gap-2 items-center flex-shrink-0">
                   <button
-                    onClick={() => navigate('/config')}
+                    onClick={onConfigClick}
                     className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors group"
                     title="Edit configuration"
                   >
@@ -66,7 +68,7 @@ export default function TopBar({
                   </button>
                   <div className="relative">
                     <button
-                      onClick={() => navigate('/queue')}
+                      onClick={onQueueClick}
                       className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
                       title="View processing queue"
                     >

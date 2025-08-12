@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem,
 } from '../components/ui/dropdown-menu'
+import { ChevronLeft } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addTimestamp } from '../lib/utils'
@@ -28,7 +29,11 @@ type QueueStatus = {
   processing_state: string
 }
 
-export default function QueuePage() {
+interface QueuePageProps {
+  onClose?: () => void;
+}
+
+export default function QueuePage({ onClose }: QueuePageProps = {}) {
   const navigate = useNavigate()
   const [queueStatus, setQueueStatus] = useState<QueueStatus>({
     queue: [],
@@ -96,34 +101,7 @@ export default function QueuePage() {
     }
   }
 
-  // Cancel current job from "Currently Processing" section
-  const handleCancelCurrent = async () => {
-    if (!queueStatus.current_processing) return
 
-    if (!confirm(`Cancel processing of "${queueStatus.current_processing.path.split('/').pop()}"?`)) {
-      return
-    }
-
-    try {
-      const response = await fetch('/api/queue/cancel-current', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      })
-
-      if (response.ok) {
-        // Refresh queue status
-        await fetchQueueStatus()
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        alert(`Failed to cancel job: ${errorData.message}`)
-      }
-    } catch (err) {
-      console.error('Error cancelling job:', err)
-      alert('Failed to cancel current job')
-    }
-  }
 
   // Cancel processing job from queue table
   const handleCancelProcessing = async (item: QueueItem) => {
@@ -232,20 +210,20 @@ export default function QueuePage() {
     return path.split('/').pop()?.replace(/\.(mp4|MP4)$/, '') || path
   }
 
-  // Get color for process type chip
-  const getProcessTypeColor = (processType: string) => {
-    const colors: Record<string, string> = {
-      'all': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      'length': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      'partial': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+
+
+  const handleBack = () => {
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/');
     }
-    return colors[processType] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-  }
+  };
 
   if (isLoading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-10">
-        <div className="text-center">
+      <div className="h-full overflow-auto">
+        <div className="text-center py-8">
           <div className="text-lg text-muted-foreground">Loading queue...</div>
         </div>
       </div>
@@ -253,25 +231,25 @@ export default function QueuePage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-10">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => navigate('/')}
-            className="p-2 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
-            title="Back to files"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <h1 className="text-2xl font-bold">Processing Queue</h1>
+    <div className="h-full overflow-auto">
+      <div className="bg-card border border-border rounded-lg p-6 h-full">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-semibold">Processing Queue</h2>
+            <div className="text-sm text-muted-foreground">
+              Status: <span className="font-medium">{queueStatus.processing_state}</span>
+            </div>
+          </div>
+          {onClose && (
+            <button
+              onClick={handleBack}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Close
+            </button>
+          )}
         </div>
-        <div className="text-sm text-muted-foreground">
-          Status: <span className="font-medium">{queueStatus.processing_state}</span>
-        </div>
-      </div>
 
       {error && (
         <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-md">
@@ -279,41 +257,8 @@ export default function QueuePage() {
         </div>
       )}
 
-      {/* Currently Processing */}
-      {queueStatus.current_processing && (
-        <div className="mb-6 p-4 bg-accent/10 border border-accent/20 rounded-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold mb-2">Currently Processing</h2>
-              <div className="flex items-center gap-3">
-                <span className="font-medium">{getDisplayName(queueStatus.current_processing.path)}</span>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getProcessTypeColor(queueStatus.current_processing.process_type)}`}>
-                  {queueStatus.current_processing.process_type}
-                </span>
-                {queueStatus.current_processing.time && (
-                  <span className="text-sm text-muted-foreground">
-                    Time: {queueStatus.current_processing.time}
-                  </span>
-                )}
-              </div>
-            </div>
-            <button
-              onClick={handleCancelCurrent}
-              className="px-4 py-2 text-sm bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 focus:outline-none focus:ring-1 focus:ring-ring"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Queue Table */}
       <div className="border border-border rounded-md">
-        <div className="p-4 border-b border-border">
-          <h2 className="text-lg font-semibold">
-            Queue ({queueStatus.queue.length} items)
-          </h2>
-        </div>
         
         {queueStatus.queue.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
@@ -323,17 +268,15 @@ export default function QueuePage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[10%]">Position</TableHead>
-                <TableHead className="w-[40%]">File</TableHead>
-                <TableHead className="w-[20%]">Process Type</TableHead>
-                <TableHead className="w-[15%]">Time</TableHead>
-                <TableHead className="w-[15%]">Actions</TableHead>
+                <TableHead className="w-[15%] text-left">Position</TableHead>
+                <TableHead className="w-[65%] text-left">File</TableHead>
+                <TableHead className="w-[20%] text-left">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {queueStatus.queue.map((item, index) => (
                 <TableRow key={`${item.path}-${item.process_type}-${index}`}>
-                  <TableCell className="font-mono text-sm">
+                  <TableCell className="font-mono text-sm text-left">
                     {index === 0 ? (
                       <span className="inline-flex items-center gap-2">
                         <span className="text-orange-600 dark:text-orange-400">Processing</span>
@@ -343,20 +286,12 @@ export default function QueuePage() {
                       `#${index + 1}`
                     )}
                   </TableCell>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium text-left">
                     <div className="max-w-xs truncate" title={item.path}>
                       {getDisplayName(item.path)}
                     </div>
                   </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getProcessTypeColor(item.process_type)}`}>
-                      {item.process_type}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {item.time || '-'}
-                  </TableCell>
-                  <TableCell>
+                  <TableCell className="text-left">
                     {index === 0 ? (
                       <button
                         onClick={() => handleCancelProcessing(item)}
@@ -445,6 +380,7 @@ export default function QueuePage() {
             </TableBody>
           </Table>
         )}
+      </div>
       </div>
     </div>
   )

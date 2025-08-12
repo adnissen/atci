@@ -45,7 +45,11 @@ interface WhisperCliTool {
   current_path: string;
 }
 
-export default function ConfigPage() {
+interface ConfigPageProps {
+  onClose?: () => void;
+}
+
+export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
   const navigate = useNavigate();
   const [config, setConfig] = useState<ConfigData>({
     watch_directories: [''],
@@ -371,7 +375,11 @@ export default function ConfigPage() {
   };
 
   const handleBack = () => {
-    navigate('/');
+    if (onClose) {
+      onClose();
+    } else {
+      navigate('/');
+    }
   };
 
   const handleModelSelectionChange = (value: string) => {
@@ -442,7 +450,11 @@ export default function ConfigPage() {
         setSuccessMessage('Configuration saved successfully!');
         if (shouldClose) {
           setTimeout(() => {
-            navigate('/');
+            if (onClose) {
+              onClose();
+            } else {
+              navigate('/');
+            }
           }, 1000);
         }
       } else {
@@ -456,46 +468,25 @@ export default function ConfigPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border">
-        <div className="container mx-auto px-6 py-4">
-          <button
-            onClick={handleBack}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back to Dashboard
-          </button>
+    <div className="h-full overflow-auto">
+      {isLoading ? (
+        <div className="text-center py-8">
+          <div className="text-lg text-muted-foreground">Loading configuration...</div>
         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="container mx-auto px-6 py-8">
-        <div className="flex gap-8">
-          {/* Left Sidebar */}
-          <div className="w-64 flex-shrink-0">
-            <h1 className="text-2xl font-bold text-foreground mb-2">Configuration</h1>
-            <p className="text-sm text-muted-foreground mb-6">
-              Manage your autotranscript settings and paths
-            </p>
-            
-            <nav className="space-y-1">
-              <div className="px-3 py-2 bg-accent text-accent-foreground rounded-md text-sm font-medium">
-                General Settings
-              </div>
-            </nav>
+      ) : (
+        <div className="bg-card border border-border rounded-lg p-6 h-full">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-semibold">Configuration</h2>
+            {onClose && (
+              <button
+                onClick={handleBack}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Close
+              </button>
+            )}
           </div>
-
-          {/* Right Content */}
-          <div className="flex-1 max-w-2xl">
-            {isLoading ? (
-              <div className="text-center py-8">
-                <div className="text-lg text-muted-foreground">Loading configuration...</div>
-              </div>
-            ) : (
-              <div className="bg-card border border-border rounded-lg p-6">
-                <h2 className="text-lg font-semibold mb-6">General Settings</h2>
                 
                 <form onSubmit={(e) => { e.preventDefault(); handleSave(false); }} className="space-y-6">
                   {/* Watch Directories */}
@@ -854,11 +845,8 @@ export default function ConfigPage() {
                     </button>
                   </div>
                 </form>
-              </div>
-            )}
-          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
