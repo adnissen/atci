@@ -229,6 +229,14 @@ export default function TranscriptList({
     }
   }, [setLeftPaneWidth, setIsLeftPaneWidthMeasured])
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshFiles()
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  
   // Fetch transcripts when files are expanded
   useEffect(() => {
     fetchExpandedTranscripts()
@@ -1235,7 +1243,7 @@ export default function TranscriptList({
                       ) : (
                         <div className="flex justify-center">
                           <div 
-                            className={`w-3 h-3 rounded-full ${getModelChipColor(file.model).split(' ').find(cls => cls.startsWith('dark:bg-')) || 'bg-gray-200'}`}
+                            className={`w-3 h-3 rounded-full ${getModelChipColor(file.model).split(' ').find(cls => cls.startsWith('bg-')) || 'bg-gray-200'} ${getModelChipColor(file.model).split(' ').find(cls => cls.startsWith('dark:bg-')) || ''}`}
                             title={file.model}
                           />
                         </div>

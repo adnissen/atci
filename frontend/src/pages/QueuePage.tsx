@@ -65,7 +65,7 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
   // Poll for updates every second
   useEffect(() => {
     fetchQueueStatus()
-    const interval = setInterval(fetchQueueStatus, 1000)
+    const interval = setInterval(fetchQueueStatus, 2000)
     return () => clearInterval(interval)
   }, [])
 
@@ -235,10 +235,7 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
       <div className="bg-card border border-border rounded-lg p-6 h-full">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <h2 className="text-lg font-semibold">Processing Queue</h2>
-            <div className="text-sm text-muted-foreground">
-              Status: <span className="font-medium">{queueStatus.processing_state}</span>
-            </div>
+
           </div>
           {onClose && (
             <button

@@ -98,45 +98,6 @@ export default function HomePage() {
     fetchWatchDirectory()
   }, [])
 
-  const refreshQueue = async () => {
-    try {
-      const response = await fetch(addTimestamp('/queue'))
-      if (response.ok) {
-        const data = await response.json()
-        setQueue(data.queue || [])
-        setCurrentProcessingFile(data.current_file || null)
-        
-        // Update regeneratingFiles based on queue
-        const filesInQueue = new Set<string>(
-          data.queue
-            .filter((item: QueueItem) => item.process_type === 'regenerate')
-            .map((item: QueueItem) => item.video_path.split('/').pop()?.replace(/\.(mp4|MP4)$/, '') || '')
-        )
-        
-        // Add current processing file if it's a regenerate
-        if (data.current_processing && data.current_processing.process_type === 'regenerate') {
-          const currentFileName = data.current_processing.video_path.split('/').pop()?.replace(/\.(mp4|MP4)$/, '')
-          if (currentFileName) {
-            filesInQueue.add(currentFileName)
-          }
-        }
-        
-        setRegeneratingFiles(filesInQueue)
-      }
-    } catch (error) {
-      console.error('Error refreshing queue:', error)
-    }
-  }
-
-  // Poll for updates every 3 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshQueue()
-    }, 3000)
-    
-    return () => clearInterval(interval)
-  }, [availableWatchDirs, availableSources, selectedWatchDirs, selectedSources])
-
   // Setup intersection observer to track expanded rows visibility
   const setupIntersectionObserver = useCallback(() => {
     // Clean up existing observers
