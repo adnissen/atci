@@ -1,6 +1,7 @@
 import React from 'react';
 import { Edit2, Camera, Video } from 'lucide-react';
 import DualEditDialog from './DualEditDialog';
+import ClipMenu from './ClipMenu';
 import { addTimestamp } from '../lib/utils';
 import {
   DropdownMenu,
@@ -21,6 +22,13 @@ interface TranscriptBlockProps {
   fullTranscript?: string; // Full transcript text for editing
   isSmallScreen?: boolean;
   onSetRightPaneUrl?: (url: string) => void;
+  clipStart?: number | null;
+  clipEnd?: number | null;
+  clipTranscript?: string | null;
+  onSetClipStart?: (time: number) => void;
+  onSetClipEnd?: (time: number) => void;
+  onClearClip?: () => void;
+  onClipBlock?: (startTime: number, endTime: number) => void;
 }
 
 const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
@@ -34,13 +42,66 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   onEditSuccess,
   fullTranscript = '',
   isSmallScreen: _isSmallScreen = false,
-  onSetRightPaneUrl
+  onSetRightPaneUrl,
+  clipStart,
+  clipEnd,
+  clipTranscript,
+  onSetClipStart,
+  onSetClipEnd,
+  onClearClip,
+  onClipBlock
 }) => {
   const [isEditing, setIsEditing] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [isEditingTimestamp, setIsEditingTimestamp] = React.useState(false);
   const [hoveredLineNumber, setHoveredLineNumber] = React.useState<number | null>(null);
   const [activeDropdown, setActiveDropdown] = React.useState<'timestamp' | 'content' | null>(null);
+  const [clipMenuOpen, setClipMenuOpen] = React.useState(false);
+  const [selectedTimestamp, setSelectedTimestamp] = React.useState<{time: number, type: 'start' | 'end'} | null>(null);
+
+  // Convert timestamp format 00:00:00.000 to seconds
+  const timestampToSeconds = (timestamp: string): number => {
+    const parts = timestamp.split(':');
+    const hours = parseInt(parts[0], 10);
+    const minutes = parseInt(parts[1], 10);
+    const secondsParts = parts[2].split('.');
+    const seconds = parseInt(secondsParts[0], 10);
+    const milliseconds = parseInt(secondsParts[1] || '0', 10);
+    
+    return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
+  };
+
+  // Check if this block contains clip start or end times
+  const blockContainsClipStart = React.useMemo(() => {
+    if (!startTime || !endTime || clipStart === null || clipStart === undefined || clipTranscript !== name) return false;
+    const blockStart = timestampToSeconds(startTime);
+    const blockEnd = timestampToSeconds(endTime);
+    return clipStart >= blockStart && clipStart <= blockEnd;
+  }, [startTime, endTime, clipStart, clipTranscript, name]);
+
+  const blockContainsClipEnd = React.useMemo(() => {
+    if (!startTime || !endTime || clipEnd === null || clipEnd === undefined || clipTranscript !== name) return false;
+    const blockStart = timestampToSeconds(startTime);
+    const blockEnd = timestampToSeconds(endTime);
+    return clipEnd >= blockStart && clipEnd <= blockEnd;
+  }, [startTime, endTime, clipEnd, clipTranscript, name]);
+
+  // Check if this block falls completely within the clip range
+  const blockWithinClipRange = React.useMemo(() => {
+    if (!startTime || !endTime || clipStart === null || clipStart === undefined || clipEnd === null || clipEnd === undefined || clipTranscript !== name) return false;
+    const blockStart = timestampToSeconds(startTime);
+    const blockEnd = timestampToSeconds(endTime);
+    return blockStart >= clipStart && blockEnd <= clipEnd;
+  }, [startTime, endTime, clipStart, clipEnd, clipTranscript, name]);
+
+  const hasClipHighlight = blockContainsClipStart || blockContainsClipEnd || blockWithinClipRange;
+
+  // Handle timestamp clicks
+  const handleTimestampClick = (time: number, type: 'start' | 'end') => {
+    // Always show menu when timestamp is clicked
+    setSelectedTimestamp({time, type});
+    setClipMenuOpen(true);
+  };
 
   // Sync with props
   React.useEffect(() => {
@@ -73,18 +134,6 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   if (!visible || text === "WEBVTT") {
     return null;
   }
-
-  // Convert timestamp format 00:00:00.000 to seconds
-  const timestampToSeconds = (timestamp: string): number => {
-    const parts = timestamp.split(':');
-    const hours = parseInt(parts[0], 10);
-    const minutes = parseInt(parts[1], 10);
-    const secondsParts = parts[2].split('.');
-    const seconds = parseInt(secondsParts[0], 10);
-    const milliseconds = parseInt(secondsParts[1] || '0', 10);
-    
-    return hours * 3600 + minutes * 60 + seconds + milliseconds / 1000;
-  };
 
   // Process content to replace timestamps with clickable spans
   const processContentWithTimestamps = (text: string): string => {
@@ -207,8 +256,40 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
   const timestampLineNumber = lineNumbers[0];
   const contentLineNumber = lineNumbers[lineNumbers.length - 1];
 
+  // Determine background and border styling
+  const getContainerClasses = () => {
+    const baseClasses = [];
+    
+    if (isSearchResult && hasClipHighlight) {
+      // Both search and clip highlighting - combine both
+      baseClasses.push('bg-gradient-to-r', 'from-primary/10', 'to-amber-500/10', 'border-l-4', 'border-primary', 'pl-2');
+    } else if (isSearchResult) {
+      baseClasses.push('bg-primary/10', 'border-l-4', 'border-primary', 'pl-2');
+    } else if (hasClipHighlight) {
+      baseClasses.push('bg-amber-500/10', 'border-l-4', 'border-amber-500', 'pl-2');
+    }
+    
+    return baseClasses.join(' ');
+  };
+
   return (
-              <div className={`${isSearchResult ? 'bg-primary/10 border-l-4 border-primary pl-2' : ''}`}>
+              <div className={getContainerClasses()}>
+        {hasClipHighlight && (
+          <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mb-1">
+            <div className="flex items-center gap-1">
+              {blockContainsClipStart && (
+                <span className="bg-amber-500/20 px-1 py-0.5 rounded text-amber-700 dark:text-amber-300 font-medium">
+                  Clip Start
+                </span>
+              )}
+              {blockContainsClipEnd && (
+                <span className="bg-amber-500/20 px-1 py-0.5 rounded text-amber-700 dark:text-amber-300 font-medium">
+                  Clip End
+                </span>
+              )}
+            </div>
+          </div>
+        )}
         {startTime && endTime && (
           <div className="group">
             <span className="relative">
@@ -228,23 +309,63 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                     {timestampLineNumber}
                   </span>
                   <span className="min-w-0">
-                    <span 
-                      onClick={() => onSetRightPaneUrl && onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`)}
-                      className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
-                      onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
-                      onMouseLeave={() => setHoveredLineNumber(null)}
+                    <ClipMenu
+                      open={clipMenuOpen && selectedTimestamp?.type === 'start'}
+                      onOpenChange={(open) => {
+                        setClipMenuOpen(open);
+                        if (!open) setSelectedTimestamp(null);
+                      }}
+                      selectedTime={selectedTimestamp?.time || (startTime ? timestampToSeconds(startTime) : 0)}
+                      clipStart={clipStart ?? null}
+                      clipEnd={clipEnd ?? null}
+                      clipTranscript={clipTranscript ?? null}
+                      currentTranscript={name}
+                      onSetClipStart={onSetClipStart || (() => {})}
+                      onSetClipEnd={onSetClipEnd || (() => {})}
+                      onClearClip={onClearClip || (() => {})}
+
+                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd) : undefined}
+                      blockStartTime={startTime ? timestampToSeconds(startTime) : undefined}
+                      blockEndTime={endTime ? timestampToSeconds(endTime) : undefined}
                     >
-                      {startTime}
-                    </span>
+                      <span 
+                        onClick={() => startTime && handleTimestampClick(timestampToSeconds(startTime), 'start')}
+                        className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
+                        onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
+                        onMouseLeave={() => setHoveredLineNumber(null)}
+                      >
+                        {startTime}
+                      </span>
+                    </ClipMenu>
                     {' --> '}
-                    <span 
-                      onClick={() => onSetRightPaneUrl && onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`)}
-                      className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
-                      onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
-                      onMouseLeave={() => setHoveredLineNumber(null)}
+                    <ClipMenu
+                      open={clipMenuOpen && selectedTimestamp?.type === 'end'}
+                      onOpenChange={(open) => {
+                        setClipMenuOpen(open);
+                        if (!open) setSelectedTimestamp(null);
+                      }}
+                      selectedTime={selectedTimestamp?.time || (endTime ? timestampToSeconds(endTime) : 0)}
+                      clipStart={clipStart ?? null}
+                      clipEnd={clipEnd ?? null}
+                      clipTranscript={clipTranscript ?? null}
+                      currentTranscript={name}
+                      onSetClipStart={onSetClipStart || (() => {})}
+                      onSetClipEnd={onSetClipEnd || (() => {})}
+                      onClearClip={onClearClip || (() => {})}
+
+                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd) : undefined}
+                      blockStartTime={startTime ? timestampToSeconds(startTime) : undefined}
+                      blockEndTime={endTime ? timestampToSeconds(endTime) : undefined}
                     >
-                      {endTime}
-                    </span>
+                      <span 
+                        onClick={() => endTime && handleTimestampClick(timestampToSeconds(endTime), 'end')}
+                        className="text-sky-700 hover:text-sky-600 underline cursor-pointer"
+                        onMouseEnter={() => setHoveredLineNumber(timestampLineNumber)}
+                        onMouseLeave={() => setHoveredLineNumber(null)}
+                      >
+                        {endTime}
+                      </span>
+                    </ClipMenu>
                   </span>
                 </div>
               </div>
@@ -292,11 +413,16 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                         </a>
                       </DropdownMenuItem>
                       <DropdownMenuItem 
-                        onClick={() => onSetRightPaneUrl && onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`)}
+                        onClick={() => {
+                          if (startTime && endTime) {
+                            // Play current block
+                            onSetRightPaneUrl && onSetRightPaneUrl(`/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`);
+                          }
+                        }}
                         className="flex items-center gap-2"
                       >
                         <Video size={16} className="text-[#be185d]" />
-                        Play Clip
+                        Play Block
                       </DropdownMenuItem>
                       <DropdownMenuItem 
                         onClick={() => handleEditTimestamp()}

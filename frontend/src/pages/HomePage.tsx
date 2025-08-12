@@ -97,6 +97,11 @@ export default function HomePage() {
   const [rightPaneUrl, setRightPaneUrl] = useState<string>('')
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(0)
   const [isLeftPaneWidthMeasured, setIsLeftPaneWidthMeasured] = useState<boolean>(false)
+  
+  // Clip state variables
+  const [clipStart, setClipStart] = useState<number | null>(null)
+  const [clipEnd, setClipEnd] = useState<number | null>(null)
+  const [clipTranscript, setClipTranscript] = useState<string | null>(null)
   const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const observerRef = useRef<IntersectionObserver | null>(null)
@@ -983,7 +988,7 @@ export default function HomePage() {
     setSelectedSources([])
   }
 
-  const handleSetRightPaneUrl = (url: string) => {
+  const handleSetRightPaneUrl = useCallback((url: string) => {
     if (isSmallScreen) {
       // On mobile, open URL in new browser window
       window.open(url, '_blank')
@@ -991,7 +996,61 @@ export default function HomePage() {
       // On desktop, set the state variable
       setRightPaneUrl(url)
     }
+  }, [isSmallScreen])
+
+  // Clip management methods
+  const handleSetClipStart = (time: number, transcript: string) => {
+    if (clipTranscript && clipTranscript !== transcript) {
+      // Different transcript - clear existing clip and set new start
+      setClipStart(time)
+      setClipEnd(null)
+      setClipTranscript(transcript)
+    } else {
+      // Same transcript or no existing clip
+      setClipStart(time)
+      setClipTranscript(transcript)
+    }
   }
+
+  const handleSetClipEnd = (time: number, transcript: string) => {
+    if (clipTranscript && clipTranscript !== transcript) {
+      // Different transcript - clear existing clip and set new end
+      setClipStart(null)
+      setClipEnd(time)
+      setClipTranscript(transcript)
+    } else {
+      // Same transcript or no existing clip
+      setClipEnd(time)
+      setClipTranscript(transcript)
+    }
+  }
+
+  const handleClearClip = () => {
+    setClipStart(null)
+    setClipEnd(null)
+    setClipTranscript(null)
+    // Clear right pane to show placeholder
+    setRightPaneUrl('')
+  }
+
+  const handleClipBlock = (startTime: number, endTime: number, transcript: string) => {
+    setClipStart(startTime)
+    setClipEnd(endTime)
+    setClipTranscript(transcript)
+  }
+
+
+
+  // Auto-update right pane when both clip start and end are set, or clear when incomplete
+  useEffect(() => {
+    if (clipStart !== null && clipEnd !== null && clipTranscript) {
+      const url = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      handleSetRightPaneUrl(url)
+    } else if (clipStart !== null || clipEnd !== null) {
+      // If we have partial clip data, clear the right pane to show placeholder
+      setRightPaneUrl('')
+    }
+  }, [clipStart, clipEnd, clipTranscript, handleSetRightPaneUrl])
 
   // Helper function to handle file expansion
   const handleExpandFile = (filename: string) => {
@@ -1407,6 +1466,14 @@ export default function HomePage() {
               getModelChipColor={getModelChipColor}
               expandContext={expandContext}
               expandAll={expandAll}
+              clipStart={clipStart}
+              clipEnd={clipEnd}
+              clipTranscript={clipTranscript}
+              onSetClipStart={handleSetClipStart}
+              onSetClipEnd={handleSetClipEnd}
+              onClearClip={handleClearClip}
+
+              onClipBlock={handleClipBlock}
             />
           ) : (
             // Desktop view - render table
@@ -1663,6 +1730,14 @@ export default function HomePage() {
                     expandAll={expandAll}
                     onEditSuccess={() => { fetchTranscript(file.base_name) }}
                     onSetRightPaneUrl={handleSetRightPaneUrl}
+                    clipStart={clipStart}
+                    clipEnd={clipEnd}
+                    clipTranscript={clipTranscript}
+                    onSetClipStart={(time) => handleSetClipStart(time, file.base_name)}
+                    onSetClipEnd={(time) => handleSetClipEnd(time, file.base_name)}
+                    onClearClip={handleClearClip}
+
+                    onClipBlock={(startTime, endTime) => handleClipBlock(startTime, endTime, file.base_name)}
                   />
                 </TableCell>
                 </TableRow>

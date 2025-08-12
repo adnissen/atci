@@ -15,6 +15,13 @@ interface TranscriptViewProps {
   onEditSuccess?: () => void;
   isSmallScreen?: boolean;
   onSetRightPaneUrl?: (url: string) => void;
+  clipStart?: number | null;
+  clipEnd?: number | null;
+  clipTranscript?: string | null;
+  onSetClipStart?: (time: number) => void;
+  onSetClipEnd?: (time: number) => void;
+  onClearClip?: () => void;
+  onClipBlock?: (startTime: number, endTime: number) => void;
 }
 
 // Extend Window interface for our custom handlers
@@ -48,7 +55,14 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   expandAll = undefined,
   onEditSuccess,
   isSmallScreen = false,
-  onSetRightPaneUrl
+  onSetRightPaneUrl,
+  clipStart,
+  clipEnd,
+  clipTranscript,
+  onSetClipStart,
+  onSetClipEnd,
+  onClearClip,
+  onClipBlock
 }) => {
   if (!visible) {
     return null;
@@ -230,6 +244,14 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                     fullTranscript={text}
                     isSmallScreen={isSmallScreen}
                     onSetRightPaneUrl={onSetRightPaneUrl}
+                    clipStart={clipStart}
+                    clipEnd={clipEnd}
+                    clipTranscript={clipTranscript}
+                    onSetClipStart={onSetClipStart}
+                    onSetClipEnd={onSetClipEnd}
+                    onClearClip={onClearClip}
+
+                    onClipBlock={onClipBlock}
                   />
                 ) : (
                   <div className="text-muted-foreground italic">

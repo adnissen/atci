@@ -38,6 +38,13 @@ interface MobileTranscriptListProps {
   isFileBeingProcessed: (filename: string) => boolean
   formatDate: (dateString: string) => string
   getModelChipColor: (model: string | undefined) => string
+  clipStart: number | null
+  clipEnd: number | null
+  clipTranscript: string | null
+  onSetClipStart: (time: number, transcript: string) => void
+  onSetClipEnd: (time: number, transcript: string) => void
+  onClearClip: () => void
+  onClipBlock: (startTime: number, endTime: number, transcript: string) => void
   expandContext: (filename: string, direction: "up" | "down", line: number) => void
   expandAll: (filename: string) => void
 }
@@ -62,7 +69,14 @@ export default function MobileTranscriptList({
   formatDate,
   getModelChipColor,
   expandContext,
-  expandAll
+  expandAll,
+  clipStart,
+  clipEnd,
+  clipTranscript,
+  onSetClipStart,
+  onSetClipEnd,
+  onClearClip,
+  onClipBlock
 }: MobileTranscriptListProps) {
   return (
     <div className="divide-y divide-border">
@@ -106,6 +120,14 @@ export default function MobileTranscriptList({
                 onEditSuccess={() => { onFetchTranscript(file.base_name) }}
                 isSmallScreen={true}
                 onSetRightPaneUrl={onSetRightPaneUrl}
+                clipStart={clipStart}
+                clipEnd={clipEnd}
+                clipTranscript={clipTranscript}
+                onSetClipStart={(time) => onSetClipStart(time, file.base_name)}
+                onSetClipEnd={(time) => onSetClipEnd(time, file.base_name)}
+                onClearClip={onClearClip}
+
+                onClipBlock={(startTime, endTime) => onClipBlock(startTime, endTime, file.base_name)}
               />
             )}
           </div>
