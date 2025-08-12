@@ -5,6 +5,7 @@ import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Checkbox } from './ui/checkbox'
 import { Download, ChevronLeft } from 'lucide-react'
+import ClipTimeButtons from './ClipTimeButtons'
 
 interface ClipPlayerProps {
   filename: string
@@ -45,6 +46,18 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     const minutes = parseInt(parts[1], 10)
     const seconds = parseFloat(parts[2])
     return hours * 3600 + minutes * 60 + seconds
+  }
+
+  // Convert seconds to timestamp (HH:MM:SS.mmm)
+  const secondsToTimestamp = (totalSeconds: number): string => {
+    // Ensure non-negative
+    totalSeconds = Math.max(0, totalSeconds)
+    
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toFixed(3).padStart(6, '0')}`
   }
 
   // Validate timestamp format
@@ -104,6 +117,29 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     
     return filename
   }
+
+  // Adjust time by given seconds
+  const adjustTime = (currentTime: string, adjustment: number, setter: (value: string) => void) => {
+    if (!isValidTimestamp(currentTime)) return
+    
+    const currentSeconds = timestampToSeconds(currentTime)
+    const newSeconds = currentSeconds + adjustment
+    const newTimestamp = secondsToTimestamp(newSeconds)
+    
+    setter(newTimestamp)
+  }
+
+  // Create button configurations for time adjustment
+  const createTimeButtons = (currentTime: string, setter: (value: string) => void) => [
+    { text: '+1s', onClick: () => adjustTime(currentTime, 1, setter), color: '#22c55e', group: 0 },
+    { text: '+0.5s', onClick: () => adjustTime(currentTime, 0.5, setter), color: '#22c55e', group: 0 },
+    { text: '+0.1s', onClick: () => adjustTime(currentTime, 0.1, setter), color: '#22c55e', group: 0 },
+    { text: '+0.01s', onClick: () => adjustTime(currentTime, 0.01, setter), color: '#22c55e', group: 0 },
+    { text: '-1s', onClick: () => adjustTime(currentTime, -1, setter), color: '#ef4444', group: 1 },
+    { text: '-0.5s', onClick: () => adjustTime(currentTime, -0.5, setter), color: '#ef4444', group: 1 },
+    { text: '-0.1s', onClick: () => adjustTime(currentTime, -0.1, setter), color: '#ef4444', group: 1 },
+    { text: '-0.01s', onClick: () => adjustTime(currentTime, -0.01, setter), color: '#ef4444', group: 1 }
+  ]
 
   // Update video and download links
   const updateVideo = () => {
@@ -222,6 +258,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
               ref={videoRef}
               controls
               autoPlay
+              playsInline
               className="w-full h-auto block"
               onLoadedData={handleVideoLoad}
               onError={handleVideoError}
@@ -252,6 +289,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                 className="font-mono text-sm tracking-wider"
                 required
               />
+              <ClipTimeButtons buttons={createTimeButtons(startTime, setStartTime)} />
             </div>
             <div className="space-y-2">
               <label htmlFor="end_time" className="text-sm font-medium">
@@ -267,6 +305,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                 className="font-mono text-sm tracking-wider"
                 required
               />
+              <ClipTimeButtons buttons={createTimeButtons(endTime, setEndTime)} />
             </div>
             <div className="space-y-2">
               <label htmlFor="font_size" className="text-sm font-medium">
