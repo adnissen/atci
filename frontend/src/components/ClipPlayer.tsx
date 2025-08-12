@@ -289,7 +289,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
           </div>
 
           {/* Download Buttons */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+          <div className="flex flex-col gap-3 items-center pt-4">
             <Button asChild className="bg-emerald-600 hover:bg-emerald-700">
               <a
                 href={buildClipUrl('mp4')}
