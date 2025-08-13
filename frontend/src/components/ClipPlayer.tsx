@@ -156,7 +156,6 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
       
       // Share the file
       await navigator.share({
-        title: `Clip from ${filenameForDownload}`,
         files: [file]
       })
     } catch (error) {
