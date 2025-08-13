@@ -268,6 +268,15 @@ export default function HomePage() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${wholeSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
   }
 
+  // Callback functions for ClipPlayer time changes
+  const handleStartTimeChange = (timeInSeconds: number) => {
+    setClipStart(timeInSeconds)
+  }
+
+  const handleEndTimeChange = (timeInSeconds: number) => {
+    setClipEnd(timeInSeconds)
+  }
+
 
 
   const handleSetRightPaneComponent = useCallback((component: React.ReactNode | null, _fallbackUrl?: string) => {
@@ -371,6 +380,8 @@ export default function HomePage() {
             font_size=""
             text=""
             display_text={false}
+            onStartTimeChange={handleStartTimeChange}
+            onEndTimeChange={handleEndTimeChange}
             onBack={() => {
               if (isSmallScreen) {
                 // On mobile, just hide the clip player but keep clip times
@@ -411,6 +422,8 @@ export default function HomePage() {
             font_size=""
             text=""
             display_text={false}
+            onStartTimeChange={handleStartTimeChange}
+            onEndTimeChange={handleEndTimeChange}
             onBack={() => {
               if (isSmallScreen) {
                 // On mobile, just hide the clip player but keep clip times
@@ -505,6 +518,8 @@ export default function HomePage() {
             font_size=""
             text=""
             display_text={false}
+            onStartTimeChange={handleStartTimeChange}
+            onEndTimeChange={handleEndTimeChange}
             onBack={() => {
               if (isSmallScreen) {
                 // On mobile, just hide the clip player but keep clip times

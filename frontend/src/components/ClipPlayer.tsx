@@ -16,6 +16,8 @@ interface ClipPlayerProps {
   text?: string
   display_text?: boolean
   onBack?: () => void
+  onStartTimeChange?: (time: number) => void
+  onEndTimeChange?: (time: number) => void
 }
 
 const ClipPlayer: React.FC<ClipPlayerProps> = ({
@@ -26,7 +28,9 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   font_size = '',
   text = '',
   display_text = false,
-  onBack
+  onBack,
+  onStartTimeChange,
+  onEndTimeChange
 }) => {
   const [startTime, setStartTime] = useState(start_time_formatted)
   const [endTime, setEndTime] = useState(end_time_formatted)
@@ -119,7 +123,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   }
 
   // Adjust time by given seconds
-  const adjustTime = (currentTime: string, adjustment: number, setter: (value: string) => void) => {
+  const adjustTime = (currentTime: string, adjustment: number, setter: (value: string) => void, callback?: (time: number) => void) => {
     if (!isValidTimestamp(currentTime)) return
     
     const currentSeconds = timestampToSeconds(currentTime)
@@ -127,18 +131,23 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     const newTimestamp = secondsToTimestamp(newSeconds)
     
     setter(newTimestamp)
+    
+    // Call the callback with the new time in seconds
+    if (callback) {
+      callback(newSeconds)
+    }
   }
 
   // Create button configurations for time adjustment
-  const createTimeButtons = (currentTime: string, setter: (value: string) => void) => [
-    { text: '+1s', onClick: () => adjustTime(currentTime, 1, setter), color: '#22c55e', group: 0 },
-    { text: '+0.5s', onClick: () => adjustTime(currentTime, 0.5, setter), color: '#22c55e', group: 0 },
-    { text: '+0.1s', onClick: () => adjustTime(currentTime, 0.1, setter), color: '#22c55e', group: 0 },
-    { text: '+0.01s', onClick: () => adjustTime(currentTime, 0.01, setter), color: '#22c55e', group: 0 },
-    { text: '-1s', onClick: () => adjustTime(currentTime, -1, setter), color: '#ef4444', group: 1 },
-    { text: '-0.5s', onClick: () => adjustTime(currentTime, -0.5, setter), color: '#ef4444', group: 1 },
-    { text: '-0.1s', onClick: () => adjustTime(currentTime, -0.1, setter), color: '#ef4444', group: 1 },
-    { text: '-0.01s', onClick: () => adjustTime(currentTime, -0.01, setter), color: '#ef4444', group: 1 }
+  const createTimeButtons = (currentTime: string, setter: (value: string) => void, callback?: (time: number) => void) => [
+    { text: '+1s', onClick: () => adjustTime(currentTime, 1, setter, callback), color: '#22c55e', group: 0 },
+    { text: '+0.5s', onClick: () => adjustTime(currentTime, 0.5, setter, callback), color: '#22c55e', group: 0 },
+    { text: '+0.1s', onClick: () => adjustTime(currentTime, 0.1, setter, callback), color: '#22c55e', group: 0 },
+    { text: '+0.01s', onClick: () => adjustTime(currentTime, 0.01, setter, callback), color: '#22c55e', group: 0 },
+    { text: '-1s', onClick: () => adjustTime(currentTime, -1, setter, callback), color: '#ef4444', group: 1 },
+    { text: '-0.5s', onClick: () => adjustTime(currentTime, -0.5, setter, callback), color: '#ef4444', group: 1 },
+    { text: '-0.1s', onClick: () => adjustTime(currentTime, -0.1, setter, callback), color: '#ef4444', group: 1 },
+    { text: '-0.01s', onClick: () => adjustTime(currentTime, -0.01, setter, callback), color: '#ef4444', group: 1 }
   ]
 
   // Update video and download links
@@ -188,8 +197,13 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   }
 
   // Validate timestamp input
-  const validateTimestampInput = (value: string, setter: (value: string) => void) => {
+  const validateTimestampInput = (value: string, setter: (value: string) => void, callback?: (time: number) => void) => {
     setter(value)
+    // If the value is a valid timestamp and callback is provided, call it
+    if (isValidTimestamp(value) && callback) {
+      const timeInSeconds = timestampToSeconds(value)
+      callback(timeInSeconds)
+    }
     // Note: Video reloading is now handled by useEffect below
   }
 
@@ -283,13 +297,13 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                 id="start_time"
                 type="text"
                 value={startTime}
-                onChange={(e) => validateTimestampInput(e.target.value, setStartTime)}
+                onChange={(e) => validateTimestampInput(e.target.value, setStartTime, onStartTimeChange)}
                 pattern="^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$"
                 placeholder="00:00:00.000"
                 className="font-mono text-sm tracking-wider"
                 required
               />
-              <ClipTimeButtons buttons={createTimeButtons(startTime, setStartTime)} />
+              <ClipTimeButtons buttons={createTimeButtons(startTime, setStartTime, onStartTimeChange)} />
             </div>
             <div className="space-y-2">
               <label htmlFor="end_time" className="text-sm font-medium">
@@ -299,13 +313,13 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                 id="end_time"
                 type="text"
                 value={endTime}
-                onChange={(e) => validateTimestampInput(e.target.value, setEndTime)}
+                onChange={(e) => validateTimestampInput(e.target.value, setEndTime, onEndTimeChange)}
                 pattern="^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$"
                 placeholder="00:00:00.000"
                 className="font-mono text-sm tracking-wider"
                 required
               />
-              <ClipTimeButtons buttons={createTimeButtons(endTime, setEndTime)} />
+              <ClipTimeButtons buttons={createTimeButtons(endTime, setEndTime, onEndTimeChange)} />
             </div>
             <div className="space-y-2">
               <label htmlFor="font_size" className="text-sm font-medium">
