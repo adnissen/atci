@@ -28,6 +28,7 @@ interface MobileTranscriptListProps {
   regeneratingFiles: Set<string>
   replacingFiles: Set<string>
   searchLineNumbers: Record<string, number[]>
+  currentTranscriptFile: string | null
   onExpandFile: (filename: string) => void
   onRegenerate: (filename: string, e: React.MouseEvent) => void
   onReplace: (filename: string, e: React.MouseEvent) => void
@@ -58,6 +59,7 @@ export default function MobileTranscriptList({
   regeneratingFiles,
   replacingFiles,
   searchLineNumbers,
+  currentTranscriptFile,
   onExpandFile,
   onRegenerate,
   onReplace,
@@ -97,6 +99,7 @@ export default function MobileTranscriptList({
               isRegenerating={regeneratingFiles.has(file.base_name)}
               isReplacing={replacingFiles.has(file.base_name)}
               isProcessing={isFileBeingProcessed(file.base_name)}
+              isCurrent={currentTranscriptFile === file.base_name}
               onRegenerate={(e) => onRegenerate(file.base_name, e)}
               onReplace={(e) => onReplace(file.base_name, e)}
               onRename={(e) => onRename(file.base_name, e)}

@@ -75,6 +75,7 @@ interface TranscriptListProps {
   availableSources: string[]
   setAvailableSources: (sources: string[]) => void
   flashingRow: string | null
+  currentTranscriptFile: string | null
   leftPaneWidth: number
   setLeftPaneWidth: (width: number) => void
   isLeftPaneWidthMeasured: boolean
@@ -118,6 +119,7 @@ export default function TranscriptList({
   availableSources,
   setAvailableSources,
   flashingRow,
+  currentTranscriptFile,
 
   leftPaneWidth,
   setLeftPaneWidth,
@@ -1064,6 +1066,7 @@ export default function TranscriptList({
               regeneratingFiles={regeneratingFiles}
               replacingFiles={replacingFiles}
               searchLineNumbers={searchLineNumbers}
+              currentTranscriptFile={currentTranscriptFile}
               onExpandFile={(filename) => {
                 const file = sortedFiles.find(f => f.base_name === filename)
                 if (file?.transcript) {
@@ -1185,7 +1188,11 @@ export default function TranscriptList({
                 }}>
                   <TableCell className="font-medium w-[34%] max-w-0">
                     <div 
-                      className="leading-tight overflow-hidden whitespace-nowrap text-ellipsis"
+                      className={`leading-tight overflow-hidden whitespace-nowrap text-ellipsis ${
+                        currentTranscriptFile === file.base_name 
+                          ? 'border-2 border-red-500 bg-red-100 dark:bg-red-900/20 px-2 py-1 rounded' 
+                          : ''
+                      }`}
                       style={{ 
                         direction: 'rtl', 
                         textAlign: 'left',
@@ -1201,6 +1208,9 @@ export default function TranscriptList({
                       title={file.name}
                     >
                       {file.name.split('/').pop()?.split('\\').pop() || file.name}
+                      {currentTranscriptFile === file.base_name && (
+                        <span className="ml-2 text-red-600 font-bold text-xs">← CURRENT</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell className="w-[14%] pr-10 text-foreground">{formatDate(file.created_at, leftPaneWidth >= 1129)}</TableCell>

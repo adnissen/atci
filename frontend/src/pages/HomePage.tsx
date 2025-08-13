@@ -53,10 +53,9 @@ export default function HomePage() {
   const [selectedSources, setSelectedSources] = useLSState<string[]>('selectedSources', [])
   const [availableSources, setAvailableSources] = useState<string[]>([])
 
-  // State for tracking out-of-view expanded rows
-  const [outOfViewExpandedFile, setOutOfViewExpandedFile] = useState<string | null>(null)
   const [flashingRow, setFlashingRow] = useState<string | null>(null)
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
+  const [currentTranscriptFile, setCurrentTranscriptFile] = useState<string | null>(null)
 
   // Right pane component state
   const [rightPaneComponent, setRightPaneComponent] = useState<React.ReactNode | null>(null)
@@ -78,8 +77,6 @@ export default function HomePage() {
   const [clipTranscript, setClipTranscript] = useState<string | null>(null)
   const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
-  const observerRef = useRef<IntersectionObserver | null>(null)
-  const transcriptObserverRef = useRef<IntersectionObserver | null>(null)
   const leftPaneRef = useRef<HTMLDivElement | null>(null)
 
   // Fetch watch directory on component mount
@@ -119,111 +116,58 @@ export default function HomePage() {
     }
   }, [])  // Empty dependency array since we want this to run once when component mounts
 
-  // Setup intersection observer to track expanded rows visibility
-  const setupIntersectionObserver = useCallback(() => {
-    // Clean up existing observers
-    if (observerRef.current) {
-      observerRef.current.disconnect()
+  // Function to find the current transcript (closest to top) for debugging
+  const findCurrentTranscript = useCallback(() => {
+    const leftPaneContainer = leftPaneRef.current
+    if (!leftPaneContainer || expandedFiles.size === 0) {
+      setCurrentTranscriptFile(null)
+      return
     }
-    if (transcriptObserverRef.current) {
-      transcriptObserverRef.current.disconnect()
-    }
-
-    // Observer for file rows (sets single file when row goes off top)
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const filename = entry.target.getAttribute('data-filename')
-          if (filename && expandedFiles.has(filename)) {
-            if (!entry.isIntersecting) {
-              // Check if the element is above the viewport (off the top)
-              const isAboveViewport = entry.boundingClientRect.bottom < (entry.rootBounds?.top || 0)
-              if (isAboveViewport && !outOfViewExpandedFile) {
-                // Only set as out of view if transcript is still visible
-                const transcriptRow = transcriptRowRefs.current[filename]
-                if (transcriptRow) {
-                  const transcriptRect = transcriptRow.getBoundingClientRect()
-                  const isTranscriptAboveViewport = transcriptRect.bottom < (entry.rootBounds?.top || 0)
-                  if (!isTranscriptAboveViewport) {
-                    setOutOfViewExpandedFile(filename)
-                  }
-                }
-              }
-            } else {
-              // Remove if this file is currently the out-of-view file
-              if (outOfViewExpandedFile === filename) {
-                setOutOfViewExpandedFile(null)
-              }
-            }
-          }
-        })
-      },
-      {
-        root: null,
-        rootMargin: '-80px 0px 0px 0px', // Account for top bar height
-        threshold: 0
-      }
-    )
-
-    transcriptObserverRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          const filename = entry.target.getAttribute('data-filename')
-          if (filename && expandedFiles.has(filename)) {
-            if (!entry.isIntersecting) {
-              // Check if the bottom of the transcript is above the viewport
-              const isBottomAboveViewport = entry.boundingClientRect.bottom < (entry.rootBounds?.top || 0)
-              if (isBottomAboveViewport && outOfViewExpandedFile === filename) {
-                setOutOfViewExpandedFile(null)
-              } 
-            } else {
-              // Check if the file row is above the viewport but transcript is visible
-              const fileRow = fileRowRefs.current[filename]
-              if (fileRow) {
-                const fileRowRect = fileRow.getBoundingClientRect()
-                const isFileRowAboveViewport = fileRowRect.bottom < (entry.rootBounds?.top || 0)
-                if (isFileRowAboveViewport && !outOfViewExpandedFile) {
-                  setOutOfViewExpandedFile(filename)
-                }
-              }
-            }
-          }
-        })
-      },
-      {
-        root: null,
-        rootMargin: '-80px 0px 0px 0px', // Account for top bar height
-        threshold: 0
-      }
-    )
-
-    // Observe all expanded file rows
+    
+    const containerRect = leftPaneContainer.getBoundingClientRect()
+    const topBarHeight = watchDirectory ? 64 : 0
+    const viewportTop = containerRect.top + topBarHeight
+    
+    let closestFile = null
+    let closestDistance = Infinity
+    
+    // Check all expanded files to find the one with a transcript row closest to the top
     expandedFiles.forEach(filename => {
-      const rowElement = fileRowRefs.current[filename]
-      if (rowElement && observerRef.current) {
-        observerRef.current.observe(rowElement)
-      }
-      
-      const transcriptRowElement = transcriptRowRefs.current[filename]
-      if (transcriptRowElement && transcriptObserverRef.current) {
-        transcriptObserverRef.current.observe(transcriptRowElement)
+      const transcriptRow = transcriptRowRefs.current[filename]
+      if (transcriptRow) {
+        const transcriptRect = transcriptRow.getBoundingClientRect()
+        const distanceFromTop = Math.abs(transcriptRect.top - viewportTop)
+        
+        // Only consider rows that are actually visible
+        if (transcriptRect.bottom > viewportTop && transcriptRect.top < containerRect.bottom) {
+          if (distanceFromTop < closestDistance) {
+            closestDistance = distanceFromTop
+            closestFile = filename
+          }
+        }
       }
     })
-  }, [expandedFiles, outOfViewExpandedFile])
+    
+    setCurrentTranscriptFile(closestFile)
+  }, [expandedFiles, watchDirectory])
 
-  // Set up intersection observer when expanded files change
+  // Update current transcript on scroll and expanded files change
   useEffect(() => {
-    setupIntersectionObserver()
+    const leftPaneContainer = leftPaneRef.current
+    if (!leftPaneContainer) return
+
+    const handleScroll = () => {
+      findCurrentTranscript()
+    }
+
+    leftPaneContainer.addEventListener('scroll', handleScroll)
+    // Also update when expanded files change
+    findCurrentTranscript()
     
     return () => {
-      if (observerRef.current) {
-        observerRef.current.disconnect()
-      }
-      if (transcriptObserverRef.current) {
-        transcriptObserverRef.current.disconnect()
-      }
+      leftPaneContainer.removeEventListener('scroll', handleScroll)
     }
-  }, [setupIntersectionObserver])
+  }, [findCurrentTranscript])
 
   // Handle scroll to top
   const handleScrollToTop = () => {
@@ -251,26 +195,66 @@ export default function HomePage() {
     setOutOfViewExpandedFile(null)
   }
 
-  // Handle collapse
+  // Handle collapse - find the transcript row closest to the top of the screen and collapse it
   const handleCollapseExpanded = () => {
-    if (outOfViewExpandedFile) {
-      const targetFile = outOfViewExpandedFile
+    console.log('handleCollapseExpanded called')
+    const leftPaneContainer = leftPaneRef.current
+    if (!leftPaneContainer || expandedFiles.size === 0) {
+      console.log('Early return:', { leftPaneContainer: !!leftPaneContainer, expandedFilesSize: expandedFiles.size })
+      return
+    }
+    
+    const containerRect = leftPaneContainer.getBoundingClientRect()
+    const topBarHeight = watchDirectory ? 64 : 0
+    const viewportTop = containerRect.top + topBarHeight // Account for top bar
+    
+    console.log('Container info:', { containerRect, topBarHeight, viewportTop })
+    
+    let closestFile = null
+    let closestDistance = Infinity
+    
+    // Check all expanded files to find the one with a transcript row closest to the top
+    expandedFiles.forEach(filename => {
+      const transcriptRow = transcriptRowRefs.current[filename]
+      console.log('Checking file:', filename, 'transcriptRow:', !!transcriptRow)
+      if (transcriptRow) {
+        const transcriptRect = transcriptRow.getBoundingClientRect()
+        // Use the top edge of the transcript row
+        const distanceFromTop = Math.abs(transcriptRect.top - viewportTop)
+        
+        console.log('File:', filename, 'transcriptRect:', transcriptRect, 'distanceFromTop:', distanceFromTop)
+        
+        // Only consider rows that are actually visible (not completely off-screen)
+        if (transcriptRect.bottom > viewportTop && transcriptRect.top < containerRect.bottom) {
+          console.log('File is visible:', filename)
+          if (distanceFromTop < closestDistance) {
+            closestDistance = distanceFromTop
+            closestFile = filename
+            console.log('New closest file:', filename, 'distance:', distanceFromTop)
+          }
+        } else {
+          console.log('File not visible:', filename, 'bottom:', transcriptRect.bottom, 'top:', transcriptRect.top)
+        }
+      }
+    })
+    
+    console.log('Final closest file:', closestFile)
+    
+    if (closestFile) {
+      const targetFile = closestFile
       
-      // First scroll to the row in the left pane container
+      // First scroll to the file row in the left pane container
       const rowElement = fileRowRefs.current[targetFile]
-      const leftPaneContainer = leftPaneRef.current
       
       if (rowElement && leftPaneContainer) {
         // Calculate the position relative to the scrollable container
-        const containerRect = leftPaneContainer.getBoundingClientRect()
         const rowRect = rowElement.getBoundingClientRect()
         const currentScrollTop = leftPaneContainer.scrollTop
         
-        // Account for the top bar height to avoid hiding content behind it
-        const topBarHeight = watchDirectory ? 64 : 0
-        
         // Calculate where to scroll to position the row with top bar offset
         const targetScrollTop = currentScrollTop + (rowRect.top - containerRect.top) - topBarHeight
+        
+        console.log('Scrolling to:', targetScrollTop)
         
         leftPaneContainer.scrollTo({ 
           top: targetScrollTop, 
@@ -280,14 +264,12 @@ export default function HomePage() {
       
       // Wait for scroll to complete, then collapse the row
       setTimeout(() => {
+        console.log('Collapsing file:', targetFile)
         setExpandedFiles(prev => {
           const newSet = new Set(prev)
           newSet.delete(targetFile)
           return newSet
         })
-        
-        // Clear the out-of-view file
-        setOutOfViewExpandedFile(null)
         
         // Flash the row after collapsing
         setTimeout(() => {
@@ -579,7 +561,6 @@ export default function HomePage() {
         isSearching={isSearching}
         queue={queue}
         currentProcessingFile={currentProcessingFile}
-        outOfViewExpandedFile={outOfViewExpandedFile}
         isAtTop={isAtTop}
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
@@ -626,6 +607,7 @@ export default function HomePage() {
             availableSources={availableSources}
             setAvailableSources={setAvailableSources}
             flashingRow={flashingRow}
+            currentTranscriptFile={currentTranscriptFile}
             leftPaneWidth={leftPaneWidth}
             setLeftPaneWidth={setLeftPaneWidth}
             isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}

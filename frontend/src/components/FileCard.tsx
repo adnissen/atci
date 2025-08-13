@@ -26,6 +26,7 @@ interface FileCardProps {
   isRegenerating: boolean
   isReplacing: boolean
   isProcessing: boolean
+  isCurrent?: boolean
   onRegenerate: (e: React.MouseEvent) => void
   onReplace: (e: React.MouseEvent) => void
   onRename: (e: React.MouseEvent) => void
@@ -42,6 +43,7 @@ export default function FileCard({
   isRegenerating,
   isReplacing,
   isProcessing,
+  isCurrent = false,
   onRegenerate,
   onReplace,
   onRename,
@@ -54,11 +56,16 @@ export default function FileCard({
 
   if (isSmallScreen) {
     return (
-      <div className="w-full bg-background py-4 px-4">
+      <div className={`w-full bg-background py-4 px-4 ${
+        isCurrent ? 'border-2 border-red-500 bg-red-100 dark:bg-red-900/20' : ''
+      }`}>
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1 mr-2 min-w-0">
             <h3 className="font-medium text-base break-all overflow-hidden" title={file.name}>
               {filename}
+              {isCurrent && (
+                <span className="ml-2 text-red-600 font-bold text-xs">← CURRENT</span>
+              )}
             </h3>
             {file.model && (
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${getModelChipColor(file.model)}`}>
@@ -206,12 +213,17 @@ export default function FileCard({
   }
 
   return (
-    <Card className="w-full">
+    <Card className={`w-full ${
+      isCurrent ? 'border-2 border-red-500 bg-red-100 dark:bg-red-900/20' : ''
+    }`}>
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
           <div className="flex-1 mr-2 min-w-0">
             <h3 className="font-medium text-base break-all overflow-hidden" title={file.name}>
               {filename}
+              {isCurrent && (
+                <span className="ml-2 text-red-600 font-bold text-xs">← CURRENT</span>
+              )}
             </h3>
             {file.model && (
               <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${getModelChipColor(file.model)}`}>

@@ -13,7 +13,6 @@ interface TopBarProps {
   isSearching: boolean
   queue: Array<{ video_path: string; process_type: string }>
   currentProcessingFile: { video_path: string; process_type: string } | null
-  outOfViewExpandedFile: string | null
   isAtTop: boolean
   onSearch: () => void
   onClearSearch: () => void
@@ -35,7 +34,6 @@ export default function TopBar({
   expandedFiles,
   isSearching,
   queue,
-  outOfViewExpandedFile,
   isAtTop,
   onSearch,
   onClearSearch,
@@ -145,14 +143,17 @@ export default function TopBar({
               </div>
               
               {/* Scroll and Collapse Buttons */}
-              {(!isAtTop || outOfViewExpandedFile || expandedFiles.size > 0) && (
+              {(!isAtTop || expandedFiles.size > 0) && (
                 <div className="flex gap-2 items-center flex-shrink-0">
-                  {outOfViewExpandedFile && (
+                  {expandedFiles.size > 0 && (
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={onCollapseExpanded}
-                      title={`Collapse ${outOfViewExpandedFile}`}
+                      onClick={() => {
+                        console.log('Collapse Current button clicked')
+                        onCollapseExpanded()
+                      }}
+                      title="Find transcript closest to top of screen and collapse it"
                       className="gap-1 px-2 py-1 h-7 text-xs"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
