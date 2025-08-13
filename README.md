@@ -1,4 +1,4 @@
-# atci
+# atci (Andrew's Transcript and Clipping Interface)
 
 atci is a powerful web-based video transcription system that automatically converts your video files to searchable text. Built with Elixir/Phoenix and React, it provides a beautiful interface for managing, viewing, and searching through your video transcripts.
 
