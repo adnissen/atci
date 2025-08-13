@@ -53,9 +53,9 @@ export default function HomePage() {
   const [selectedSources, setSelectedSources] = useLSState<string[]>('selectedSources', [])
   const [availableSources, setAvailableSources] = useState<string[]>([])
 
-  const [flashingRow, setFlashingRow] = useState<string | null>(null)
+
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
-  const [currentTranscriptFile, setCurrentTranscriptFile] = useState<string | null>(null)
+
 
   // Right pane component state
   const [rightPaneComponent, setRightPaneComponent] = useState<React.ReactNode | null>(null)
@@ -117,70 +117,9 @@ export default function HomePage() {
     }
   }, [])  // Empty dependency array since we want this to run once when component mounts
 
-  // Function to find the current transcript (closest to top) for debugging
-  const findCurrentTranscript = useCallback(() => {
-    const leftPaneContainer = leftPaneRef.current
-    if (!leftPaneContainer || expandedFiles.size === 0) {
-      setCurrentTranscriptFile(null)
-      return
-    }
-    
-    const containerRect = leftPaneContainer.getBoundingClientRect()
-    const topBarHeight = watchDirectory ? 64 : 0
-    const viewportTop = containerRect.top + topBarHeight
-    
-    let closestFile = null
-    let closestDistance = Infinity
-    
-    // Check all expanded files to find the one with a transcript row closest to the top
-    expandedFiles.forEach(filename => {
-      const transcriptRow = transcriptRowRefs.current[filename]
-      const mobileTranscriptRow = mobileTranscriptRowRefs.current[filename]
-      if (transcriptRow) {
-        const transcriptRect = transcriptRow.getBoundingClientRect()
-        const distanceFromTop = Math.abs(transcriptRect.top - viewportTop)
-        
-        // Only consider rows that are actually visible
-        if (transcriptRect.bottom > viewportTop && transcriptRect.top < containerRect.bottom) {
-          if (distanceFromTop < closestDistance) {
-            closestDistance = distanceFromTop
-            closestFile = filename
-          }
-        }
-      } else if (mobileTranscriptRow) {
-        const mobileTranscriptRect = mobileTranscriptRow.getBoundingClientRect()
-        const distanceFromTop = Math.abs(mobileTranscriptRect.top - viewportTop)
-        
-        // Only consider rows that are actually visible
-        if (mobileTranscriptRect.bottom > viewportTop && mobileTranscriptRect.top < containerRect.bottom) {
-          if (distanceFromTop < closestDistance) {
-            closestDistance = distanceFromTop
-            closestFile = filename
-          }
-        }
-      }
-    })
-    
-    setCurrentTranscriptFile(closestFile)
-  }, [expandedFiles, watchDirectory])
 
-  // Update current transcript on scroll and expanded files change
-  useEffect(() => {
-    const leftPaneContainer = leftPaneRef.current
-    if (!leftPaneContainer) return
 
-    const handleScroll = () => {
-      findCurrentTranscript()
-    }
 
-    leftPaneContainer.addEventListener('scroll', handleScroll)
-    // Also update when expanded files change
-    findCurrentTranscript()
-    
-    return () => {
-      leftPaneContainer.removeEventListener('scroll', handleScroll)
-    }
-  }, [findCurrentTranscript])
 
   // Handle scroll to top
   const handleScrollToTop = () => {
@@ -209,18 +148,14 @@ export default function HomePage() {
 
   // Handle collapse - find the transcript row closest to the top of the screen and collapse it
   const handleCollapseExpanded = () => {
-    console.log('handleCollapseExpanded called')
     const leftPaneContainer = leftPaneRef.current
     if (!leftPaneContainer || expandedFiles.size === 0) {
-      console.log('Early return:', { leftPaneContainer: !!leftPaneContainer, expandedFilesSize: expandedFiles.size })
       return
     }
     
     const containerRect = leftPaneContainer.getBoundingClientRect()
     const topBarHeight = watchDirectory ? 64 : 0
     const viewportTop = containerRect.top + topBarHeight // Account for top bar
-    
-    console.log('Container info:', { containerRect, topBarHeight, viewportTop })
     
     let closestFile = null
     let closestDistance = Infinity
@@ -229,24 +164,17 @@ export default function HomePage() {
     expandedFiles.forEach(filename => {
       const transcriptRow = transcriptRowRefs.current[filename]
       const mobileTranscriptRow = mobileTranscriptRowRefs.current[filename]
-      console.log('Checking file:', filename, 'transcriptRow:', !!transcriptRow)
       if (transcriptRow) {
         const transcriptRect = transcriptRow.getBoundingClientRect()
         // Use the top edge of the transcript row
         const distanceFromTop = Math.abs(transcriptRect.top - viewportTop)
         
-        console.log('File:', filename, 'transcriptRect:', transcriptRect, 'distanceFromTop:', distanceFromTop)
-        
         // Only consider rows that are actually visible (not completely off-screen)
         if (transcriptRect.bottom > viewportTop && transcriptRect.top < containerRect.bottom) {
-          console.log('File is visible:', filename)
           if (distanceFromTop < closestDistance) {
             closestDistance = distanceFromTop
             closestFile = filename
-            console.log('New closest file:', filename, 'distance:', distanceFromTop)
           }
-        } else {
-          console.log('File not visible:', filename, 'bottom:', transcriptRect.bottom, 'top:', transcriptRect.top)
         }
       } else if (mobileTranscriptRow) {
         const mobileTranscriptRect = mobileTranscriptRow.getBoundingClientRect()
@@ -257,13 +185,10 @@ export default function HomePage() {
           if (distanceFromTop < closestDistance) {
             closestDistance = distanceFromTop
             closestFile = filename
-            console.log('New closest file:', filename, 'distance:', distanceFromTop)
           }
         }
       }
     })
-    
-    console.log('Final closest file:', closestFile)
     
     if (closestFile) {
       const targetFile = closestFile
@@ -279,8 +204,6 @@ export default function HomePage() {
         // Calculate where to scroll to position the row with top bar offset
         const targetScrollTop = currentScrollTop + (rowRect.top - containerRect.top) - topBarHeight
         
-        console.log('Scrolling to:', targetScrollTop)
-        
         leftPaneContainer.scrollTo({ 
           top: targetScrollTop, 
           behavior: 'smooth' 
@@ -289,18 +212,11 @@ export default function HomePage() {
       
       // Wait for scroll to complete, then collapse the row
       setTimeout(() => {
-        console.log('Collapsing file:', targetFile)
         setExpandedFiles(prev => {
           const newSet = new Set(prev)
           newSet.delete(targetFile)
           return newSet
         })
-        
-        // Flash the row after collapsing
-        setTimeout(() => {
-          setFlashingRow(targetFile)
-          setTimeout(() => setFlashingRow(null), 1000) // Flash for 1 second
-        }, 100) // Small delay to ensure DOM updates
       }, 500) // Wait for smooth scroll to complete (typically 300-500ms)
     }
   }
@@ -553,7 +469,7 @@ export default function HomePage() {
           />
         </div>
       )
-      console.log(secondsToTimestamp(clipStart), secondsToTimestamp(clipEnd))
+
       handleSetRightPaneComponent(clipPlayerComponent, fallbackUrl)
     } else if (clipStart !== null || clipEnd !== null) {
       // If we have partial clip data, clear the right pane to show placeholder
@@ -631,8 +547,8 @@ export default function HomePage() {
             setSelectedSources={setSelectedSources}
             availableSources={availableSources}
             setAvailableSources={setAvailableSources}
-            flashingRow={flashingRow}
-            currentTranscriptFile={currentTranscriptFile}
+
+
             leftPaneWidth={leftPaneWidth}
             setLeftPaneWidth={setLeftPaneWidth}
             isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}

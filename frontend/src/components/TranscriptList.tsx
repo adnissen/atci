@@ -74,8 +74,8 @@ interface TranscriptListProps {
   setSelectedSources: (sources: string[] | ((prev: string[]) => string[])) => void
   availableSources: string[]
   setAvailableSources: (sources: string[]) => void
-  flashingRow: string | null
-  currentTranscriptFile: string | null
+
+
   leftPaneWidth: number
   setLeftPaneWidth: (width: number) => void
   isLeftPaneWidthMeasured: boolean
@@ -119,8 +119,8 @@ export default function TranscriptList({
   setSelectedSources,
   availableSources,
   setAvailableSources,
-  flashingRow,
-  currentTranscriptFile,
+
+
 
   leftPaneWidth,
   setLeftPaneWidth,
@@ -757,7 +757,6 @@ export default function TranscriptList({
   }
 
   const handleWatchDirToggle = (dir: string) => {
-    console.log("handleWatchDirToggle", dir)
     setSelectedWatchDirs((prev: string[]) => {
       const newSelection = prev.includes(dir) 
         ? prev.filter((d: string) => d !== dir)
@@ -767,12 +766,10 @@ export default function TranscriptList({
   }
 
   const handleSelectAllWatchDirs = () => {
-    console.log("handleSelectAllWatchDirs", availableWatchDirs)
     setSelectedWatchDirs(availableWatchDirs)
   }
 
   const handleDeselectAllWatchDirs = () => {
-    console.log("handleDeselectAllWatchDirs")
     setSelectedWatchDirs([])
   }
 
@@ -1068,7 +1065,7 @@ export default function TranscriptList({
               regeneratingFiles={regeneratingFiles}
               replacingFiles={replacingFiles}
               searchLineNumbers={searchLineNumbers}
-              currentTranscriptFile={currentTranscriptFile}
+
               onExpandFile={(filename) => {
                 const file = sortedFiles.find(f => f.base_name === filename)
                 if (file?.transcript) {
@@ -1174,7 +1171,7 @@ export default function TranscriptList({
                   key={file.base_name} 
                   ref={(el) => { fileRowRefs.current[file.base_name] = el }}
                   data-filename={file.base_name}
-                  className={flashingRow === file.base_name ? 'animate-pulse bg-primary/10' : ''}
+                  className=""
                   onClick={() => {
                   // Only expand if transcript exists
                   if (file.transcript) {
@@ -1191,11 +1188,7 @@ export default function TranscriptList({
                 }}>
                   <TableCell className="font-medium w-[34%] max-w-0">
                     <div 
-                      className={`leading-tight overflow-hidden whitespace-nowrap text-ellipsis ${
-                        currentTranscriptFile === file.base_name 
-                          ? 'border-2 border-red-500 bg-red-100 dark:bg-red-900/20 px-2 py-1 rounded' 
-                          : ''
-                      }`}
+                      className="leading-tight overflow-hidden whitespace-nowrap text-ellipsis"
                       style={{ 
                         direction: 'rtl', 
                         textAlign: 'left',
@@ -1211,9 +1204,6 @@ export default function TranscriptList({
                       title={file.name}
                     >
                       {file.name.split('/').pop()?.split('\\').pop() || file.name}
-                      {currentTranscriptFile === file.base_name && (
-                        <span className="ml-2 text-red-600 font-bold text-xs">← CURRENT</span>
-                      )}
                     </div>
                   </TableCell>
                   <TableCell className="w-[14%] pr-10 text-foreground">{formatDate(file.created_at, leftPaneWidth >= 1129)}</TableCell>

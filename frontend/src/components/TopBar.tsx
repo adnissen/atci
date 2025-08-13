@@ -150,7 +150,6 @@ export default function TopBar({
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        console.log('Collapse Current button clicked')
                         onCollapseExpanded()
                       }}
                       title="Find transcript closest to top of screen and collapse it"
