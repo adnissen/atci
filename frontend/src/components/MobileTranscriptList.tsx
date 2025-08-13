@@ -48,6 +48,7 @@ interface MobileTranscriptListProps {
   onClipBlock: (startTime: number, endTime: number, transcript: string) => void
   expandContext: (filename: string, direction: "up" | "down", line: number) => void
   expandAll: (filename: string) => void
+  mobileTranscriptRowRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>
 }
 
 export default function MobileTranscriptList({
@@ -78,7 +79,8 @@ export default function MobileTranscriptList({
   onSetClipStart,
   onSetClipEnd,
   onClearClip,
-  onClipBlock
+  onClipBlock,
+  mobileTranscriptRowRefs
 }: MobileTranscriptListProps) {
   return (
     <div className="divide-y divide-border">
@@ -91,7 +93,7 @@ export default function MobileTranscriptList({
         const isExpanded = expandedFiles.has(file.base_name)
         
         return (
-          <div key={file.base_name} className="w-full">
+          <div key={file.base_name} className="w-full" ref={(el) => { mobileTranscriptRowRefs.current[file.base_name] = el }}>
             <FileCard
               file={file}
               onExpand={() => onExpandFile(file.base_name)}

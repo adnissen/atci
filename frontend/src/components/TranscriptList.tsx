@@ -85,6 +85,7 @@ interface TranscriptListProps {
   clipTranscript: string | null
   fileRowRefs: React.MutableRefObject<Record<string, HTMLTableRowElement | null>>
   transcriptRowRefs: React.MutableRefObject<Record<string, HTMLTableRowElement | null>>
+  mobileTranscriptRowRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>
   leftPaneRef: React.MutableRefObject<HTMLDivElement | null>
   onSetRightPaneUrl: (component: React.ReactNode | null, fallbackUrl?: string) => void
   onSetClipStart: (time: number, transcript: string) => void
@@ -130,6 +131,7 @@ export default function TranscriptList({
   clipTranscript,
   fileRowRefs,
   transcriptRowRefs,
+  mobileTranscriptRowRefs,
   leftPaneRef,
   onSetRightPaneUrl,
   onSetClipStart,
@@ -1091,6 +1093,7 @@ export default function TranscriptList({
               onSetClipEnd={onSetClipEnd}
               onClearClip={onClearClip}
               onClipBlock={onClipBlock}
+              mobileTranscriptRowRefs={mobileTranscriptRowRefs}
             />
           ) : (
             // Desktop view - render table

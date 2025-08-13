@@ -77,6 +77,7 @@ export default function HomePage() {
   const [clipTranscript, setClipTranscript] = useState<string | null>(null)
   const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
+  const mobileTranscriptRowRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const leftPaneRef = useRef<HTMLDivElement | null>(null)
 
   // Fetch watch directory on component mount
@@ -134,12 +135,24 @@ export default function HomePage() {
     // Check all expanded files to find the one with a transcript row closest to the top
     expandedFiles.forEach(filename => {
       const transcriptRow = transcriptRowRefs.current[filename]
+      const mobileTranscriptRow = mobileTranscriptRowRefs.current[filename]
       if (transcriptRow) {
         const transcriptRect = transcriptRow.getBoundingClientRect()
         const distanceFromTop = Math.abs(transcriptRect.top - viewportTop)
         
         // Only consider rows that are actually visible
         if (transcriptRect.bottom > viewportTop && transcriptRect.top < containerRect.bottom) {
+          if (distanceFromTop < closestDistance) {
+            closestDistance = distanceFromTop
+            closestFile = filename
+          }
+        }
+      } else if (mobileTranscriptRow) {
+        const mobileTranscriptRect = mobileTranscriptRow.getBoundingClientRect()
+        const distanceFromTop = Math.abs(mobileTranscriptRect.top - viewportTop)
+        
+        // Only consider rows that are actually visible
+        if (mobileTranscriptRect.bottom > viewportTop && mobileTranscriptRect.top < containerRect.bottom) {
           if (distanceFromTop < closestDistance) {
             closestDistance = distanceFromTop
             closestFile = filename
@@ -192,7 +205,6 @@ export default function HomePage() {
     }
     
     setExpandedFiles(new Set())
-    setOutOfViewExpandedFile(null)
   }
 
   // Handle collapse - find the transcript row closest to the top of the screen and collapse it
@@ -216,6 +228,7 @@ export default function HomePage() {
     // Check all expanded files to find the one with a transcript row closest to the top
     expandedFiles.forEach(filename => {
       const transcriptRow = transcriptRowRefs.current[filename]
+      const mobileTranscriptRow = mobileTranscriptRowRefs.current[filename]
       console.log('Checking file:', filename, 'transcriptRow:', !!transcriptRow)
       if (transcriptRow) {
         const transcriptRect = transcriptRow.getBoundingClientRect()
@@ -234,6 +247,18 @@ export default function HomePage() {
           }
         } else {
           console.log('File not visible:', filename, 'bottom:', transcriptRect.bottom, 'top:', transcriptRect.top)
+        }
+      } else if (mobileTranscriptRow) {
+        const mobileTranscriptRect = mobileTranscriptRow.getBoundingClientRect()
+        const distanceFromTop = Math.abs(mobileTranscriptRect.top - viewportTop)
+        
+        // Only consider rows that are actually visible
+        if (mobileTranscriptRect.bottom > viewportTop && mobileTranscriptRect.top < containerRect.bottom) {
+          if (distanceFromTop < closestDistance) {
+            closestDistance = distanceFromTop
+            closestFile = filename
+            console.log('New closest file:', filename, 'distance:', distanceFromTop)
+          }
         }
       }
     })
@@ -617,6 +642,7 @@ export default function HomePage() {
             clipTranscript={clipTranscript}
             fileRowRefs={fileRowRefs}
             transcriptRowRefs={transcriptRowRefs}
+            mobileTranscriptRowRefs={mobileTranscriptRowRefs}
             leftPaneRef={leftPaneRef}
             onSetRightPaneUrl={handleSetRightPaneComponent}
             onSetClipStart={handleSetClipStart}
