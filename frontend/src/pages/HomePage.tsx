@@ -282,6 +282,12 @@ export default function HomePage() {
         // Clear mobile clip player
         setMobileClipPlayerComponent(null)
         setIsAtTop(true)
+        // Restore scroll position after component unmounts
+        setTimeout(() => {
+          if (leftPaneRef.current) {
+            leftPaneRef.current.scrollTop = leftPaneScrollOffset
+          }
+        }, 0)
       }
     } else {
       // On desktop, set the component directly
@@ -299,6 +305,12 @@ export default function HomePage() {
           <ConfigPage onClose={() => {
             setMobileConfigComponent(null)
             setIsAtTop(true)
+            // Restore scroll position after component unmounts
+            setTimeout(() => {
+              if (leftPaneRef.current) {
+                leftPaneRef.current.scrollTop = leftPaneScrollOffset
+              }
+            }, 0)
           }} />
         </div>
       )
@@ -322,6 +334,12 @@ export default function HomePage() {
           <QueuePage onClose={() => {
             setMobileQueueComponent(null)
             setIsAtTop(true)
+            // Restore scroll position after component unmounts
+            setTimeout(() => {
+              if (leftPaneRef.current) {
+                leftPaneRef.current.scrollTop = leftPaneScrollOffset
+              }
+            }, 0)
           }} />
         </div>
       )
@@ -358,6 +376,12 @@ export default function HomePage() {
                 // On mobile, just hide the clip player but keep clip times
                 setMobileClipPlayerComponent(null)
                 setIsAtTop(true)
+                // Restore scroll position after component unmounts
+                setTimeout(() => {
+                  if (leftPaneRef.current) {
+                    leftPaneRef.current.scrollTop = leftPaneScrollOffset
+                  }
+                }, 0)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
@@ -392,6 +416,12 @@ export default function HomePage() {
                 // On mobile, just hide the clip player but keep clip times
                 setMobileClipPlayerComponent(null)
                 setIsAtTop(true)
+                // Restore scroll position after component unmounts
+                setTimeout(() => {
+                  if (leftPaneRef.current) {
+                    leftPaneRef.current.scrollTop = leftPaneScrollOffset
+                  }
+                }, 0)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
@@ -446,6 +476,12 @@ export default function HomePage() {
     // Reset scroll position state when clearing on mobile
     if (isSmallScreen) {
       setIsAtTop(true)
+      // Restore scroll position after component unmounts
+      setTimeout(() => {
+        if (leftPaneRef.current) {
+          leftPaneRef.current.scrollTop = leftPaneScrollOffset
+        }
+      }, 0)
     }
   }
 
@@ -474,6 +510,12 @@ export default function HomePage() {
                 // On mobile, just hide the clip player but keep clip times
                 setMobileClipPlayerComponent(null)
                 setIsAtTop(true)
+                // Restore scroll position after component unmounts
+                setTimeout(() => {
+                  if (leftPaneRef.current) {
+                    leftPaneRef.current.scrollTop = leftPaneScrollOffset
+                  }
+                }, 0)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
