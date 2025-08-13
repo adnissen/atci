@@ -512,7 +512,7 @@ export default function HomePage() {
         {/* Conditional rendering for mobile */}
         {isSmallScreen && (mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent) ? (
           // Show active mobile component
-          <div className="w-full">
+          <div className={`w-full ${watchDirectory ? 'pt-20' : ''}`}>
             {mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent}
           </div>
         ) : (
@@ -565,7 +565,7 @@ export default function HomePage() {
         
         {/* Right Pane - Always visible on desktop */}
         {!isSmallScreen && (
-          <div className="w-1/2 border-l border-border flex flex-col scrollbar-hide">
+          <div className={`w-1/2 border-l border-border flex flex-col scrollbar-hide ${watchDirectory ? 'pt-20' : ''}`}>
             {showConfigInRightPane ? (
               <ConfigPage onClose={handleCloseConfig} />
             ) : showQueueInRightPane ? (

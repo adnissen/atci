@@ -474,7 +474,7 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
           <div className="text-lg text-muted-foreground">Loading configuration...</div>
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-lg p-6 h-full">
+        <div className="p-6 h-full">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-semibold">Configuration</h2>
             {onClose && (

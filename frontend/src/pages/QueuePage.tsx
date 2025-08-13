@@ -232,7 +232,7 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="bg-card border border-border rounded-lg p-6 h-full">
+      <div className="p-6 h-full">
         <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold">Queue</h2>
           <div className="flex items-center gap-4">
