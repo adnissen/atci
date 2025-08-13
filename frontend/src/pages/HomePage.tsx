@@ -55,6 +55,7 @@ export default function HomePage() {
 
 
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
+  const [leftPaneScrollOffset, setLeftPaneScrollOffset] = useState<number>(0)
 
 
   // Right pane component state
@@ -108,6 +109,7 @@ export default function HomePage() {
     const handleScroll = () => {
       const scrollTop = leftPaneContainer.scrollTop
       setIsAtTop(scrollTop <= 10) // Allow small tolerance for "at top"
+      setLeftPaneScrollOffset(scrollTop)
     }
 
     leftPaneContainer.addEventListener('scroll', handleScroll)
