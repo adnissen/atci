@@ -1,5 +1,6 @@
 
 import { Button } from "./ui/button"
+import { useState } from "react"
 
 interface TopBarProps {
   watchDirectory: string
@@ -43,12 +44,22 @@ export default function TopBar({
   onConfigClick,
   onQueueClick
 }: TopBarProps) {
+  const [showSearchPopup, setShowSearchPopup] = useState(false)
+
   const handleClearSearch = () => {
     setSearchTerm('')
     setActiveSearchTerm('')
     setSearchLineNumbers({})
     setExpandedFiles(new Set()) // Collapse all expanded files
     onClearSearch()
+  }
+
+  const handleMobileSearch = () => {
+    if (window.innerWidth < 640) { // sm breakpoint
+      setShowSearchPopup(true)
+    } else {
+      onSearch()
+    }
   }
 
   return (
@@ -89,7 +100,8 @@ export default function TopBar({
                   
                   {/* Search Bar in Top Bar - Left justified with nav buttons */}
                   <div className="flex gap-1 items-center">
-                    <div className="relative">
+                    {/* Desktop search input - hidden on mobile */}
+                    <div className="relative hidden sm:block">
                       <input
                         type="text"
                         placeholder="Search"
@@ -120,7 +132,7 @@ export default function TopBar({
                       )}
                     </div>
                     <button
-                      onClick={onSearch}
+                      onClick={handleMobileSearch}
                       disabled={isSearching}
                       className="px-2 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                       title="Search"
@@ -143,58 +155,147 @@ export default function TopBar({
               </div>
               
               {/* Scroll and Collapse Buttons */}
-              {(!isAtTop || expandedFiles.size > 0) && (
-                <div className="flex gap-2 items-center flex-shrink-0">
-                  {expandedFiles.size > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        onCollapseExpanded()
-                      }}
-                      title="Find transcript closest to top of screen and collapse it"
-                      className="gap-1 px-2 py-1 h-7 text-xs"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                      </svg>
-                      <span className="hidden sm:inline">Collapse Current</span>
-                      <span className="sm:hidden">Collapse</span>
-                    </Button>
-                  )}
-                  {expandedFiles.size > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={onCollapseAll}
-                      title="Collapse all expanded files"
-                      className="gap-1 px-2 py-1 h-7 text-xs"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14l5-5 5 5" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5-5 5 5" />
-                      </svg>
-                      <span className="hidden sm:inline">Collapse All</span>
-                      <span className="sm:hidden">All</span>
-                    </Button>
-                  )}
-                  {!isAtTop && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={onScrollToTop}
-                      title="Scroll to top"
-                      className="gap-1 px-2 py-1 h-7 text-xs"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                      </svg>
-                      <span className="hidden sm:inline">Scroll to Top</span>
-                      <span className="sm:hidden">Top</span>
-                    </Button>
-                  )}
-                </div>
-              )}
+              <div className="flex gap-2 items-center flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (expandedFiles.size > 0) {
+                      onCollapseExpanded()
+                    }
+                  }}
+                  disabled={expandedFiles.size === 0}
+                  title={expandedFiles.size > 0 ? "Find transcript closest to top of screen and collapse it" : "No expanded files to collapse"}
+                  className="gap-1 px-2 py-1 h-7 text-xs"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                  </svg>
+                  <span className="hidden sm:inline">Collapse Current</span>
+                  <span className="sm:hidden">Collapse</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (expandedFiles.size > 0) {
+                      onCollapseAll()
+                    }
+                  }}
+                  disabled={expandedFiles.size === 0}
+                  title={expandedFiles.size > 0 ? "Collapse all expanded files" : "No expanded files to collapse"}
+                  className="gap-1 px-2 py-1 h-7 text-xs"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14l5-5 5 5" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5-5 5 5" />
+                  </svg>
+                  <span className="hidden sm:inline">Collapse All</span>
+                  <span className="sm:hidden">All</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (!isAtTop) {
+                      onScrollToTop()
+                    }
+                  }}
+                  disabled={isAtTop}
+                  title={!isAtTop ? "Scroll to top" : "Already at top"}
+                  className="gap-1 px-2 py-1 h-7 text-xs"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                  </svg>
+                  <span className="hidden sm:inline">Scroll to Top</span>
+                  <span className="sm:hidden">Top</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Search Popup */}
+      {showSearchPopup && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-start justify-center pt-20">
+          <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Search</h3>
+                <button
+                  onClick={() => setShowSearchPopup(false)}
+                  className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="relative mb-4">
+                <input
+                  type="text"
+                  placeholder="Search"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    const newValue = e.target.value
+                    setSearchTerm(newValue)
+                    // If user deletes all text, clear the filtering
+                    if (newValue.trim() === '') {
+                      setActiveSearchTerm('')
+                      setSearchLineNumbers({})
+                      setExpandedFiles(new Set())
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      onSearch()
+                      setShowSearchPopup(false)
+                    }
+                  }}
+                  className="w-full px-3 py-2 pr-10 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                  autoFocus
+                />
+                {(searchTerm || activeSearchTerm) && (
+                  <button
+                    onClick={handleClearSearch}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    title="Clear search"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    onSearch()
+                    setShowSearchPopup(false)
+                  }}
+                  disabled={isSearching}
+                  className="flex-1 px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <svg
+                    className={`w-4 h-4 ${isSearching ? "animate-spin" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="11" cy="11" r="7" strokeWidth={2} />
+                    <line x1="16.5" y1="16.5" x2="21" y2="21" strokeWidth={2} strokeLinecap="round" />
+                  </svg>
+                  Search
+                </button>
+                <button
+                  onClick={() => setShowSearchPopup(false)}
+                  className="px-4 py-2 text-sm border border-input bg-background text-foreground rounded hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
