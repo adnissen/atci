@@ -504,6 +504,41 @@ export default function HomePage() {
     setClipTranscript(transcript)
   }
 
+  const handlePlayClip = () => {
+    if (clipStart !== null && clipEnd !== null && clipTranscript) {
+      const fallbackUrl = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
+      const clipPlayerComponent = (
+        <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
+          <ClipPlayer
+            key={`${clipTranscript}-${clipStart}-${clipEnd}`}
+            filename={clipTranscript}
+            start_time_formatted={secondsToTimestamp(clipStart)}
+            end_time_formatted={secondsToTimestamp(clipEnd)}
+            font_size=""
+            text=""
+            display_text={false}
+            onStartTimeChange={handleStartTimeChange}
+            onEndTimeChange={handleEndTimeChange}
+            onBack={() => {
+              if (isSmallScreen) {
+                setMobileClipPlayerComponent(null)
+                setIsAtTop(true)
+                setTimeout(() => {
+                  if (leftPaneRef.current) {
+                    leftPaneRef.current.scrollTop = leftPaneScrollOffset
+                  }
+                }, 0)
+              } else {
+                setRightPaneComponent(null)
+              }
+            }}
+          />
+        </div>
+      )
+      handleSetRightPaneComponent(clipPlayerComponent, fallbackUrl)
+    }
+  }
+
   // Auto-update right pane when both clip start and end are set, or clear when incomplete
   useEffect(() => {
     if (clipStart !== null && clipEnd !== null && clipTranscript) {
@@ -582,6 +617,11 @@ export default function HomePage() {
         onCollapseAll={handleCollapseAll}
         onConfigClick={handleConfigClick}
         onQueueClick={handleQueueClick}
+        clipStart={clipStart}
+        clipEnd={clipEnd}
+        clipTranscript={clipTranscript}
+        mobileClipPlayerComponent={mobileClipPlayerComponent}
+        onPlayClip={handlePlayClip}
       />
 
       {/* Main content with top padding to account for fixed header */}

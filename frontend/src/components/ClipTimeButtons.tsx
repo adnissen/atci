@@ -27,9 +27,9 @@ const ClipTimeButtons: React.FC<ClipTimeButtonsProps> = ({ buttons }) => {
   const sortedGroupKeys = Object.keys(groupedButtons).map(Number).sort((a, b) => a - b)
 
   return (
-    <div className="mt-2 space-y-1">
+    <div className="mt-2 space-y-3">
       {sortedGroupKeys.map((groupKey) => (
-        <div key={groupKey} className="flex items-center gap-1 justify-center flex-wrap">
+        <div key={groupKey} className="flex items-center gap-2 justify-center flex-wrap">
           {groupedButtons[groupKey].map((button) => (
             <Button
               key={button.originalIndex}

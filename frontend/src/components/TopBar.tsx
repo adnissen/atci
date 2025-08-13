@@ -18,6 +18,10 @@ interface TopBarProps {
   currentProcessingFile: { video_path: string; process_type: string } | null
   isAtTop: boolean
   showingTranscriptList: boolean
+  clipStart?: number | null
+  clipEnd?: number | null
+  clipTranscript?: string | null
+  mobileClipPlayerComponent?: React.ReactNode | null
   onSearch: () => void
   onClearSearch: () => void
   onScrollToTop: () => void
@@ -25,6 +29,7 @@ interface TopBarProps {
   onCollapseAll: () => void
   onConfigClick: () => void
   onQueueClick: () => void
+  onPlayClip?: () => void
 }
 
 export default function TopBar({
@@ -40,13 +45,18 @@ export default function TopBar({
   queue,
   isAtTop,
   showingTranscriptList,
+  clipStart,
+  clipEnd,
+  clipTranscript,
+  mobileClipPlayerComponent,
   onSearch,
   onClearSearch,
   onScrollToTop,
   onCollapseExpanded,
   onCollapseAll,
   onConfigClick,
-  onQueueClick
+  onQueueClick,
+  onPlayClip
 }: TopBarProps) {
   const [showSearchPopup, setShowSearchPopup] = useState(false)
   const isSmallScreen = useIsSmallScreen()
@@ -152,6 +162,24 @@ export default function TopBar({
                         <line x1="16.5" y1="16.5" x2="21" y2="21" strokeWidth={2} strokeLinecap="round" />
                       </svg>
                     </button>
+                    
+                    {/* Play Clip Button - Always visible on mobile, disabled when no clip times or already playing */}
+                    {isSmallScreen && (
+                      <button
+                        onClick={onPlayClip}
+                        disabled={clipStart === null || clipStart === undefined || clipEnd === null || clipEnd === undefined || !onPlayClip || mobileClipPlayerComponent !== null}
+                        className="px-2 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                        title={
+                          mobileClipPlayerComponent !== null 
+                            ? "Clip player is already open" 
+                            : (clipStart !== null && clipStart !== undefined && clipEnd !== null && clipEnd !== undefined ? "Play Clip" : "No clip selected")
+                        }
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M8 5v14l11-7z"/>
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
                 

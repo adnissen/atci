@@ -416,35 +416,6 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
                         </a>
                       </DropdownMenuItem>
                       <DropdownMenuItem 
-                        onClick={() => {
-                          if (startTime && endTime) {
-                            // Play current block
-                            const fallbackUrl = `/clip_player/${encodeURIComponent(name)}?start_time=${timestampToSeconds(startTime)}&end_time=${timestampToSeconds(endTime)}&text=${encodeURIComponent(text)}&display_text=false`
-                            const clipPlayerComponent = (
-                              <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
-                                <ClipPlayer
-                                  key={`${name}-${timestampToSeconds(startTime)}-${timestampToSeconds(endTime)}`}
-                                  filename={name}
-                                  start_time_formatted={secondsToTimestamp(timestampToSeconds(startTime))}
-                                  end_time_formatted={secondsToTimestamp(timestampToSeconds(endTime))}
-                                  font_size=""
-                                  text={text}
-                                  display_text={false}
-                                  onBack={() => {
-                                    onSetRightPaneUrl && onSetRightPaneUrl(null)
-                                  }}
-                                />
-                              </div>
-                            )
-                            onSetRightPaneUrl && onSetRightPaneUrl(clipPlayerComponent, fallbackUrl);
-                          }
-                        }}
-                        className="flex items-center gap-2"
-                      >
-                        <Video size={16} className="text-[#be185d]" />
-                        Play Block
-                      </DropdownMenuItem>
-                      <DropdownMenuItem 
                         onClick={() => handleEditTimestamp()}
                         className="flex items-center gap-2"
                       >

@@ -39,7 +39,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   const [showTextOverlay, setShowTextOverlay] = useState(display_text)
   const [isLoading, setIsLoading] = useState(false)
   const [currentClipUrl, setCurrentClipUrl] = useState(clip_url || '')
-  const [editMode, setEditMode] = useState(false)
+  const [editMode, setEditMode] = useState(true)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -289,38 +289,44 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
       <Card>
         <CardContent className="p-6 space-y-6">
           {/* Time Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label htmlFor="start_time" className="text-sm font-medium">
-                Start Time (hh:mm:ss.sss)
-              </label>
-              <Input
-                id="start_time"
-                type="text"
-                value={startTime}
-                onChange={(e) => validateTimestampInput(e.target.value, setStartTime, onStartTimeChange)}
-                pattern="^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$"
-                placeholder="00:00:00.000"
-                className="font-mono text-sm tracking-wider"
-                required
-              />
-              {editMode && <ClipTimeButtons buttons={createTimeButtons(startTime, setStartTime, onStartTimeChange)} />}
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="end_time" className="text-sm font-medium">
-                End Time (hh:mm:ss.sss)
-              </label>
-              <Input
-                id="end_time"
-                type="text"
-                value={endTime}
-                onChange={(e) => validateTimestampInput(e.target.value, setEndTime, onEndTimeChange)}
-                pattern="^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$"
-                placeholder="00:00:00.000"
-                className="font-mono text-sm tracking-wider"
-                required
-              />
-              {editMode && <ClipTimeButtons buttons={createTimeButtons(endTime, setEndTime, onEndTimeChange)} />}
+          <div className="space-y-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label htmlFor="start_time" className="text-sm font-medium">
+                  Start Time (hh:mm:ss.sss)
+                </label>
+                <Input
+                  id="start_time"
+                  type="text"
+                  value={startTime}
+                  onChange={(e) => validateTimestampInput(e.target.value, setStartTime, onStartTimeChange)}
+                  pattern="^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$"
+                  placeholder="00:00:00.000"
+                  className="font-mono text-xs tracking-wider"
+                  required
+                />
+                {editMode && (
+                  <ClipTimeButtons buttons={createTimeButtons(startTime, setStartTime, onStartTimeChange)} />
+                )}
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="end_time" className="text-sm font-medium">
+                  End Time (hh:mm:ss.sss)
+                </label>
+                <Input
+                  id="end_time"
+                  type="text"
+                  value={endTime}
+                  onChange={(e) => validateTimestampInput(e.target.value, setEndTime, onEndTimeChange)}
+                  pattern="^(\d{2}):(\d{2}):(\d{2})\.(\d{3})$"
+                  placeholder="00:00:00.000"
+                  className="font-mono text-xs tracking-wider"
+                  required
+                />
+                {editMode && (
+                  <ClipTimeButtons buttons={createTimeButtons(endTime, setEndTime, onEndTimeChange)} />
+                )}
+              </div>
             </div>
           </div>
 
@@ -339,7 +345,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
             </div>
           )}
 
-          <div className="space-y-2">
+          <div className="space-y-2 text-left">
             <label htmlFor="font_size" className="text-sm font-medium">
               Font Size
             </label>
@@ -354,6 +360,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
               min="10"
               max="500"
               placeholder="Auto"
+              className="w-20"
             />
           </div>
 
