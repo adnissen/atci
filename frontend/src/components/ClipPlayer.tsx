@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Checkbox } from './ui/checkbox'
-import { Download, ChevronLeft, Edit3 } from 'lucide-react'
+import { Download, ChevronLeft, Edit3, Share } from 'lucide-react'
 import ClipTimeButtons from './ClipTimeButtons'
 
 interface ClipPlayerProps {
@@ -40,6 +40,8 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [currentClipUrl, setCurrentClipUrl] = useState(clip_url || '')
   const [editMode, setEditMode] = useState(true)
+  const [isShareSupported, setIsShareSupported] = useState(false)
+  const [filenameForDownload] = useState(filename)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -108,7 +110,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
 
   // Generate filename for downloads
   const generateFilename = (format: string): string => {
-    let filename = `clip.${format}`
+    let filename = `${filenameForDownload}_clip_start_${startTime}_end_${endTime}.${format}`
     
     if (textOverlay && textOverlay.trim() !== '') {
       const sanitizedText = textOverlay.trim()
@@ -121,6 +123,21 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     }
     
     return filename
+  }
+
+  // Handle native share
+  const handleShare = async (format: string) => {
+    const url = buildClipUrl(format)
+    const filename = generateFilename(format)
+    
+    try {
+      await navigator.share({
+        title: `Clip from ${filename}`,
+        url: window.location.origin + url
+      })
+    } catch (error) {
+      console.error('Error sharing:', error)
+    }
   }
 
   // Adjust time by given seconds
@@ -224,6 +241,11 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
       updateVideo()
     }
   }, [startTime, endTime])
+
+  // Check if native share is supported
+  useEffect(() => {
+    setIsShareSupported(typeof navigator.share === 'function')
+  }, [])
 
   // Initialize video on mount and when key props change
   useEffect(() => {
@@ -396,47 +418,95 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
             </label>
           </div>
 
-          {/* Download Buttons */}
-          <div className="flex items-center gap-1 justify-center flex-wrap pt-4">
-            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
-              borderColor: '#22c55e',
-              color: '#22c55e'
-            }}>
-              <a
-                href={buildClipUrl('mp4')}
-                download={generateFilename('mp4')}
-                className="inline-flex items-center gap-2"
-              >
-                <Download className="w-3 h-3" />
-                Download MP4
-              </a>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
-              borderColor: '#22c55e',
-              color: '#22c55e'
-            }}>
-              <a
-                href={buildClipUrl('gif')}
-                download={generateFilename('gif')}
-                className="inline-flex items-center gap-2"
-              >
-                <Download className="w-3 h-3" />
-                Download GIF
-              </a>
-            </Button>
-            <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
-              borderColor: '#22c55e',
-              color: '#22c55e'
-            }}>
-              <a
-                href={buildClipUrl('mp3')}
-                download={generateFilename('mp3')}
-                className="inline-flex items-center gap-2"
-              >
-                <Download className="w-3 h-3" />
-                Download MP3
-              </a>
-            </Button>
+          {/* Download and Share Buttons */}
+          <div className="pt-4 space-y-2">
+            {/* Download Buttons */}
+            <div className="flex items-center gap-1 justify-center flex-wrap">
+              <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
+                borderColor: '#22c55e',
+                color: '#22c55e'
+              }}>
+                <a
+                  href={buildClipUrl('mp4')}
+                  download={generateFilename('mp4')}
+                  className="inline-flex items-center gap-2"
+                >
+                  <Download className="w-3 h-3" />
+                  Download MP4
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
+                borderColor: '#22c55e',
+                color: '#22c55e'
+              }}>
+                <a
+                  href={buildClipUrl('gif')}
+                  download={generateFilename('gif')}
+                  className="inline-flex items-center gap-2"
+                >
+                  <Download className="w-3 h-3" />
+                  Download GIF
+                </a>
+              </Button>
+              <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" style={{
+                borderColor: '#22c55e',
+                color: '#22c55e'
+              }}>
+                <a
+                  href={buildClipUrl('mp3')}
+                  download={generateFilename('mp3')}
+                  className="inline-flex items-center gap-2"
+                >
+                  <Download className="w-3 h-3" />
+                  Download MP3
+                </a>
+              </Button>
+            </div>
+
+            {/* Share Buttons - Only show if native share is supported */}
+            {isShareSupported && (
+              <div className="flex items-center gap-1 justify-center flex-wrap">
+                <Button 
+                  onClick={() => handleShare('mp4')}
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" 
+                  style={{
+                    borderColor: '#3b82f6',
+                    color: '#3b82f6'
+                  }}
+                >
+                  <Share className="w-3 h-3 mr-1" />
+                  Share MP4
+                </Button>
+                <Button 
+                  onClick={() => handleShare('gif')}
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" 
+                  style={{
+                    borderColor: '#3b82f6',
+                    color: '#3b82f6'
+                  }}
+                >
+                  <Share className="w-3 h-3 mr-1" />
+                  Share GIF
+                </Button>
+                <Button 
+                  onClick={() => handleShare('mp3')}
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 px-2 text-xs font-mono hover:bg-muted/80 transition-colors" 
+                  style={{
+                    borderColor: '#3b82f6',
+                    color: '#3b82f6'
+                  }}
+                >
+                  <Share className="w-3 h-3 mr-1" />
+                  Share MP3
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
