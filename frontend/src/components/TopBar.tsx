@@ -1,6 +1,7 @@
 
 import { Button } from "./ui/button"
 import { useState } from "react"
+import { useIsSmallScreen } from "../hooks/useMediaQuery"
 
 interface TopBarProps {
   watchDirectory: string
@@ -15,6 +16,7 @@ interface TopBarProps {
   queue: Array<{ video_path: string; process_type: string }>
   currentProcessingFile: { video_path: string; process_type: string } | null
   isAtTop: boolean
+  showingTranscriptList: boolean
   onSearch: () => void
   onClearSearch: () => void
   onScrollToTop: () => void
@@ -36,6 +38,7 @@ export default function TopBar({
   isSearching,
   queue,
   isAtTop,
+  showingTranscriptList,
   onSearch,
   onClearSearch,
   onScrollToTop,
@@ -45,6 +48,7 @@ export default function TopBar({
   onQueueClick
 }: TopBarProps) {
   const [showSearchPopup, setShowSearchPopup] = useState(false)
+  const isSmallScreen = useIsSmallScreen()
 
   const handleClearSearch = () => {
     setSearchTerm('')
@@ -154,64 +158,66 @@ export default function TopBar({
                 <div className="flex-1"></div>
               </div>
               
-              {/* Scroll and Collapse Buttons */}
-              <div className="flex gap-2 items-center flex-shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (expandedFiles.size > 0) {
-                      onCollapseExpanded()
-                    }
-                  }}
-                  disabled={expandedFiles.size === 0}
-                  title={expandedFiles.size > 0 ? "Find transcript closest to top of screen and collapse it" : "No expanded files to collapse"}
-                  className="gap-1 px-2 py-1 h-7 text-xs"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                  </svg>
-                  <span className="hidden sm:inline">Collapse Current</span>
-                  <span className="sm:hidden">Collapse</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (expandedFiles.size > 0) {
-                      onCollapseAll()
-                    }
-                  }}
-                  disabled={expandedFiles.size === 0}
-                  title={expandedFiles.size > 0 ? "Collapse all expanded files" : "No expanded files to collapse"}
-                  className="gap-1 px-2 py-1 h-7 text-xs"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14l5-5 5 5" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5-5 5 5" />
-                  </svg>
-                  <span className="hidden sm:inline">Collapse All</span>
-                  <span className="sm:hidden">All</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    if (!isAtTop) {
-                      onScrollToTop()
-                    }
-                  }}
-                  disabled={isAtTop}
-                  title={!isAtTop ? "Scroll to top" : "Already at top"}
-                  className="gap-1 px-2 py-1 h-7 text-xs"
-                >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                  </svg>
-                  <span className="hidden sm:inline">Scroll to Top</span>
-                  <span className="sm:hidden">Top</span>
-                </Button>
-              </div>
+              {/* Scroll and Collapse Buttons - Hide on mobile when not showing transcript list */}
+              {(!isSmallScreen || showingTranscriptList) && (
+                <div className="flex gap-2 items-center flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (expandedFiles.size > 0) {
+                        onCollapseExpanded()
+                      }
+                    }}
+                    disabled={expandedFiles.size === 0}
+                    title={expandedFiles.size > 0 ? "Find transcript closest to top of screen and collapse it" : "No expanded files to collapse"}
+                    className="gap-1 px-2 py-1 h-7 text-xs"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                    <span className="hidden sm:inline">Collapse Current</span>
+                    <span className="sm:hidden">Collapse</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (expandedFiles.size > 0) {
+                        onCollapseAll()
+                      }
+                    }}
+                    disabled={expandedFiles.size === 0}
+                    title={expandedFiles.size > 0 ? "Collapse all expanded files" : "No expanded files to collapse"}
+                    className="gap-1 px-2 py-1 h-7 text-xs"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14l5-5 5 5" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5-5 5 5" />
+                    </svg>
+                    <span className="hidden sm:inline">Collapse All</span>
+                    <span className="sm:hidden">All</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (!isAtTop) {
+                        onScrollToTop()
+                      }
+                    }}
+                    disabled={isAtTop}
+                    title={!isAtTop ? "Scroll to top" : "Already at top"}
+                    className="gap-1 px-2 py-1 h-7 text-xs"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                    <span className="hidden sm:inline">Scroll to Top</span>
+                    <span className="sm:hidden">Top</span>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

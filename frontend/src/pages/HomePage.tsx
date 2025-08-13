@@ -43,8 +43,8 @@ export default function HomePage() {
   const [searchLineNumbers, setSearchLineNumbers] = useState<Record<string, number[]>>({})
   const [isSearching, setIsSearching] = useState(false)
   const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
-  const [queue, setQueue] = useState<QueueItem[]>([])
-  const [currentProcessingFile, setCurrentProcessingFile] = useState<QueueItem | null>(null)
+  const [queue] = useState<QueueItem[]>([])
+  const [currentProcessingFile] = useState<QueueItem | null>(null)
   const [watchDirectory, setWatchDirectory] = useState<string>('')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
@@ -80,6 +80,9 @@ export default function HomePage() {
   const mobileTranscriptRowRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const leftPaneRef = useRef<HTMLDivElement | null>(null)
 
+  // Determine if we're showing the transcript list (not showing other mobile components)
+  const showingTranscriptList = !isSmallScreen || !(mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent)
+
   // Fetch watch directory on component mount
   useEffect(() => {
     const fetchWatchDirectory = async () => {
@@ -100,7 +103,7 @@ export default function HomePage() {
   // Track scroll position of left pane to show/hide scroll to top button
   useEffect(() => {
     const leftPaneContainer = leftPaneRef.current
-    if (!leftPaneContainer) return
+    if (!leftPaneContainer || !showingTranscriptList) return
 
     const handleScroll = () => {
       const scrollTop = leftPaneContainer.scrollTop
@@ -109,13 +112,13 @@ export default function HomePage() {
 
     leftPaneContainer.addEventListener('scroll', handleScroll)
     
-    // Initial check
+    // Initial check when transcript list is shown
     handleScroll()
 
     return () => {
       leftPaneContainer.removeEventListener('scroll', handleScroll)
     }
-  }, [])  // Empty dependency array since we want this to run once when component mounts
+  }, [showingTranscriptList])  // Re-run when showing transcript list changes
 
 
 
@@ -276,6 +279,7 @@ export default function HomePage() {
       } else {
         // Clear mobile clip player
         setMobileClipPlayerComponent(null)
+        setIsAtTop(true)
       }
     } else {
       // On desktop, set the component directly
@@ -290,7 +294,10 @@ export default function HomePage() {
       // On mobile, show config component
       const configComponent = (
         <div className="w-full">
-          <ConfigPage onClose={() => setMobileConfigComponent(null)} />
+          <ConfigPage onClose={() => {
+            setMobileConfigComponent(null)
+            setIsAtTop(true)
+          }} />
         </div>
       )
       setMobileConfigComponent(configComponent)
@@ -310,7 +317,10 @@ export default function HomePage() {
       // On mobile, show queue component
       const queueComponent = (
         <div className="w-full">
-          <QueuePage onClose={() => setMobileQueueComponent(null)} />
+          <QueuePage onClose={() => {
+            setMobileQueueComponent(null)
+            setIsAtTop(true)
+          }} />
         </div>
       )
       setMobileQueueComponent(queueComponent)
@@ -345,6 +355,7 @@ export default function HomePage() {
               if (isSmallScreen) {
                 // On mobile, just hide the clip player but keep clip times
                 setMobileClipPlayerComponent(null)
+                setIsAtTop(true)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
@@ -378,6 +389,7 @@ export default function HomePage() {
               if (isSmallScreen) {
                 // On mobile, just hide the clip player but keep clip times
                 setMobileClipPlayerComponent(null)
+                setIsAtTop(true)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
@@ -429,6 +441,10 @@ export default function HomePage() {
     setMobileQueueComponent(null)
     setShowConfigInRightPane(false)
     setShowQueueInRightPane(false)
+    // Reset scroll position state when clearing on mobile
+    if (isSmallScreen) {
+      setIsAtTop(true)
+    }
   }
 
   const handleClipBlock = (startTime: number, endTime: number, transcript: string) => {
@@ -455,6 +471,7 @@ export default function HomePage() {
               if (isSmallScreen) {
                 // On mobile, just hide the clip player but keep clip times
                 setMobileClipPlayerComponent(null)
+                setIsAtTop(true)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
@@ -498,6 +515,7 @@ export default function HomePage() {
         queue={queue}
         currentProcessingFile={currentProcessingFile}
         isAtTop={isAtTop}
+        showingTranscriptList={showingTranscriptList}
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
         onScrollToTop={handleScrollToTop}
