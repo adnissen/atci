@@ -165,27 +165,22 @@ export default function HomePage() {
       const transcriptRow = transcriptRowRefs.current[filename]
       const mobileTranscriptRow = mobileTranscriptRowRefs.current[filename]
       if (transcriptRow) {
+
         const transcriptRect = transcriptRow.getBoundingClientRect()
         // Use the top edge of the transcript row
         const distanceFromTop = Math.abs(transcriptRect.top - viewportTop)
         
-        // Only consider rows that are actually visible (not completely off-screen)
-        if (transcriptRect.bottom > viewportTop && transcriptRect.top < containerRect.bottom) {
-          if (distanceFromTop < closestDistance) {
-            closestDistance = distanceFromTop
-            closestFile = filename
-          }
+        if (distanceFromTop < closestDistance) {
+          closestDistance = distanceFromTop
+          closestFile = filename
         }
       } else if (mobileTranscriptRow) {
         const mobileTranscriptRect = mobileTranscriptRow.getBoundingClientRect()
         const distanceFromTop = Math.abs(mobileTranscriptRect.top - viewportTop)
-        
-        // Only consider rows that are actually visible
-        if (mobileTranscriptRect.bottom > viewportTop && mobileTranscriptRect.top < containerRect.bottom) {
-          if (distanceFromTop < closestDistance) {
-            closestDistance = distanceFromTop
-            closestFile = filename
-          }
+
+        if (distanceFromTop < closestDistance) {
+          closestDistance = distanceFromTop
+          closestFile = filename
         }
       }
     })
@@ -194,7 +189,7 @@ export default function HomePage() {
       const targetFile = closestFile
       
       // First scroll to the file row in the left pane container
-      const rowElement = fileRowRefs.current[targetFile]
+      const rowElement = fileRowRefs.current[targetFile] || mobileTranscriptRowRefs.current[targetFile]
       
       if (rowElement && leftPaneContainer) {
         // Calculate the position relative to the scrollable container
@@ -203,7 +198,7 @@ export default function HomePage() {
         
         // Calculate where to scroll to position the row with top bar offset
         const targetScrollTop = currentScrollTop + (rowRect.top - containerRect.top) - topBarHeight
-        
+
         leftPaneContainer.scrollTo({ 
           top: targetScrollTop, 
           behavior: 'smooth' 

@@ -34,6 +34,7 @@ interface FileCardProps {
   formatDate: (date: string) => string
   getModelChipColor: (model: string | undefined) => string
   isSmallScreen?: boolean
+  mobileTranscriptRowRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>
 }
 
 export default function FileCard({
@@ -51,6 +52,7 @@ export default function FileCard({
   formatDate,
   getModelChipColor,
   isSmallScreen = false,
+  mobileTranscriptRowRefs,
 }: FileCardProps) {
   const filename = file.name.split('/').pop()?.split('\\').pop() || file.name
 
@@ -58,7 +60,7 @@ export default function FileCard({
     return (
       <div className="w-full bg-background py-4 px-4">
         <div className="flex justify-between items-start mb-3">
-          <div className="flex-1 mr-2 min-w-0">
+          <div className="flex-1 mr-2 min-w-0" id="ref" ref={(el) => { mobileTranscriptRowRefs.current[file.base_name] = el }}>
             <h3 className="font-medium text-base break-all overflow-hidden" title={file.name}>
               {filename}
 

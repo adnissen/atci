@@ -93,7 +93,8 @@ export default function MobileTranscriptList({
         const isExpanded = expandedFiles.has(file.base_name)
         
         return (
-          <div key={file.base_name} className="w-full" ref={(el) => { mobileTranscriptRowRefs.current[file.base_name] = el }}>
+          <div key={file.base_name} className="w-full" >
+            <div id="ref">
             <FileCard
               file={file}
               onExpand={() => onExpandFile(file.base_name)}
@@ -109,7 +110,9 @@ export default function MobileTranscriptList({
               formatDate={formatDate}
               getModelChipColor={getModelChipColor}
               isSmallScreen={true}
+              mobileTranscriptRowRefs={mobileTranscriptRowRefs}
             />
+            </div>
             {isExpanded && (
               <TranscriptView
                 visible={true}
