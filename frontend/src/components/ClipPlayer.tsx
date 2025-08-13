@@ -42,6 +42,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   const [editMode, setEditMode] = useState(true)
   const [isShareSupported, setIsShareSupported] = useState(false)
   const [filenameForDownload] = useState(filename)
+  const [shareLoading, setShareLoading] = useState<{[key: string]: boolean}>({})
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -130,13 +131,47 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     const url = buildClipUrl(format)
     const filename = generateFilename(format)
     
+    setShareLoading(prev => ({ ...prev, [format]: true }))
+    
     try {
+      // Download the file first
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Failed to download file: ${response.statusText}`)
+      }
+      
+      const blob = await response.blob()
+      
+      // Determine MIME type based on format
+      const mimeTypes: {[key: string]: string} = {
+        'mp4': 'video/mp4',
+        'gif': 'image/gif',
+        'mp3': 'audio/mpeg'
+      }
+      
+      // Create a File object
+      const file = new File([blob], filename, {
+        type: mimeTypes[format] || 'application/octet-stream'
+      })
+      
+      // Share the file
       await navigator.share({
-        title: `Clip from ${filename}`,
-        url: window.location.origin + url
+        title: `Clip from ${filenameForDownload}`,
+        files: [file]
       })
     } catch (error) {
       console.error('Error sharing:', error)
+      // Fallback to URL sharing if file sharing fails
+      try {
+        await navigator.share({
+          title: `Clip from ${filename}`,
+          url: window.location.origin + url
+        })
+      } catch (fallbackError) {
+        console.error('Error with fallback sharing:', fallbackError)
+      }
+    } finally {
+      setShareLoading(prev => ({ ...prev, [format]: false }))
     }
   }
 
@@ -475,9 +510,14 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                     borderColor: '#3b82f6',
                     color: '#3b82f6'
                   }}
+                  disabled={shareLoading.mp4}
                 >
-                  <Share className="w-3 h-3 mr-1" />
-                  Share MP4
+                  {shareLoading.mp4 ? (
+                    <div className="w-3 h-3 mr-1 border border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Share className="w-3 h-3 mr-1" />
+                  )}
+                  {shareLoading.mp4 ? 'Sharing...' : 'Share MP4'}
                 </Button>
                 <Button 
                   onClick={() => handleShare('gif')}
@@ -488,9 +528,14 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                     borderColor: '#3b82f6',
                     color: '#3b82f6'
                   }}
+                  disabled={shareLoading.gif}
                 >
-                  <Share className="w-3 h-3 mr-1" />
-                  Share GIF
+                  {shareLoading.gif ? (
+                    <div className="w-3 h-3 mr-1 border border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Share className="w-3 h-3 mr-1" />
+                  )}
+                  {shareLoading.gif ? 'Sharing...' : 'Share GIF'}
                 </Button>
                 <Button 
                   onClick={() => handleShare('mp3')}
@@ -501,9 +546,14 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                     borderColor: '#3b82f6',
                     color: '#3b82f6'
                   }}
+                  disabled={shareLoading.mp3}
                 >
-                  <Share className="w-3 h-3 mr-1" />
-                  Share MP3
+                  {shareLoading.mp3 ? (
+                    <div className="w-3 h-3 mr-1 border border-current border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Share className="w-3 h-3 mr-1" />
+                  )}
+                  {shareLoading.mp3 ? 'Sharing...' : 'Share MP3'}
                 </Button>
               </div>
             )}
