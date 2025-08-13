@@ -1,10 +1,10 @@
-# ATCI
+# atci
 
-ATCI is a powerful web-based video transcription system that automatically converts your video files to searchable text. Built with Elixir/Phoenix and React, it provides a beautiful interface for managing, viewing, and searching through your video transcripts.
+atci is a powerful web-based video transcription system that automatically converts your video files to searchable text. Built with Elixir/Phoenix and React, it provides a beautiful interface for managing, viewing, and searching through your video transcripts.
 
-## 🎯 Why ATCI?
+## 🎯 Why atci?
 
-- **Automatic Processing**: Drop video files in a folder and ATCI handles the rest
+- **Automatic Processing**: Drop video files in a folder and atci handles the rest
 - **Smart Transcription**: Uses Whisper AI for accurate speech-to-text conversion
 - **Existing Subtitles**: Automatically extracts and uses existing subtitles when available
 - **Beautiful Web UI**: Modern React interface for browsing and searching transcripts
@@ -44,7 +44,7 @@ ATCI is a powerful web-based video transcription system that automatically conve
    - Configure paths to required tools (or let the app download them automatically on M-series Macs)
    - Choose and download an AI model for transcription
 
-That's it! Drop video files (MP4, MOV, MKV) into your watch directories and ATCI will automatically process them.
+That's it! Drop video files (MP4, MOV, MKV) into your watch directories and atci will automatically process them.
 
 ## ⚙️ Configuration File (.atciconfig)
 
