@@ -373,7 +373,7 @@ export default function HomePage() {
       const clipPlayerComponent = (
         <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
           <ClipPlayer
-            key={`${clipTranscript}-${clipStart}-${clipEnd}`}
+            key={clipTranscript}
             filename={clipTranscript}
             start_time_formatted={secondsToTimestamp(clipStart)}
             end_time_formatted={secondsToTimestamp(clipEnd)}
@@ -415,7 +415,7 @@ export default function HomePage() {
       const clipPlayerComponent = (
         <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
           <ClipPlayer
-            key={`${clipTranscript}-${clipStart}-${clipEnd}`}
+            key={clipTranscript}
             filename={clipTranscript}
             start_time_formatted={secondsToTimestamp(clipStart)}
             end_time_formatted={secondsToTimestamp(clipEnd)}
@@ -510,7 +510,7 @@ export default function HomePage() {
       const clipPlayerComponent = (
         <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
           <ClipPlayer
-            key={`${clipTranscript}-${clipStart}-${clipEnd}`}
+            key={clipTranscript}
             filename={clipTranscript}
             start_time_formatted={secondsToTimestamp(clipStart)}
             end_time_formatted={secondsToTimestamp(clipEnd)}
@@ -546,7 +546,7 @@ export default function HomePage() {
       const clipPlayerComponent = (
         <div className="w-full flex-1 overflow-y-auto scrollbar-hide">
           <ClipPlayer
-            key={`${clipTranscript}-${clipStart}-${clipEnd}`}
+            key={clipTranscript}
             filename={clipTranscript}
             start_time_formatted={secondsToTimestamp(clipStart)}
             end_time_formatted={secondsToTimestamp(clipEnd)}

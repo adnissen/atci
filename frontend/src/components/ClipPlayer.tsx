@@ -39,7 +39,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   const [showTextOverlay, setShowTextOverlay] = useState(display_text)
   const [isLoading, setIsLoading] = useState(false)
   const [currentClipUrl, setCurrentClipUrl] = useState(clip_url || '')
-  const [editMode, setEditMode] = useState(true)
+  const [editMode, setEditMode] = useState(false)
   const [isShareSupported, setIsShareSupported] = useState(false)
   const [filenameForDownload] = useState(filename)
   const [shareLoading, setShareLoading] = useState<{[key: string]: boolean}>({})
@@ -259,15 +259,22 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     // Note: Video reloading is now handled by useEffect below
   }
 
-  // Update state when props change
+  // Update state when props change (only on initial mount for non-time props)
   useEffect(() => {
-    setStartTime(start_time_formatted)
-    setEndTime(end_time_formatted)
     setFontSize(font_size)
     setTextOverlay(text)
     setShowTextOverlay(display_text)
     setCurrentClipUrl(clip_url || '')
-  }, [start_time_formatted, end_time_formatted, font_size, text, display_text, clip_url])
+  }, [])
+
+  // Update time values when they change from parent (but preserve user modifications to other fields)
+  useEffect(() => {
+    setStartTime(start_time_formatted)
+  }, [start_time_formatted])
+
+  useEffect(() => {
+    setEndTime(end_time_formatted)
+  }, [end_time_formatted])
 
   // Reload video when both start and end times are valid and complete
   useEffect(() => {
