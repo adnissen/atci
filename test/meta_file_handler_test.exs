@@ -1,6 +1,6 @@
-defmodule Autotranscript.MetaFileHandlerTest do
+defmodule Atci.MetaFileHandlerTest do
   use ExUnit.Case
-  alias Autotranscript.MetaFileHandler
+  alias Atci.MetaFileHandler
 
   setup do
     # Create a temporary directory for tests

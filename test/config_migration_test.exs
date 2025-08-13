@@ -1,4 +1,4 @@
-defmodule Autotranscript.ConfigMigrationTest do
+defmodule Atci.ConfigMigrationTest do
   use ExUnit.Case
 
   @moduletag :tmp_dir
@@ -39,7 +39,7 @@ defmodule Autotranscript.ConfigMigrationTest do
       refute Map.has_key?(migrated_config, "watch_directory")
 
       # Verify the migrated config is complete
-      assert Autotranscript.ConfigManager.config_complete?(migrated_config)
+      assert Atci.ConfigManager.config_complete?(migrated_config)
 
       # Clean up
       File.rm_rf(temp_dir)
@@ -77,7 +77,7 @@ defmodule Autotranscript.ConfigMigrationTest do
       refute Map.has_key?(migrated_config, "watch_directory")
 
       # Verify the config is complete
-      assert Autotranscript.ConfigManager.config_complete?(migrated_config)
+      assert Atci.ConfigManager.config_complete?(migrated_config)
     end
   end
 end

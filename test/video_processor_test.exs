@@ -1,6 +1,6 @@
-defmodule Autotranscript.VideoProcessorTest do
+defmodule Atci.VideoProcessorTest do
   use ExUnit.Case
-  alias Autotranscript.VideoProcessor
+  alias Atci.VideoProcessor
 
   describe "parse_srt_content/1" do
     test "parses simple SRT content correctly" do

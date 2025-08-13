@@ -1,7 +1,7 @@
-defmodule Autotranscript.FFmpegManagerTest do
+defmodule Atci.FFmpegManagerTest do
   use ExUnit.Case, async: true
 
-  alias Autotranscript.FFmpegManager
+  alias Atci.FFmpegManager
 
   describe "detect_platform/0" do
     test "returns a valid platform string" do
@@ -12,7 +12,7 @@ defmodule Autotranscript.FFmpegManagerTest do
 
   describe "binaries_directory/0" do
     test "returns the expected directory path" do
-      expected = Path.expand("~/.autotranscript/ffmpeg")
+      expected = Path.expand("~/.atci/ffmpeg")
       assert FFmpegManager.binaries_directory() == expected
     end
   end

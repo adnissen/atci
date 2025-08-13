@@ -36,7 +36,7 @@ type QueueItem = {
 export default function HomePage() {
   const isSmallScreen = useIsSmallScreen()
   
-  const [files, setFiles] = useState<FileRow[]>(window.autotranscript_files as FileRow[])
+  const [files, setFiles] = useState<FileRow[]>(window.atci_files as FileRow[])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [activeSearchTerm, setActiveSearchTerm] = useState('')

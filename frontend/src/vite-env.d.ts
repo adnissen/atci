@@ -2,7 +2,7 @@
 
 declare global {
   interface Window {
-    autotranscript_files: any[];
+    atci_files: any[];
   }
 }
 

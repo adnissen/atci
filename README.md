@@ -1,10 +1,10 @@
-# Autotranscript
+# ATCI
 
-Autotranscript is a powerful web-based video transcription system that automatically converts your video files to searchable text. Built with Elixir/Phoenix and React, it provides a beautiful interface for managing, viewing, and searching through your video transcripts.
+ATCI is a powerful web-based video transcription system that automatically converts your video files to searchable text. Built with Elixir/Phoenix and React, it provides a beautiful interface for managing, viewing, and searching through your video transcripts.
 
-## 🎯 Why Autotranscript?
+## 🎯 Why ATCI?
 
-- **Automatic Processing**: Drop video files in a folder and Autotranscript handles the rest
+- **Automatic Processing**: Drop video files in a folder and ATCI handles the rest
 - **Smart Transcription**: Uses Whisper AI for accurate speech-to-text conversion
 - **Existing Subtitles**: Automatically extracts and uses existing subtitles when available
 - **Beautiful Web UI**: Modern React interface for browsing and searching transcripts
@@ -32,7 +32,7 @@ Autotranscript is a powerful web-based video transcription system that automatic
 
 2. **Run the application**
    ```bash
-   ./autotranscript
+   ./atci
    ```
 
 3. **Open your browser**
@@ -44,11 +44,11 @@ Autotranscript is a powerful web-based video transcription system that automatic
    - Configure paths to required tools (or let the app download them automatically on M-series Macs)
    - Choose and download an AI model for transcription
 
-That's it! Drop video files (MP4, MOV, MKV) into your watch directories and Autotranscript will automatically process them.
+That's it! Drop video files (MP4, MOV, MKV) into your watch directories and ATCI will automatically process them.
 
-## ⚙️ Configuration File (.atconfig)
+## ⚙️ Configuration File (.atciconfig)
 
-The application stores its configuration in a `.atconfig` file in your home directory. This JSON file contains the following properties:
+The application stores its configuration in a `.atciconfig` file in your home directory. This JSON file contains the following properties:
 
 ```json
 {
@@ -68,7 +68,7 @@ The application stores its configuration in a `.atconfig` file in your home dire
 - **`ffmpeg_path`** (string): Path to the ffmpeg executable  
 - **`ffprobe_path`** (string): Path to the ffprobe executable
 - **`model_path`** (string): Direct path to a Whisper model file (.bin) (alternative to model_name)
-- **`model_name`** (string): Name of a model to use from ~/.autotranscript/models/ (alternative to model_path)
+- **`model_name`** (string): Name of a model to use from ~/.atci/models/ (alternative to model_path)
 - **`nonlocal_password`** (string): Optional password for connections with a non-localhost origin
 
 **Notes:**
@@ -82,9 +82,9 @@ The application stores its configuration in a `.atconfig` file in your home dire
 ### Project Structure
 
 ```
-autotranscript/
+atci/
 ├── lib/                    # Elixir/Phoenix backend
-│   └── autotranscript/
+│   └── atci/
 │       ├── web/           # Phoenix web layer
 │       ├── transcriber/   # Core transcription logic
 │       └── *.ex           # Various managers and helpers
@@ -132,7 +132,7 @@ autotranscript/
 
 - **VideoProcessor**: Manages the transcription queue and processing pipeline
 - **Transcriber**: Handles the actual transcription using whisper.cpp
-- **ConfigManager**: Manages application configuration and .atconfig file
+- **ConfigManager**: Manages application configuration and .atciconfig file
 - **MetaFileHandler**: Handles metadata storage for transcripts
 - **FFmpegManager**: Manages FFmpeg and FFprobe binaries, including downloading them for different platforms
 - **ModelManager**: Manages Whisper models, including listing available models and downloading them from Hugging Face
@@ -208,5 +208,5 @@ cd frontend && npx vite build && cd ..
 MIX_ENV=prod mix release
 
 # Run the release
-_build/prod/rel/autotranscript/bin/autotranscript start
+_build/prod/rel/atci/bin/atci start
 ```

@@ -1,6 +1,6 @@
-defmodule Autotranscript.PathHelperTest do
+defmodule Atci.PathHelperTest do
   use ExUnit.Case
-  alias Autotranscript.PathHelper
+  alias Atci.PathHelper
 
   describe "video_extensions/0" do
     test "includes mkv in supported extensions" do

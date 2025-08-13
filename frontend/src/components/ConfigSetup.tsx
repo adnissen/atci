@@ -818,7 +818,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       <div className="max-w-md w-full bg-card border border-border rounded-lg shadow-md p-6">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-foreground mb-2">
-            {isEditMode ? 'Edit Configuration' : 'Autotranscript Setup'}
+            {isEditMode ? 'Edit Configuration' : 'ATCI Setup'}
           </h1>
           <p className="text-muted-foreground">
             {isEditMode ? 'Update your configuration settings' : 'Configure the required paths to get started'}
@@ -835,7 +835,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
 
         <div className="mt-6 text-center">
           <p className="text-xs text-muted-foreground">
-            Configuration will be saved as <code className="bg-muted px-1 py-0.5 rounded text-xs">.atconfig</code> in your home directory
+            Configuration will be saved as <code className="bg-muted px-1 py-0.5 rounded text-xs">.atciconfig</code> in your home directory
           </p>
         </div>
       </div>

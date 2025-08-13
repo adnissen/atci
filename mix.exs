@@ -1,9 +1,9 @@
-defmodule Autotranscript.MixProject do
+defmodule Atci.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :autotranscript,
+      app: :atci,
       version: "0.1.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
@@ -15,7 +15,7 @@ defmodule Autotranscript.MixProject do
   def application do
     [
       extra_applications: [:logger, :httpoison],
-      mod: {Autotranscript.Application, []}
+      mod: {Atci.Application, []}
     ]
   end
 

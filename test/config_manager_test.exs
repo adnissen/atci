@@ -1,7 +1,7 @@
-defmodule Autotranscript.ConfigManagerTest do
+defmodule Atci.ConfigManagerTest do
   use ExUnit.Case
 
-  alias Autotranscript.ConfigManager
+  alias Atci.ConfigManager
 
   describe "config_complete?/1" do
     test "returns true for valid configuration with multiple watch directories" do
