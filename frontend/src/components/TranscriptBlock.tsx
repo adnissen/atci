@@ -288,18 +288,9 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
               <div className={getContainerClasses()}>
         {hasClipHighlight && (
           <div className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mb-1">
-            <div className="flex items-center gap-1">
-              {blockContainsClipStart && (
-                <span className="bg-amber-500/20 px-1 py-0.5 rounded text-amber-700 dark:text-amber-300 font-medium">
-                  Clip Start
-                </span>
-              )}
-              {blockContainsClipEnd && (
-                <span className="bg-amber-500/20 px-1 py-0.5 rounded text-amber-700 dark:text-amber-300 font-medium">
-                  Clip End
-                </span>
-              )}
-            </div>
+            <span className="bg-amber-500/20 px-1 py-0.5 rounded text-amber-700 dark:text-amber-300 font-medium">
+              Clip
+            </span>
           </div>
         )}
         {startTime && endTime && (
