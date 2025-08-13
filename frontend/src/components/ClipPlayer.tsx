@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Checkbox } from './ui/checkbox'
-import { Download, ChevronLeft } from 'lucide-react'
+import { Download, ChevronLeft, Edit3 } from 'lucide-react'
 import ClipTimeButtons from './ClipTimeButtons'
 
 interface ClipPlayerProps {
@@ -39,6 +39,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   const [showTextOverlay, setShowTextOverlay] = useState(display_text)
   const [isLoading, setIsLoading] = useState(false)
   const [currentClipUrl, setCurrentClipUrl] = useState(clip_url || '')
+  const [editMode, setEditMode] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -303,7 +304,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                 className="font-mono text-sm tracking-wider"
                 required
               />
-              <ClipTimeButtons buttons={createTimeButtons(startTime, setStartTime, onStartTimeChange)} />
+              {editMode && <ClipTimeButtons buttons={createTimeButtons(startTime, setStartTime, onStartTimeChange)} />}
             </div>
             <div className="space-y-2">
               <label htmlFor="end_time" className="text-sm font-medium">
@@ -319,25 +320,41 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                 className="font-mono text-sm tracking-wider"
                 required
               />
-              <ClipTimeButtons buttons={createTimeButtons(endTime, setEndTime, onEndTimeChange)} />
+              {editMode && <ClipTimeButtons buttons={createTimeButtons(endTime, setEndTime, onEndTimeChange)} />}
             </div>
-            <div className="space-y-2">
-              <label htmlFor="font_size" className="text-sm font-medium">
-                Font Size
-              </label>
-              <Input
-                id="font_size"
-                type="number"
-                value={fontSize}
-                onChange={(e) => {
-                  setFontSize(e.target.value)
-                  debouncedUpdate()
-                }}
-                min="10"
-                max="500"
-                placeholder="Auto"
-              />
+          </div>
+
+          {/* Edit Time Button */}
+          {!editMode && (
+            <div className="flex justify-center">
+              <Button
+                onClick={() => setEditMode(true)}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Edit3 className="h-4 w-4" />
+                Show Time Controls
+              </Button>
             </div>
+          )}
+
+          <div className="space-y-2">
+            <label htmlFor="font_size" className="text-sm font-medium">
+              Font Size
+            </label>
+            <Input
+              id="font_size"
+              type="number"
+              value={fontSize}
+              onChange={(e) => {
+                setFontSize(e.target.value)
+                debouncedUpdate()
+              }}
+              min="10"
+              max="500"
+              placeholder="Auto"
+            />
           </div>
 
           {/* Text Overlay */}
