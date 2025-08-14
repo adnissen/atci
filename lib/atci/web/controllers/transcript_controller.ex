@@ -933,6 +933,12 @@ defmodule Atci.Web.TranscriptController do
                             "#{trunc(duration * 30)}", # copy to 30fps, ensure whole number
                             "-c:v",
                             "libx264",
+                            "-profile:v",
+                            "baseline",
+                            "-level",
+                            "3.1",
+                            "-pix_fmt",
+                            "yuv420p",
                            ] ++
                              audio_codec_args ++
                              [
@@ -941,7 +947,7 @@ defmodule Atci.Web.TranscriptController do
                                "-preset",
                                "ultrafast",
                                "-movflags",
-                               "faststart",
+                               "faststart+frag_keyframe+empty_moov",
                                "-avoid_negative_ts",
                                "make_zero",
                                "-y",
@@ -962,7 +968,13 @@ defmodule Atci.Web.TranscriptController do
                              "-i",
                              file_path,
                              "-c:v",
-                             "libx264"
+                             "libx264",
+                             "-profile:v",
+                             "baseline",
+                             "-level",
+                             "3.1",
+                             "-pix_fmt",
+                             "yuv420p"
                            ] ++
                              audio_codec_args ++
                              [
@@ -971,7 +983,7 @@ defmodule Atci.Web.TranscriptController do
                                "-preset",
                                "ultrafast",
                                "-movflags",
-                               "faststart",
+                               "faststart+frag_keyframe+empty_moov",
                                "-avoid_negative_ts",
                                "make_zero",
                                "-y",
@@ -1060,6 +1072,12 @@ defmodule Atci.Web.TranscriptController do
                           "#{trunc(duration * 30)}", # copy to 30fps, ensure whole number
                           "-c:v",
                           "libx264",
+                          "-profile:v",
+                          "baseline",
+                          "-level",
+                          "3.1",
+                          "-pix_fmt",
+                          "yuv420p",
                        ] ++
                          audio_codec_args ++
                          [
@@ -1068,7 +1086,7 @@ defmodule Atci.Web.TranscriptController do
                            "-preset",
                            "ultrafast",
                            "-movflags",
-                           "faststart",
+                           "faststart+frag_keyframe+empty_moov",
                            "-avoid_negative_ts",
                            "make_zero",
                            "-y",
