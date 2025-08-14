@@ -43,6 +43,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
   const [isShareSupported, setIsShareSupported] = useState(false)
   const [filenameForDownload] = useState(filename)
   const [shareLoading, setShareLoading] = useState<{[key: string]: boolean}>({})
+  const [previewType, setPreviewType] = useState<'video' | 'gif'>('video')
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -215,7 +216,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     }
 
    
-    const newClipUrl = buildClipUrl('mp4')
+    const newClipUrl = buildClipUrl(previewType === 'video' ? 'mp4' : 'gif')
     if (newClipUrl) {
       setCurrentClipUrl(newClipUrl)
     }
@@ -281,7 +282,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     if (isValidTimestamp(startTime) && isValidTimestamp(endTime)) {
       updateVideo()
     }
-  }, [startTime, endTime])
+  }, [startTime, endTime, previewType])
 
   // Check if native share is supported
   useEffect(() => {
@@ -332,18 +333,30 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
             </div>
           )}
           {currentClipUrl && (
-            <video
-              ref={videoRef}
-              controls
-              autoPlay
-              playsInline
-              className="w-full h-auto block"
-              onLoadedData={handleVideoLoad}
-              onError={handleVideoError}
-            >
-              <source src={currentClipUrl} type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
+            <>
+              {previewType === 'video' ? (
+                <video
+                  ref={videoRef}
+                  controls
+                  autoPlay
+                  playsInline
+                  className="w-full h-auto block"
+                  onLoadedData={handleVideoLoad}
+                  onError={handleVideoError}
+                >
+                  <source src={currentClipUrl} type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
+              ) : (
+                <img
+                  src={currentClipUrl}
+                  alt="Clip preview"
+                  className="w-full h-auto block"
+                  onLoad={handleVideoLoad}
+                  onError={handleVideoError}
+                />
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -390,6 +403,35 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
                   <ClipTimeButtons buttons={createTimeButtons(endTime, setEndTime, onEndTimeChange)} />
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Preview Type Selection */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Preview</label>
+            <div className="flex gap-4">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="preview"
+                  value="video"
+                  checked={previewType === 'video'}
+                  onChange={(e) => setPreviewType(e.target.value as 'video' | 'gif')}
+                  className="text-primary focus:ring-primary"
+                />
+                <span className="text-sm">Video</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="preview"
+                  value="gif"
+                  checked={previewType === 'gif'}
+                  onChange={(e) => setPreviewType(e.target.value as 'video' | 'gif')}
+                  className="text-primary focus:ring-primary"
+                />
+                <span className="text-sm">GIF</span>
+              </label>
             </div>
           </div>
 
