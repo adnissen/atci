@@ -60,15 +60,17 @@ export default function FileCard({
     return (
       <div className="w-full bg-background py-4 px-4">
         <div className="flex justify-between items-start mb-3">
-          <div className="flex-1 mr-2 min-w-0" id="ref" ref={(el) => { mobileTranscriptRowRefs.current[file.base_name] = el }}>
-            <h3 className="font-medium text-base break-all overflow-hidden" title={file.name}>
+          <div className="flex-1 mr-2 min-w-0 text-left" id="ref" ref={(el) => { mobileTranscriptRowRefs.current[file.base_name] = el }}>
+            <h3 className="font-medium text-base break-all overflow-hidden text-left" title={file.name}>
               {filename}
 
             </h3>
             {file.model && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${getModelChipColor(file.model)}`}>
-                {file.model}
-              </span>
+              <div className="text-left">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${getModelChipColor(file.model)}`}>
+                  {file.model}
+                </span>
+              </div>
             )}
           </div>
           <DropdownMenu modal={false}>
@@ -140,22 +142,22 @@ export default function FileCard({
         </div>
         
         <div className="space-y-3 mb-3">
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="min-w-0">
-              <span className="text-muted-foreground">Date:</span>
-              <div className="font-medium break-words">{formatDate(file.created_at)}</div>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="min-w-0 text-left">
+              <span className="text-muted-foreground text-xs">Date:</span>
+              <div className="font-medium break-words text-xs">{formatDate(file.created_at)}</div>
             </div>
-            <div className="min-w-0">
-              <span className="text-muted-foreground">Last Generated:</span>
-              <div className="font-medium break-words">{formatDate(file.last_generated || '')}</div>
+            <div className="min-w-0 text-left">
+              <span className="text-muted-foreground text-xs">Last Generated:</span>
+              <div className="font-medium break-words text-xs">{formatDate(file.last_generated || '')}</div>
             </div>
-            <div className="min-w-0">
-              <span className="text-muted-foreground">Lines:</span>
-              <div className="font-medium">{file.line_count || 0}</div>
+            <div className="min-w-0 text-left">
+              <span className="text-muted-foreground text-xs">Lines:</span>
+              <div className="font-medium text-xs">{file.line_count || 0}</div>
             </div>
-            <div className="min-w-0">
-              <span className="text-muted-foreground">Length:</span>
-              <div className="font-medium flex items-center justify-center gap-1">
+            <div className="min-w-0 text-left">
+              <span className="text-muted-foreground text-xs">Length:</span>
+              <div className="font-medium flex items-center gap-1 text-xs">
                 {file.length ? (
                   file.length
                 ) : (
