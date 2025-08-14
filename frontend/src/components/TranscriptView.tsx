@@ -284,13 +284,6 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                       >
                         [{(item.data as { count: number, line: number, direction: "up" | "down" }).count} lines {(item.data as { count: number, line: number, direction: "up" | "down" }).direction === "up" ? "above" : "below"}]
                       </span>
-                      {" or "}
-                      <span 
-                        className="cursor-pointer hover:text-primary hover:underline"
-                        onClick={handleExpandAll}
-                      >
-                        [expand all]
-                      </span>
                     </div>
                   )}
                 </div>
