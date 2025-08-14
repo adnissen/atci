@@ -86,10 +86,36 @@ export default function FileCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => onRename(e)}
+                disabled={isProcessing || isRegenerating || isReplacing}
+              >
+                <span>Rename</span>
+                <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </DropdownMenuItem>
+              
+              {file.transcript && (
+                <DropdownMenuItem
+                  onClick={(e) => onReplace(e)}
+                  disabled={isReplacing}
+                  className="text-blue-600 hover:text-blue-700"
+                >
+                  <span>Edit transcript</span>
+                  {!isReplacing && (
+                    <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  )}
+                </DropdownMenuItem>
+              )}
+              
               {file.transcript && (
                 <DropdownMenuItem
                   onClick={(e) => onRegenerate(e)}
                   disabled={isRegenerating}
+                  className="text-green-600 hover:text-green-700"
                 >
                   <span>Regenerate transcript</span>
                   {isRegenerating ? (
@@ -103,31 +129,6 @@ export default function FileCard({
                   )}
                 </DropdownMenuItem>
               )}
-              
-              {file.transcript && (
-                <DropdownMenuItem
-                  onClick={(e) => onReplace(e)}
-                  disabled={isReplacing}
-                  variant="destructive"
-                >
-                  <span>Edit transcript</span>
-                  {!isReplacing && (
-                    <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  )}
-                </DropdownMenuItem>
-              )}
-              
-              <DropdownMenuItem
-                onClick={(e) => onRename(e)}
-                disabled={isProcessing || isRegenerating || isReplacing}
-              >
-                <span>Rename</span>
-                <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-              </DropdownMenuItem>
               
               {isProcessing && (
                 <DropdownMenuItem disabled>
@@ -240,10 +241,36 @@ export default function FileCard({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onClick={(e) => onRename(e)}
+                disabled={isProcessing || isRegenerating || isReplacing}
+              >
+                <span>Rename</span>
+                <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+              </DropdownMenuItem>
+              
+              {file.transcript && (
+                <DropdownMenuItem
+                  onClick={(e) => onReplace(e)}
+                  disabled={isReplacing}
+                  className="text-blue-600 hover:text-blue-700"
+                >
+                  <span>Edit transcript</span>
+                  {!isReplacing && (
+                    <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  )}
+                </DropdownMenuItem>
+              )}
+              
               {file.transcript && (
                 <DropdownMenuItem
                   onClick={(e) => onRegenerate(e)}
                   disabled={isRegenerating}
+                  className="text-green-600 hover:text-green-700"
                 >
                   <span>Regenerate transcript</span>
                   {isRegenerating ? (
@@ -257,31 +284,6 @@ export default function FileCard({
                   )}
                 </DropdownMenuItem>
               )}
-              
-              {file.transcript && (
-                <DropdownMenuItem
-                  onClick={(e) => onReplace(e)}
-                  disabled={isReplacing}
-                  variant="destructive"
-                >
-                  <span>Edit transcript</span>
-                  {!isReplacing && (
-                    <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                  )}
-                </DropdownMenuItem>
-              )}
-              
-              <DropdownMenuItem
-                onClick={(e) => onRename(e)}
-                disabled={isProcessing || isRegenerating || isReplacing}
-              >
-                <span>Rename</span>
-                <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                </svg>
-              </DropdownMenuItem>
               
               {isProcessing && (
                 <DropdownMenuItem disabled>
