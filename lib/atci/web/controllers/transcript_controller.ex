@@ -823,7 +823,7 @@ defmodule Atci.Web.TranscriptController do
                 # Check if source file needs audio re-encoding based on audio layout
                 ffprobe_path = ConfigManager.get_config_value("ffprobe_path") || "ffprobe"
 
-                needs_advanced_audio_reencoding =
+                {needs_advanced_audio_reencoding, detected_layout} =
                   case System.cmd(ffprobe_path, [
                          "-v",
                          "error",
@@ -837,11 +837,12 @@ defmodule Atci.Web.TranscriptController do
                        ]) do
                     {output, 0} ->
                       layout = String.trim(output) |> String.downcase()
-                      layout not in ["mono", "stereo"]
+                      needs_reencoding = layout not in ["mono", "stereo"]
+                      {needs_reencoding, layout}
 
                     _ ->
                       # Default to false if ffprobe fails
-                      false
+                      {false, "stereo"}
                   end
 
                 # Check if source file needs at least some audio re-encoding (e.g., MKV files)
@@ -853,9 +854,25 @@ defmodule Atci.Web.TranscriptController do
                 audio_codec_args =
                   if extension_needs_basic_audio_reencoding do
                     if needs_advanced_audio_reencoding do
+                      # Use appropriate channel mapping based on detected layout
+                      channel_filter = case detected_layout do
+                        "5.1" ->
+                          # 5.1 layout: FL FR FC LFE BL BR (back channels) -> keep as 5.1
+                          "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|BL-BL|BR-BR:5.1"
+                        "5.1(side)" ->
+                          # 5.1(side) layout: FL FR FC LFE SL SR (side channels) -> map to 5.1 back channels
+                          "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1"
+                        layout when layout in ["7.1", "7.1(wide)", "7.1(wide-side)"] ->
+                          # 7.1 layout: FL FR FC LFE BL BR SL SR -> keep as 7.1
+                          "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|BL-BL|BR-BR|SL-SL|SR-SR:7.1"
+                        _ ->
+                          # For other layouts, downmix to stereo
+                          "pan=stereo|FL=0.5*FL+0.707*FC+0.5*BL+0.5*SL|FR=0.5*FR+0.707*FC+0.5*BR+0.5*SR"
+                      end
+
                       [
                         "-filter:a",
-                        "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1",
+                        channel_filter,
                         "-c:a",
                         "aac",
                         "-b:a",

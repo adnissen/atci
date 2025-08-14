@@ -43,7 +43,7 @@ const secondsToTimestamp = (seconds: number): string => {
   return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${wholeSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
 }
 
-const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
+const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
   startTime,
   endTime,
   visible,
@@ -147,8 +147,8 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
     return null;
   }
 
-  // Process content to replace timestamps with clickable spans
-  const processContentWithTimestamps = (text: string): string => {
+  // Process the text content (only timestamps, no icons) - memoized for performance
+  const processedText = React.useMemo(() => {
     // Regex to match timestamp format 00:00:00.000
     const timestampRegex = /(\d{2}:\d{2}:\d{2}\.\d{3})/g;
     
@@ -156,10 +156,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
       const seconds = timestampToSeconds(match);
       return `<span class="text-sky-700 hover:text-sky-600 underline cursor-pointer timestamp-link" data-timestamp="${match}" data-url="/player/${encodeURIComponent(name)}?time=${seconds}">${match}</span>`;
     });
-  };
-
-  // Process the text content (only timestamps, no icons)
-  const processedText = processContentWithTimestamps(text);
+  }, [text, name]);
 
 
 
@@ -507,6 +504,6 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = ({
       />
     </div>
   );
-};
+});
 
 export default TranscriptBlock; 

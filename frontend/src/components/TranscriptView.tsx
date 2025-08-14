@@ -64,9 +64,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   onClearClip,
   onClipBlock
 }) => {
-  if (!visible) {
-    return null;
-  }
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
 
 
@@ -145,13 +143,13 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     return allBlocks;
   };
 
-  // Parse the transcript into blocks
+  // Parse the transcript into blocks with optimized dependencies
   const transcriptBlocks = React.useMemo(() => 
     parseTranscriptBlocks(text, visibleLines), 
-    [text, visibleLines]
+    [text, visibleLines, searchTerm]
   );
 
-  // Process blocks to add "x lines..." messages between visible blocks
+  // Process blocks to add "x lines..." messages between visible blocks - optimized
   const processedBlocks = React.useMemo(() => {
     // Check if we should show all lines (visibleLines is [-1])
     const showAllLines = visibleLines.length === 1 && visibleLines[0] === -1;
@@ -163,6 +161,10 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
     const result: Array<{ type: 'block' | 'message'; data: TranscriptBlockData | { count: number, line: number, direction: "up" | "down" } }> = [];
     let hiddenCount = 0;
+
+    // Pre-compute visible blocks for faster lookup
+    const visibleBlocks = transcriptBlocks.filter(block => block.visible);
+    const visibleBlockIndices = new Set(visibleBlocks.map(block => block.originalIndex));
 
     for (let i = 0; i < transcriptBlocks.length; i++) {
       const block = transcriptBlocks[i];
@@ -201,6 +203,16 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     return result;
   }, [transcriptBlocks, visibleLines]);
 
+  // Render all blocks without virtualization
+  const allBlocks = React.useMemo(() => {
+    return processedBlocks.map((item, index) => ({
+      ...item,
+      virtualIndex: index,
+      originalIndex: index
+    }));
+  }, [processedBlocks]);
+
+
   const handleExpandClick = (line: number, direction: "up" | "down") => {
     expandContext(name, direction, line);
   }
@@ -209,6 +221,10 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     if (expandAll) {
       expandAll(name);
     }
+  }
+
+  if (!visible) {
+    return null;
   }
 
   return (
@@ -228,51 +244,59 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
               </div>
             )}
 
-          {transcriptBlocks.length > 0 && (<div className="space-y-0.5">
-            {processedBlocks.map((item, index) => (
-              <div key={item.type === 'block' ? `${(item.data as TranscriptBlockData).originalIndex}-${index}` : `message-${index}`}>
-                {item.type === 'block' ? (
-                  <TranscriptBlock
-                    startTime={(item.data as TranscriptBlockData).startTime}
-                    endTime={(item.data as TranscriptBlockData).endTime}
-                    visible={(item.data as TranscriptBlockData).visible}
-                    text={(item.data as TranscriptBlockData).text}
-                    name={name}
-                    isSearchResult={(item.data as TranscriptBlockData).isSearchResult}
-                    lineNumbers={(item.data as TranscriptBlockData).lineNumbers}
-                    onEditSuccess={onEditSuccess}
-                    fullTranscript={text}
-                    isSmallScreen={isSmallScreen}
-                    onSetRightPaneUrl={onSetRightPaneUrl}
-                    clipStart={clipStart}
-                    clipEnd={clipEnd}
-                    clipTranscript={clipTranscript}
-                    onSetClipStart={onSetClipStart}
-                    onSetClipEnd={onSetClipEnd}
-                    onClearClip={onClearClip}
-
-                    onClipBlock={onClipBlock}
-                  />
-                ) : (
-                  <div className="text-muted-foreground italic">
-                    <span 
-                      className="cursor-pointer hover:text-primary hover:underline"
-                      onClick={() => handleExpandClick((item.data as { count: number, line: number, direction: "up" | "down" }).line, (item.data as { count: number, line: number, direction: "up" | "down" }).direction)}
-                    >
-                      [{(item.data as { count: number, line: number, direction: "up" | "down" }).count} lines {(item.data as { count: number, line: number, direction: "up" | "down" }).direction === "up" ? "above" : "below"}]
-                    </span>
-                    {" or "}
-                    <span 
-                      className="cursor-pointer hover:text-primary hover:underline"
-                      onClick={handleExpandAll}
-                    >
-                      [expand all]
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>)}
+          {transcriptBlocks.length > 0 && (
+            <div 
+              ref={containerRef}
+              className="space-y-0.5 max-h-[600px] overflow-y-auto"
+              style={{ 
+                WebkitOverflowScrolling: 'touch', // Smooth scrolling on iOS
+                scrollBehavior: 'smooth' // Smooth scrolling on other browsers
+              }}
+            >
+              {allBlocks.map((item, index) => (
+                <div key={item.type === 'block' ? `${(item.data as TranscriptBlockData).originalIndex}-${item.virtualIndex}` : `message-${item.virtualIndex}`}>
+                  {item.type === 'block' ? (
+                    <TranscriptBlock
+                      startTime={(item.data as TranscriptBlockData).startTime}
+                      endTime={(item.data as TranscriptBlockData).endTime}
+                      visible={(item.data as TranscriptBlockData).visible}
+                      text={(item.data as TranscriptBlockData).text}
+                      name={name}
+                      isSearchResult={(item.data as TranscriptBlockData).isSearchResult}
+                      lineNumbers={(item.data as TranscriptBlockData).lineNumbers}
+                      onEditSuccess={onEditSuccess}
+                      fullTranscript={text}
+                      isSmallScreen={isSmallScreen}
+                      onSetRightPaneUrl={onSetRightPaneUrl}
+                      clipStart={clipStart}
+                      clipEnd={clipEnd}
+                      clipTranscript={clipTranscript}
+                      onSetClipStart={onSetClipStart}
+                      onSetClipEnd={onSetClipEnd}
+                      onClearClip={onClearClip}
+                      onClipBlock={onClipBlock}
+                    />
+                  ) : (
+                    <div className="text-muted-foreground italic">
+                      <span 
+                        className="cursor-pointer hover:text-primary hover:underline"
+                        onClick={() => handleExpandClick((item.data as { count: number, line: number, direction: "up" | "down" }).line, (item.data as { count: number, line: number, direction: "up" | "down" }).direction)}
+                      >
+                        [{(item.data as { count: number, line: number, direction: "up" | "down" }).count} lines {(item.data as { count: number, line: number, direction: "up" | "down" }).direction === "up" ? "above" : "below"}]
+                      </span>
+                      {" or "}
+                      <span 
+                        className="cursor-pointer hover:text-primary hover:underline"
+                        onClick={handleExpandAll}
+                      >
+                        [expand all]
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           </div>
         )}
       </div>
