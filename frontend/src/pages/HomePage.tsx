@@ -238,11 +238,7 @@ export default function HomePage() {
         setSearchLineNumbers(data || {})
         setActiveSearchTerm(searchTerm)
         
-        // Expand all files that have search results
-        const filesWithResults = Object.keys(data || {}).filter(filename => 
-          data[filename] && data[filename].length > 0
-        )
-        setExpandedFiles(new Set(filesWithResults))
+        // Don't automatically expand files with search results
       }
     } catch (error) {
       console.error('Error searching:', error)
