@@ -238,7 +238,7 @@ export default function TranscriptList({
       refreshFiles()
     }, 2000)
     return () => clearInterval(interval)
-  }, [])
+  }, [selectedWatchDirs, selectedSources])
 
   
   // Fetch transcripts when files are expanded
