@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import { Checkbox } from './ui/checkbox'
-import { Download, ChevronLeft, Edit3, Share } from 'lucide-react'
+import { Download, ChevronLeft, Edit3, Share, RefreshCw } from 'lucide-react'
 import ClipTimeButtons from './ClipTimeButtons'
 
 interface ClipPlayerProps {
@@ -260,13 +260,13 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     // Note: Video reloading is now handled by useEffect below
   }
 
-  // Update state when props change (only on initial mount for non-time props)
+  // Update state when props change
   useEffect(() => {
     setFontSize(font_size)
     setTextOverlay(text)
     setShowTextOverlay(display_text)
     setCurrentClipUrl(clip_url || '')
-  }, [])
+  }, [font_size, text, display_text, clip_url])
 
   // Update time values when they change from parent (but preserve user modifications to other fields)
   useEffect(() => {
@@ -282,7 +282,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
     if (isValidTimestamp(startTime) && isValidTimestamp(endTime)) {
       updateVideo()
     }
-  }, [startTime, endTime, previewType])
+  }, [startTime, endTime, previewType, textOverlay, fontSize, showTextOverlay])
 
   // Check if native share is supported
   useEffect(() => {
@@ -364,6 +364,19 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
       {/* Controls Form */}
       <Card>
         <CardContent className="p-6 space-y-6">
+          {/* Regenerate Button */}
+          <div className="flex justify-start">
+            <Button
+              onClick={updateVideo}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Regenerate
+            </Button>
+          </div>
+
           {/* Time Controls */}
           <div className="space-y-2">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -406,6 +419,21 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
             </div>
           </div>
 
+          {/* Edit Time Button */}
+          {!editMode && (
+            <div className="flex justify-center">
+              <Button
+                onClick={() => setEditMode(true)}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Edit3 className="h-4 w-4" />
+                Show Time Controls
+              </Button>
+            </div>
+          )}
+
           {/* Preview Type Selection */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Preview</label>
@@ -434,21 +462,6 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
               </label>
             </div>
           </div>
-
-          {/* Edit Time Button */}
-          {!editMode && (
-            <div className="flex justify-center">
-              <Button
-                onClick={() => setEditMode(true)}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Edit3 className="h-4 w-4" />
-                Show Time Controls
-              </Button>
-            </div>
-          )}
 
           <div className="space-y-2 text-left">
             <label htmlFor="font_size" className="text-sm font-medium">
