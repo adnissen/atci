@@ -21,7 +21,7 @@ interface TranscriptViewProps {
   onSetClipStart?: (time: number) => void;
   onSetClipEnd?: (time: number) => void;
   onClearClip?: () => void;
-  onClipBlock?: (startTime: number, endTime: number) => void;
+  onClipBlock?: (startTime: number, endTime: number, text: string, transcript: string) => void;
 }
 
 // Extend Window interface for our custom handlers

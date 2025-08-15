@@ -1,8 +1,7 @@
 import React from 'react';
-import { Edit2, Camera, Video } from 'lucide-react';
+import { Edit2, Camera } from 'lucide-react';
 import DualEditDialog from './DualEditDialog';
 import ClipMenu from './ClipMenu';
-import ClipPlayer from './ClipPlayer';
 import { addTimestamp } from '../lib/utils';
 import {
   DropdownMenu,
@@ -29,19 +28,9 @@ interface TranscriptBlockProps {
   onSetClipStart?: (time: number) => void;
   onSetClipEnd?: (time: number) => void;
   onClearClip?: () => void;
-  onClipBlock?: (startTime: number, endTime: number) => void;
+  onClipBlock?: (startTime: number, endTime: number, text: string, transcript: string) => void;
 }
 
-// Helper function to convert seconds to timestamp format
-const secondsToTimestamp = (seconds: number): string => {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const remainingSeconds = seconds % 60
-  const wholeSeconds = Math.floor(remainingSeconds)
-  const milliseconds = Math.round((remainingSeconds - wholeSeconds) * 1000)
-  
-  return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${wholeSeconds.toString().padStart(2, '0')}.${milliseconds.toString().padStart(3, '0')}`
-}
 
 const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
   startTime,
@@ -324,7 +313,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
                       onSetClipEnd={onSetClipEnd || (() => {})}
                       onClearClip={onClearClip || (() => {})}
 
-                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd) : undefined}
+                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, name) : undefined}
                       blockStartTime={startTime ? timestampToSeconds(startTime) : undefined}
                       blockEndTime={endTime ? timestampToSeconds(endTime) : undefined}
                     >
@@ -353,7 +342,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
                       onSetClipEnd={onSetClipEnd || (() => {})}
                       onClearClip={onClearClip || (() => {})}
 
-                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd) : undefined}
+                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, name) : undefined}
                       blockStartTime={startTime ? timestampToSeconds(startTime) : undefined}
                       blockEndTime={endTime ? timestampToSeconds(endTime) : undefined}
                     >

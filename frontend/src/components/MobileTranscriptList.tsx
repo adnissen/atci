@@ -45,7 +45,7 @@ interface MobileTranscriptListProps {
   onSetClipStart: (time: number, transcript: string) => void
   onSetClipEnd: (time: number, transcript: string) => void
   onClearClip: () => void
-  onClipBlock: (startTime: number, endTime: number, transcript: string) => void
+  onClipBlock: (startTime: number, endTime: number, text: string, transcript: string) => void
   expandContext: (filename: string, direction: "up" | "down", line: number) => void
   expandAll: (filename: string) => void
   mobileTranscriptRowRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>
@@ -135,7 +135,7 @@ export default function MobileTranscriptList({
                 onSetClipEnd={(time) => onSetClipEnd(time, file.base_name)}
                 onClearClip={onClearClip}
 
-                onClipBlock={(startTime, endTime) => onClipBlock(startTime, endTime, file.base_name)}
+                onClipBlock={onClipBlock}
               />
             )}
           </div>

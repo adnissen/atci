@@ -76,6 +76,7 @@ export default function HomePage() {
   const [clipStart, setClipStart] = useState<number | null>(null)
   const [clipEnd, setClipEnd] = useState<number | null>(null)
   const [clipTranscript, setClipTranscript] = useState<string | null>(null)
+  const [clipText, setClipText] = useState<string>('')
   const fileRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const transcriptRowRefs = useRef<Record<string, HTMLTableRowElement | null>>({})
   const mobileTranscriptRowRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -378,7 +379,7 @@ export default function HomePage() {
             start_time_formatted={secondsToTimestamp(clipStart)}
             end_time_formatted={secondsToTimestamp(clipEnd)}
             font_size=""
-            text=""
+            text={clipText}
             display_text={false}
             onStartTimeChange={handleStartTimeChange}
             onEndTimeChange={handleEndTimeChange}
@@ -420,7 +421,7 @@ export default function HomePage() {
             start_time_formatted={secondsToTimestamp(clipStart)}
             end_time_formatted={secondsToTimestamp(clipEnd)}
             font_size=""
-            text=""
+            text={clipText}
             display_text={false}
             onStartTimeChange={handleStartTimeChange}
             onEndTimeChange={handleEndTimeChange}
@@ -479,6 +480,7 @@ export default function HomePage() {
     setClipStart(null)
     setClipEnd(null)
     setClipTranscript(null)
+    setClipText('')
     // Clear panes to show placeholder
     setRightPaneComponent(null)
     setMobileClipPlayerComponent(null)
@@ -498,10 +500,11 @@ export default function HomePage() {
     }
   }
 
-  const handleClipBlock = (startTime: number, endTime: number, transcript: string) => {
+  const handleClipBlock = (startTime: number, endTime: number, text: string, transcript: string) => {
     setClipStart(startTime)
     setClipEnd(endTime)
     setClipTranscript(transcript)
+    setClipText(text)
   }
 
   const handlePlayClip = () => {
@@ -515,7 +518,7 @@ export default function HomePage() {
             start_time_formatted={secondsToTimestamp(clipStart)}
             end_time_formatted={secondsToTimestamp(clipEnd)}
             font_size=""
-            text=""
+            text={clipText}
             display_text={false}
             onStartTimeChange={handleStartTimeChange}
             onEndTimeChange={handleEndTimeChange}
@@ -551,7 +554,7 @@ export default function HomePage() {
             start_time_formatted={secondsToTimestamp(clipStart)}
             end_time_formatted={secondsToTimestamp(clipEnd)}
             font_size=""
-            text=""
+            text={clipText}
             display_text={false}
             onStartTimeChange={handleStartTimeChange}
             onEndTimeChange={handleEndTimeChange}

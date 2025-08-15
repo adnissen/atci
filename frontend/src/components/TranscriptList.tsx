@@ -91,7 +91,7 @@ interface TranscriptListProps {
   onSetClipStart: (time: number, transcript: string) => void
   onSetClipEnd: (time: number, transcript: string) => void
   onClearClip: () => void
-  onClipBlock: (startTime: number, endTime: number, transcript: string) => void
+  onClipBlock: (startTime: number, endTime: number, text: string, transcript: string) => void
 }
 
 export default function TranscriptList({
@@ -1354,7 +1354,7 @@ export default function TranscriptList({
                     onSetClipStart={(time) => onSetClipStart(time, file.base_name)}
                     onSetClipEnd={(time) => onSetClipEnd(time, file.base_name)}
                     onClearClip={onClearClip}
-                    onClipBlock={(startTime, endTime) => onClipBlock(startTime, endTime, file.base_name)}
+                    onClipBlock={onClipBlock}
                   />
                 </TableCell>
                 </TableRow>
