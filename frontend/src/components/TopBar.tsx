@@ -28,6 +28,12 @@ interface TopBarProps {
   clipEnd?: number | null
   clipTranscript?: string | null
   mobileClipPlayerComponent?: React.ReactNode | null
+  selectedWatchDirs: string[]
+  setSelectedWatchDirs: (dirs: string[]) => void
+  availableWatchDirs: string[]
+  selectedSources: string[]
+  setSelectedSources: (sources: string[]) => void
+  availableSources: string[]
   onSearch: () => void
   onClearSearch: () => void
   onScrollToTop: () => void
@@ -55,6 +61,12 @@ export default function TopBar({
   clipEnd,
   clipTranscript,
   mobileClipPlayerComponent,
+  selectedWatchDirs,
+  setSelectedWatchDirs,
+  availableWatchDirs,
+  selectedSources,
+  setSelectedSources,
+  availableSources,
   onSearch,
   onClearSearch,
   onScrollToTop,
@@ -283,6 +295,12 @@ export default function TopBar({
         onClose={() => setShowSearchPopup(false)}
         onSearch={onSearch}
         onClearSearch={onClearSearch}
+        selectedWatchDirs={selectedWatchDirs}
+        setSelectedWatchDirs={setSelectedWatchDirs}
+        availableWatchDirs={availableWatchDirs}
+        selectedSources={selectedSources}
+        setSelectedSources={setSelectedSources}
+        availableSources={availableSources}
       />
     </>
   )

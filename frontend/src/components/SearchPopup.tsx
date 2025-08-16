@@ -1,3 +1,13 @@
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuCheckboxItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "./ui/dropdown-menu"
+
 interface SearchPopupProps {
   searchTerm: string
   setSearchTerm: (term: string) => void
@@ -10,6 +20,12 @@ interface SearchPopupProps {
   onClose: () => void
   onSearch: () => void
   onClearSearch: () => void
+  selectedWatchDirs: string[]
+  setSelectedWatchDirs: (dirs: string[]) => void
+  availableWatchDirs: string[]
+  selectedSources: string[]
+  setSelectedSources: (sources: string[]) => void
+  availableSources: string[]
 }
 
 export default function SearchPopup({
@@ -23,7 +39,13 @@ export default function SearchPopup({
   isOpen,
   onClose,
   onSearch,
-  onClearSearch
+  onClearSearch,
+  selectedWatchDirs,
+  setSelectedWatchDirs,
+  availableWatchDirs,
+  selectedSources,
+  setSelectedSources,
+  availableSources
 }: SearchPopupProps) {
   const handleClearSearch = () => {
     setSearchTerm('')
@@ -85,6 +107,125 @@ export default function SearchPopup({
               </button>
             )}
           </div>
+
+          {/* Filters */}
+          {(availableWatchDirs.length > 1 || availableSources.length > 1) && (
+            <div className="mb-4 space-y-3">
+              <h4 className="text-sm font-medium text-foreground">Search Filters</h4>
+              
+              {/* Watch Directory Filter */}
+              {availableWatchDirs.length > 1 && (
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Watch Directories</label>
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <button className="w-full inline-flex items-center justify-between whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                        {selectedWatchDirs.length === availableWatchDirs.length 
+                          ? "All Directories" 
+                          : selectedWatchDirs.length === 0 
+                          ? "No Directories" 
+                          : `${selectedWatchDirs.length} Director${selectedWatchDirs.length === 1 ? 'y' : 'ies'}`}
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-80">
+                      <DropdownMenuLabel>Watch Directories</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <div className="grid grid-cols-1 gap-1 p-2">
+                        <DropdownMenuCheckboxItem
+                          checked={selectedWatchDirs.length === availableWatchDirs.length}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedWatchDirs([...availableWatchDirs])
+                            } else {
+                              setSelectedWatchDirs([])
+                            }
+                          }}
+                        >
+                          Select All
+                        </DropdownMenuCheckboxItem>
+                        <DropdownMenuSeparator />
+                        {availableWatchDirs.map((dir) => (
+                          <DropdownMenuCheckboxItem
+                            key={dir}
+                            checked={selectedWatchDirs.includes(dir)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedWatchDirs([...selectedWatchDirs, dir])
+                              } else {
+                                setSelectedWatchDirs(selectedWatchDirs.filter(d => d !== dir))
+                              }
+                            }}
+                          >
+                            <span className="truncate" title={dir}>
+                              {dir.split('/').pop() || dir}
+                            </span>
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
+
+              {/* Source Filter */}
+              {availableSources.length > 1 && (
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Transcript Sources</label>
+                  <DropdownMenu modal={false}>
+                    <DropdownMenuTrigger asChild>
+                      <button className="w-full inline-flex items-center justify-between whitespace-nowrap rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                        {selectedSources.length === availableSources.length 
+                          ? "All Sources" 
+                          : selectedSources.length === 0 
+                          ? "No Sources" 
+                          : `${selectedSources.length} Source${selectedSources.length === 1 ? '' : 's'}`}
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-80">
+                      <DropdownMenuLabel>Sources</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <div className="grid grid-cols-1 gap-1 p-2">
+                        <DropdownMenuCheckboxItem
+                          checked={selectedSources.length === availableSources.length}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedSources([...availableSources])
+                            } else {
+                              setSelectedSources([])
+                            }
+                          }}
+                        >
+                          Select All
+                        </DropdownMenuCheckboxItem>
+                        <DropdownMenuSeparator />
+                        {availableSources.map((source) => (
+                          <DropdownMenuCheckboxItem
+                            key={source}
+                            checked={selectedSources.includes(source)}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedSources([...selectedSources, source])
+                              } else {
+                                setSelectedSources(selectedSources.filter(s => s !== source))
+                              }
+                            }}
+                          >
+                            {source}
+                          </DropdownMenuCheckboxItem>
+                        ))}
+                      </div>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              )}
+            </div>
+          )}
           <div className="flex gap-2">
             <button
               onClick={() => {

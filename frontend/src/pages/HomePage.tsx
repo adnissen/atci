@@ -232,7 +232,19 @@ export default function HomePage() {
     setIsSearching(true)
 
     try {
-      const response = await fetch(addTimestamp(`/grep/${encodeURIComponent(searchTerm)}`))
+      // Build query parameters for filtering
+      const params = new URLSearchParams()      
+      // Add watch directory filters if any are selected
+      if (selectedWatchDirs.length > 0) {
+        params.append('watch_directories', selectedWatchDirs.join(','))
+      }
+      
+      // Add source filters if any are selected
+      if (selectedSources.length > 0) {
+        params.append('sources', selectedSources.join(','))
+      }
+
+      const response = await fetch(addTimestamp(`/grep/${encodeURIComponent(searchTerm)}?${params.toString()}`))
       if (response.ok) {
         const data = await response.json()
         setSearchLineNumbers(data || {})
@@ -609,6 +621,12 @@ export default function HomePage() {
         currentProcessingFile={currentProcessingFile}
         isAtTop={isAtTop}
         showingTranscriptList={showingTranscriptList}
+        selectedWatchDirs={selectedWatchDirs}
+        setSelectedWatchDirs={setSelectedWatchDirs}
+        availableWatchDirs={availableWatchDirs}
+        selectedSources={selectedSources}
+        setSelectedSources={setSelectedSources}
+        availableSources={availableSources}
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
         onScrollToTop={handleScrollToTop}

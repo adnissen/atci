@@ -108,7 +108,8 @@ defmodule Atci.Web.TranscriptController do
     end
   end
 
-  def grep(conn, %{"text" => search_text}) do
+  def grep(conn, params) do
+    search_text = params["text"]
     watch_directories = Atci.ConfigManager.get_config_value("watch_directories") || []
 
     if Enum.empty?(watch_directories) do
@@ -122,25 +123,54 @@ defmodule Atci.Web.TranscriptController do
         })
       )
     else
-      # Search across all watch directories
+      # Filter watch directories if provided
+      filtered_watch_directories =
+        case params["watch_directories"] do
+          nil ->
+            watch_directories
+
+          "" ->
+            watch_directories
+
+          watch_dirs_param ->
+            # Parse watch directories from comma-separated string
+            watch_dirs =
+              String.split(watch_dirs_param, ",")
+              |> Enum.map(&String.trim/1)
+              |> Enum.reject(&(&1 == ""))
+
+            if Enum.empty?(watch_dirs) do
+              watch_directories
+            else
+              Enum.filter(watch_directories, fn watch_dir ->
+                Enum.member?(watch_dirs, watch_dir)
+              end)
+            end
+        end
+
+      # Search across filtered watch directories
       all_results =
-        watch_directories
+        filtered_watch_directories
         |> Enum.map(fn watch_directory ->
+
+          IO.inspect(watch_directory)
+
           # Run grep commands for each directory
           {output1, exit_code1} =
-            System.shell("grep -Hni \"" <> search_text <> "\" *.txt", cd: watch_directory)
+            System.shell("cd \"#{watch_directory}\" && grep -FHnr --include='*.txt' \"#{search_text}\" .")
 
-          {output2, exit_code2} =
-            System.shell("grep -Hni \"" <> search_text <> "\" **/*.txt", cd: watch_directory)
+          #{output2, exit_code2} =
+          #  System.shell("cd \"#{watch_directory}\" && grep -Hni \"#{search_text}\" **/*.txt", [])
+          #  IO.puts("cd \"#{watch_directory}\" && grep -Hni \"#{search_text}\" **/*.txt")
 
           # Parse outputs for this directory
           results1 = if exit_code1 <= 1, do: parse_grep_output(output1), else: %{}
-          results2 = if exit_code2 <= 1, do: parse_grep_output(output2), else: %{}
-
+          results1
+          # results2 = if exit_code2 <= 1, do: parse_grep_output(output2), else: %{}
           # Merge results for this directory
-          Map.merge(results1, results2, fn _k, v1, v2 ->
-            Enum.sort(Enum.uniq(v1 ++ v2))
-          end)
+          # Map.merge(results1, results2, fn _k, v1, v2 ->
+          #   Enum.sort(Enum.uniq(v1 ++ v2))
+          # end)
         end)
         |> Enum.reduce(%{}, fn dir_results, acc ->
           # Merge all directory results together
@@ -149,9 +179,51 @@ defmodule Atci.Web.TranscriptController do
           end)
         end)
 
+      # Filter by sources if provided
+      # final_results =
+      #   case params["sources"] do
+      #     nil ->
+      #       all_results
+
+      #     "" ->
+      #       all_results
+
+      #     sources_param ->
+      #       # Parse sources from comma-separated string
+      #       sources =
+      #         String.split(sources_param, ",")
+      #         |> Enum.map(&String.trim/1)
+      #         |> Enum.reject(&(&1 == ""))
+
+      #       if Enum.empty?(sources) do
+      #         all_results
+      #       else
+      #         # Get video files to check sources
+      #         video_files = VideoInfoCache.get_video_files()
+
+      #         # Filter results based on source
+      #         Enum.reduce(all_results, %{}, fn {filename, line_numbers}, acc ->
+      #           # Find the video file that matches this transcript filename
+      #           matching_file =
+      #             Enum.find(video_files, fn file ->
+      #               file_basename = Path.basename(file.full_path, Path.extname(file.full_path))
+      #               file_basename == filename
+      #             end)
+
+      #           # Include result if the file's source (model field) is in the filter
+      #           if matching_file && matching_file.model && Enum.member?(sources, matching_file.model) do
+      #             Map.put(acc, filename, line_numbers)
+      #           else
+      #             acc
+      #           end
+      #         end)
+      #       end
+      #   end
+      final_results = all_results
+
       conn
       |> put_resp_content_type("application/json")
-      |> send_resp(200, Jason.encode!(all_results))
+      |> send_resp(200, Jason.encode!(final_results))
     end
   end
 
@@ -162,7 +234,11 @@ defmodule Atci.Web.TranscriptController do
     |> Enum.reduce(%{}, fn line, acc ->
       case Regex.run(~r/([^:]+)\.txt:(\d+):(.+)/, line) do
         [_, filename, line_num, _content] ->
-          filename = String.trim(filename)
+          filename =
+            filename
+            |> String.trim()
+            |> String.replace_leading("./", "")
+
           line_num = String.to_integer(line_num)
 
           Map.update(acc, filename, [line_num], fn existing_lines ->
