@@ -153,11 +153,9 @@ defmodule Atci.Web.TranscriptController do
         filtered_watch_directories
         |> Enum.map(fn watch_directory ->
 
-          IO.inspect(watch_directory)
-
           # Run grep commands for each directory
           {output1, exit_code1} =
-            System.shell("cd \"#{watch_directory}\" && grep -FHnr --include='*.txt' \"#{search_text}\" .")
+            System.shell("cd \"#{watch_directory}\" && find . -name \"*.txt\" -exec grep -FHin \"#{search_text}\" {} +")
 
           #{output2, exit_code2} =
           #  System.shell("cd \"#{watch_directory}\" && grep -Hni \"#{search_text}\" **/*.txt", [])
