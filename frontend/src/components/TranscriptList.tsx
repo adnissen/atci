@@ -341,7 +341,7 @@ export default function TranscriptList({
   const expandContext = (filename: string, direction: "up" | "down", line: number) => {
     // Get the line numbers for the file
     const fileLineNumbers = searchLineNumbers[filename]
-    if (!fileLineNumbers || !fileLineNumbers.includes(line)) {
+    if (!fileLineNumbers) {
       return
     }
 
