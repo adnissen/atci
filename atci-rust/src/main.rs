@@ -226,26 +226,30 @@ fn watch_for_missing_metadata(cfg: &AtciConfig) -> Result<(), Box<dyn std::error
         for watch_directory in &cfg.watch_directories {
             for entry in WalkDir::new(watch_directory).into_iter().filter_map(|e| e.ok()) {
                 let file_path = entry.path();
-                
-                if file_path.is_file() {
-                    if let Some(extension) = file_path.extension() {
-                        let ext_str = extension.to_string_lossy().to_lowercase();
-                        
-                        if video_extensions.contains(&ext_str.as_str()) {
-                            // we want to make sure the file isn't in the process of currently being copied over to our watch directory
-                            // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
-                            if let Ok(metadata) = fs::metadata(&file_path) {
-                                if let Ok(modified) = metadata.modified() {
-                                    let now = std::time::SystemTime::now();
-                                    if let Ok(duration) = now.duration_since(modified) {
-                                        if duration.as_secs() >= 3 {
-                                            let txt_path = file_path.with_extension("txt");
-                                            let meta_path = file_path.with_extension("meta");
-                                            
-                                            if !txt_path.exists() && !meta_path.exists() {
-                                                println!("{}", file_path.display());
-                                            }
-                                        }
+
+                //skip directories
+                if !file_path.is_file() {
+                    continue;
+                }
+
+                if let Some(extension) = file_path.extension() {
+                    let ext_str = extension.to_string_lossy().to_lowercase();
+                    if !video_extensions.contains(&ext_str.as_str()) {
+                        continue;
+                    }
+
+                    // we want to make sure the file isn't in the process of currently being copied over to our watch directory
+                    // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
+                    if let Ok(metadata) = fs::metadata(&file_path) {
+                        if let Ok(modified) = metadata.modified() {
+                            let now = std::time::SystemTime::now();
+                            if let Ok(duration) = now.duration_since(modified) {
+                                if duration.as_secs() >= 3 {
+                                    let txt_path = file_path.with_extension("txt");
+                                    let meta_path = file_path.with_extension("meta");
+                                    
+                                    if !txt_path.exists() && !meta_path.exists() {
+                                        println!("{}", file_path.display());
                                     }
                                 }
                             }
