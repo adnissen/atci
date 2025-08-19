@@ -24,7 +24,17 @@ enum Commands {
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
 enum ApiCommands {
-    VideoInfo,
+    VideoInfo {
+        #[command(subcommand)]
+        video_info_command: Option<VideoInfoCommands>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum VideoInfoCommands {
+    Fetch,
+    Update,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -50,7 +60,7 @@ impl Default for AtciConfig {
     }
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct VideoInfo {
     name: String,
     base_name: String,
@@ -91,6 +101,25 @@ fn get_meta_fields(meta_path: &Path, fields: &[&str]) -> Vec<Option<String>> {
         }
     }
     results
+}
+
+fn get_cache_file_path() -> std::path::PathBuf {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    std::path::Path::new(&home_dir).join(".atci_video_info_cache.json")
+}
+
+fn save_video_info_to_cache(video_infos: &[VideoInfo]) -> Result<(), Box<dyn std::error::Error>> {
+    let cache_path = get_cache_file_path();
+    let json_data = serde_json::to_string_pretty(video_infos)?;
+    fs::write(cache_path, json_data)?;
+    Ok(())
+}
+
+fn load_video_info_from_cache() -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
+    let cache_path = get_cache_file_path();
+    let json_data = fs::read_to_string(cache_path)?;
+    let video_infos: Vec<VideoInfo> = serde_json::from_str(&json_data)?;
+    Ok(video_infos)
 }
 
 fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
@@ -188,11 +217,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Some(Commands::Api { api_command }) => {
             match api_command {
-                Some(ApiCommands::VideoInfo) => {
-                    let cfg: AtciConfig = confy::load("atci", "config")?;
-                    let video_infos = get_video_info_from_disk(&cfg)?;
-                    let json_output = serde_json::to_string_pretty(&video_infos)?;
-                    println!("{}", json_output);
+                Some(ApiCommands::VideoInfo { video_info_command }) => {
+                    match video_info_command {
+                        Some(VideoInfoCommands::Fetch) => {
+                            match load_video_info_from_cache() {
+                                Ok(video_infos) => {
+                                    let json_output = serde_json::to_string_pretty(&video_infos)?;
+                                    println!("{}", json_output);
+                                }
+                                Err(e) => {
+                                    eprintln!("Error reading cache file: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        Some(VideoInfoCommands::Update) => {
+                            let cfg: AtciConfig = confy::load("atci", "config")?;
+                            let video_infos = get_video_info_from_disk(&cfg)?;
+                            save_video_info_to_cache(&video_infos)?;
+                            let json_output = serde_json::to_string_pretty(&video_infos)?;
+                            println!("{}", json_output);
+                        }
+                        None => {}
+                    }
                 }
                 None => {}
             }
