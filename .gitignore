@@ -24,3 +24,5 @@ atci-*.tar
 
 # config file
 .atciconfig
+
+/atci-rust/target/

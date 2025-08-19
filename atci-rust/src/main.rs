@@ -1,14 +1,30 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use globset::{Glob, GlobSet, GlobSetBuilder};
+use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
+#[command(version, about, long_about = None, arg_required_else_help = true)]
 struct Args {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    Api {
+        #[command(subcommand)]
+        api_command: Option<ApiCommands>,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum ApiCommands {
+    VideoInfo,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -94,8 +110,6 @@ fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<dyn 
     let mut video_infos = Vec::new();
 
     for watch_directory in &cfg.watch_directories {
-        println!("Processing watch directory: {}", watch_directory);
-        
         for entry in WalkDir::new(watch_directory).into_iter().filter_map(|e| e.ok()) {
             let file_path = entry.path();
             
@@ -168,22 +182,23 @@ fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<dyn 
     Ok(video_infos)
 }
 
-fn process_watch_directories() -> Result<(), Box<dyn std::error::Error>> {
-    let cfg: AtciConfig = confy::load("atci", "config")?;
-    
-    let video_infos = get_video_info_from_disk(&cfg)?;
-    let json_output = serde_json::to_string_pretty(&video_infos)?;
-    println!("{}", json_output);
-    
-    Ok(())
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let _args = Args::parse();
-    let cfg: AtciConfig = confy::load("atci", "config")?;
-    println!("Loaded config path: {:?}", confy::get_configuration_file_path("atci", "config")?);
+    let args = Args::parse();
     
-    process_watch_directories()?;
+    match args.command {
+        Some(Commands::Api { api_command }) => {
+            match api_command {
+                Some(ApiCommands::VideoInfo) => {
+                    let cfg: AtciConfig = confy::load("atci", "config")?;
+                    let video_infos = get_video_info_from_disk(&cfg)?;
+                    let json_output = serde_json::to_string_pretty(&video_infos)?;
+                    println!("{}", json_output);
+                }
+                None => {}
+            }
+        }
+        None => {}
+    }
     
     Ok(())
 }
