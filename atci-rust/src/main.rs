@@ -4,6 +4,7 @@ use std::fs;
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
+use std::io::Write;
 use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
@@ -31,13 +32,27 @@ enum ApiCommands {
         #[command(subcommand)]
         video_info_command: Option<VideoInfoCommands>,
     },
+    Queue {
+        #[command(subcommand)]
+        queue_command: Option<QueueCommands>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
 enum VideoInfoCommands {
-    Fetch,
+    Get,
     Update,
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum QueueCommands {
+    Get,
+    Add {
+        #[arg(help = "Path to add to the queue")]
+        path: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -123,6 +138,38 @@ fn load_video_info_from_cache() -> Result<Vec<VideoInfo>, Box<dyn std::error::Er
     let json_data = fs::read_to_string(cache_path)?;
     let video_infos: Vec<VideoInfo> = serde_json::from_str(&json_data)?;
     Ok(video_infos)
+}
+
+fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    if !queue_path.exists() {
+        return Ok(Vec::new());
+    }
+    
+    let content = fs::read_to_string(queue_path)?;
+    let queue: Vec<String> = content.lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect();
+    Ok(queue)
+}
+
+fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let existing_queue = get_queue()?;
+    
+    if existing_queue.contains(&path.to_string()) {
+        return Ok(());
+    }
+    
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(queue_path)?;
+    writeln!(file, "{}", path)?;
+    Ok(())
 }
 
 fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
@@ -249,7 +296,9 @@ fn watch_for_missing_metadata(cfg: &AtciConfig) -> Result<(), Box<dyn std::error
                                     let meta_path = file_path.with_extension("meta");
                                     
                                     if !txt_path.exists() && !meta_path.exists() {
-                                        println!("{}", file_path.display());
+                                        if let Err(e) = add_to_queue(&file_path.to_string_lossy()) {
+                                            eprintln!("Error adding to queue: {}", e);
+                                        }
                                     }
                                 }
                             }
@@ -271,7 +320,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             match api_command {
                 Some(ApiCommands::VideoInfo { video_info_command }) => {
                     match video_info_command {
-                        Some(VideoInfoCommands::Fetch) => {
+                        Some(VideoInfoCommands::Get) => {
                             match load_video_info_from_cache() {
                                 Ok(video_infos) => {
                                     let json_output = serde_json::to_string_pretty(&video_infos)?;
@@ -289,6 +338,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             save_video_info_to_cache(&video_infos)?;
                             let json_output = serde_json::to_string_pretty(&video_infos)?;
                             println!("{}", json_output);
+                        }
+                        None => {}
+                    }
+                }
+                Some(ApiCommands::Queue { queue_command }) => {
+                    match queue_command {
+                        Some(QueueCommands::Get) => {
+                            match get_queue() {
+                                Ok(queue) => {
+                                    let json_output = serde_json::to_string_pretty(&queue)?;
+                                    println!("{}", json_output);
+                                }
+                                Err(e) => {
+                                    eprintln!("Error reading queue: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        Some(QueueCommands::Add { path }) => {
+                            match add_to_queue(&path) {
+                                Ok(()) => {
+                                    println!("Added to queue: {}", path);
+                                }
+                                Err(e) => {
+                                    eprintln!("Error adding to queue: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
                         }
                         None => {}
                     }
