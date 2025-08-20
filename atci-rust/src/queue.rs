@@ -76,6 +76,11 @@ pub fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
 
 fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
+    if currently_processing_path.exists() {
+        let _ = fs::remove_file(&currently_processing_path);
+    }
+    
     let queue_path = std::path::Path::new(&home_dir).join(".queue");
     if !queue_path.exists() {
         return Ok(false);
@@ -90,11 +95,12 @@ fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
             return Ok(false);
         }
         
+        remove_first_line_from_queue()?;
+        
         let video_path = Path::new(video_path_str);
         
         if !video_path.exists() {
             eprintln!("Video file does not exist: {}", video_path_str);
-            remove_first_line_from_queue()?;
             return Ok(true);
         }
         
@@ -107,22 +113,32 @@ fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
         
         if !has_valid_extension {
             eprintln!("File does not have a valid video extension: {}", video_path_str);
-            remove_first_line_from_queue()?;
             return Ok(true);
         }
         
         let txt_path = video_path.with_extension("txt");
         let meta_path = video_path.with_extension("meta");
         
+        fs::write(&currently_processing_path, video_path_str)?;
+        
         if !txt_path.exists() {
             video_processor::create_transcript(video_path_str)?;
+            if currently_processing_path.exists() {
+                let _ = fs::remove_file(&currently_processing_path);
+            }
         }
         
         if !meta_path.exists() {
             video_processor::create_metafile(video_path_str)?;
+            if currently_processing_path.exists() {
+                let _ = fs::remove_file(&currently_processing_path);
+            }
         }
         
-        remove_first_line_from_queue()?;
+        if currently_processing_path.exists() {
+            let _ = fs::remove_file(&currently_processing_path);
+        }
+        
         println!("Processed queue item: {}", video_path_str);
         return Ok(true);
     }
