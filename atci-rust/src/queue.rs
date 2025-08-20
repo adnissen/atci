@@ -75,6 +75,7 @@ pub fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
+    let cfg: crate::AtciConfig = confy::load("atci", "config")?;
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let queue_path = std::path::Path::new(&home_dir).join(".queue");
     if !queue_path.exists() {
