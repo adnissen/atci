@@ -55,6 +55,7 @@ enum QueueCommands {
         #[arg(help = "Path to add to the queue")]
         path: String,
     },
+    Status,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -284,6 +285,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                                 Err(e) => {
                                     eprintln!("Error adding to queue: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        Some(QueueCommands::Status) => {
+                            match queue::get_queue_status() {
+                                Ok((path, age)) => {
+                                    let result = serde_json::json!({
+                                        "currently_processing": path.unwrap_or_else(|| "".to_string()),
+                                        "age_in_seconds": age
+                                    });
+                                    println!("{}", result);
+                                }
+                                Err(e) => {
+                                    eprintln!("Error reading queue status: {}", e);
                                     std::process::exit(1);
                                 }
                             }

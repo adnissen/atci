@@ -39,6 +39,48 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+pub fn get_currently_processing() -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
+    
+    if !currently_processing_path.exists() {
+        return Ok(None);
+    }
+    
+    let content = fs::read_to_string(currently_processing_path)?;
+    let path = content.trim();
+    
+    if path.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(path.to_string()))
+    }
+}
+
+pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::Error>> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
+    
+    if !currently_processing_path.exists() {
+        return Ok((None, 0));
+    }
+    
+    let content = fs::read_to_string(&currently_processing_path)?;
+    let path = content.trim();
+    
+    if path.is_empty() {
+        return Ok((None, 0));
+    }
+    
+    // Get the modification time of the .currently_processing file
+    let metadata = fs::metadata(&currently_processing_path)?;
+    let modified = metadata.modified()?;
+    let now = std::time::SystemTime::now();
+    let age = now.duration_since(modified)?.as_secs();
+    
+    Ok((Some(path.to_string()), age))
+}
+
 fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let queue_path = std::path::Path::new(&home_dir).join(".queue");
