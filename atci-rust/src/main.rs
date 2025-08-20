@@ -20,17 +20,6 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    Api {
-        #[command(subcommand)]
-        api_command: Option<ApiCommands>,
-    },
-    Watch,
-    Config,
-}
-
-#[derive(Subcommand, Debug)]
-#[command(arg_required_else_help = true)]
-enum ApiCommands {
     VideoInfo {
         #[command(subcommand)]
         video_info_command: Option<VideoInfoCommands>,
@@ -39,7 +28,10 @@ enum ApiCommands {
         #[command(subcommand)]
         queue_command: Option<QueueCommands>,
     },
+    Watch,
+    Config,
 }
+
 
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
@@ -239,73 +231,68 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     
     match args.command {
-        Some(Commands::Api { api_command }) => {
-            match api_command {
-                Some(ApiCommands::VideoInfo { video_info_command }) => {
-                    match video_info_command {
-                        Some(VideoInfoCommands::Get) => {
-                            match load_video_info_from_cache() {
-                                Ok(video_infos) => {
-                                    let json_output = serde_json::to_string_pretty(&video_infos)?;
-                                    println!("{}", json_output);
-                                }
-                                Err(e) => {
-                                    eprintln!("Error reading cache file: {}", e);
-                                    std::process::exit(1);
-                                }
-                            }
-                        }
-                        Some(VideoInfoCommands::Update) => {
-                            let cfg: AtciConfig = confy::load("atci", "config")?;
-                            let video_infos = get_video_info_from_disk(&cfg)?;
-                            save_video_info_to_cache(&video_infos)?;
+        Some(Commands::VideoInfo { video_info_command }) => {
+            match video_info_command {
+                Some(VideoInfoCommands::Get) => {
+                    match load_video_info_from_cache() {
+                        Ok(video_infos) => {
                             let json_output = serde_json::to_string_pretty(&video_infos)?;
                             println!("{}", json_output);
                         }
-                        None => {}
+                        Err(e) => {
+                            eprintln!("Error reading cache file: {}", e);
+                            std::process::exit(1);
+                        }
                     }
                 }
-                Some(ApiCommands::Queue { queue_command }) => {
-                    match queue_command {
-                        Some(QueueCommands::Get) => {
-                            match queue::get_queue() {
-                                Ok(queue) => {
-                                    let json_output = serde_json::to_string_pretty(&queue)?;
-                                    println!("{}", json_output);
-                                }
-                                Err(e) => {
-                                    eprintln!("Error reading queue: {}", e);
-                                    std::process::exit(1);
-                                }
-                            }
+                Some(VideoInfoCommands::Update) => {
+                    let cfg: AtciConfig = confy::load("atci", "config")?;
+                    let video_infos = get_video_info_from_disk(&cfg)?;
+                    save_video_info_to_cache(&video_infos)?;
+                    let json_output = serde_json::to_string_pretty(&video_infos)?;
+                    println!("{}", json_output);
+                }
+                None => {}
+            }
+        }
+        Some(Commands::Queue { queue_command }) => {
+            match queue_command {
+                Some(QueueCommands::Get) => {
+                    match queue::get_queue() {
+                        Ok(queue) => {
+                            let json_output = serde_json::to_string_pretty(&queue)?;
+                            println!("{}", json_output);
                         }
-                        Some(QueueCommands::Add { path }) => {
-                            match queue::add_to_queue(&path) {
-                                Ok(()) => {
-                                    println!("Added to queue: {}", path);
-                                }
-                                Err(e) => {
-                                    eprintln!("Error adding to queue: {}", e);
-                                    std::process::exit(1);
-                                }
-                            }
+                        Err(e) => {
+                            eprintln!("Error reading queue: {}", e);
+                            std::process::exit(1);
                         }
-                        Some(QueueCommands::Status) => {
-                            match queue::get_queue_status() {
-                                Ok((path, age)) => {
-                                    let result = serde_json::json!({
-                                        "currently_processing": path.unwrap_or_else(|| "".to_string()),
-                                        "age_in_seconds": age
-                                    });
-                                    println!("{}", result);
-                                }
-                                Err(e) => {
-                                    eprintln!("Error reading queue status: {}", e);
-                                    std::process::exit(1);
-                                }
-                            }
+                    }
+                }
+                Some(QueueCommands::Add { path }) => {
+                    match queue::add_to_queue(&path) {
+                        Ok(()) => {
+                            println!("Added to queue: {}", path);
                         }
-                        None => {}
+                        Err(e) => {
+                            eprintln!("Error adding to queue: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(QueueCommands::Status) => {
+                    match queue::get_queue_status() {
+                        Ok((path, age)) => {
+                            let result = serde_json::json!({
+                                "currently_processing": path.unwrap_or_else(|| "".to_string()),
+                                "age_in_seconds": age
+                            });
+                            println!("{}", result);
+                        }
+                        Err(e) => {
+                            eprintln!("Error reading queue status: {}", e);
+                            std::process::exit(1);
+                        }
                     }
                 }
                 None => {}
