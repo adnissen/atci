@@ -8,8 +8,7 @@ use std::io::{BufRead, BufReader};
 pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating transcript for: {}", video_path.display());
     let cfg: crate::AtciConfig = confy::load("atci", "config")?;
-    let video_path_obj = Path::new(video_path);
-    let txt_path = video_path_obj.with_extension("txt");
+    let txt_path = video_path.with_extension("txt");
     
     if !txt_path.exists() {
         // Check for subtitle streams first
@@ -20,19 +19,27 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
                     // Extract subtitles from the first stream
                     match extract_subtitle_stream(video_path, streams[0], Path::new(&cfg.ffmpeg_path)) {
                         Ok(()) => {
-                            write_key_to_meta_file(video_path_obj, "source", "subtitles")?;
+                            write_key_to_meta_file(video_path, "source", "subtitles")?;
                             println!("Created transcript file: {}", txt_path.display());
                         }
                         Err(e) => {
-                            eprintln!("Failed to extract subtitles: {}, creating empty transcript file", e);
-                            fs::write(&txt_path, "")?;
-                            println!("Created empty transcript file: {}", txt_path.display());
+                            println!("Failed to extract subtitles: {}, trying whisper transcription", e);
                         }
                     }
                 } else {
-                    // No subtitle streams found, create empty file
-                    fs::write(&txt_path, "")?;
-                    println!("No subtitle streams found, created empty transcript file: {}", txt_path.display());
+                    // No subtitle streams found, extract the audio and transcribe it with whisper
+                    if !(has_audio_stream(video_path, Path::new(&cfg.ffprobe_path))?) {
+                        fs::write(&txt_path, "")?;
+                        println!("No audio streams found, created empty transcript file: {}", txt_path.display());
+                    } else {
+                        // Extract the audio and transcribe it with whisper
+                        println!("Extracting audio");
+                        extract_audio(video_path, Path::new(&cfg.ffmpeg_path))?;
+                        let audio_path = video_path.with_extension("mp3");
+                        println!("Transcribing audio");
+                        transcribe_audio(&audio_path, Path::new(&cfg.whispercli_path), &cfg.model_name)?;
+                        write_key_to_meta_file(video_path, "source", &cfg.model_name)?;
+                    }
                 }
             }
             Err(e) => {
@@ -196,6 +203,103 @@ pub fn extract_subtitle_stream(video_path: &Path, stream_index: usize, ffmpeg_pa
         Err(e) => Err(format!("Failed to execute ffmpeg: {}", e).into()),
     }
 }
+
+pub fn has_audio_stream(video_path: &Path, ffprobe_path: &Path) -> Result<bool, String> {
+    let output = Command::new(ffprobe_path)
+        .args(&[
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=index",
+            "-of",
+            "csv=p=0",
+            video_path.to_str().unwrap()
+        ])
+        .output();
+
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                if !stdout.trim().is_empty() {
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            } else {
+                let error_output = String::from_utf8_lossy(&output.stderr);
+                Err(format!("ffprobe failed: {}", error_output))
+            }
+        }
+        Err(e) => Err(format!("Failed to execute ffprobe: {}", e)),
+    }
+}
+
+pub fn extract_audio(video_path: &Path, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let audio_path = video_path.with_extension("mp3");
+    
+    let output = Command::new(ffmpeg_path)
+        .args(&[
+            "-i",
+                 video_path.to_str().unwrap(),
+                 // Map first audio stream only
+                 "-map",
+                 "0:a:0",
+                 "-q:a",
+                 "0",
+                 // Convert to mono to avoid channel issues
+                 "-ac",
+                 "1",
+                 // Set sample rate for consistency
+                 "-ar",
+                 "16000",
+                 // Override existing files
+                 "-y",
+                 audio_path.to_str().unwrap()
+        ])
+        .output();
+
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                Ok(())
+            } else {
+                let error_output = String::from_utf8_lossy(&output.stderr);
+                Err(format!("ffmpeg audio extraction failed: {}", error_output).into())
+            }
+        }
+        Err(e) => Err(format!("Failed to execute ffmpeg: {}", e).into()),
+    }
+}
+
+pub fn transcribe_audio(audio_path: &Path, whisper_path: &Path, model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let model_path = format!("{}/.atci/models/{}.bin", home_dir, model_name);
+    let args = vec![
+        "-m", &model_path, "-np", "--max-context", "0", "-ovtt", "-f", audio_path.to_str().unwrap()
+    ];
+    let output = Command::new(whisper_path)
+        .args(&args)
+        .output();
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                let vtt_path = audio_path.with_extension("mp3.vtt");  //whisper outputs a .vtt file which includes the filename of the input file
+                let txt_path = audio_path.with_extension("txt");
+                fs::rename(vtt_path, txt_path)?;
+                fs::remove_file(audio_path)?;
+                Ok(())
+            } else {
+                let error_output = String::from_utf8_lossy(&output.stderr);
+                Err(format!("whisper transcription failed: {}", error_output).into())
+            }
+        }
+        Err(e) => Err(format!("Failed to execute whisper: {}", e).into()),
+    }
+}
+
 
 fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
     let content = fs::read_to_string(srt_path)

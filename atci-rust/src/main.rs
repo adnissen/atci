@@ -25,6 +25,7 @@ enum Commands {
         api_command: Option<ApiCommands>,
     },
     Watch,
+    Config,
 }
 
 #[derive(Subcommand, Debug)]
@@ -319,6 +320,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             loop {
                 thread::sleep(Duration::from_secs(60));
             }
+        }
+        Some(Commands::Config) => {
+            let cfg: AtciConfig = confy::load("atci", "config")?;
+            let json_output = serde_json::to_string_pretty(&cfg)?;
+            println!("{}", json_output);
         }
         None => {}
     }
