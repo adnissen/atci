@@ -24,6 +24,11 @@ pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
 
 pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let existing_queue = get_queue()?;
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
+    if currently_processing_path.exists() && fs::read_to_string(&currently_processing_path)? == path {
+        return Ok(());
+    }
     
     if existing_queue.contains(&path.to_string()) {
         return Ok(());
@@ -31,30 +36,13 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(queue_path)?;
     writeln!(file, "{}", path)?;
     Ok(())
-}
-
-pub fn get_currently_processing() -> Result<Option<String>, Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
-    
-    if !currently_processing_path.exists() {
-        return Ok(None);
-    }
-    
-    let content = fs::read_to_string(currently_processing_path)?;
-    let path = content.trim();
-    
-    if path.is_empty() {
-        Ok(None)
-    } else {
-        Ok(Some(path.to_string()))
-    }
 }
 
 pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::Error>> {
@@ -102,7 +90,7 @@ fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
             fs::write(&queue_path, "")?;
         }
     }
-    
+    println!("Removed first line from queue");
     Ok(())
 }
 
@@ -131,6 +119,7 @@ fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(&queue_path)?;
     let first_line = content.lines().next();
     if let Some(video_path_str) = first_line {
+        println!("Processing queue item: {}", video_path_str);
         let video_path_str = video_path_str.trim();
         if video_path_str.is_empty() {
             remove_first_line_from_queue()?;
@@ -159,24 +148,19 @@ fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
         }
         
         let txt_path = video_path.with_extension("txt");
-        let meta_path = video_path.with_extension("meta");
         
         fs::write(&currently_processing_path, video_path_str)?;
         
         if !txt_path.exists() {
-            video_processor::create_transcript(video_path_str)?;
+            video_processor::create_transcript(video_path)?;
             if currently_processing_path.exists() {
                 let _ = fs::remove_file(&currently_processing_path);
             }
         }
         
-        if !meta_path.exists() {
-            video_processor::create_metafile(video_path_str)?;
-            if currently_processing_path.exists() {
-                let _ = fs::remove_file(&currently_processing_path);
-            }
-        }
-        
+        // we always update the meta file with the latest length
+        video_processor::create_metafile(video_path)?;
+
         if currently_processing_path.exists() {
             let _ = fs::remove_file(&currently_processing_path);
         }
