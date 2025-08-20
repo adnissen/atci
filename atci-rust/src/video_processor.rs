@@ -33,6 +33,8 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
                         println!("No audio streams found, created empty transcript file: {}", txt_path.display());
                     } else {
                         // Extract the audio and transcribe it with whisper
+                        // TODO: if this fails we should write an empty text file so we don't infinitely retry to fix this file
+                        // maybe mark something in the meta file to indicate that we should try again?
                         println!("Extracting audio");
                         extract_audio(video_path, Path::new(&cfg.ffmpeg_path))?;
                         let audio_path = video_path.with_extension("mp3");
