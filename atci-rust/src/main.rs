@@ -74,6 +74,8 @@ enum Commands {
     Search {
         #[arg(help = "Search query", num_args = 1.., value_delimiter = ' ')]
         query: Vec<String>,
+        #[arg(long, help = "Show formatted output instead of JSON", default_value = "false")]
+        pretty: bool,
     },
 }
 
@@ -483,14 +485,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let json_output = serde_json::to_string_pretty(&cfg)?;
             println!("{}", json_output);
         }
-        Some(Commands::Search { query }) => {
+        Some(Commands::Search { query, pretty }) => {
             let search_query = query.join(" ");
             let cfg: AtciConfig = confy::load("atci", "config")?;
             
             match search::search(&search_query, &cfg) {
                 Ok(results) => {
-                    let json_output = serde_json::to_string_pretty(&results)?;
-                    println!("{}", json_output);
+                    if pretty {
+                        for result in results {
+                            println!("File: {}", result.file_path);
+                            for search_match in result.matches {
+                                if let Some(timestamp) = search_match.timestamp {
+                                    println!("{}: {}", search_match.line_number, timestamp);
+                                    println!("{}:\t{}", search_match.line_number + 1, search_match.line_text);
+                                } else {
+                                    println!("{}: \"{}\"", search_match.line_number, search_match.line_text);
+                                }
+                                println!();
+                            }
+                            println!();
+                        }
+                    } else {
+                        let json_output = serde_json::to_string_pretty(&results)?;
+                        println!("{}", json_output);
+                    }
                 }
                 Err(e) => {
                     eprintln!("Error searching: {}", e);

@@ -6,7 +6,20 @@ use crate::AtciConfig;
 use rayon::prelude::*;
 use std::collections::HashMap;
 
-pub fn search(query: &str, cfg: &AtciConfig) -> Result<HashMap<String, Vec<usize>>, Box<dyn std::error::Error>> {
+#[derive(Debug, Serialize)]
+pub struct SearchMatch {
+    pub line_number: usize,
+    pub line_text: String,
+    pub timestamp: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SearchResult {
+    pub file_path: String,
+    pub matches: Vec<SearchMatch>,
+}
+
+pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
     let video_extensions = crate::get_video_extensions();
     
     let all_entries: Vec<_> = cfg.watch_directories
@@ -19,7 +32,7 @@ pub fn search(query: &str, cfg: &AtciConfig) -> Result<HashMap<String, Vec<usize
         })
         .collect();
 
-    let results: HashMap<String, Vec<usize>> = all_entries
+    let mut results: Vec<SearchResult> = all_entries
         .par_iter()
         .filter_map(|entry| {
             let file_path = entry.path();
@@ -42,26 +55,48 @@ pub fn search(query: &str, cfg: &AtciConfig) -> Result<HashMap<String, Vec<usize
             }
             
             let content = fs::read_to_string(&txt_path).ok()?;
-            let line_numbers: Vec<usize> = content
-                .lines()
+            let lines: Vec<&str> = content.lines().collect();
+            let matches: Vec<SearchMatch> = lines
+                .iter()
                 .enumerate()
                 .filter_map(|(line_num, line)| {
                     if line.to_lowercase().contains(&query.to_lowercase()) {
-                        Some(line_num + 1)
+                        // Check if the previous line contains a timestamp
+                        let timestamp = if line_num > 0 {
+                            let prev_line = lines[line_num - 1];
+                            // Check if the previous line looks like a timestamp (contains digits and colons)
+                            if prev_line.contains(':') && prev_line.chars().any(|c| c.is_ascii_digit()) {
+                                Some(prev_line.to_string())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+                        
+                        Some(SearchMatch {
+                            line_number: line_num + 1,
+                            line_text: line.to_string(),
+                            timestamp,
+                        })
                     } else {
                         None
                     }
                 })
                 .collect();
             
-            if line_numbers.is_empty() {
+            if matches.is_empty() {
                 None
             } else {
-                let filename = file_path.file_stem()?.to_str()?.to_string();
-                Some((filename, line_numbers))
+                Some(SearchResult {
+                    file_path: file_path.to_string_lossy().to_string(),
+                    matches,
+                })
             }
         })
         .collect();
+
+    results.sort_by(|a, b| a.file_path.cmp(&b.file_path));
 
     Ok(results)
 }
