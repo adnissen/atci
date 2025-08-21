@@ -42,6 +42,8 @@ enum Commands {
         display_text: bool,
         #[arg(long, help = "Output format: gif, mp3, or mp4", value_parser = ["gif", "mp3", "mp4"], default_value = "mp4")]
         format: String,
+        #[arg(long, help = "Font size for text overlay")]
+        font_size: Option<u32>,
     },
     Watch,
     Config,
@@ -313,8 +315,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 None => {}
             }
         }
-        Some(Commands::Clip { path, start, end, text, display_text, format }) => {
-            clipper::clip(Path::new(&path), start, end, text.as_deref(), display_text, &format)?;
+        Some(Commands::Clip { path, start, end, text, display_text, format, font_size }) => {
+            clipper::clip(Path::new(&path), start, end, text.as_deref(), display_text, &format, font_size)?;
         }
         Some(Commands::Watch) => {
             let cfg: AtciConfig = confy::load("atci", "config")?;

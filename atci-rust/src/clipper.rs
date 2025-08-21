@@ -37,6 +37,7 @@ pub fn clip(
     text: Option<&str>,
     display_text: bool,
     format: &str,
+    font_size: Option<u32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     validate_video_file(path)?;
     
@@ -74,8 +75,9 @@ pub fn clip(
     let start_time_str = format!("{:.1}", start);
     let end_time_str = format!("{:.1}", end);
     let format_param = format;
+    let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
     
-    let temp_clip_name = format!("clip_{}_{}{}.{}", start_time_str, end_time_str, caption_part, format_param);
+    let temp_clip_name = format!("clip_{}_{}{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format_param);
     let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
     
     if temp_clip_path.exists() {
@@ -89,14 +91,14 @@ pub fn clip(
         "mp4" => {
             let audio_codec_args = get_audio_codec_args(path, Path::new(&cfg.ffprobe_path))?;
             if display_text && text.is_some() {
-                video_with_text_args(path, start, duration, text.expect("text was missing"), &temp_clip_path, &audio_codec_args)
+                video_with_text_args(path, start, duration, text.expect("text was missing"), &temp_clip_path, &audio_codec_args, font_size)
             } else {
                 video_no_text_args(path, start, duration, &temp_clip_path, &audio_codec_args)
             }
         },
         "gif" => {
             if display_text && text.is_some() {
-                gif_with_text_args(path, start, duration, text.expect("text was missing"), &temp_clip_path)
+                gif_with_text_args(path, start, duration, text.expect("text was missing"), &temp_clip_path, font_size)
             } else {
                 gif_no_text_args(path, start, duration, &temp_clip_path)
             }
@@ -130,6 +132,7 @@ fn gif_with_text_args(
     duration: f64,
     text: &str,
     output_path: &Path,
+    font_size: Option<u32>,
 ) -> Vec<String> {
     use uuid::Uuid;
     use std::fs;
@@ -139,7 +142,7 @@ fn gif_with_text_args(
     
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
-            let font_size = calculate_font_size_for_video(text.len());
+            let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(text.len()));
             
             vec![
                 "-ss",
@@ -214,6 +217,7 @@ fn video_with_text_args(
     text: &str,
     output_path: &Path,
     audio_codec_args: &[&str],
+    font_size: Option<u32>,
 ) -> Vec<String> {
     use uuid::Uuid;
     use std::fs;
@@ -223,7 +227,7 @@ fn video_with_text_args(
     
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
-            let font_size = calculate_font_size_for_video(text.len());
+            let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(text.len()));
             let frames_count = (duration * 30.0).trunc() as i32;
             
             let mut args = vec![
