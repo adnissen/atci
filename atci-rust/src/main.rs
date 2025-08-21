@@ -12,6 +12,7 @@ use chrono::{DateTime, Local};
 mod clipper;
 mod queue;
 mod video_processor;
+mod ffmpeg_manager;
 
 //#[derive(Embed)]
 //#[folder = "assets/"]
@@ -50,6 +51,10 @@ enum Commands {
         #[arg(long, help = "Font size for text overlay")]
         font_size: Option<u32>,
     },
+    Ffmpeg {
+        #[command(subcommand)]
+        ffmpeg_command: Option<FfmpegCommands>,
+    },
     Watch,
     Config,
 }
@@ -71,6 +76,15 @@ enum QueueCommands {
         path: String,
     },
     Status,
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum FfmpegCommands {
+    List {
+        #[arg(long, help = "Output as JSON", default_value = "false")]
+        json: bool,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -322,6 +336,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::Clip { path, start, end, text, display_text, format, font_size }) => {
             clipper::clip(Path::new(&path), start, end, text.as_deref(), display_text, &format, font_size)?;
+        }
+        Some(Commands::Ffmpeg { ffmpeg_command }) => {
+            match ffmpeg_command {
+                Some(FfmpegCommands::List { json }) => {
+                    let tools = ffmpeg_manager::list_tools();
+                    if json {
+                        let json_output = serde_json::to_string_pretty(&tools)?;
+                        println!("{}", json_output);
+                    } else {
+                        println!("FFmpeg Tools Status:");
+                        println!("{}", "=".repeat(50));
+                        for tool in tools {
+                            println!("\n🔧 {}", tool.name.to_uppercase());
+                            println!("   Platform: {}", tool.platform);
+                            println!("   Downloaded: {}", if tool.downloaded { "✅ Yes" } else { "❌ No" });
+                            if tool.downloaded {
+                                println!("   Downloaded Path: {}", tool.downloaded_path);
+                            }
+                            println!("   System Available: {}", if tool.system_available { "✅ Yes" } else { "❌ No" });
+                            if let Some(system_path) = &tool.system_path {
+                                println!("   System Path: {}", system_path);
+                            }
+                            println!("   Current Path: {}", tool.current_path);
+                        }
+                    }
+                }
+                None => {}
+            }
         }
         Some(Commands::Watch) => {
             let cfg: AtciConfig = confy::load("atci", "config")?;
