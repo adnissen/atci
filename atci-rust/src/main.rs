@@ -8,6 +8,7 @@ use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
 
+mod clipper;
 mod queue;
 mod video_processor;
 
@@ -27,6 +28,20 @@ enum Commands {
     Queue {
         #[command(subcommand)]
         queue_command: Option<QueueCommands>,
+    },
+    Clip {
+        #[arg(help = "Path to the video file")]
+        path: String,
+        #[arg(help = "Start time in seconds (e.g., 455.00)")]
+        start: f64,
+        #[arg(help = "End time in seconds (e.g., 520.50)")]
+        end: f64,
+        #[arg(help = "Optional text to overlay")]
+        text: Option<String>,
+        #[arg(long, help = "Display text overlay", default_value = "true")]
+        display_text: bool,
+        #[arg(long, help = "Output format: gif, mp3, or mp4", value_parser = ["gif", "mp3", "mp4"], default_value = "mp4")]
+        format: String,
     },
     Watch,
     Config,
@@ -297,6 +312,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 None => {}
             }
+        }
+        Some(Commands::Clip { path, start, end, text, display_text, format }) => {
+            clipper::clip(Path::new(&path), start, end, text.as_deref(), display_text, &format)?;
         }
         Some(Commands::Watch) => {
             let cfg: AtciConfig = confy::load("atci", "config")?;
