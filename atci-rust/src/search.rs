@@ -4,15 +4,9 @@ use walkdir::WalkDir;
 use serde::Serialize;
 use crate::AtciConfig;
 use rayon::prelude::*;
+use std::collections::HashMap;
 
-#[derive(Serialize)]
-pub struct SearchResult {
-    pub video_path: String,
-    pub transcript_path: String,
-    pub line_numbers: Vec<usize>,
-}
-
-pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
+pub fn search(query: &str, cfg: &AtciConfig) -> Result<HashMap<String, Vec<usize>>, Box<dyn std::error::Error>> {
     let video_extensions = crate::get_video_extensions();
     
     let all_entries: Vec<_> = cfg.watch_directories
@@ -25,7 +19,7 @@ pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dy
         })
         .collect();
 
-    let results: Vec<SearchResult> = all_entries
+    let results: HashMap<String, Vec<usize>> = all_entries
         .par_iter()
         .filter_map(|entry| {
             let file_path = entry.path();
@@ -63,11 +57,8 @@ pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dy
             if line_numbers.is_empty() {
                 None
             } else {
-                Some(SearchResult {
-                    video_path: file_path.to_string_lossy().to_string(),
-                    transcript_path: txt_path.to_string_lossy().to_string(),
-                    line_numbers,
-                })
+                let filename = file_path.file_stem()?.to_str()?.to_string();
+                Some((filename, line_numbers))
             }
         })
         .collect();
