@@ -42,7 +42,6 @@ pub fn clip(
 
     validate_video_file(path)?;
     
-    
     if end <= start {
         return Err("End time must be greater than start time".into());
     }
@@ -137,8 +136,19 @@ pub fn clip(
                 video_no_text_args(path, start, duration, &temp_clip_path, &audio_codec_args)
             }
         },
-        "gif" => todo!(),
-        _ => todo!(),
+        "gif" => {
+            if display_text && text.is_some() {
+                gif_with_text_args(path, start, duration, text.expect("text was missing"), &temp_clip_path)
+            } else {
+                gif_no_text_args(path, start, duration, &temp_clip_path)
+            }
+        },
+        "mp3" => {
+            audio_file_args(path, start, duration, &temp_clip_path, &audio_codec_args)
+        },
+        _ => {
+            return Err(format!("Unsupported format: {}", format).into());
+        }
     };
 
     println!("video_args: {:?}", video_args);
@@ -164,36 +174,42 @@ fn gif_with_text_args(
             let font_size = calculate_font_size_for_video(input_path, text.len());
             
             vec![
-                "-ss".to_string(),
-                format!("{}", start),
-                "-t".to_string(),
-                format!("{}", duration),
-                "-i".to_string(),
-                input_path.to_string_lossy().to_string(),
-                "-vf".to_string(),
-                format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", 
+                "-ss",
+                &format!("{}", start),
+                "-t",
+                &format!("{}", duration),
+                "-i",
+                &input_path.to_string_lossy(),
+                "-vf",
+                &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", 
                        temp_text_path.to_string_lossy(), font_size),
-                "-loop".to_string(),
-                "0".to_string(),
-                "-y".to_string(),
-                output_path.to_string_lossy().to_string(),
+                "-loop",
+                "0",
+                "-y",
+                &output_path.to_string_lossy(),
             ]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect()
         }
         Err(_) => {
             vec![
-                "-ss".to_string(),
-                format!("{}", start),
-                "-t".to_string(),
-                format!("{}", duration),
-                "-i".to_string(),
-                input_path.to_string_lossy().to_string(),
-                "-vf".to_string(),
-                "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse".to_string(),
-                "-loop".to_string(),
-                "0".to_string(),
-                "-y".to_string(),
-                output_path.to_string_lossy().to_string(),
+                "-ss",
+                &format!("{}", start),
+                "-t",
+                &format!("{}", duration),
+                "-i",
+                &input_path.to_string_lossy(),
+                "-vf",
+                "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+                "-loop",
+                "0",
+                "-y",
+                &output_path.to_string_lossy(),
             ]
+            .into_iter()
+            .map(|s| s.to_string())
+            .collect()
         }
     }
 }
@@ -204,7 +220,23 @@ fn gif_no_text_args(
     duration: f64,
     output_path: &Path,
 ) -> Vec<String> {
-    todo!()
+    vec![
+        "-ss",
+        &format!("{}", start),
+        "-t",
+        &format!("{}", duration),
+        "-i",
+        &input_path.to_string_lossy(),
+        "-vf",
+        "fps=8,scale=320:-1:flags=fast_bilinear,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=single[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2",
+        "-loop",
+        "0",
+        "-y",
+        &output_path.to_string_lossy(),
+    ]
+    .into_iter()
+    .map(|s| s.to_string())
+    .collect()
 }
 
 fn video_with_text_args(
@@ -326,7 +358,52 @@ fn video_no_text_args(
     output_path: &Path,
     audio_codec_args: &[&str],
 ) -> Vec<String> {
-    todo!()
+    let frames_count = (duration * 30.0).trunc() as i32;
+    
+    let mut args = vec![
+        "-ss",
+        &format!("{}", start),
+        "-i",
+        &input_path.to_string_lossy(),
+        "-ss",
+        "00:00:00.001",
+        "-t",
+        &format!("{}", duration),
+        "-frames:v",
+        &frames_count.to_string(),
+        "-c:v",
+        "libx264",
+        "-profile:v",
+        "baseline",
+        "-level",
+        "3.1",
+        "-pix_fmt",
+        "yuv420p",
+    ]
+    .into_iter()
+    .map(|s| s.to_string())
+    .collect::<Vec<String>>();
+
+    args.extend(audio_codec_args.iter().map(|s| (*s).to_string()));
+
+    args.extend(vec![
+        "-crf",
+        "28",
+        "-preset",
+        "ultrafast",
+        "-movflags",
+        "faststart+frag_keyframe+empty_moov",
+        "-avoid_negative_ts",
+        "make_zero",
+        "-y",
+        "-map_chapters",
+        "-1",
+        &output_path.to_string_lossy(),
+    ]
+    .into_iter()
+    .map(|s| s.to_string()));
+
+    args
 }
 
 fn audio_file_args(
@@ -336,7 +413,28 @@ fn audio_file_args(
     output_path: &Path,
     audio_codec_args: &[&str],
 ) -> Vec<String> {
-    todo!()
+    vec![
+        "-ss",
+        &format!("{}", start),
+        "-t",
+        &format!("{}", duration),
+        "-i",
+        &input_path.to_string_lossy(),
+        "-vn",
+        "-acodec",
+        "libmp3lame",
+        "-ar",
+        "44100",
+        "-ac",
+        "2",
+        "-b:a",
+        "256k",
+        "-y",
+        &output_path.to_string_lossy(),
+    ]
+    .into_iter()
+    .map(|s| s.to_string())
+    .collect()
 }
 
 fn calculate_font_size_for_video(video_path: &Path, text_length: usize) -> u32 {
