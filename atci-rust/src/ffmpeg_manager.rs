@@ -90,3 +90,156 @@ fn get_current_path(tool: &str) -> String {
         "not found".to_string()
     }
 }
+
+pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let platform = detect_platform();
+    
+    let url = match tool {
+        "ffmpeg" => get_ffmpeg_url(&platform),
+        "ffprobe" => get_ffprobe_url(&platform),
+        _ => return Err(format!("Unknown tool: {}", tool).into()),
+    };
+    
+    let url = url.ok_or(format!("No download URL available for {} on {}", tool, platform))?;
+    
+    let binaries_dir = binaries_directory();
+    std::fs::create_dir_all(&binaries_dir)?;
+    
+    let response = reqwest::blocking::get(url)?;
+    let bytes = response.bytes()?;
+    
+    let cursor = std::io::Cursor::new(bytes);
+    let mut archive = zip::ZipArchive::new(cursor)?;
+    
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let file_name = file.name();
+        
+        if file_name.contains(tool) && !file_name.ends_with('/') {
+            let extension = if cfg!(target_os = "windows") { ".exe" } else { "" };
+            let output_path = binaries_dir.join(format!("{}{}", tool, extension));
+            
+            let mut output_file = std::fs::File::create(&output_path)?;
+            std::io::copy(&mut file, &mut output_file)?;
+            
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let metadata = std::fs::metadata(&output_path)?;
+                let mut permissions = metadata.permissions();
+                permissions.set_mode(0o755);
+                std::fs::set_permissions(&output_path, permissions)?;
+            }
+            
+            #[cfg(target_os = "macos")]
+            {
+                if let Err(e) = handle_macos_quarantine(&output_path.to_string_lossy(), &platform) {
+                    eprintln!("Warning: Failed to handle macOS quarantine: {}", e);
+                }
+            }
+            
+            return Ok(output_path.to_string_lossy().to_string());
+        }
+    }
+    
+    Err(format!("Could not find {} binary in the downloaded archive", tool).into())
+}
+
+#[cfg(target_os = "macos")]
+pub fn handle_macos_quarantine(executable_path: &str, platform: &str) -> Result<(), Box<dyn std::error::Error>> {
+    check_macos_version()?;
+    remove_quarantine(executable_path)?;
+    handle_arm_mac_signing(executable_path, platform)?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn check_macos_version() -> Result<(), Box<dyn std::error::Error>> {
+    let output = std::process::Command::new("sw_vers")
+        .arg("-productVersion")
+        .output()?;
+
+    if !output.status.success() {
+        return Err("Unable to get macOS version".into());
+    }
+
+    let version_string = String::from_utf8(output.stdout)?;
+    let version_parts: Vec<&str> = version_string.trim().split('.').collect();
+
+    if version_parts.len() < 2 {
+        return Err("Unable to parse macOS version".into());
+    }
+
+    let major: i32 = version_parts[0].parse()?;
+    let minor: i32 = version_parts[1].parse()?;
+
+    if major > 10 || (major == 10 && minor >= 15) {
+        Ok(())
+    } else {
+        Err("macOS version too old for quarantine handling".into())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn remove_quarantine(executable_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Removing quarantine from {}", executable_path);
+
+    let output = std::process::Command::new("xattr")
+        .args(["-dr", "com.apple.quarantine", executable_path])
+        .output()?;
+
+    if output.status.success() {
+        println!("Successfully removed quarantine");
+        Ok(())
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        eprintln!("xattr command failed with exit code {:?}: {}", output.status.code(), error_msg);
+        Err(format!("Failed to remove quarantine: {}", error_msg).into())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn handle_arm_mac_signing(executable_path: &str, platform: &str) -> Result<(), Box<dyn std::error::Error>> {
+    if platform == "macos-arm" {
+        println!("Handling ARM Mac code signing for {}", executable_path);
+        clear_extended_attributes(executable_path)?;
+        codesign_executable(executable_path)?;
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn clear_extended_attributes(executable_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Clearing extended attributes");
+
+    let output = std::process::Command::new("xattr")
+        .args(["-cr", executable_path])
+        .output()?;
+
+    if output.status.success() {
+        println!("Successfully cleared extended attributes");
+        Ok(())
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        eprintln!("xattr -cr command failed with exit code {:?}: {}", output.status.code(), error_msg);
+        Err(format!("Failed to clear extended attributes: {}", error_msg).into())
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn codesign_executable(executable_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("Code signing executable");
+
+    let output = std::process::Command::new("codesign")
+        .args(["-s", "-", executable_path])
+        .output()?;
+
+    if output.status.success() {
+        println!("Successfully code signed executable");
+        Ok(())
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        eprintln!("codesign command failed with exit code {:?}: {}", output.status.code(), error_msg);
+        Err(format!("Failed to code sign executable: {}", error_msg).into())
+    }
+}
