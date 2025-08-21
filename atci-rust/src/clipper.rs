@@ -38,14 +38,12 @@ pub fn clip(
     display_text: bool,
     format: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let cfg: crate::AtciConfig = confy::load("atci", "config")?;
-
     validate_video_file(path)?;
     
     if end <= start {
         return Err("End time must be greater than start time".into());
     }
-
+    let cfg: crate::AtciConfig = confy::load("atci", "config")?;
     // Create a static filename with start/end times and caption
     let caption_part = match display_text || text.is_some() {
         false => String::new(),
@@ -83,53 +81,9 @@ pub fn clip(
 
     let duration = (end - start) + 0.1;
 
-
-    //// audio encoding arguments ////
-    // some files need more processing than others. for example, _all_ webm files need "basic" re-encoding.
-    // then, additionally, some files need even more advanced processing if their "layout" is not stereo or mono
-    let source_extension = path.extension()
-        .and_then(|ext| ext.to_str())
-        .map(|ext| ext.to_lowercase())
-        .unwrap_or_default();
-
-    let extension_needs_basic_audio_reencoding = 
-        matches!(source_extension.as_str(), "mkv" | "webm" | "avi" | "mov");
-
-    let (needs_advanced_audio_reencoding, layout) = check_if_advanced_audio_reencoding_needed(path, Path::new(&cfg.ffprobe_path))?;
-    
-    let audio_codec_args = if extension_needs_basic_audio_reencoding {
-        if needs_advanced_audio_reencoding {
-            // Use appropriate channel mapping based on detected layout
-            let channel_filter = match layout.as_str() {
-                "5.1" => {
-                    // 5.1 layout: FL FR FC LFE BL BR (back channels) -> keep as 5.1
-                    "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|BL-BL|BR-BR:5.1"
-                }
-                "5.1(side)" => {
-                    // 5.1(side) layout: FL FR FC LFE SL SR (side channels) -> map to 5.1 back channels
-                    "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1"
-                }
-                layout if ["7.1", "7.1(wide)", "7.1(wide-side)"].contains(&layout) => {
-                    // 7.1 layout: FL FR FC LFE BL BR SL SR -> keep as 7.1
-                    "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|BL-BL|BR-BR|SL-SL|SR-SR:7.1"
-                }
-                _ => {
-                    // For other layouts, downmix to stereo
-                    "pan=stereo|FL=0.5*FL+0.707*FC+0.5*BL+0.5*SL|FR=0.5*FR+0.707*FC+0.5*BR+0.5*SR"
-                }
-            };
-
-            vec!["-filter:a", channel_filter, "-c:a", "aac", "-b:a", "256k"]
-        } else {
-            vec!["-c:a", "aac", "-b:a", "256k"]
-        }
-    } else {
-        vec!["-c:a", "copy"]
-    };
-
-    // now that we have our audio arguments, we can figure out the video ones and combine them
     let video_args = match format {
         "mp4" => {
+            let audio_codec_args = get_audio_codec_args(path, Path::new(&cfg.ffprobe_path))?;
             if display_text && text.is_some() {
                 video_with_text_args(path, start, duration, text.expect("text was missing"), &temp_clip_path, &audio_codec_args)
             } else {
@@ -144,17 +98,27 @@ pub fn clip(
             }
         },
         "mp3" => {
-            audio_file_args(path, start, duration, &temp_clip_path, &audio_codec_args)
+            audio_file_args(path, start, duration, &temp_clip_path)
         },
         _ => {
             return Err(format!("Unsupported format: {}", format).into());
         }
     };
-
-    println!("video_args: {:?}", video_args);
-
-    Ok(())
+    
+    let mut cmd = Command::new(&cfg.ffmpeg_path);
+    cmd.args(&video_args);
+    
+    let output = cmd.output()?;
+    
+    if output.status.success() {
+        println!("{}", temp_clip_path.display());
+        Ok(())
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Error creating {} clip with ffmpeg: {}", format, error_msg).into())
+    }
 }
+
 
 fn gif_with_text_args(
     input_path: &Path,
@@ -171,7 +135,7 @@ fn gif_with_text_args(
     
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
-            let font_size = calculate_font_size_for_video(input_path, text.len());
+            let font_size = calculate_font_size_for_video(text.len());
             
             vec![
                 "-ss",
@@ -255,7 +219,7 @@ fn video_with_text_args(
     
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
-            let font_size = calculate_font_size_for_video(input_path, text.len());
+            let font_size = calculate_font_size_for_video(text.len());
             let frames_count = (duration * 30.0).trunc() as i32;
             
             let mut args = vec![
@@ -410,8 +374,7 @@ fn audio_file_args(
     input_path: &Path,
     start: f64,
     duration: f64,
-    output_path: &Path,
-    audio_codec_args: &[&str],
+    output_path: &Path
 ) -> Vec<String> {
     vec![
         "-ss",
@@ -437,7 +400,7 @@ fn audio_file_args(
     .collect()
 }
 
-fn calculate_font_size_for_video(video_path: &Path, text_length: usize) -> u32 {
+fn calculate_font_size_for_video(text_length: usize) -> u32 {
     // Simple heuristic: base font size adjusted by text length
     let base_size = 24;
     if text_length > 100 {
@@ -447,6 +410,55 @@ fn calculate_font_size_for_video(video_path: &Path, text_length: usize) -> u32 {
     } else {
         base_size
     }
+}
+
+fn get_audio_codec_args(
+    path: &Path,
+    ffprobe_path: &Path,
+) -> Result<Vec<&'static str>, Box<dyn std::error::Error>> {
+    // some files need more processing than others. for example, _all_ webm files need "basic" re-encoding.
+    // then, additionally, some files need even more advanced processing if their "layout" is not stereo or mono
+    let source_extension = path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_lowercase())
+        .unwrap_or_default();
+
+    let extension_needs_basic_audio_reencoding = 
+        matches!(source_extension.as_str(), "mkv" | "webm" | "avi" | "mov");
+
+    let (needs_advanced_audio_reencoding, layout) = check_if_advanced_audio_reencoding_needed(path, ffprobe_path)?;
+    
+    let audio_codec_args = if extension_needs_basic_audio_reencoding {
+        if needs_advanced_audio_reencoding {
+            // Use appropriate channel mapping based on detected layout
+            let channel_filter = match layout.as_str() {
+                "5.1" => {
+                    // 5.1 layout: FL FR FC LFE BL BR (back channels) -> keep as 5.1
+                    "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|BL-BL|BR-BR:5.1"
+                }
+                "5.1(side)" => {
+                    // 5.1(side) layout: FL FR FC LFE SL SR (side channels) -> map to 5.1 back channels
+                    "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|SL-BL|SR-BR:5.1"
+                }
+                layout if ["7.1", "7.1(wide)", "7.1(wide-side)"].contains(&layout) => {
+                    // 7.1 layout: FL FR FC LFE BL BR SL SR -> keep as 7.1
+                    "channelmap=FL-FL|FR-FR|FC-FC|LFE-LFE|BL-BL|BR-BR|SL-SL|SR-SR:7.1"
+                }
+                _ => {
+                    // For other layouts, downmix to stereo
+                    "pan=stereo|FL=0.5*FL+0.707*FC+0.5*BL+0.5*SL|FR=0.5*FR+0.707*FC+0.5*BR+0.5*SR"
+                }
+            };
+
+            vec!["-filter:a", channel_filter, "-c:a", "aac", "-b:a", "256k"]
+        } else {
+            vec!["-c:a", "aac", "-b:a", "256k"]
+        }
+    } else {
+        vec!["-c:a", "copy"]
+    };
+
+    Ok(audio_codec_args)
 }
 
 pub fn check_if_advanced_audio_reencoding_needed(
