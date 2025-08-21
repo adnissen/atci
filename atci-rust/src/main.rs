@@ -7,10 +7,15 @@ use std::time::Duration;
 use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
+//use rust_embed::Embed;
 
 mod clipper;
 mod queue;
 mod video_processor;
+
+//#[derive(Embed)]
+//#[folder = "assets/"]
+//struct Asset;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None, arg_required_else_help = true)]
