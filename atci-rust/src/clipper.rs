@@ -78,6 +78,10 @@ pub fn clip(
     let temp_clip_name = format!("clip_{}_{}{}.{}", start_time_str, end_time_str, caption_part, format_param);
     let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
     
+    if temp_clip_path.exists() {
+        println!("{}", temp_clip_path.display());
+        return Ok(());
+    }
 
     let duration = (end - start) + 0.1;
 
