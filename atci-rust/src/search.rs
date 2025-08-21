@@ -14,43 +14,63 @@ pub struct SearchResult {
 
 pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
     let video_extensions = crate::get_video_extensions();
-    let mut results = Vec::new();
+    
+    let all_entries: Vec<_> = cfg.watch_directories
+        .iter()
+        .flat_map(|watch_directory| {
+            WalkDir::new(watch_directory)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .collect::<Vec<_>>()
+        })
+        .collect();
 
-    for watch_directory in &cfg.watch_directories {
-        for entry in WalkDir::new(watch_directory).into_iter().filter_map(|e| e.ok()) {
+    let results: Vec<SearchResult> = all_entries
+        .par_iter()
+        .filter_map(|entry| {
             let file_path = entry.path();
             
-            if file_path.is_file() {
-                if let Some(extension) = file_path.extension() {
-                    if let Some(ext_str) = extension.to_str() {
-                        if video_extensions.contains(&ext_str.to_lowercase().as_str()) {
-                            let txt_path = file_path.with_extension("txt");
-                            
-                            if txt_path.exists() {
-                                if let Ok(content) = fs::read_to_string(&txt_path) {
-                                    let mut line_numbers = Vec::new();
-                                    
-                                    for (line_num, line) in content.lines().enumerate() {
-                                        if line.to_lowercase().contains(&query.to_lowercase()) {
-                                            line_numbers.push(line_num + 1);
-                                        }
-                                    }
-                                    
-                                    if !line_numbers.is_empty() {
-                                        results.push(SearchResult {
-                                            video_path: file_path.to_string_lossy().to_string(),
-                                            transcript_path: txt_path.to_string_lossy().to_string(),
-                                            line_numbers,
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+            if !file_path.is_file() {
+                return None;
             }
-        }
-    }
+            
+            let extension = file_path.extension()?;
+            let ext_str = extension.to_str()?;
+            
+            if !video_extensions.contains(&ext_str.to_lowercase().as_str()) {
+                return None;
+            }
+            
+            let txt_path = file_path.with_extension("txt");
+            
+            if !txt_path.exists() {
+                return None;
+            }
+            
+            let content = fs::read_to_string(&txt_path).ok()?;
+            let line_numbers: Vec<usize> = content
+                .lines()
+                .enumerate()
+                .filter_map(|(line_num, line)| {
+                    if line.to_lowercase().contains(&query.to_lowercase()) {
+                        Some(line_num + 1)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            
+            if line_numbers.is_empty() {
+                None
+            } else {
+                Some(SearchResult {
+                    video_path: file_path.to_string_lossy().to_string(),
+                    transcript_path: txt_path.to_string_lossy().to_string(),
+                    line_numbers,
+                })
+            }
+        })
+        .collect();
 
     Ok(results)
 }
