@@ -18,9 +18,19 @@ pub fn get_ffprobe_url(platform: &str) -> Option<&'static str> {
     }
 }
 
-pub fn binaries_directory() -> std::path::PathBuf {
+pub fn get_whisper_cli_url(platform: &str) -> Option<&'static str> {
+    match platform {
+        "windows" => Some("https://example.com/ffprobe-windows.exe"),
+        "macos-arm" => Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/whisper-cli"),
+        "macos-x86" => Some("https://www.osxexperts.net/ffprobe71intel.zip"),
+        "linux" => Some("https://example.com/ffprobe-linux"),
+        _ => None,
+    }
+}
+
+pub fn binaries_directory(tool: &str) -> std::path::PathBuf {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    std::path::Path::new(&home_dir).join(".atci").join("ffmpeg")
+    std::path::Path::new(&home_dir).join(".atci").join(tool)
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -36,7 +46,9 @@ pub struct ToolInfo {
 
 pub fn list_tools() -> Vec<ToolInfo> {
     let platform = detect_platform();
-    let tools = ["ffmpeg", "ffprobe"];
+    let tools = ["ffmpeg", "ffprobe", "whisper-cli"];
+
+    let cfg: crate::AtciConfig = confy::load("atci", "config").unwrap();
     
     tools.iter().map(|&tool| {
         let downloaded_path = get_downloaded_path(tool);
@@ -49,7 +61,7 @@ pub fn list_tools() -> Vec<ToolInfo> {
             downloaded_path: downloaded_path.clone(),
             system_available: system_path.is_some(),
             system_path: system_path.clone(),
-            current_path: get_current_path(tool),
+            current_path: get_current_path(tool, &cfg),
         }
     }).collect()
 }
@@ -71,7 +83,7 @@ fn detect_platform() -> String {
 }
 
 fn get_downloaded_path(tool: &str) -> String {
-    let binaries_dir = binaries_directory();
+    let binaries_dir = binaries_directory(tool);
     let extension = if cfg!(target_os = "windows") { ".exe" } else { "" };
     binaries_dir.join(format!("{}{}", tool, extension)).to_string_lossy().to_string()
 }
@@ -80,12 +92,13 @@ fn find_in_system_path(tool: &str) -> Option<String> {
     which::which(tool).ok().map(|path| path.to_string_lossy().to_string())
 }
 
-fn get_current_path(tool: &str) -> String {
-    let downloaded_path = get_downloaded_path(tool);
-    if std::path::Path::new(&downloaded_path).exists() {
-        downloaded_path
-    } else if let Some(system_path) = find_in_system_path(tool) {
-        system_path
+fn get_current_path(tool: &str, cfg: &crate::AtciConfig) -> String {
+    if tool == "whisper-cli" {
+        cfg.whispercli_path.clone()
+    } else if tool == "ffmpeg" {
+        cfg.ffmpeg_path.clone()
+    } else if tool == "ffprobe" {
+        cfg.ffprobe_path.clone()
     } else {
         "not found".to_string()
     }
@@ -97,12 +110,14 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
     let url = match tool {
         "ffmpeg" => get_ffmpeg_url(&platform),
         "ffprobe" => get_ffprobe_url(&platform),
+        "whisper-cli" => get_whisper_cli_url(&platform),
         _ => return Err(format!("Unknown tool: {}", tool).into()),
     };
-    
+    println!("Downloading tool: {} from {}", tool, url.unwrap());
+
     let url = url.ok_or(format!("No download URL available for {} on {}", tool, platform))?;
     
-    let binaries_dir = binaries_directory();
+    let binaries_dir = binaries_directory(tool);
     std::fs::create_dir_all(&binaries_dir)?;
     
     let response = reqwest::blocking::get(url)?;

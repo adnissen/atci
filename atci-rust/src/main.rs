@@ -27,14 +27,17 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    #[command(about = "Manage video information cache")]
     VideoInfo {
         #[command(subcommand)]
         video_info_command: Option<VideoInfoCommands>,
     },
+    #[command(about = "Manage video processing queue")]
     Queue {
         #[command(subcommand)]
         queue_command: Option<QueueCommands>,
     },
+    #[command(about = "Create video clips with optional text overlay")]
     Clip {
         #[arg(help = "Path to the video file")]
         path: String,
@@ -51,11 +54,14 @@ enum Commands {
         #[arg(long, help = "Font size for text overlay")]
         font_size: Option<u32>,
     },
+    #[command(about = "Manage external tools and dependencies")]
     Tools {
         #[command(subcommand)]
         tools_command: Option<ToolsCommands>,
     },
+    #[command(about = "Watch directories for new videos and process them automatically")]
     Watch,
+    #[command(about = "Display current configuration settings")]
     Config,
 }
 
@@ -63,28 +69,35 @@ enum Commands {
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
 enum VideoInfoCommands {
+    #[command(about = "Get video information from cache")]
     Get,
+    #[command(about = "Update video information cache by scanning watch directories")]
     Update,
 }
 
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
 enum QueueCommands {
+    #[command(about = "Get all items in the processing queue")]
     Get,
+    #[command(about = "Add a video path to the processing queue")]
     Add {
         #[arg(help = "Path to add to the queue")]
         path: String,
     },
+    #[command(about = "Get current queue processing status")]
     Status,
 }
 
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
 enum ToolsCommands {
+    #[command(about = "List all available tools and their status")]
     List {
         #[arg(long, help = "Output as JSON", default_value = "false")]
         json: bool,
     },
+    #[command(about = "Download and install a specific tool")]
     Download {
         #[arg(help = "Name of the tool to download")]
         tool: String,
@@ -362,7 +375,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if let Some(system_path) = &tool.system_path {
                                 println!("   System Path: {}", system_path);
                             }
-                            println!("   Current Path: {}", tool.current_path);
+                            println!("   Configured Path: {}", tool.current_path);
                         }
                     }
                 }
