@@ -85,6 +85,10 @@ enum ToolsCommands {
         #[arg(long, help = "Output as JSON", default_value = "false")]
         json: bool,
     },
+    Download {
+        #[arg(help = "Name of the tool to download")]
+        tool: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -359,6 +363,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("   System Path: {}", system_path);
                             }
                             println!("   Current Path: {}", tool.current_path);
+                        }
+                    }
+                }
+                Some(ToolsCommands::Download { tool }) => {
+                    match tools_manager::download_tool(&tool) {
+                        Ok(path) => {
+                            println!("Successfully downloaded {} to: {}", tool, path);
+                        }
+                        Err(e) => {
+                            eprintln!("Error downloading {}: {}", tool, e);
+                            std::process::exit(1);
                         }
                     }
                 }
