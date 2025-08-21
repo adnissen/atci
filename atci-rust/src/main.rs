@@ -12,7 +12,7 @@ use chrono::{DateTime, Local};
 mod clipper;
 mod queue;
 mod video_processor;
-mod ffmpeg_manager;
+mod tools_manager;
 
 //#[derive(Embed)]
 //#[folder = "assets/"]
@@ -51,9 +51,9 @@ enum Commands {
         #[arg(long, help = "Font size for text overlay")]
         font_size: Option<u32>,
     },
-    Ffmpeg {
+    Tools {
         #[command(subcommand)]
-        ffmpeg_command: Option<FfmpegCommands>,
+        tools_command: Option<ToolsCommands>,
     },
     Watch,
     Config,
@@ -80,7 +80,7 @@ enum QueueCommands {
 
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
-enum FfmpegCommands {
+enum ToolsCommands {
     List {
         #[arg(long, help = "Output as JSON", default_value = "false")]
         json: bool,
@@ -337,15 +337,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Clip { path, start, end, text, display_text, format, font_size }) => {
             clipper::clip(Path::new(&path), start, end, text.as_deref(), display_text, &format, font_size)?;
         }
-        Some(Commands::Ffmpeg { ffmpeg_command }) => {
-            match ffmpeg_command {
-                Some(FfmpegCommands::List { json }) => {
-                    let tools = ffmpeg_manager::list_tools();
+        Some(Commands::Tools { tools_command }) => {
+            match tools_command {
+                Some(ToolsCommands::List { json }) => {
+                    let tools = tools_manager::list_tools();
                     if json {
                         let json_output = serde_json::to_string_pretty(&tools)?;
                         println!("{}", json_output);
                     } else {
-                        println!("FFmpeg Tools Status:");
+                        println!("Tools Status:");
                         println!("{}", "=".repeat(50));
                         for tool in tools {
                             println!("\n🔧 {}", tool.name.to_uppercase());
