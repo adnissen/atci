@@ -14,6 +14,7 @@ mod queue;
 mod video_processor;
 mod tools_manager;
 mod model_manager;
+mod search;
 
 //#[derive(Embed)]
 //#[folder = "assets/"]
@@ -69,6 +70,11 @@ enum Commands {
     Watch,
     #[command(about = "Display current configuration settings")]
     Config,
+    #[command(about = "Search for content in video transcripts")]
+    Search {
+        #[arg(help = "Search query", num_args = 1.., value_delimiter = ' ')]
+        query: Vec<String>,
+    },
 }
 
 
@@ -476,6 +482,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cfg: AtciConfig = confy::load("atci", "config")?;
             let json_output = serde_json::to_string_pretty(&cfg)?;
             println!("{}", json_output);
+        }
+        Some(Commands::Search { query }) => {
+            let search_query = query.join(" ");
+            let cfg: AtciConfig = confy::load("atci", "config")?;
+            
+            match search::search(&search_query, &cfg) {
+                Ok(results) => {
+                    let json_output = serde_json::to_string_pretty(&results)?;
+                    println!("{}", json_output);
+                }
+                Err(e) => {
+                    eprintln!("Error searching: {}", e);
+                    std::process::exit(1);
+                }
+            }
         }
         None => {}
     }
