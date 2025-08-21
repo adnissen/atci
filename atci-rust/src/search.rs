@@ -1,10 +1,8 @@
 use std::fs;
-use std::path::Path;
 use walkdir::WalkDir;
 use serde::Serialize;
 use crate::AtciConfig;
 use rayon::prelude::*;
-use std::collections::HashMap;
 
 #[derive(Debug, Serialize)]
 pub struct SearchMatch {
