@@ -13,6 +13,7 @@ mod clipper;
 mod queue;
 mod video_processor;
 mod tools_manager;
+mod model_manager;
 
 //#[derive(Embed)]
 //#[folder = "assets/"]
@@ -59,6 +60,11 @@ enum Commands {
         #[command(subcommand)]
         tools_command: Option<ToolsCommands>,
     },
+    #[command(about = "Manage Whisper models")]
+    Models {
+        #[command(subcommand)]
+        models_command: Option<ModelsCommands>,
+    },
     #[command(about = "Watch directories for new videos and process them automatically")]
     Watch,
     #[command(about = "Display current configuration settings")]
@@ -94,13 +100,28 @@ enum QueueCommands {
 enum ToolsCommands {
     #[command(about = "List all available tools and their status")]
     List {
-        #[arg(long, help = "Output as JSON", default_value = "false")]
-        json: bool,
+        #[arg(long, help = "Show formatted output instead of JSON", default_value = "false")]
+        pretty: bool,
     },
     #[command(about = "Download and install a specific tool")]
     Download {
         #[arg(help = "Name of the tool to download")]
         tool: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum ModelsCommands {
+    #[command(about = "List all available models and their status")]
+    List {
+        #[arg(long, help = "Show formatted output instead of JSON", default_value = "false")]
+        pretty: bool,
+    },
+    #[command(about = "Download and install a specific model")]
+    Download {
+        #[arg(help = "Name of the model to download")]
+        model: String,
     },
 }
 
@@ -356,12 +377,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::Tools { tools_command }) => {
             match tools_command {
-                Some(ToolsCommands::List { json }) => {
+                Some(ToolsCommands::List { pretty }) => {
                     let tools = tools_manager::list_tools();
-                    if json {
-                        let json_output = serde_json::to_string_pretty(&tools)?;
-                        println!("{}", json_output);
-                    } else {
+                    if pretty {
                         println!("Tools Status:");
                         println!("{}", "=".repeat(50));
                         for tool in tools {
@@ -377,6 +395,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             println!("   Configured Path: {}", tool.current_path);
                         }
+                    } else {
+                        let json_output = serde_json::to_string_pretty(&tools)?;
+                        println!("{}", json_output);
                     }
                 }
                 Some(ToolsCommands::Download { tool }) => {
@@ -386,6 +407,54 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Err(e) => {
                             eprintln!("Error downloading {}: {}", tool, e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                None => {}
+            }
+        }
+        Some(Commands::Models { models_command }) => {
+            match models_command {
+                Some(ModelsCommands::List { pretty }) => {
+                    let models = model_manager::list_models();
+                    if pretty {
+                        let (downloaded, available): (Vec<_>, Vec<_>) = models.iter()
+                            .partition(|model| model.downloaded);
+                        
+                        if !downloaded.is_empty() {
+                            println!("📦 INSTALLED MODELS");
+                            println!("{}", "=".repeat(50));
+                            for model in downloaded {
+                                let status = if model.configured { "⭐ " } else { "✅ " };
+                                println!("{}{}", status, model.name);
+                                if model.configured {
+                                    println!("   Status: Currently configured");
+                                }
+                                println!("   Path: {}", model.path);
+                                println!();
+                            }
+                        }
+                        
+                        if !available.is_empty() {
+                            println!("🔍 AVAILABLE MODELS");
+                            println!("{}", "=".repeat(50));
+                            for model in available {
+                                println!("⬇️  {}", model.name);
+                            }
+                        }
+                    } else {
+                        let json_output = serde_json::to_string_pretty(&models)?;
+                        println!("{}", json_output);
+                    }
+                }
+                Some(ModelsCommands::Download { model }) => {
+                    match model_manager::download_model(&model) {
+                        Ok(path) => {
+                            println!("Successfully downloaded model {} to: {}", model, path);
+                        }
+                        Err(e) => {
+                            eprintln!("Error downloading model {}: {}", model, e);
                             std::process::exit(1);
                         }
                     }
