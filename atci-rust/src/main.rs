@@ -4,9 +4,11 @@ use std::fs;
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
+use std::collections::HashSet;
 use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
+use dialoguer::Input;
 //use rust_embed::Embed;
 
 mod clipper;
@@ -69,7 +71,10 @@ enum Commands {
     #[command(about = "Watch directories for new videos and process them automatically")]
     Watch,
     #[command(about = "Display current configuration settings")]
-    Config,
+    Config {
+        #[command(subcommand)]
+        config_command: Option<ConfigCommands>,
+    },
     #[command(about = "Search for content in video transcripts")]
     Search {
         #[arg(help = "Search query", num_args = 1.., value_delimiter = ' ')]
@@ -133,13 +138,26 @@ enum ModelsCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum ConfigCommands {
+    #[command(about = "Display current configuration settings")]
+    Show,
+    #[command(about = "Display path to configuration file")]
+    Path,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct AtciConfig {
+    #[serde(default)]
     pub ffmpeg_path: String,
+    #[serde(default)]
     pub ffprobe_path: String,
+    #[serde(default)]
     pub model_name: String,
     pub nonlocal_password: Option<String>,
+    #[serde(default)]
     pub watch_directories: Vec<String>,
+    #[serde(default)]
     pub whispercli_path: String,
 }
 
@@ -197,6 +215,118 @@ fn get_meta_fields(meta_path: &Path, fields: &[&str]) -> Vec<Option<String>> {
         }
     }
     results
+}
+
+fn validate_executable_path(path: &str) -> Result<(), String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+    
+    let path_obj = Path::new(path);
+    if !path_obj.exists() {
+        return Err("Path does not exist".to_string());
+    }
+    
+    if !path_obj.is_file() {
+        return Err("Path is not a file".to_string());
+    }
+    
+    // Check if file is executable (Unix-like systems)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(metadata) = fs::metadata(path) {
+            let permissions = metadata.permissions();
+            if permissions.mode() & 0o111 == 0 {
+                return Err("File is not executable".to_string());
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+fn validate_directory_path(path: &str) -> Result<(), String> {
+    if path.is_empty() {
+        return Ok(()); // Empty is acceptable for optional directories
+    }
+    
+    let path_obj = Path::new(path);
+    if !path_obj.exists() {
+        return Err("Directory does not exist".to_string());
+    }
+    
+    if !path_obj.is_dir() {
+        return Err("Path is not a directory".to_string());
+    }
+    
+    Ok(())
+}
+
+fn validate_and_prompt_config(cfg: &mut AtciConfig, fields_to_verify: &HashSet<String>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut config_changed = false;
+
+    if fields_to_verify.contains("ffmpeg_path") && cfg.ffmpeg_path.is_empty() {
+        let ffmpeg_path: String = Input::new()
+            .with_prompt("FFmpeg path")
+            .validate_with(|input: &String| validate_executable_path(input))
+            .interact()?;
+        cfg.ffmpeg_path = ffmpeg_path;
+        config_changed = true;
+    }
+
+    if fields_to_verify.contains("ffprobe_path") && cfg.ffprobe_path.is_empty() {
+        let ffprobe_path: String = Input::new()
+            .with_prompt("FFprobe path")
+            .validate_with(|input: &String| validate_executable_path(input))
+            .interact()?;
+        cfg.ffprobe_path = ffprobe_path;
+        config_changed = true;
+    }
+
+    if fields_to_verify.contains("whispercli_path") && cfg.whispercli_path.is_empty() {
+        let whispercli_path: String = Input::new()
+            .with_prompt("Whisper CLI path")
+            .validate_with(|input: &String| validate_executable_path(input))
+            .interact()?;
+        cfg.whispercli_path = whispercli_path;
+        config_changed = true;
+    }
+
+    if fields_to_verify.contains("model_name") && cfg.model_name.is_empty() {
+        let model_name: String = Input::new()
+            .with_prompt("Model name")
+            .validate_with(|input: &String| {
+                if input.is_empty() {
+                    Err("Model name cannot be empty")
+                } else {
+                    Ok(())
+                }
+            })
+            .interact()?;
+        cfg.model_name = model_name;
+        config_changed = true;
+    }
+
+    if fields_to_verify.contains("watch_directories") && cfg.watch_directories.is_empty() {
+        let watch_dir: String = Input::new()
+            .with_prompt("Watch directory (press Enter to skip)")
+            .allow_empty(true)
+            .validate_with(|input: &String| validate_directory_path(input))
+            .interact()?;
+        
+        if !watch_dir.is_empty() {
+            cfg.watch_directories.push(watch_dir);
+            config_changed = true;
+        }
+    }
+
+    if config_changed {
+        confy::store("atci", "config", cfg)?;
+        println!("Configuration updated and saved.");
+    }
+
+    Ok(())
 }
 
 fn get_cache_file_path() -> std::path::PathBuf {
@@ -471,7 +601,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::Watch) => {
-            let cfg: AtciConfig = confy::load("atci", "config")?;
+            let mut cfg: AtciConfig = confy::load("atci", "config")?;
+            
+            // Define required fields for watch command
+            let mut required_fields = HashSet::new();
+            required_fields.insert("ffmpeg_path".to_string());
+            required_fields.insert("ffprobe_path".to_string());
+            required_fields.insert("whispercli_path".to_string());
+            required_fields.insert("model_name".to_string());
+            required_fields.insert("watch_directories".to_string());
+            
+            // Validate and prompt for missing configuration
+            validate_and_prompt_config(&mut cfg, &required_fields)?;
+            
             queue::watch_for_missing_metadata(&cfg)?;
             queue::process_queue()?;
             
@@ -480,10 +622,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 thread::sleep(Duration::from_secs(60));
             }
         }
-        Some(Commands::Config) => {
-            let cfg: AtciConfig = confy::load("atci", "config")?;
-            let json_output = serde_json::to_string_pretty(&cfg)?;
-            println!("{}", json_output);
+        Some(Commands::Config { config_command }) => {
+            match config_command {
+                Some(ConfigCommands::Show) => {
+                    let cfg: AtciConfig = confy::load("atci", "config")?;
+                    let json_output = serde_json::to_string_pretty(&cfg)?;
+                    println!("{}", json_output);
+                }
+                Some(ConfigCommands::Path) => {
+                    let config_path = confy::get_configuration_file_path("atci", "config")?;
+                    println!("{}", config_path.display());
+                }
+                None => {
+                    let cfg: AtciConfig = confy::load("atci", "config")?;
+                    let json_output = serde_json::to_string_pretty(&cfg)?;
+                    println!("{}", json_output);
+                }
+            }
         }
         Some(Commands::Search { query, pretty }) => {
             let search_query = query.join(" ");
