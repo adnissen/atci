@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
-use dialoguer::Input;
+use dialoguer::{Input, Select};
 //use rust_embed::Embed;
 
 mod clipper;
@@ -144,6 +144,18 @@ enum ConfigCommands {
     Show,
     #[command(about = "Display path to configuration file")]
     Path,
+    #[command(about = "Set a configuration field")]
+    Set {
+        #[arg(help = "Field name to set")]
+        field: String,
+        #[arg(help = "Value to set")]
+        value: String,
+    },
+    #[command(about = "Unset/clear a configuration field")]
+    Unset {
+        #[arg(help = "Field name to unset")]
+        field: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -217,6 +229,110 @@ fn get_meta_fields(meta_path: &Path, fields: &[&str]) -> Vec<Option<String>> {
     results
 }
 
+fn is_valid_config_field(field: &str) -> bool {
+    matches!(field, "ffmpeg_path" | "ffprobe_path" | "model_name" | "whispercli_path" | "watch_directories" | "nonlocal_password")
+}
+
+fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Result<(), String> {
+    match field {
+        "ffmpeg_path" => cfg.ffmpeg_path = value.to_string(),
+        "ffprobe_path" => cfg.ffprobe_path = value.to_string(),
+        "model_name" => cfg.model_name = value.to_string(),
+        "whispercli_path" => cfg.whispercli_path = value.to_string(),
+        "nonlocal_password" => cfg.nonlocal_password = Some(value.to_string()),
+        "watch_directories" => {
+            // For watch_directories, treat the value as a single directory to add
+            if !cfg.watch_directories.contains(&value.to_string()) {
+                cfg.watch_directories.push(value.to_string());
+            }
+        },
+        _ => return Err(format!("Unknown field: {}", field)),
+    }
+    Ok(())
+}
+
+fn unset_config_field(cfg: &mut AtciConfig, field: &str) -> Result<(), String> {
+    match field {
+        "ffmpeg_path" => cfg.ffmpeg_path = String::new(),
+        "ffprobe_path" => cfg.ffprobe_path = String::new(),
+        "model_name" => cfg.model_name = String::new(),
+        "whispercli_path" => cfg.whispercli_path = String::new(),
+        "nonlocal_password" => cfg.nonlocal_password = None,
+        "watch_directories" => cfg.watch_directories.clear(),
+        _ => return Err(format!("Unknown field: {}", field)),
+    }
+    Ok(())
+}
+
+fn prompt_for_executable_path(tool: &str, current_path: &str) -> Result<String, Box<dyn std::error::Error>> {
+    // Get tool info to check what options are available
+    let tools = tools_manager::list_tools();
+    let tool_info = tools.iter().find(|t| t.name == tool);
+    
+    if let Some(info) = tool_info {
+        let mut options = Vec::new();
+        let mut paths = Vec::new();
+        
+        // Option 1: Use downloaded version (if available)
+        if info.downloaded {
+            options.push(format!("Use downloaded {} ({})", tool, info.downloaded_path));
+            paths.push(info.downloaded_path.clone());
+        }
+        
+        // Option 2: Use system version (if available)
+        if info.system_available {
+            if let Some(system_path) = &info.system_path {
+                options.push(format!("Use system {} ({})", tool, system_path));
+                paths.push(system_path.clone());
+            }
+        }
+        
+        // Option 3: Download and use
+        options.push(format!("Download {} and use that", tool));
+        paths.push("__download__".to_string());
+        
+        // Option 4: Enter custom path
+        options.push("Enter custom path".to_string());
+        paths.push("__custom__".to_string());
+        
+        if options.is_empty() {
+            return Err("No options available for this tool".into());
+        }
+        
+        let selection = Select::new()
+            .with_prompt(&format!("Select {} configuration", tool))
+            .items(&options)
+            .default(0)
+            .interact()?;
+            
+        match paths[selection].as_str() {
+            "__download__" => {
+                println!("Downloading {}...", tool);
+                let downloaded_path = tools_manager::download_tool(tool)?;
+                println!("Successfully downloaded {} to: {}", tool, downloaded_path);
+                Ok(downloaded_path)
+            }
+            "__custom__" => {
+                let custom_path: String = Input::new()
+                    .with_prompt(&format!("Enter path to {}", tool))
+                    .default(current_path.to_string())
+                    .validate_with(|input: &String| validate_executable_path(input))
+                    .interact()?;
+                Ok(custom_path)
+            }
+            path => Ok(path.to_string())
+        }
+    } else {
+        // Fallback to simple input if tool info not found
+        let custom_path: String = Input::new()
+            .with_prompt(&format!("Enter path to {}", tool))
+            .default(current_path.to_string())
+            .validate_with(|input: &String| validate_executable_path(input))
+            .interact()?;
+        Ok(custom_path)
+    }
+}
+
 fn validate_executable_path(path: &str) -> Result<(), String> {
     if path.is_empty() {
         return Err("Path cannot be empty".to_string());
@@ -267,19 +383,13 @@ fn validate_and_prompt_config(cfg: &mut AtciConfig, fields_to_verify: &HashSet<S
     let mut config_changed = false;
 
     if fields_to_verify.contains("ffmpeg_path") && cfg.ffmpeg_path.is_empty() {
-        let ffmpeg_path: String = Input::new()
-            .with_prompt("FFmpeg path")
-            .validate_with(|input: &String| validate_executable_path(input))
-            .interact()?;
+        let ffmpeg_path = prompt_for_executable_path("ffmpeg", &cfg.ffmpeg_path)?;
         cfg.ffmpeg_path = ffmpeg_path;
         config_changed = true;
     }
 
     if fields_to_verify.contains("ffprobe_path") && cfg.ffprobe_path.is_empty() {
-        let ffprobe_path: String = Input::new()
-            .with_prompt("FFprobe path")
-            .validate_with(|input: &String| validate_executable_path(input))
-            .interact()?;
+        let ffprobe_path = prompt_for_executable_path("ffprobe", &cfg.ffprobe_path)?;
         cfg.ffprobe_path = ffprobe_path;
         config_changed = true;
     }
@@ -511,6 +621,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::Clip { path, start, end, text, display_text, format, font_size }) => {
+            let mut cfg: AtciConfig = confy::load("atci", "config")?;
+            
+            // Define required fields for clip command
+            let mut required_fields = HashSet::new();
+            required_fields.insert("ffmpeg_path".to_string());
+            required_fields.insert("ffprobe_path".to_string());
+            
+            // Validate and prompt for missing configuration
+            validate_and_prompt_config(&mut cfg, &required_fields)?;
+            
             clipper::clip(Path::new(&path), start, end, text.as_deref(), display_text, &format, font_size)?;
         }
         Some(Commands::Tools { tools_command }) => {
@@ -632,6 +752,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(ConfigCommands::Path) => {
                     let config_path = confy::get_configuration_file_path("atci", "config")?;
                     println!("{}", config_path.display());
+                }
+                Some(ConfigCommands::Set { field, value }) => {
+                    if !is_valid_config_field(&field) {
+                        eprintln!("Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, nonlocal_password", field);
+                        std::process::exit(1);
+                    }
+                    
+                    let mut cfg: AtciConfig = confy::load("atci", "config")?;
+                    
+                    if let Err(e) = set_config_field(&mut cfg, &field, &value) {
+                        eprintln!("Error setting field: {}", e);
+                        std::process::exit(1);
+                    }
+                    
+                    confy::store("atci", "config", &cfg)?;
+                    println!("Set {} = {}", field, value);
+                }
+                Some(ConfigCommands::Unset { field }) => {
+                    if !is_valid_config_field(&field) {
+                        eprintln!("Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, nonlocal_password", field);
+                        std::process::exit(1);
+                    }
+                    
+                    let mut cfg: AtciConfig = confy::load("atci", "config")?;
+                    
+                    if let Err(e) = unset_config_field(&mut cfg, &field) {
+                        eprintln!("Error unsetting field: {}", e);
+                        std::process::exit(1);
+                    }
+                    
+                    confy::store("atci", "config", &cfg)?;
+                    println!("Unset {}", field);
                 }
                 None => {
                     let cfg: AtciConfig = confy::load("atci", "config")?;
