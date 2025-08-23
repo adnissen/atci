@@ -31,10 +31,10 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    #[command(about = "Manage video information cache")]
-    VideoInfo {
+    #[command(about = "Manage file information cache")]
+    Files {
         #[command(subcommand)]
-        video_info_command: Option<VideoInfoCommands>,
+        files_command: Option<FilesCommands>,
     },
     #[command(about = "Manage video processing queue")]
     Queue {
@@ -87,10 +87,10 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
-enum VideoInfoCommands {
-    #[command(about = "Get video information from cache")]
+enum FilesCommands {
+    #[command(about = "Get file information from cache")]
     Get,
-    #[command(about = "Update video information cache by scanning watch directories")]
+    #[command(about = "Update file information cache by scanning watch directories")]
     Update,
 }
 
@@ -395,10 +395,7 @@ fn validate_and_prompt_config(cfg: &mut AtciConfig, fields_to_verify: &HashSet<S
     }
 
     if fields_to_verify.contains("whispercli_path") && cfg.whispercli_path.is_empty() {
-        let whispercli_path: String = Input::new()
-            .with_prompt("Whisper CLI path")
-            .validate_with(|input: &String| validate_executable_path(input))
-            .interact()?;
+        let whispercli_path = prompt_for_executable_path("whisper-cli", &cfg.whispercli_path)?;
         cfg.whispercli_path = whispercli_path;
         config_changed = true;
     }
@@ -553,9 +550,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     
     match args.command {
-        Some(Commands::VideoInfo { video_info_command }) => {
-            match video_info_command {
-                Some(VideoInfoCommands::Get) => {
+        Some(Commands::Files { files_command }) => {
+            match files_command {
+                Some(FilesCommands::Get) => {
                     match load_video_info_from_cache() {
                         Ok(video_infos) => {
                             let json_output = serde_json::to_string_pretty(&video_infos)?;
@@ -567,7 +564,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
-                Some(VideoInfoCommands::Update) => {
+                Some(FilesCommands::Update) => {
                     let cfg: AtciConfig = confy::load("atci", "config")?;
                     let video_infos = get_video_info_from_disk(&cfg)?;
                     save_video_info_to_cache(&video_infos)?;
