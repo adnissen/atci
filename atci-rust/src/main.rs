@@ -172,6 +172,27 @@ enum TranscriptsCommands {
         #[arg(help = "Path to the video file")]
         path: String,
     },
+    #[command(about = "Set content of a specific line in a transcript file")]
+    SetLine {
+        #[arg(help = "Path to the video file")]
+        video_path: String,
+        #[arg(help = "Line number to modify (1-based)")]
+        line_number: usize,
+        #[arg(help = "New content for the line")]
+        content: String,
+    },
+    #[command(about = "Replace entire content of a transcript file")]
+    Set {
+        #[arg(help = "Path to the video file")]
+        video_path: String,
+        #[arg(help = "New content for the entire transcript file")]
+        content: String,
+    },
+    #[command(about = "Delete transcript and meta files to force regeneration")]
+    Regenerate {
+        #[arg(help = "Path to the video file")]
+        video_path: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -845,6 +866,39 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Err(e) => {
                             eprintln!("Error reading transcript: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(TranscriptsCommands::SetLine { video_path, line_number, content }) => {
+                    match transcripts::set_line(&video_path, line_number, &content) {
+                        Ok(()) => {
+                            println!("Successfully updated line {} in transcript for {}", line_number, video_path);
+                        }
+                        Err(e) => {
+                            eprintln!("Error setting line: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(TranscriptsCommands::Set { video_path, content }) => {
+                    match transcripts::set(&video_path, &content) {
+                        Ok(()) => {
+                            println!("Successfully replaced transcript content for {}", video_path);
+                        }
+                        Err(e) => {
+                            eprintln!("Error setting file content: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(TranscriptsCommands::Regenerate { video_path }) => {
+                    match transcripts::regenerate(&video_path) {
+                        Ok(()) => {
+                            println!("Successfully deleted transcript and meta files for {}", video_path);
+                        }
+                        Err(e) => {
+                            eprintln!("Error deleting files: {}", e);
                             std::process::exit(1);
                         }
                     }
