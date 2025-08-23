@@ -7,6 +7,18 @@ use walkdir::WalkDir;
 use crate::AtciConfig;
 use crate::video_processor;
 
+use rocket::serde::json::Json;
+use rocket::get;
+use crate::web::ApiResponse;
+
+#[get("/api/queue")]
+pub fn web_get_queue() -> Json<ApiResponse<serde_json::Value>> {
+    match get_queue() {
+        Ok(queue_data) => Json(ApiResponse::success(queue_data.into())),
+        Err(e) => Json(ApiResponse::error(format!("Failed to get queue: {}", e))),
+    }
+}
+
 pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let queue_path = std::path::Path::new(&home_dir).join(".queue");
@@ -43,6 +55,20 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
         .open(queue_path)?;
     writeln!(file, "{}", path)?;
     Ok(())
+}
+
+#[get("/api/queue/status")]
+pub fn web_get_queue_status() -> Json<ApiResponse<serde_json::Value>> {
+    match get_queue_status() {
+        Ok((path, age)) => {
+            let result = serde_json::json!({
+                "currently_processing": path.unwrap_or_else(|| "".to_string()),
+                "age_in_seconds": age
+            });
+            Json(ApiResponse::success(result))
+        }
+        Err(e) => Json(ApiResponse::error(format!("Failed to get queue status: {}", e))),
+    }
 }
 
 pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::Error>> {

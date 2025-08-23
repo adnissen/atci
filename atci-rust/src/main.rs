@@ -9,6 +9,9 @@ use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
 use dialoguer::{Input, Select};
+use rocket::serde::json::Json;
+use rocket::get;
+use crate::web::ApiResponse;
 //use rust_embed::Embed;
 
 mod clipper;
@@ -19,6 +22,7 @@ mod tools_manager;
 mod model_manager;
 mod search;
 mod transcripts;
+mod web;
 
 //#[derive(Embed)]
 //#[folder = "assets/"]
@@ -88,6 +92,13 @@ enum Commands {
     Transcripts {
         #[command(subcommand)]
         transcripts_command: Option<TranscriptsCommands>,
+    },
+    #[command(about = "Launch the web server")]
+    Web {
+        #[arg(long, help = "Port to run the web server on", default_value = "8000")]
+        port: u16,
+        #[arg(long, help = "Host to bind the web server to", default_value = "127.0.0.1")]
+        host: String,
     },
 }
 
@@ -654,6 +665,14 @@ fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<dyn 
     Ok(video_infos)
 }
 
+#[get("/api/files")]
+pub fn web_get_files() -> Json<ApiResponse<serde_json::Value>> {
+    match load_video_info_from_cache() {
+        Ok(video_infos) => Json(ApiResponse::success(serde_json::to_value(video_infos).unwrap_or_default())),
+        Err(e) => Json(ApiResponse::error(format!("Failed to load video info cache: {}", e))),
+    }
+}
+
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
@@ -977,6 +996,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 None => {}
             }
+        }
+        Some(Commands::Web { host, port }) => {
+            let cfg: AtciConfig = config::load_config()?;
+            println!("Starting web server on {}:{}", host, port);
+            
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(async {
+                if let Err(e) = web::launch_server(&host, port, cfg).await {
+                    eprintln!("Error starting web server: {}", e);
+                    std::process::exit(1);
+                }
+            });
         }
         None => {}
     }

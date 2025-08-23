@@ -1,5 +1,8 @@
 use std::fs;
 use std::path::Path;
+use rocket::serde::json::Json;
+use rocket::get;
+use crate::web::ApiResponse;
 
 pub fn get_transcript(video_path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
@@ -80,6 +83,15 @@ pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
     
     Ok(())
+}
+
+#[get("/api/transcripts/<path..>")]
+pub fn web_get_transcript(path: std::path::PathBuf) -> Json<ApiResponse<String>> {
+    let path_str = path.to_string_lossy().to_string();
+    match get_transcript(&path_str) {
+        Ok(content) => Json(ApiResponse::success(content)),
+        Err(e) => Json(ApiResponse::error(format!("Failed to get transcript: {}", e))),
+    }
 }
 
 #[cfg(test)]

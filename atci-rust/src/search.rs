@@ -3,6 +3,10 @@ use walkdir::WalkDir;
 use serde::Serialize;
 use crate::AtciConfig;
 use rayon::prelude::*;
+use std::sync::Arc;
+use rocket::serde::json::Json;
+use rocket::{get, State};
+use crate::web::ApiResponse;
 
 #[derive(Debug, Serialize)]
 pub struct SearchMatch {
@@ -97,4 +101,12 @@ pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dy
     results.sort_by(|a, b| a.file_path.cmp(&b.file_path));
 
     Ok(results)
+}
+
+#[get("/api/search?<query>")]
+pub fn web_search_transcripts(query: String, config: &State<Arc<AtciConfig>>) -> Json<ApiResponse<serde_json::Value>> {
+    match search(&query, config) {
+        Ok(results) => Json(ApiResponse::success(serde_json::to_value(results).unwrap_or_default())),
+        Err(e) => Json(ApiResponse::error(format!("Search failed: {}", e))),
+    }
 }
