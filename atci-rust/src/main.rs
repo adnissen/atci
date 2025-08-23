@@ -17,6 +17,7 @@ mod video_processor;
 mod tools_manager;
 mod model_manager;
 mod search;
+mod transcripts;
 
 //#[derive(Embed)]
 //#[folder = "assets/"]
@@ -81,6 +82,11 @@ enum Commands {
         query: Vec<String>,
         #[arg(long, help = "Show formatted output instead of JSON", default_value = "false")]
         pretty: bool,
+    },
+    #[command(about = "Manage video transcripts")]
+    Transcripts {
+        #[command(subcommand)]
+        transcripts_command: Option<TranscriptsCommands>,
     },
 }
 
@@ -155,6 +161,16 @@ enum ConfigCommands {
     Unset {
         #[arg(help = "Field name to unset")]
         field: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum TranscriptsCommands {
+    #[command(about = "Get transcript content for a video file")]
+    Get {
+        #[arg(help = "Path to the video file")]
+        path: String,
     },
 }
 
@@ -818,6 +834,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("Error searching: {}", e);
                     std::process::exit(1);
                 }
+            }
+        }
+        Some(Commands::Transcripts { transcripts_command }) => {
+            match transcripts_command {
+                Some(TranscriptsCommands::Get { path }) => {
+                    match transcripts::get_transcript(&path) {
+                        Ok(content) => {
+                            println!("{}", content);
+                        }
+                        Err(e) => {
+                            eprintln!("Error reading transcript: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                None => {}
             }
         }
         None => {}
