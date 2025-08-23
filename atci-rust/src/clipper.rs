@@ -44,7 +44,7 @@ pub fn clip(
     if end <= start {
         return Err("End time must be greater than start time".into());
     }
-    let cfg: crate::AtciConfig = confy::load("atci", "config")?;
+    let cfg: crate::AtciConfig = crate::config::load_config()?;
     // Create a static filename with start/end times and caption
     let caption_part = match display_text || text.is_some() {
         false => String::new(),

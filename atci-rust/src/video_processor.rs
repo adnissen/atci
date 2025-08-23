@@ -7,7 +7,7 @@ use std::io::{BufRead, BufReader};
 
 pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating transcript for: {}", video_path.display());
-    let cfg: crate::AtciConfig = confy::load("atci", "config")?;
+    let cfg: crate::AtciConfig = crate::config::load_config()?;
     let txt_path = video_path.with_extension("txt");
     
     if !txt_path.exists() {
@@ -57,7 +57,7 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
 
 pub fn create_metafile(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let meta_path = video_path.with_extension("meta");
-    let cfg: crate::AtciConfig = confy::load("atci", "config")?;
+    let cfg: crate::AtciConfig = crate::config::load_config()?;
     write_key_to_meta_file(video_path, "length", &get_video_length(video_path, Path::new(&cfg.ffprobe_path))?)?;
     println!("Created or updated meta file: {}", meta_path.display());
     

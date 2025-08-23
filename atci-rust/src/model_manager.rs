@@ -53,7 +53,7 @@ pub fn list_models() -> Vec<ModelInfo> {
     let models_dir = models_directory();
     std::fs::create_dir_all(&models_dir).ok();
 
-    let cfg: crate::AtciConfig = confy::load("atci", "config").unwrap_or_default();
+    let cfg: crate::AtciConfig = crate::config::load_config_or_default();
     let configured_model = &cfg.model_name;
 
     MODEL_NAMES.iter().map(|&model_name| {

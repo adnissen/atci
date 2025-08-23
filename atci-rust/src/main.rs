@@ -12,6 +12,7 @@ use dialoguer::{Input, Select};
 //use rust_embed::Embed;
 
 mod clipper;
+mod config;
 mod queue;
 mod video_processor;
 mod tools_manager;
@@ -223,6 +224,7 @@ impl Default for AtciConfig {
     }
 }
 
+
 #[derive(Serialize, Deserialize, Debug)]
 struct VideoInfo {
     name: String,
@@ -399,6 +401,85 @@ fn validate_executable_path(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_model_path(path: &str) -> Result<(), String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+    
+    let path_obj = Path::new(path);
+    if !path_obj.exists() {
+        return Err("Model file does not exist".to_string());
+    }
+    
+    if !path_obj.is_file() {
+        return Err("Path is not a file".to_string());
+    }
+    
+    Ok(())
+}
+
+fn prompt_for_model_name(current_model: &str) -> Result<String, Box<dyn std::error::Error>> {
+    // Get model info to check what options are available
+    let models = model_manager::list_models();
+    
+    let mut options = Vec::new();
+    let mut values = Vec::new();
+    
+    // Group models: downloaded first, then available
+    let (downloaded, available): (Vec<_>, Vec<_>) = models.iter()
+        .partition(|model| model.downloaded);
+    
+    // Add downloaded models first
+    if !downloaded.is_empty() {
+        for model in downloaded {
+            let status = if model.configured { " (currently configured)" } else { "" };
+            options.push(format!("Use downloaded {} ({}){}", model.name, model.path, status));
+            values.push(model.name.clone());
+        }
+    }
+    
+    // Add available models for download
+    if !available.is_empty() {
+        for model in available {
+            options.push(format!("Download and use {}", model.name));
+            values.push(format!("__download__{}", model.name));
+        }
+    }
+    
+    // Option to enter custom path
+    options.push("Enter custom model file path".to_string());
+    values.push("__custom__".to_string());
+    
+    if options.is_empty() {
+        return Err("No model options available".into());
+    }
+    
+    let selection = Select::new()
+        .with_prompt("Select model configuration")
+        .items(&options)
+        .default(0)
+        .interact()?;
+        
+    match values[selection].as_str() {
+        value if value.starts_with("__download__") => {
+            let model_name = &value["__download__".len()..];
+            println!("Downloading model {}...", model_name);
+            let downloaded_path = model_manager::download_model(model_name)?;
+            println!("Successfully downloaded {} to: {}", model_name, downloaded_path);
+            Ok(model_name.to_string())
+        }
+        "__custom__" => {
+            let custom_path: String = Input::new()
+                .with_prompt("Enter path to model file")
+                .default(current_model.to_string())
+                .validate_with(|input: &String| validate_model_path(input))
+                .interact()?;
+            Ok(custom_path)
+        }
+        model_name => Ok(model_name.to_string())
+    }
+}
+
 fn validate_directory_path(path: &str) -> Result<(), String> {
     if path.is_empty() {
         return Ok(()); // Empty is acceptable for optional directories
@@ -438,16 +519,7 @@ fn validate_and_prompt_config(cfg: &mut AtciConfig, fields_to_verify: &HashSet<S
     }
 
     if fields_to_verify.contains("model_name") && cfg.model_name.is_empty() {
-        let model_name: String = Input::new()
-            .with_prompt("Model name")
-            .validate_with(|input: &String| {
-                if input.is_empty() {
-                    Err("Model name cannot be empty")
-                } else {
-                    Ok(())
-                }
-            })
-            .interact()?;
+        let model_name = prompt_for_model_name(&cfg.model_name)?;
         cfg.model_name = model_name;
         config_changed = true;
     }
@@ -466,7 +538,7 @@ fn validate_and_prompt_config(cfg: &mut AtciConfig, fields_to_verify: &HashSet<S
     }
 
     if config_changed {
-        confy::store("atci", "config", cfg)?;
+        config::store_config(cfg)?;
         println!("Configuration updated and saved.");
     }
 
@@ -602,7 +674,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Some(FilesCommands::Update) => {
-                    let cfg: AtciConfig = confy::load("atci", "config")?;
+                    let cfg: AtciConfig = config::load_config()?;
                     let video_infos = get_video_info_from_disk(&cfg)?;
                     save_video_info_to_cache(&video_infos)?;
                     let json_output = serde_json::to_string_pretty(&video_infos)?;
@@ -655,7 +727,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::Clip { path, start, end, text, display_text, format, font_size }) => {
-            let mut cfg: AtciConfig = confy::load("atci", "config")?;
+            let mut cfg: AtciConfig = config::load_config()?;
             
             // Define required fields for clip command
             let mut required_fields = HashSet::new();
@@ -755,7 +827,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::Watch) => {
-            let mut cfg: AtciConfig = confy::load("atci", "config")?;
+            let mut cfg: AtciConfig = config::load_config()?;
             
             // Define required fields for watch command
             let mut required_fields = HashSet::new();
@@ -779,7 +851,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Config { config_command }) => {
             match config_command {
                 Some(ConfigCommands::Show) => {
-                    let cfg: AtciConfig = confy::load("atci", "config")?;
+                    let cfg: AtciConfig = config::load_config()?;
                     let json_output = serde_json::to_string_pretty(&cfg)?;
                     println!("{}", json_output);
                 }
@@ -793,14 +865,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         std::process::exit(1);
                     }
                     
-                    let mut cfg: AtciConfig = confy::load("atci", "config")?;
+                    let mut cfg: AtciConfig = config::load_config()?;
                     
                     if let Err(e) = set_config_field(&mut cfg, &field, &value) {
                         eprintln!("Error setting field: {}", e);
                         std::process::exit(1);
                     }
                     
-                    confy::store("atci", "config", &cfg)?;
+                    config::store_config(&cfg)?;
                     println!("Set {} = {}", field, value);
                 }
                 Some(ConfigCommands::Unset { field }) => {
@@ -809,18 +881,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         std::process::exit(1);
                     }
                     
-                    let mut cfg: AtciConfig = confy::load("atci", "config")?;
+                    let mut cfg: AtciConfig = config::load_config()?;
                     
                     if let Err(e) = unset_config_field(&mut cfg, &field) {
                         eprintln!("Error unsetting field: {}", e);
                         std::process::exit(1);
                     }
                     
-                    confy::store("atci", "config", &cfg)?;
+                    config::store_config(&cfg)?;
                     println!("Unset {}", field);
                 }
                 None => {
-                    let cfg: AtciConfig = confy::load("atci", "config")?;
+                    let cfg: AtciConfig = config::load_config()?;
                     let json_output = serde_json::to_string_pretty(&cfg)?;
                     println!("{}", json_output);
                 }
@@ -828,7 +900,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::Search { query, pretty }) => {
             let search_query = query.join(" ");
-            let cfg: AtciConfig = confy::load("atci", "config")?;
+            let cfg: AtciConfig = config::load_config()?;
             
             match search::search(&search_query, &cfg) {
                 Ok(results) => {

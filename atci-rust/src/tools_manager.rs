@@ -48,7 +48,7 @@ pub fn list_tools() -> Vec<ToolInfo> {
     let platform = detect_platform();
     let tools = ["ffmpeg", "ffprobe", "whisper-cli"];
 
-    let cfg: crate::AtciConfig = confy::load("atci", "config").unwrap();
+    let cfg: crate::AtciConfig = crate::config::load_config_or_default();
     
     tools.iter().map(|&tool| {
         let downloaded_path = get_downloaded_path(tool);
