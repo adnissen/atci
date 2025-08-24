@@ -2,7 +2,6 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use std::thread;
 use std::time::Duration;
 use std::collections::HashSet;
 use globset::{Glob, GlobSetBuilder};
@@ -859,13 +858,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
             
-            queue::watch_for_missing_metadata(&cfg)?;
-            queue::process_queue()?;
-            
-            // Keep the main thread alive while the background threads run
-            loop {
-                thread::sleep(Duration::from_secs(60));
-            }
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(async {
+                if let Err(e) = queue::watch_for_missing_metadata(&cfg).await {
+                    eprintln!("Error starting metadata watcher: {}", e);
+                    std::process::exit(1);
+                }
+                
+                if let Err(e) = queue::process_queue().await {
+                    eprintln!("Error starting queue processor: {}", e);
+                    std::process::exit(1);
+                }
+                
+                // Keep the main thread alive while the background tasks run
+                loop {
+                    tokio::time::sleep(Duration::from_secs(60)).await;
+                }
+            });
         }
         Some(Commands::Config { config_command }) => {
             match config_command {
@@ -1012,6 +1021,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
+                if let Err(e) = queue::watch_for_missing_metadata(&cfg).await {
+                    eprintln!("Error starting metadata watcher: {}", e);
+                    std::process::exit(1);
+                }
+                
+                if let Err(e) = queue::process_queue().await {
+                    eprintln!("Error starting queue processor: {}", e);
+                    std::process::exit(1);
+                }
+
                 if let Err(e) = web::launch_server(&host, port, cfg).await {
                     eprintln!("Error starting web server: {}", e);
                     std::process::exit(1);

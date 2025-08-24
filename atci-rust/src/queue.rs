@@ -1,11 +1,11 @@
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use std::thread;
 use std::time::Duration;
 use walkdir::WalkDir;
 use crate::AtciConfig;
 use crate::video_processor;
+use tokio::time::sleep;
 
 use rocket::serde::json::Json;
 use rocket::get;
@@ -120,11 +120,11 @@ fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
-    thread::spawn(|| {
+pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
+    tokio::spawn(async {
         loop {
            let _ = process_queue_iteration();
-           thread::sleep(Duration::from_secs(2));
+           sleep(Duration::from_secs(2)).await;
         }
     });
     Ok(())
@@ -198,9 +198,9 @@ pub fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
     Ok(false)
 }
 
-pub fn watch_for_missing_metadata(cfg: &AtciConfig) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn watch_for_missing_metadata(cfg: &AtciConfig) -> Result<(), Box<dyn std::error::Error>> {
     let cfg_clone = cfg.clone();
-    thread::spawn(move || {
+    tokio::spawn(async move {
         let video_extensions = crate::get_video_extensions();
         
         if cfg_clone.watch_directories.is_empty() {
@@ -249,7 +249,7 @@ pub fn watch_for_missing_metadata(cfg: &AtciConfig) -> Result<(), Box<dyn std::e
                 }
             }
             
-            thread::sleep(Duration::from_secs(2));
+            sleep(Duration::from_secs(2)).await;
         }
     });
     Ok(())
