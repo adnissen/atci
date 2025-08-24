@@ -998,7 +998,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         Some(Commands::Web { host, port }) => {
-            let cfg: AtciConfig = config::load_config()?;
+            let mut cfg: AtciConfig = config::load_config()?;
+            let mut required_fields = HashSet::new();
+            required_fields.insert("ffmpeg_path".to_string());
+            required_fields.insert("ffprobe_path".to_string());
+            required_fields.insert("whispercli_path".to_string());
+            required_fields.insert("model_name".to_string());
+            required_fields.insert("watch_directories".to_string());
+            
+            // Validate and prompt for missing configuration
+            validate_and_prompt_config(&mut cfg, &required_fields)?;
             println!("Starting web server on {}:{}", host, port);
             
             let rt = tokio::runtime::Runtime::new()?;

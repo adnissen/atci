@@ -130,7 +130,7 @@ pub fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
+pub fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
     if currently_processing_path.exists() {
