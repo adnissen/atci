@@ -4,7 +4,7 @@ use rocket::{get, routes, response::content};
 use rocket::response::status::NotFound;
 use std::sync::Arc;
 use crate::config::AtciConfig;
-use crate::{files, queue, search, transcripts, Asset};
+use crate::{config, files, queue, search, transcripts, Asset};
 
 #[derive(Serialize)]
 pub struct ApiResponse<T> {
@@ -40,6 +40,7 @@ fn index() -> &'static str {
 fn health() -> Json<ApiResponse<&'static str>> {
     Json(ApiResponse::success("OK"))
 }
+
 
 #[get("/app")]
 fn app() -> Result<content::RawHtml<std::borrow::Cow<'static, [u8]>>, NotFound<String>> {
@@ -84,6 +85,7 @@ pub async fn launch_server(host: &str, port: u16, config: AtciConfig) -> Result<
         .mount("/", routes![
             index,
             health,
+            config::web_get_config,
             app,
             assets,
             files::web_get_files,
