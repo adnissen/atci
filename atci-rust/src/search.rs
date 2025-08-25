@@ -21,10 +21,27 @@ pub struct SearchResult {
     pub matches: Vec<SearchMatch>,
 }
 
-pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
+pub fn search(query: &str, cfg: &AtciConfig, filter: Option<&Vec<String>>) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
     let video_extensions = crate::get_video_extensions();
     
-    let all_entries: Vec<_> = cfg.watch_directories
+    let filtered_directories = if let Some(filters) = filter {
+        if !filters.is_empty() {
+            cfg.watch_directories
+                .iter()
+                .filter(|dir| {
+                    let dir_lower = dir.to_lowercase();
+                    filters.iter().any(|f| dir_lower.contains(&f.to_lowercase()))
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        } else {
+            cfg.watch_directories.clone()
+        }
+    } else {
+        cfg.watch_directories.clone()
+    };
+    
+    let all_entries: Vec<_> = filtered_directories
         .iter()
         .flat_map(|watch_directory| {
             WalkDir::new(watch_directory)
@@ -48,6 +65,16 @@ pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dy
             
             if !video_extensions.contains(&ext_str.to_lowercase().as_str()) {
                 return None;
+            }
+            
+            // Apply file path filter if provided
+            if let Some(filters) = filter {
+                if !filters.is_empty() {
+                    let file_path_str = file_path.to_string_lossy().to_lowercase();
+                    if !filters.iter().any(|f| file_path_str.contains(&f.to_lowercase())) {
+                        return None;
+                    }
+                }
             }
             
             let txt_path = file_path.with_extension("txt");
@@ -105,7 +132,7 @@ pub fn search(query: &str, cfg: &AtciConfig) -> Result<Vec<SearchResult>, Box<dy
 
 #[get("/api/search?<query>")]
 pub fn web_search_transcripts(query: String, config: &State<Arc<AtciConfig>>) -> Json<ApiResponse<serde_json::Value>> {
-    match search(&query, config) {
+    match search(&query, config, None) {
         Ok(results) => Json(ApiResponse::success(serde_json::to_value(results).unwrap_or_default())),
         Err(e) => Json(ApiResponse::error(format!("Search failed: {}", e))),
     }

@@ -86,6 +86,8 @@ enum Commands {
         query: Vec<String>,
         #[arg(long, help = "Show formatted output instead of JSON", default_value = "false")]
         pretty: bool,
+        #[arg(short = 'f', long, help = "Comma-separated list of strings to filter results by path", value_delimiter = ',')]
+        filter: Option<Vec<String>>,
     },
     #[command(about = "Manage video transcripts")]
     Transcripts {
@@ -107,7 +109,7 @@ enum Commands {
 enum FilesCommands {
     #[command(about = "Get file information from cache")]
     Get {
-        #[arg(long, help = "Comma-separated list of strings to filter results by path", value_delimiter = ',')]
+        #[arg(short = 'f', long, help = "Comma-separated list of strings to filter results by path", value_delimiter = ',')]
         filter: Option<Vec<String>>,
     },
     #[command(about = "Update file information cache by scanning watch directories")]
@@ -939,11 +941,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Some(Commands::Search { query, pretty }) => {
+        Some(Commands::Search { query, pretty, filter }) => {
             let search_query = query.join(" ");
             let cfg: AtciConfig = config::load_config()?;
             
-            match search::search(&search_query, &cfg) {
+            match search::search(&search_query, &cfg, filter.as_ref()) {
                 Ok(results) => {
                     if pretty {
                         for result in results {
