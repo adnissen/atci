@@ -24143,6 +24143,7 @@ const TranscriptBlock = React.memo(({
 const TranscriptView = ({
   visible = false,
   name,
+  fullPath,
   className = "",
   searchTerm = "",
   text = "",
@@ -24264,7 +24265,7 @@ const TranscriptView = ({
     }));
   }, [processedBlocks]);
   const handleExpandClick = (line, direction) => {
-    expandContext(name, direction, line);
+    expandContext(fullPath, direction, line);
   };
   if (!visible) {
     return null;
@@ -25068,12 +25069,17 @@ function TranscriptList({
     e.stopPropagation();
     setReplacingFiles((prev) => new Set(prev).add(filename));
     try {
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}`));
+      const response = await fetch(addTimestamp(`/api/transcripts?video_path=${encodeURIComponent(filename)}`));
       if (response.ok) {
-        const transcriptContent = await response.text();
-        setReplaceTranscriptFilename(filename);
-        setReplaceTranscriptInitialContent(transcriptContent);
-        setIsReplaceDialogOpen(true);
+        const data = await response.json();
+        if (data.success) {
+          const transcriptContent = data.data;
+          setReplaceTranscriptFilename(filename);
+          setReplaceTranscriptInitialContent(transcriptContent);
+          setIsReplaceDialogOpen(true);
+        } else {
+          throw new Error(data.error);
+        }
       } else {
         throw new Error("Failed to fetch transcript");
       }
@@ -25698,6 +25704,7 @@ function TranscriptList({
                           {
                             visible: expandedFiles.has(file.full_path),
                             name: file.base_name,
+                            fullPath: file.full_path,
                             className: "w-full",
                             searchTerm: activeSearchTerm,
                             text: transcriptInfo.text,

@@ -579,12 +579,17 @@ export default function TranscriptList({
     
     try {
       // Fetch the current transcript
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}`))
+      const response = await fetch(addTimestamp(`/api/transcripts?video_path=${encodeURIComponent(filename)}`))
       if (response.ok) {
-        const transcriptContent = await response.text()
-        setReplaceTranscriptFilename(filename)
-        setReplaceTranscriptInitialContent(transcriptContent)
-        setIsReplaceDialogOpen(true)
+        const data = await response.json()
+        if (data.success) {
+          const transcriptContent = data.data
+          setReplaceTranscriptFilename(filename)
+          setReplaceTranscriptInitialContent(transcriptContent)
+          setIsReplaceDialogOpen(true)
+        } else {
+          throw new Error(data.error)
+        }
       } else {
         throw new Error('Failed to fetch transcript')
       }
@@ -1353,6 +1358,7 @@ export default function TranscriptList({
                   <TranscriptView
                     visible={expandedFiles.has(file.full_path)}
                     name={file.base_name}
+                    fullPath={file.full_path}
                     className="w-full"
                     searchTerm={activeSearchTerm}
                     text={transcriptInfo.text}

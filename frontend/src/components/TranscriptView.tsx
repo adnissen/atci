@@ -4,6 +4,7 @@ import TranscriptBlock from './TranscriptBlock';
 interface TranscriptViewProps {
   visible?: boolean;
   name: string;
+  fullPath: string;
   className?: string;
   searchTerm?: string;
   text?: string;
@@ -45,6 +46,7 @@ interface TranscriptBlockData {
 const TranscriptView: React.FC<TranscriptViewProps> = ({
   visible = false,
   name,
+  fullPath,
   className = '',
   searchTerm = '',
   text = '',
@@ -214,12 +216,12 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
 
   const handleExpandClick = (line: number, direction: "up" | "down") => {
-    expandContext(name, direction, line);
+    expandContext(fullPath, direction, line);
   }
 
   const handleExpandAll = () => {
     if (expandAll) {
-      expandAll(name);
+      expandAll(fullPath);
     }
   }
 
