@@ -679,9 +679,10 @@ fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<dyn 
     Ok(video_infos)
 }
 
-#[get("/api/files")]
-pub fn web_get_files() -> Json<ApiResponse<serde_json::Value>> {
-    match load_video_info_from_cache(None) {
+#[get("/api/files?<filter>")]
+pub fn web_get_files(filter: Option<String>) -> Json<ApiResponse<serde_json::Value>> {
+    let filter_vec = filter.map(|f| f.split(',').map(|s| s.trim().to_string()).collect::<Vec<String>>());
+    match load_video_info_from_cache(filter_vec.as_ref()) {
         Ok(video_infos) => Json(ApiResponse::success(serde_json::to_value(video_infos).unwrap_or_default())),
         Err(e) => Json(ApiResponse::error(format!("Failed to load video info cache: {}", e))),
     }
