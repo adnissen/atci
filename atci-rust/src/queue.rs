@@ -61,9 +61,11 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
 pub fn web_get_queue_status() -> Json<ApiResponse<serde_json::Value>> {
     match get_queue_status() {
         Ok((path, age)) => {
+            let queue = get_queue().unwrap_or_else(|_| Vec::new());
             let result = serde_json::json!({
                 "currently_processing": path.unwrap_or_else(|| "".to_string()),
-                "age_in_seconds": age
+                "age_in_seconds": age,
+                "queue": queue
             });
             Json(ApiResponse::success(result))
         }

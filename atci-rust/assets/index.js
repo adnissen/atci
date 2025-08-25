@@ -23202,7 +23202,7 @@ function SearchPopup({
   ] }) }) });
 }
 function TopBar({
-  watchDirectory,
+  show,
   searchTerm,
   setSearchTerm,
   activeSearchTerm,
@@ -23250,7 +23250,7 @@ function TopBar({
     }
   };
   return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
-    watchDirectory && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-2 sm:px-4 py-2 z-10 backdrop-blur-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 sm:gap-6 justify-between items-center", children: [
+    show && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-2 sm:px-4 py-2 z-10 backdrop-blur-sm", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 sm:gap-6 justify-between items-center", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 sm:gap-6 items-center flex-1 min-w-0", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2 items-center flex-shrink-0", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -24788,7 +24788,7 @@ function TranscriptList({
         if (response.ok) {
           const data = await response.json();
           if (data.success) {
-            setAvailableSources(data.data.sources || []);
+            setAvailableSources(data.data || []);
           }
         }
       } catch (error) {
@@ -24843,7 +24843,7 @@ function TranscriptList({
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setFiles(data.data.files || []);
+          setFiles(data.data || []);
         }
       }
     } catch (error) {
@@ -27351,7 +27351,11 @@ function QueuePage({ onClose } = {}) {
       const response = await fetch(addTimestamp("/api/queue/status"));
       if (response.ok) {
         const data = await response.json();
-        setQueueStatus(data);
+        if (data.success) {
+          setQueueStatus(data.data);
+        } else {
+          setError(data.error);
+        }
         setError(null);
       } else {
         throw new Error(`Failed to fetch queue status: ${response.status}`);
@@ -27606,7 +27610,7 @@ function HomePage() {
   const [regeneratingFiles, setRegeneratingFiles] = reactExports.useState(/* @__PURE__ */ new Set());
   const [queue] = reactExports.useState([]);
   const [currentProcessingFile] = reactExports.useState(null);
-  const [watchDirectory, setWatchDirectory] = reactExports.useState("");
+  const [watchDirectory, setWatchDirectory] = reactExports.useState("TODO delete");
   const [replacingFiles, setReplacingFiles] = reactExports.useState(/* @__PURE__ */ new Set());
   const [transcriptData, setTranscriptData] = reactExports.useState({});
   const [selectedWatchDirs, setSelectedWatchDirs] = useLSState("selectedWatchDirs", []);
@@ -28021,7 +28025,7 @@ function HomePage() {
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       TopBar,
       {
-        watchDirectory,
+        show: true,
         searchTerm,
         setSearchTerm,
         activeSearchTerm,
