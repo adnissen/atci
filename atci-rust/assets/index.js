@@ -24768,10 +24768,12 @@ function TranscriptList({
   reactExports.useEffect(() => {
     const fetchWatchDirectories = async () => {
       try {
-        const response = await fetch(addTimestamp("/watch_directories"));
+        const response = await fetch(addTimestamp("/api/config"));
         if (response.ok) {
-          const dirs = await response.json();
-          setAvailableWatchDirs(dirs || []);
+          const config = await response.json();
+          if (config.success) {
+            setAvailableWatchDirs(config.data.config.watch_directories || []);
+          }
         }
       } catch (error) {
         console.error("Error fetching watch directories:", error);
@@ -27626,20 +27628,6 @@ function HomePage() {
   const mobileTranscriptRowRefs = reactExports.useRef({});
   const leftPaneRef = reactExports.useRef(null);
   const showingTranscriptList = !isSmallScreen || !(mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent);
-  reactExports.useEffect(() => {
-    const fetchWatchDirectory = async () => {
-      try {
-        const response = await fetch(addTimestamp("/watch_directory"));
-        if (response.ok) {
-          const data = await response.text();
-          setWatchDirectory(data);
-        }
-      } catch (error) {
-        console.error("Error fetching watch directory:", error);
-      }
-    };
-    fetchWatchDirectory();
-  }, []);
   reactExports.useEffect(() => {
     const leftPaneContainer = leftPaneRef.current;
     if (!leftPaneContainer || !showingTranscriptList) return;
