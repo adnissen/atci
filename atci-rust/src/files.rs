@@ -8,6 +8,7 @@ use rocket::serde::json::Json;
 use rocket::get;
 use crate::web::ApiResponse;
 use crate::config::AtciConfig;
+use rayon::prelude::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VideoInfo {
@@ -93,74 +94,88 @@ pub fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<
     }
     
     let globset = builder.build()?;
-    let mut video_infos = Vec::new();
 
-    for watch_directory in &cfg.watch_directories {
-        for entry in WalkDir::new(watch_directory).into_iter().filter_map(|e| e.ok()) {
+    let all_entries: Vec<_> = cfg.watch_directories
+        .iter()
+        .flat_map(|watch_directory| {
+            WalkDir::new(watch_directory)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .map(|entry| (entry, watch_directory.clone()))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+
+    let mut video_infos: Vec<VideoInfo> = all_entries
+        .par_iter()
+        .filter_map(|(entry, watch_directory)| {
             let file_path = entry.path();
             
-            if file_path.is_file() {
-                let relative_path = file_path.strip_prefix(watch_directory)
-                    .unwrap_or(file_path)
-                    .to_string_lossy()
-                    .to_string();
-                
-                if globset.is_match(&relative_path) {
-                    if let Ok(metadata) = fs::metadata(&file_path) {
-                        let filename = file_path.file_stem()
-                            .unwrap_or_default()
-                            .to_string_lossy()
-                            .to_string();
-                        
-                        let txt_path = file_path.with_extension("txt");
-                        let meta_path = file_path.with_extension("meta");
-                        
-                        let transcript_exists = txt_path.exists();
-                        
-                        let (line_count, last_generated) = if transcript_exists {
-                            let line_count = fs::read_to_string(&txt_path)
-                                .map(|content| content.lines().count())
-                                .unwrap_or(0);
-                            
-                            let last_generated = fs::metadata(&txt_path)
-                                .ok()
-                                .and_then(|meta| meta.modified().ok())
-                                .map(format_datetime);
-                            
-                            (line_count, last_generated)
-                        } else {
-                            (0, None)
-                        };
-                        
-                        let (length, model) = if transcript_exists {
-                            let fields = ["length", "source"];
-                            let results = get_meta_fields(&meta_path, &fields);
-                            (results[0].clone(), results[1].clone())
-                        } else {
-                            (None, None)
-                        };
-                        
-                        let created_at = metadata.created()
-                            .or_else(|_| metadata.modified())
-                            .map(format_datetime)
-                            .unwrap_or_else(|_| "Unknown".to_string());
-                        
-                        video_infos.push(VideoInfo {
-                            name: relative_path,
-                            base_name: filename,
-                            created_at,
-                            line_count,
-                            full_path: file_path.to_string_lossy().to_string(),
-                            transcript: transcript_exists,
-                            last_generated,
-                            length,
-                            model,
-                        });
-                    }
-                }
+            if !file_path.is_file() {
+                return None;
             }
-        }
-    }
+            
+            let relative_path = file_path.strip_prefix(watch_directory)
+                .unwrap_or(file_path)
+                .to_string_lossy()
+                .to_string();
+            
+            if !globset.is_match(&relative_path) {
+                return None;
+            }
+            
+            let metadata = fs::metadata(&file_path).ok()?;
+            let filename = file_path.file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            
+            let txt_path = file_path.with_extension("txt");
+            let meta_path = file_path.with_extension("meta");
+            
+            let transcript_exists = txt_path.exists();
+            
+            let (line_count, last_generated) = if transcript_exists {
+                let line_count = fs::read_to_string(&txt_path)
+                    .map(|content| content.lines().count())
+                    .unwrap_or(0);
+                
+                let last_generated = fs::metadata(&txt_path)
+                    .ok()
+                    .and_then(|meta| meta.modified().ok())
+                    .map(format_datetime);
+                
+                (line_count, last_generated)
+            } else {
+                (0, None)
+            };
+            
+            let (length, model) = if transcript_exists {
+                let fields = ["length", "source"];
+                let results = get_meta_fields(&meta_path, &fields);
+                (results[0].clone(), results[1].clone())
+            } else {
+                (None, None)
+            };
+            
+            let created_at = metadata.created()
+                .or_else(|_| metadata.modified())
+                .map(format_datetime)
+                .unwrap_or_else(|_| "Unknown".to_string());
+            
+            Some(VideoInfo {
+                name: relative_path,
+                base_name: filename,
+                created_at,
+                line_count,
+                full_path: file_path.to_string_lossy().to_string(),
+                transcript: transcript_exists,
+                last_generated,
+                length,
+                model,
+            })
+        })
+        .collect();
     
     video_infos.sort_by(|a, b| b.created_at.cmp(&a.created_at));
     Ok(video_infos)
