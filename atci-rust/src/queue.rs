@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::time::Duration;
 use walkdir::WalkDir;
-use crate::AtciConfig;
+use crate::config::AtciConfig;
 use crate::video_processor;
 use tokio::time::sleep;
 
@@ -161,7 +161,7 @@ pub fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
             return Ok(true);
         }
         
-        let video_extensions = crate::get_video_extensions();
+        let video_extensions = crate::files::get_video_extensions();
         let has_valid_extension = video_path
             .extension()
             .and_then(|ext| ext.to_str())
@@ -201,7 +201,7 @@ pub fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
 pub async fn watch_for_missing_metadata(cfg: &AtciConfig) -> Result<(), Box<dyn std::error::Error>> {
     let cfg_clone = cfg.clone();
     tokio::spawn(async move {
-        let video_extensions = crate::get_video_extensions();
+        let video_extensions = crate::files::get_video_extensions();
         
         if cfg_clone.watch_directories.is_empty() {
             eprintln!("No watch directories configured");

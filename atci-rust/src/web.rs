@@ -2,8 +2,8 @@ use rocket::serde::json::Json;
 use rocket::serde::Serialize;
 use rocket::{get, routes};
 use std::sync::Arc;
-use crate::AtciConfig;
-use crate::{queue, search, transcripts};
+use crate::config::AtciConfig;
+use crate::{files, queue, search, transcripts};
 
 #[derive(Serialize)]
 pub struct ApiResponse<T> {
@@ -51,7 +51,7 @@ pub async fn launch_server(host: &str, port: u16, config: AtciConfig) -> Result<
         .mount("/", routes![
             index,
             health,
-            crate::web_get_files,
+            files::web_get_files,
             queue::web_get_queue,
             queue::web_get_queue_status,
             search::web_search_transcripts,

@@ -1,7 +1,7 @@
 use std::fs;
 use walkdir::WalkDir;
 use serde::Serialize;
-use crate::AtciConfig;
+use crate::config::AtciConfig;
 use rayon::prelude::*;
 use std::sync::Arc;
 use rocket::serde::json::Json;
@@ -22,7 +22,7 @@ pub struct SearchResult {
 }
 
 pub fn search(query: &str, cfg: &AtciConfig, filter: Option<&Vec<String>>) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
-    let video_extensions = crate::get_video_extensions();
+    let video_extensions = crate::files::get_video_extensions();
     
     let filtered_directories = if let Some(filters) = filter {
         if !filters.is_empty() {
