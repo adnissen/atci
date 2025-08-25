@@ -36,7 +36,7 @@ type QueueItem = {
 export default function HomePage() {
   const isSmallScreen = useIsSmallScreen()
   
-  const [files, setFiles] = useState<FileRow[]>(window.atci_files as FileRow[])
+  const [files, setFiles] = useState<FileRow[]>([])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [activeSearchTerm, setActiveSearchTerm] = useState('')
@@ -45,7 +45,7 @@ export default function HomePage() {
   const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
   const [queue] = useState<QueueItem[]>([])
   const [currentProcessingFile] = useState<QueueItem | null>(null)
-  const [watchDirectory, setWatchDirectory] = useState<string>('')
+  const [watchDirectory, setWatchDirectory] = useState<string>('TODO delete')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
   const [selectedWatchDirs, setSelectedWatchDirs] = useLSState<string[]>('selectedWatchDirs', [])
@@ -84,23 +84,6 @@ export default function HomePage() {
 
   // Determine if we're showing the transcript list (not showing other mobile components)
   const showingTranscriptList = !isSmallScreen || !(mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent)
-
-  // Fetch watch directory on component mount
-  useEffect(() => {
-    const fetchWatchDirectory = async () => {
-      try {
-        const response = await fetch(addTimestamp('/watch_directory'))
-        if (response.ok) {
-          const data = await response.text()
-          setWatchDirectory(data)
-        }
-      } catch (error) {
-        console.error('Error fetching watch directory:', error)
-      }
-    }
-    
-    fetchWatchDirectory()
-  }, [])
 
   // Track scroll position of left pane to show/hide scroll to top button
   useEffect(() => {
@@ -608,7 +591,7 @@ export default function HomePage() {
   return (
     <>
       <TopBar
-        watchDirectory={watchDirectory}
+        show={true}
         searchTerm={searchTerm}
         setSearchTerm={setSearchTerm}
         activeSearchTerm={activeSearchTerm}

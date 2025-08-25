@@ -285,7 +285,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
   const fetchCurrentConfig = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(addTimestamp('/config'), {
+      const response = await fetch(addTimestamp('/api/config'), {
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -293,18 +293,19 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       });
       if (response.ok) {
         const data = await response.json();
-        if (data.config) {
+        if (data.success && data.data?.config) {
+          const config = data.data.config
           // Handle the new watch_directories array format
           const configData = {
-            watch_directories: data.config.watch_directories && data.config.watch_directories.length > 0 
-              ? data.config.watch_directories 
-              : [data.config.watch_directory || ''],
-            whispercli_path: data.config.whispercli_path || '',
-            model_path: data.config.model_path || '',
-            model_name: data.config.model_name || '',
-            ffmpeg_path: data.config.ffmpeg_path || '',
-            ffprobe_path: data.config.ffprobe_path || '',
-            nonlocal_password: data.config.nonlocal_password || ''
+            watch_directories: config.watch_directories && config.watch_directories.length > 0 
+              ? config.watch_directories 
+              : [''],
+            whispercli_path: config.whispercli_path || '',
+            model_path: config.model_path || '',
+            model_name: config.model_name || '',
+            ffmpeg_path: config.ffmpeg_path || '',
+            ffprobe_path: config.ffprobe_path || '',
+            nonlocal_password: config.nonlocal_password || ''
           };
           setConfig(configData);
           
@@ -427,7 +428,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
     }
 
     try {
-      const response = await fetch(addTimestamp('/config'), {
+      const response = await fetch(addTimestamp('/api/config'), {
         method: 'POST',
         headers: {
           'Accept': 'application/json',

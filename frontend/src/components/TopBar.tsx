@@ -11,7 +11,7 @@ import {
 } from "./ui/dropdown-menu"
 
 interface TopBarProps {
-  watchDirectory: string
+  show: boolean
   searchTerm: string
   setSearchTerm: (term: string) => void
   activeSearchTerm: string
@@ -45,7 +45,7 @@ interface TopBarProps {
 }
 
 export default function TopBar({
-  watchDirectory,
+  show,
   searchTerm,
   setSearchTerm,
   activeSearchTerm,
@@ -98,7 +98,7 @@ export default function TopBar({
   return (
     <>
       {/* Watch Directory Bar - Fixed to top */}
-      {watchDirectory && (
+      {show && (
         <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-2 sm:px-4 py-2 z-10 backdrop-blur-sm">
           <div className="w-full">
             <div className="flex gap-2 sm:gap-6 justify-between items-center">

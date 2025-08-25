@@ -6,9 +6,11 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  base: '/assets/',
   build: {
-    outDir: '../priv/static',
-    rollupOptions: {
+    minify: false,
+    outDir: '../atci-rust/assets/',
+    rollupOptions: {  
       output: {
         entryFileNames: '[name].js',
         chunkFileNames: '[name].js',

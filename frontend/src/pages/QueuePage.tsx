@@ -27,6 +27,7 @@ type QueueStatus = {
   queue: QueueItem[]
   current_processing?: QueueItem | null
   processing_state: string
+  age_in_seconds?: number
 }
 
 interface QueuePageProps {
@@ -49,7 +50,11 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
       const response = await fetch(addTimestamp('/api/queue/status'))
       if (response.ok) {
         const data = await response.json()
-        setQueueStatus(data)
+        if (data.success) {
+          setQueueStatus(data.data)
+        } else {
+          setError(data.error)
+        }
         setError(null)
       } else {
         throw new Error(`Failed to fetch queue status: ${response.status}`)

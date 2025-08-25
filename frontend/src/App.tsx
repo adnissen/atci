@@ -51,7 +51,7 @@ function App() {
   useEffect(() => {
     const checkConfiguration = async () => {
       try {
-        const response = await fetch(addTimestamp('/config'), {
+        const response = await fetch(addTimestamp('/api/config'), {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
@@ -59,13 +59,13 @@ function App() {
         })
         if (response.ok) {
           const data = await response.json()
+          const config = data.data.config
           // Check if we have the minimum required configuration
-          const hasWatchDirectory = data.config?.watch_directory || 
-                                   (data.config?.watch_directories && data.config.watch_directories.length > 0)
-          const hasWhisperCli = data.config?.whispercli_path
-          const hasModel = data.config?.model_path || data.config?.model_name
-          const hasFFmpeg = data.config?.ffmpeg_path
-          const hasFFprobe = data.config?.ffprobe_path
+          const hasWatchDirectory = config.watch_directories && config.watch_directories.length > 0
+          const hasWhisperCli = config.whispercli_path
+          const hasModel = config.model_path || config.model_name
+          const hasFFmpeg = config.ffmpeg_path
+          const hasFFprobe = config.ffprobe_path
           
           if (hasWatchDirectory && hasWhisperCli && hasModel && hasFFmpeg && hasFFprobe) {
             setConfigComplete(true)
