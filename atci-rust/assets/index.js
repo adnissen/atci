@@ -25441,6 +25441,7 @@ function TranscriptList({
               activeSearchTerm,
               '"'
             ] }) }),
+            !activeSearchTerm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `mb-6 p-4 bg-muted border border-border rounded-md ${shouldUseMobileView ? "mx-4" : ""}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-muted-foreground", children: "Search to get started!" }) }),
             !isSmallScreen && !isLeftPaneWidthMeasured ? (
               // Loading state - don't render anything until width is measured on desktop
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center justify-center py-20", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-muted-foreground", children: "Loading..." }) })
@@ -25561,7 +25562,7 @@ function TranscriptList({
                 ] }) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(TableBody, { children: sortedFiles.map((file) => {
                   var _a2;
-                  if (activeSearchTerm != "" && !searchResults.includes(file.full_path)) {
+                  if (!searchResults.includes(file.full_path)) {
                     return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, {});
                   }
                   const transcriptInfo = transcriptData[file.full_path] || { text: "", loading: false, error: null };
@@ -27733,16 +27734,25 @@ function HomePage() {
     setIsSearching(true);
     try {
       const params = new URLSearchParams();
+      params.append("query", searchTerm);
       if (selectedWatchDirs.length > 0) {
         params.append("watch_directories", selectedWatchDirs.join(","));
       }
       if (selectedSources.length > 0) {
         params.append("sources", selectedSources.join(","));
       }
-      const response = await fetch(addTimestamp(`/grep/${encodeURIComponent(searchTerm)}?${params.toString()}`));
+      const response = await fetch(addTimestamp(`/api/search?${params.toString()}`));
       if (response.ok) {
         const data = await response.json();
-        setSearchLineNumbers(data || {});
+        if (data.success) {
+          setSearchLineNumbers(data.data.map((result) => {
+            return {
+              [result.file_path]: result.matches.map((match) => match.line_number)
+            };
+          }).reduce((acc, curr) => {
+            return { ...acc, ...curr };
+          }, {}));
+        }
         setActiveSearchTerm(searchTerm);
       }
     } catch (error) {

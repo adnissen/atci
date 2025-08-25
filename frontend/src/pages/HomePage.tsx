@@ -217,6 +217,8 @@ export default function HomePage() {
     try {
       // Build query parameters for filtering
       const params = new URLSearchParams()      
+      params.append('query', searchTerm)
+
       // Add watch directory filters if any are selected
       if (selectedWatchDirs.length > 0) {
         params.append('watch_directories', selectedWatchDirs.join(','))
@@ -227,10 +229,18 @@ export default function HomePage() {
         params.append('sources', selectedSources.join(','))
       }
 
-      const response = await fetch(addTimestamp(`/grep/${encodeURIComponent(searchTerm)}?${params.toString()}`))
+      const response = await fetch(addTimestamp(`/api/search?${params.toString()}`))
       if (response.ok) {
         const data = await response.json()
-        setSearchLineNumbers(data || {})
+        if (data.success) {
+          setSearchLineNumbers(data.data.map((result: any) => {
+            return {
+              [result.file_path]: result.matches.map((match: any) => match.line_number)
+            }
+          }).reduce((acc: any, curr: any) => {
+            return { ...acc, ...curr }
+          }, {}))
+        }
         setActiveSearchTerm(searchTerm)
         
         // Don't automatically expand files with search results

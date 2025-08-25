@@ -1058,6 +1058,12 @@ export default function TranscriptList({
             </div>
           )}
 
+          {!activeSearchTerm && (
+            <div className={`mb-6 p-4 bg-muted border border-border rounded-md ${shouldUseMobileView ? 'mx-4' : ''}`}>
+              <p className="text-sm text-muted-foreground">Search to get started!</p>
+            </div>
+          )}
+
           {!isSmallScreen && !isLeftPaneWidthMeasured ? (
             // Loading state - don't render anything until width is measured on desktop
             <div className="flex items-center justify-center py-20">
@@ -1168,7 +1174,7 @@ export default function TranscriptList({
             </TableHeader>
             <TableBody>
               {sortedFiles.map((file) => {
-                if (activeSearchTerm != '' && !searchResults.includes(file.full_path)) {
+                if (!searchResults.includes(file.full_path)) {
                   return <></>;
                 }
                 
