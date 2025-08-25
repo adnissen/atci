@@ -24819,12 +24819,6 @@ function TranscriptList({
     };
   }, [setLeftPaneWidth, setIsLeftPaneWidthMeasured]);
   reactExports.useEffect(() => {
-    const interval = setInterval(() => {
-      refreshFiles();
-    }, 2e3);
-    return () => clearInterval(interval);
-  }, [selectedWatchDirs, selectedSources]);
-  reactExports.useEffect(() => {
     fetchExpandedTranscripts();
   }, [expandedFiles]);
   reactExports.useEffect(() => {
@@ -27382,8 +27376,6 @@ function QueuePage({ onClose } = {}) {
   };
   reactExports.useEffect(() => {
     fetchQueueStatus();
-    const interval = setInterval(fetchQueueStatus, 2e3);
-    return () => clearInterval(interval);
   }, []);
   const handleRemoveItem = async (item) => {
     if (!confirm(`Remove "${item.path.split("/").pop()}" from queue?`)) {

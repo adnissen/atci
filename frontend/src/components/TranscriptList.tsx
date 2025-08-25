@@ -236,14 +236,6 @@ export default function TranscriptList({
       resizeObserver.disconnect()
     }
   }, [setLeftPaneWidth, setIsLeftPaneWidthMeasured])
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshFiles()
-    }, 2000)
-    return () => clearInterval(interval)
-  }, [selectedWatchDirs, selectedSources])
-
   
   // Fetch transcripts when files are expanded
   useEffect(() => {

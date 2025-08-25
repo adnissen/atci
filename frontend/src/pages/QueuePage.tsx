@@ -70,8 +70,6 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
   // Poll for updates every second
   useEffect(() => {
     fetchQueueStatus()
-    const interval = setInterval(fetchQueueStatus, 2000)
-    return () => clearInterval(interval)
   }, [])
 
   // Remove item from queue
