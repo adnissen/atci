@@ -93,7 +93,8 @@ pub async fn launch_server(host: &str, port: u16, config: AtciConfig) -> Result<
             queue::web_get_queue,
             queue::web_get_queue_status,
             search::web_search_transcripts,
-            transcripts::web_get_transcript
+            transcripts::web_get_transcript,
+            transcripts::web_get_transcript_by_path
         ])
         .launch()
         .await?;

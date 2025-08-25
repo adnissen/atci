@@ -17,7 +17,7 @@ type FileRow = {
   transcript: boolean
   line_count?: number
   length?: string
-  full_path?: string
+  full_path: string
   last_generated?: string
   model?: string
 }

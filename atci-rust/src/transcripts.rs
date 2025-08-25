@@ -94,6 +94,14 @@ pub fn web_get_transcript(path: std::path::PathBuf) -> Json<ApiResponse<String>>
     }
 }
 
+#[get("/api/transcripts?<video_path>")]
+pub fn web_get_transcript_by_path(video_path: String) -> Json<ApiResponse<String>> {
+    match get_transcript(&video_path) {
+        Ok(content) => Json(ApiResponse::success(content)),
+        Err(e) => Json(ApiResponse::error(format!("Failed to get transcript: {}", e))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

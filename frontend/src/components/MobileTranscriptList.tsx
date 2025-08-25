@@ -8,7 +8,7 @@ type FileRow = {
   transcript: boolean
   line_count?: number
   length?: string
-  full_path?: string
+  full_path: string
   last_generated?: string
   model?: string
 }
@@ -85,28 +85,28 @@ export default function MobileTranscriptList({
   return (
     <div className="divide-y divide-border">
       {sortedFiles.map((file) => {
-        if (activeSearchTerm !== '' && !searchResults.includes(file.base_name)) {
+        if (activeSearchTerm !== '' && !searchResults.includes(file.full_path)) {
           return null;
         }
         
-        const transcriptInfo = transcriptData[file.base_name] || { text: '', loading: false, error: null }
-        const isExpanded = expandedFiles.has(file.base_name)
+        const transcriptInfo = transcriptData[file.full_path] || { text: '', loading: false, error: null }
+        const isExpanded = expandedFiles.has(file.full_path)
         
         return (
           <div key={file.base_name} className="w-full" >
             <div id="ref">
             <FileCard
               file={file}
-              onExpand={() => onExpandFile(file.base_name)}
+              onExpand={() => onExpandFile(file.full_path)}
               isExpanded={isExpanded}
-              isRegenerating={regeneratingFiles.has(file.base_name)}
-              isReplacing={replacingFiles.has(file.base_name)}
-              isProcessing={isFileBeingProcessed(file.base_name)}
+              isRegenerating={regeneratingFiles.has(file.full_path)}
+              isReplacing={replacingFiles.has(file.full_path)}
+              isProcessing={isFileBeingProcessed(file.full_path)}
 
-              onRegenerate={(e) => onRegenerate(file.base_name, e)}
-              onReplace={(e) => onReplace(file.base_name, e)}
-              onRename={(e) => onRename(file.base_name, e)}
-              onRegenerateMeta={(e) => onRegenerateMeta(file.base_name, e)}
+              onRegenerate={(e) => onRegenerate(file.full_path, e)}
+              onReplace={(e) => onReplace(file.full_path, e)}
+              onRename={(e) => onRename(file.full_path, e)}
+              onRegenerateMeta={(e) => onRegenerateMeta(file.full_path, e)}
               formatDate={formatDate}
               getModelChipColor={getModelChipColor}
               isSmallScreen={true}
@@ -122,17 +122,17 @@ export default function MobileTranscriptList({
                 text={transcriptInfo.text}
                 loading={transcriptInfo.loading}
                 error={transcriptInfo.error}
-                visibleLines={searchLineNumbers[file.base_name] || []}
+                visibleLines={searchLineNumbers[file.full_path] || []}
                 expandContext={expandContext}
                 expandAll={expandAll}
-                onEditSuccess={() => { onFetchTranscript(file.base_name) }}
+                onEditSuccess={() => { onFetchTranscript(file.full_path) }}
                 isSmallScreen={true}
                 onSetRightPaneUrl={onSetRightPaneUrl}
                 clipStart={clipStart}
                 clipEnd={clipEnd}
                 clipTranscript={clipTranscript}
-                onSetClipStart={(time) => onSetClipStart(time, file.base_name)}
-                onSetClipEnd={(time) => onSetClipEnd(time, file.base_name)}
+                onSetClipStart={(time) => onSetClipStart(time, file.full_path)}
+                onSetClipEnd={(time) => onSetClipEnd(time, file.full_path)}
                 onClearClip={onClearClip}
 
                 onClipBlock={onClipBlock}

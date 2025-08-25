@@ -24645,25 +24645,25 @@ function MobileTranscriptList({
   mobileTranscriptRowRefs
 }) {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "divide-y divide-border", children: sortedFiles.map((file) => {
-    if (activeSearchTerm !== "" && !searchResults.includes(file.base_name)) {
+    if (activeSearchTerm !== "" && !searchResults.includes(file.full_path)) {
       return null;
     }
-    const transcriptInfo = transcriptData[file.base_name] || { text: "", loading: false, error: null };
-    const isExpanded = expandedFiles.has(file.base_name);
+    const transcriptInfo = transcriptData[file.full_path] || { text: "", loading: false, error: null };
+    const isExpanded = expandedFiles.has(file.full_path);
     return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "w-full", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx("div", { id: "ref", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
         FileCard,
         {
           file,
-          onExpand: () => onExpandFile(file.base_name),
+          onExpand: () => onExpandFile(file.full_path),
           isExpanded,
-          isRegenerating: regeneratingFiles.has(file.base_name),
-          isReplacing: replacingFiles.has(file.base_name),
-          isProcessing: isFileBeingProcessed(file.base_name),
-          onRegenerate: (e) => onRegenerate(file.base_name, e),
-          onReplace: (e) => onReplace(file.base_name, e),
-          onRename: (e) => onRename(file.base_name, e),
-          onRegenerateMeta: (e) => onRegenerateMeta(file.base_name, e),
+          isRegenerating: regeneratingFiles.has(file.full_path),
+          isReplacing: replacingFiles.has(file.full_path),
+          isProcessing: isFileBeingProcessed(file.full_path),
+          onRegenerate: (e) => onRegenerate(file.full_path, e),
+          onReplace: (e) => onReplace(file.full_path, e),
+          onRename: (e) => onRename(file.full_path, e),
+          onRegenerateMeta: (e) => onRegenerateMeta(file.full_path, e),
           formatDate,
           getModelChipColor,
           isSmallScreen: true,
@@ -24680,19 +24680,19 @@ function MobileTranscriptList({
           text: transcriptInfo.text,
           loading: transcriptInfo.loading,
           error: transcriptInfo.error,
-          visibleLines: searchLineNumbers[file.base_name] || [],
+          visibleLines: searchLineNumbers[file.full_path] || [],
           expandContext,
           expandAll,
           onEditSuccess: () => {
-            onFetchTranscript(file.base_name);
+            onFetchTranscript(file.full_path);
           },
           isSmallScreen: true,
           onSetRightPaneUrl,
           clipStart,
           clipEnd,
           clipTranscript,
-          onSetClipStart: (time) => onSetClipStart(time, file.base_name),
-          onSetClipEnd: (time) => onSetClipEnd(time, file.base_name),
+          onSetClipStart: (time) => onSetClipStart(time, file.full_path),
+          onSetClipEnd: (time) => onSetClipEnd(time, file.full_path),
           onClearClip,
           onClipBlock
         }
@@ -24998,15 +24998,20 @@ function TranscriptList({
       [filename]: { text: "", loading: true, error: null }
     }));
     try {
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}`));
+      const response = await fetch(addTimestamp(`/api/transcripts?video_path=${encodeURIComponent(filename)}`));
       if (!response.ok) {
         throw new Error(`Failed to fetch transcript: ${response.status} ${response.statusText}`);
       }
-      const transcriptContent = await response.text();
-      setTranscriptData((prev) => ({
-        ...prev,
-        [filename]: { text: transcriptContent, loading: false, error: null }
-      }));
+      const data = await response.json();
+      if (data.success) {
+        const transcriptContent = data.data;
+        setTranscriptData((prev) => ({
+          ...prev,
+          [filename]: { text: transcriptContent, loading: false, error: null }
+        }));
+      } else {
+        throw new Error(`Failed to fetch transcript: ${data.error}`);
+      }
     } catch (err) {
       setTranscriptData((prev) => ({
         ...prev,
@@ -25255,7 +25260,7 @@ function TranscriptList({
   const handleBulkRegenerate = async () => {
     var _a2;
     const displayedFiles = sortedFiles.filter((file) => {
-      if (activeSearchTerm && !searchResults.includes(file.base_name)) {
+      if (activeSearchTerm && !searchResults.includes(file.full_path)) {
         return false;
       }
       return file.transcript;
@@ -25277,7 +25282,7 @@ function TranscriptList({
       let errorCount = 0;
       const results = await Promise.allSettled(
         displayedFiles.map(async (file) => {
-          const response = await fetch(addTimestamp(`/regenerate/${encodeURIComponent(file.base_name)}`), {
+          const response = await fetch(addTimestamp(`/api/regenerate/${encodeURIComponent(file.full_path)}`), {
             method: "POST",
             headers: {
               "X-CSRF-Token": csrfToken || "",
@@ -25286,9 +25291,9 @@ function TranscriptList({
           });
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-            throw new Error(`${file.base_name}: ${errorData.error}`);
+            throw new Error(`${file.full_path}: ${errorData.error}`);
           }
-          return file.base_name;
+          return file.full_path;
         })
       );
       results.forEach((result) => {
@@ -25417,7 +25422,7 @@ function TranscriptList({
             ),
             /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-sm text-muted-foreground", children: (() => {
               const displayedFiles = sortedFiles.filter((file) => {
-                if (activeSearchTerm && !searchResults.includes(file.base_name)) {
+                if (activeSearchTerm && !searchResults.includes(file.full_path)) {
                   return false;
                 }
                 return file.transcript;
@@ -25453,7 +25458,7 @@ function TranscriptList({
                   replacingFiles,
                   searchLineNumbers,
                   onExpandFile: (filename) => {
-                    const file = sortedFiles.find((f) => f.base_name === filename);
+                    const file = sortedFiles.find((f) => f.full_path === filename);
                     if (file == null ? void 0 : file.transcript) {
                       handleExpandFile(filename);
                     }
@@ -25556,27 +25561,27 @@ function TranscriptList({
                 ] }) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(TableBody, { children: sortedFiles.map((file) => {
                   var _a2;
-                  if (activeSearchTerm != "" && !searchResults.includes(file.base_name)) {
+                  if (activeSearchTerm != "" && !searchResults.includes(file.full_path)) {
                     return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, {});
                   }
-                  const transcriptInfo = transcriptData[file.base_name] || { text: "", loading: false, error: null };
+                  const transcriptInfo = transcriptData[file.full_path] || { text: "", loading: false, error: null };
                   return /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsxs(
                       TableRow,
                       {
                         ref: (el) => {
-                          fileRowRefs.current[file.base_name] = el;
+                          fileRowRefs.current[file.full_path] = el;
                         },
-                        "data-filename": file.base_name,
+                        "data-filename": file.full_path,
                         className: "",
                         onClick: () => {
                           if (file.transcript) {
                             setExpandedFiles((prev) => {
                               const newSet = new Set(prev);
-                              if (newSet.has(file.base_name)) {
-                                newSet.delete(file.base_name);
+                              if (newSet.has(file.full_path)) {
+                                newSet.delete(file.full_path);
                               } else {
-                                newSet.add(file.base_name);
+                                newSet.add(file.full_path);
                               }
                               return newSet;
                             });
@@ -25610,11 +25615,11 @@ function TranscriptList({
                           /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "w-[10%] text-foreground", children: file.length ? file.length : /* @__PURE__ */ jsxRuntimeExports.jsx(
                             "button",
                             {
-                              onClick: (e) => handleRegenerateMeta(file.base_name, e),
-                              disabled: regeneratingFiles.has(file.base_name),
+                              onClick: (e) => handleRegenerateMeta(file.full_path, e),
+                              disabled: regeneratingFiles.has(file.full_path),
                               className: "p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
                               title: "Generate video length",
-                              children: regeneratingFiles.has(file.base_name) ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
+                              children: regeneratingFiles.has(file.full_path) ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
                             }
                           ) }),
                           /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "w-[8%] text-center", children: file.model ? leftPaneWidth >= 1129 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `inline-flex items-center rounded-full font-medium ${getModelChipColor(file.model)} ${file.model.length > 10 ? "px-1.5 py-0.5 text-xs scale-75" : "px-2.5 py-0.5 text-xs"}`, children: file.model }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -25638,8 +25643,8 @@ function TranscriptList({
                               /* @__PURE__ */ jsxRuntimeExports.jsxs(
                                 DropdownMenuItem,
                                 {
-                                  onClick: (e) => handleRename(file.base_name, e),
-                                  disabled: isFileBeingProcessed(file.base_name) || regeneratingFiles.has(file.base_name) || replacingFiles.has(file.base_name),
+                                  onClick: (e) => handleRename(file.full_path, e),
+                                  disabled: isFileBeingProcessed(file.full_path) || regeneratingFiles.has(file.full_path) || replacingFiles.has(file.full_path),
                                   children: [
                                     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Rename" }),
                                     /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" }) })
@@ -25649,28 +25654,28 @@ function TranscriptList({
                               file.transcript && /* @__PURE__ */ jsxRuntimeExports.jsxs(
                                 DropdownMenuItem,
                                 {
-                                  onClick: (e) => handleReplace(file.base_name, e),
-                                  disabled: replacingFiles.has(file.base_name),
+                                  onClick: (e) => handleReplace(file.full_path, e),
+                                  disabled: replacingFiles.has(file.full_path),
                                   className: "text-blue-600 hover:text-blue-700",
                                   children: [
                                     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Edit transcript" }),
-                                    !replacingFiles.has(file.base_name) && /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" }) })
+                                    !replacingFiles.has(file.full_path) && /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" }) })
                                   ]
                                 }
                               ),
                               file.transcript && /* @__PURE__ */ jsxRuntimeExports.jsxs(
                                 DropdownMenuItem,
                                 {
-                                  onClick: (e) => handleRegenerate(file.base_name, e),
-                                  disabled: regeneratingFiles.has(file.base_name),
+                                  onClick: (e) => handleRegenerate(file.full_path, e),
+                                  disabled: regeneratingFiles.has(file.full_path),
                                   className: "text-green-600 hover:text-green-700",
                                   children: [
                                     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Regenerate transcript" }),
-                                    regeneratingFiles.has(file.base_name) ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
+                                    regeneratingFiles.has(file.full_path) ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
                                   ]
                                 }
                               ),
-                              isFileBeingProcessed(file.base_name) && /* @__PURE__ */ jsxRuntimeExports.jsxs(DropdownMenuItem, { disabled: true, children: [
+                              isFileBeingProcessed(file.full_path) && /* @__PURE__ */ jsxRuntimeExports.jsxs(DropdownMenuItem, { disabled: true, children: [
                                 /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Processing transcript..." }),
                                 /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
                               ] })
@@ -25678,37 +25683,37 @@ function TranscriptList({
                           ] }) })
                         ]
                       },
-                      file.base_name
+                      file.full_path
                     ),
                     /* @__PURE__ */ jsxRuntimeExports.jsx(
                       TableRow,
                       {
                         ref: (el) => {
-                          transcriptRowRefs.current[file.base_name] = el;
+                          transcriptRowRefs.current[file.full_path] = el;
                         },
-                        "data-filename": file.base_name,
+                        "data-filename": file.full_path,
                         children: /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { colSpan: 7, className: "p-0", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
                           TranscriptView,
                           {
-                            visible: expandedFiles.has(file.base_name),
+                            visible: expandedFiles.has(file.full_path),
                             name: file.base_name,
                             className: "w-full",
                             searchTerm: activeSearchTerm,
                             text: transcriptInfo.text,
                             loading: transcriptInfo.loading,
                             error: transcriptInfo.error,
-                            visibleLines: searchLineNumbers[file.base_name] || [],
+                            visibleLines: searchLineNumbers[file.full_path] || [],
                             expandContext,
                             expandAll,
                             onEditSuccess: () => {
-                              fetchTranscript(file.base_name);
+                              fetchTranscript(file.full_path);
                             },
                             onSetRightPaneUrl,
                             clipStart,
                             clipEnd,
                             clipTranscript,
-                            onSetClipStart: (time) => onSetClipStart(time, file.base_name),
-                            onSetClipEnd: (time) => onSetClipEnd(time, file.base_name),
+                            onSetClipStart: (time) => onSetClipStart(time, file.full_path),
+                            onSetClipEnd: (time) => onSetClipEnd(time, file.full_path),
                             onClearClip,
                             onClipBlock
                           }

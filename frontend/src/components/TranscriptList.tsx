@@ -30,7 +30,7 @@ type FileRow = {
   transcript: boolean
   line_count?: number
   length?: string
-  full_path?: string
+  full_path: string
   last_generated?: string
   model?: string
 }
@@ -488,19 +488,22 @@ export default function TranscriptList({
     }))
 
     try {
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}`))
+      const response = await fetch(addTimestamp(`/api/transcripts?video_path=${encodeURIComponent(filename)}`))
       
       if (!response.ok) {
         throw new Error(`Failed to fetch transcript: ${response.status} ${response.statusText}`)
       }
       
-      const transcriptContent = await response.text()
-      
-      // Set success state
-      setTranscriptData(prev => ({
-        ...prev,
-        [filename]: { text: transcriptContent, loading: false, error: null }
-      }))
+      const data = await response.json()
+      if (data.success) {
+        const transcriptContent = data.data
+        setTranscriptData(prev => ({
+          ...prev,
+          [filename]: { text: transcriptContent, loading: false, error: null }
+        }))
+      } else {
+        throw new Error(`Failed to fetch transcript: ${data.error}`)
+      }      
     } catch (err) {
       // Set error state
       setTranscriptData(prev => ({
@@ -813,7 +816,7 @@ export default function TranscriptList({
     // Get all files that are currently displayed
     const displayedFiles = sortedFiles.filter(file => {
       // Filter out files that don't match search if there's an active search
-      if (activeSearchTerm && !searchResults.includes(file.base_name)) {
+      if (activeSearchTerm && !searchResults.includes(file.full_path)) {
         return false
       }
       // Only include files that have transcripts
@@ -843,7 +846,7 @@ export default function TranscriptList({
       // Process files in parallel
       const results = await Promise.allSettled(
         displayedFiles.map(async (file) => {
-          const response = await fetch(addTimestamp(`/regenerate/${encodeURIComponent(file.base_name)}`), {
+          const response = await fetch(addTimestamp(`/api/regenerate/${encodeURIComponent(file.full_path)}`), {
             method: 'POST',
             headers: {
               'X-CSRF-Token': csrfToken || '',
@@ -853,10 +856,10 @@ export default function TranscriptList({
           
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-            throw new Error(`${file.base_name}: ${errorData.error}`)
+            throw new Error(`${file.full_path}: ${errorData.error}`)
           }
           
-          return file.base_name
+          return file.full_path
         })
       )
       
@@ -1027,7 +1030,7 @@ export default function TranscriptList({
             <span className="text-sm text-muted-foreground">
               {(() => {
                 const displayedFiles = sortedFiles.filter(file => {
-                  if (activeSearchTerm && !searchResults.includes(file.base_name)) {
+                  if (activeSearchTerm && !searchResults.includes(file.full_path)) {
                     return false
                   }
                   return file.transcript
@@ -1073,7 +1076,7 @@ export default function TranscriptList({
               searchLineNumbers={searchLineNumbers}
 
               onExpandFile={(filename) => {
-                const file = sortedFiles.find(f => f.base_name === filename)
+                const file = sortedFiles.find(f => f.full_path === filename)
                 if (file?.transcript) {
                   handleExpandFile(filename)
                 }
@@ -1165,28 +1168,28 @@ export default function TranscriptList({
             </TableHeader>
             <TableBody>
               {sortedFiles.map((file) => {
-                if (activeSearchTerm != '' && !searchResults.includes(file.base_name)) {
+                if (activeSearchTerm != '' && !searchResults.includes(file.full_path)) {
                   return <></>;
                 }
                 
-                const transcriptInfo = transcriptData[file.base_name] || { text: '', loading: false, error: null }
+                const transcriptInfo = transcriptData[file.full_path] || { text: '', loading: false, error: null }
                 
                 return (
                 <>
                 <TableRow 
-                  key={file.base_name} 
-                  ref={(el) => { fileRowRefs.current[file.base_name] = el }}
-                  data-filename={file.base_name}
+                  key={file.full_path} 
+                  ref={(el) => { fileRowRefs.current[file.full_path] = el }}
+                  data-filename={file.full_path}
                   className=""
                   onClick={() => {
                   // Only expand if transcript exists
                   if (file.transcript) {
                     setExpandedFiles(prev => {
                       const newSet = new Set(prev)
-                      if (newSet.has(file.base_name)) {
-                        newSet.delete(file.base_name)
+                      if (newSet.has(file.full_path)) {
+                        newSet.delete(file.full_path)
                       } else {
-                        newSet.add(file.base_name)
+                        newSet.add(file.full_path)
                       }
                       return newSet
                     })
@@ -1220,12 +1223,12 @@ export default function TranscriptList({
                       file.length
                     ) : (
                       <button
-                        onClick={(e) => handleRegenerateMeta(file.base_name, e)}
-                        disabled={regeneratingFiles.has(file.base_name)}
+                        onClick={(e) => handleRegenerateMeta(file.full_path, e)}
+                        disabled={regeneratingFiles.has(file.full_path)}
                         className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Generate video length"
                       >
-                        {regeneratingFiles.has(file.base_name) ? (
+                        {regeneratingFiles.has(file.full_path) ? (
                           <svg className="w-4 h-4 animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
@@ -1277,8 +1280,8 @@ export default function TranscriptList({
                       <DropdownMenuContent align="end">
                         {/* Rename option */}
                         <DropdownMenuItem
-                          onClick={(e) => handleRename(file.base_name, e)}
-                          disabled={isFileBeingProcessed(file.base_name) || regeneratingFiles.has(file.base_name) || replacingFiles.has(file.base_name)}
+                          onClick={(e) => handleRename(file.full_path, e)}
+                          disabled={isFileBeingProcessed(file.full_path) || regeneratingFiles.has(file.full_path) || replacingFiles.has(file.full_path)}
                         >
                           <span>Rename</span>
                           <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1289,12 +1292,12 @@ export default function TranscriptList({
                         {/* Only show edit option if transcript exists */}
                         {file.transcript && (
                           <DropdownMenuItem
-                            onClick={(e) => handleReplace(file.base_name, e)}
-                            disabled={replacingFiles.has(file.base_name)}
+                            onClick={(e) => handleReplace(file.full_path, e)}
+                            disabled={replacingFiles.has(file.full_path)}
                             className="text-blue-600 hover:text-blue-700"
                           >
                             <span>Edit transcript</span>
-                            {!replacingFiles.has(file.base_name) && (
+                            {!replacingFiles.has(file.full_path) && (
                               <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
@@ -1305,12 +1308,12 @@ export default function TranscriptList({
                         {/* Only show regenerate option if transcript exists */}
                         {file.transcript && (
                           <DropdownMenuItem
-                            onClick={(e) => handleRegenerate(file.base_name, e)}
-                            disabled={regeneratingFiles.has(file.base_name)}
+                            onClick={(e) => handleRegenerate(file.full_path, e)}
+                            disabled={regeneratingFiles.has(file.full_path)}
                             className="text-green-600 hover:text-green-700"
                           >
                             <span>Regenerate transcript</span>
-                            {regeneratingFiles.has(file.base_name) ? (
+                            {regeneratingFiles.has(file.full_path) ? (
                               <svg className="w-4 h-4 ml-auto animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>
@@ -1323,7 +1326,7 @@ export default function TranscriptList({
                         )}
                         
                         {/* Show processing status if file is being processed */}
-                        {isFileBeingProcessed(file.base_name) && (
+                        {isFileBeingProcessed(file.full_path) && (
                           <DropdownMenuItem disabled>
                             <span>Processing transcript...</span>
                             <svg className="w-4 h-4 ml-auto animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1336,29 +1339,29 @@ export default function TranscriptList({
                   </TableCell>
                 </TableRow>
                 <TableRow
-                  ref={(el) => { transcriptRowRefs.current[file.base_name] = el }}
-                  data-filename={file.base_name}
+                  ref={(el) => { transcriptRowRefs.current[file.full_path] = el }}
+                  data-filename={file.full_path}
                 >
                   
                 <TableCell colSpan={7} className="p-0">
                   <TranscriptView
-                    visible={expandedFiles.has(file.base_name)}
+                    visible={expandedFiles.has(file.full_path)}
                     name={file.base_name}
                     className="w-full"
                     searchTerm={activeSearchTerm}
                     text={transcriptInfo.text}
                     loading={transcriptInfo.loading}
                     error={transcriptInfo.error}
-                    visibleLines={searchLineNumbers[file.base_name] || []}
+                    visibleLines={searchLineNumbers[file.full_path] || []}
                     expandContext={expandContext}
                     expandAll={expandAll}
-                    onEditSuccess={() => { fetchTranscript(file.base_name) }}
+                    onEditSuccess={() => { fetchTranscript(file.full_path) }}
                     onSetRightPaneUrl={onSetRightPaneUrl}
                     clipStart={clipStart}
                     clipEnd={clipEnd}
                     clipTranscript={clipTranscript}
-                    onSetClipStart={(time) => onSetClipStart(time, file.base_name)}
-                    onSetClipEnd={(time) => onSetClipEnd(time, file.base_name)}
+                    onSetClipStart={(time) => onSetClipStart(time, file.full_path)}
+                    onSetClipEnd={(time) => onSetClipEnd(time, file.full_path)}
                     onClearClip={onClearClip}
                     onClipBlock={onClipBlock}
                   />
