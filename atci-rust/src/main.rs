@@ -5,7 +5,7 @@ use std::time::Duration;
 use std::collections::HashSet;
 use dialoguer::{Input, Select};
 use crate::config::AtciConfig;
-//use rust_embed::Embed;
+use rust_embed::Embed;
 
 mod clipper;
 mod config;
@@ -18,9 +18,9 @@ mod search;
 mod transcripts;
 mod web;
 
-//#[derive(Embed)]
-//#[folder = "assets/"]
-//struct Asset;
+#[derive(Embed)]
+#[folder = "assets/"]
+pub struct Asset;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None, arg_required_else_help = true)]
