@@ -106,7 +106,10 @@ enum Commands {
 #[command(arg_required_else_help = true)]
 enum FilesCommands {
     #[command(about = "Get file information from cache")]
-    Get,
+    Get {
+        #[arg(long, help = "Comma-separated list of strings to filter results by path", value_delimiter = ',')]
+        filter: Option<Vec<String>>,
+    },
     #[command(about = "Update file information cache by scanning watch directories")]
     Update,
 }
@@ -567,10 +570,20 @@ fn save_video_info_to_cache(video_infos: &[VideoInfo]) -> Result<(), Box<dyn std
     Ok(())
 }
 
-fn load_video_info_from_cache() -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
+fn load_video_info_from_cache(filter: Option<&Vec<String>>) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
     let cache_path = get_cache_file_path();
     let json_data = fs::read_to_string(cache_path)?;
-    let video_infos: Vec<VideoInfo> = serde_json::from_str(&json_data)?;
+    let mut video_infos: Vec<VideoInfo> = serde_json::from_str(&json_data)?;
+    
+    if let Some(filters) = filter {
+        if !filters.is_empty() {
+            video_infos.retain(|info| {
+                let full_path_lower = info.full_path.to_lowercase();
+                filters.iter().any(|f| full_path_lower.contains(&f.to_lowercase()))
+            });
+        }
+    }
+    
     Ok(video_infos)
 }
 
@@ -666,7 +679,7 @@ fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<dyn 
 
 #[get("/api/files")]
 pub fn web_get_files() -> Json<ApiResponse<serde_json::Value>> {
-    match load_video_info_from_cache() {
+    match load_video_info_from_cache(None) {
         Ok(video_infos) => Json(ApiResponse::success(serde_json::to_value(video_infos).unwrap_or_default())),
         Err(e) => Json(ApiResponse::error(format!("Failed to load video info cache: {}", e))),
     }
@@ -679,8 +692,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match args.command {
         Some(Commands::Files { files_command }) => {
             match files_command {
-                Some(FilesCommands::Get) => {
-                    match load_video_info_from_cache() {
+                Some(FilesCommands::Get { filter }) => {
+                    match load_video_info_from_cache(filter.as_ref()) {
                         Ok(video_infos) => {
                             let json_output = serde_json::to_string_pretty(&video_infos)?;
                             println!("{}", json_output);
