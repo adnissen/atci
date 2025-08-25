@@ -24784,10 +24784,12 @@ function TranscriptList({
   reactExports.useEffect(() => {
     const fetchSources = async () => {
       try {
-        const response = await fetch(addTimestamp("/sources"));
+        const response = await fetch(addTimestamp("/api/sources"));
         if (response.ok) {
-          const sources = await response.json();
-          setAvailableSources(sources || []);
+          const data = await response.json();
+          if (data.success) {
+            setAvailableSources(data.data.sources || []);
+          }
         }
       } catch (error) {
         console.error("Error fetching sources:", error);
@@ -24833,14 +24835,16 @@ function TranscriptList({
   const refreshFiles = async () => {
     try {
       const params = new URLSearchParams();
-      params.append("watch_directories", selectedWatchDirs.join(","));
+      params.append("filter", selectedWatchDirs.join(","));
       params.append("sources", selectedSources.join(","));
       const queryString = params.toString();
-      const url = queryString ? `/files?${queryString}` : "/files";
+      const url = queryString ? `/api/files?${queryString}` : "/api/files";
       const response = await fetch(addTimestamp(url));
       if (response.ok) {
         const data = await response.json();
-        setFiles(data || []);
+        if (data.success) {
+          setFiles(data.data.files || []);
+        }
       }
     } catch (error) {
       console.error("Error refreshing files:", error);

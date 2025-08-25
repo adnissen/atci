@@ -189,3 +189,31 @@ pub fn web_get_files(filter: Option<String>) -> Json<ApiResponse<serde_json::Val
         Err(e) => Json(ApiResponse::error(format!("Failed to load video info cache: {}", e))),
     }
 }
+
+#[get("/api/sources")]
+pub fn web_get_sources() -> Json<ApiResponse<serde_json::Value>> {
+    let cfg = match crate::config::load_config() {
+        Ok(config) => config,
+        Err(e) => return Json(ApiResponse::error(format!("Failed to load config: {}", e))),
+    };
+    
+    match get_video_info_from_disk(&cfg) {
+        Ok(video_infos) => {
+            let mut sources: std::collections::HashSet<String> = std::collections::HashSet::new();
+            
+            for info in video_infos {
+                if let Some(model) = info.model {
+                    if !model.is_empty() {
+                        sources.insert(model);
+                    }
+                }
+            }
+            
+            let mut unique_sources: Vec<String> = sources.into_iter().collect();
+            unique_sources.sort();
+            
+            Json(ApiResponse::success(serde_json::to_value(unique_sources).unwrap_or_default()))
+        },
+        Err(e) => Json(ApiResponse::error(format!("Failed to get video info from disk: {}", e))),
+    }
+}

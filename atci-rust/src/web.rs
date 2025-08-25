@@ -89,6 +89,7 @@ pub async fn launch_server(host: &str, port: u16, config: AtciConfig) -> Result<
             app,
             assets,
             files::web_get_files,
+            files::web_get_sources,
             queue::web_get_queue,
             queue::web_get_queue_status,
             search::web_search_transcripts,
