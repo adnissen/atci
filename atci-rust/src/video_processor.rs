@@ -14,6 +14,7 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
         // Check for subtitle streams first
         match get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path)) {
             Ok(streams) => {
+                let mut successfully_extracted_subtitles = false;
                 if !streams.is_empty() {
                     println!("Found subtitle streams: {:?}", streams);
                     // Extract subtitles from the first stream
@@ -21,27 +22,29 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
                         Ok(()) => {
                             write_key_to_meta_file(video_path, "source", "subtitles")?;
                             println!("Created transcript file: {}", txt_path.display());
+                            successfully_extracted_subtitles = true;
                         }
                         Err(e) => {
                             println!("Failed to extract subtitles: {}, trying whisper transcription", e);
                         }
                     }
+                } 
+                // No subtitle streams found, extract the audio and transcribe it with whisper
+                if !(has_audio_stream(video_path, Path::new(&cfg.ffprobe_path))?) {
+                    fs::write(&txt_path, "")?;
+                    println!("No audio streams found, created empty transcript file: {}", txt_path.display());
+                } else if !successfully_extracted_subtitles {
+                    // Extract the audio and transcribe it with whisper
+                    // TODO: if this fails we should write an empty text file so we don't infinitely retry to fix this file
+                    // maybe mark something in the meta file to indicate that we should try again?
+                    println!("Extracting audio");
+                    extract_audio(video_path, Path::new(&cfg.ffmpeg_path))?;
+                    let audio_path = video_path.with_extension("mp3");
+                    println!("Transcribing audio");
+                    transcribe_audio(&audio_path, Path::new(&cfg.whispercli_path), &cfg.model_name)?;
+                    write_key_to_meta_file(video_path, "source", &cfg.model_name)?;
                 } else {
-                    // No subtitle streams found, extract the audio and transcribe it with whisper
-                    if !(has_audio_stream(video_path, Path::new(&cfg.ffprobe_path))?) {
-                        fs::write(&txt_path, "")?;
-                        println!("No audio streams found, created empty transcript file: {}", txt_path.display());
-                    } else {
-                        // Extract the audio and transcribe it with whisper
-                        // TODO: if this fails we should write an empty text file so we don't infinitely retry to fix this file
-                        // maybe mark something in the meta file to indicate that we should try again?
-                        println!("Extracting audio");
-                        extract_audio(video_path, Path::new(&cfg.ffmpeg_path))?;
-                        let audio_path = video_path.with_extension("mp3");
-                        println!("Transcribing audio");
-                        transcribe_audio(&audio_path, Path::new(&cfg.whispercli_path), &cfg.model_name)?;
-                        write_key_to_meta_file(video_path, "source", &cfg.model_name)?;
-                    }
+                    println!("Successfully extracted subtitles and audio, transcript file: {}", txt_path.display());
                 }
             }
             Err(e) => {
