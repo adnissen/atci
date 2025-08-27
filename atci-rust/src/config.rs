@@ -75,10 +75,6 @@ pub fn web_get_config(config_state: &State<Arc<AtciConfig>>) -> Json<ApiResponse
     Json(ApiResponse::success(response))
 }
 
-fn is_valid_config_field(field: &str) -> bool {
-    matches!(field, "ffmpeg_path" | "ffprobe_path" | "model_name" | "whispercli_path" | "watch_directories" | "nonlocal_password")
-}
-
 pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Result<(), String> {
     match field {
         "ffmpeg_path" => cfg.ffmpeg_path = value.to_string(),
@@ -97,33 +93,10 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
     Ok(())
 }
 
-#[derive(Deserialize)]
-pub struct SetConfigRequest {
-    field: String,
-    value: String,
-}
-
-#[post("/api/config/set", data = "<request>")]
-pub fn web_set_config(request: Json<SetConfigRequest>) -> Json<ApiResponse<String>> {
-    if !is_valid_config_field(&request.field) {
-        return Json(ApiResponse::error(format!(
-            "Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, nonlocal_password", 
-            request.field
-        )));
-    }
-    
-    match load_config() {
-        Ok(mut cfg) => {
-            if let Err(e) = set_config_field(&mut cfg, &request.field, &request.value) {
-                return Json(ApiResponse::error(format!("Error setting field: {}", e)));
-            }
-            
-            if let Err(e) = store_config(&cfg) {
-                return Json(ApiResponse::error(format!("Error saving config: {}", e)));
-            }
-            
-            Json(ApiResponse::success(format!("Set {} = {}", request.field, request.value)))
-        }
-        Err(e) => Json(ApiResponse::error(format!("Error loading config: {}", e))),
+#[post("/api/config", data = "<config>")]
+pub fn web_set_config(config: Json<AtciConfig>) -> Json<ApiResponse<String>> {
+    match store_config(&config) {
+        Ok(()) => Json(ApiResponse::success("Config updated successfully".to_string())),
+        Err(e) => Json(ApiResponse::error(format!("Error saving config: {}", e))),
     }
 }

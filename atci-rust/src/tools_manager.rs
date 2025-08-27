@@ -169,6 +169,11 @@ pub struct DownloadRequest {
     tool: String,
 }
 
+#[derive(serde::Deserialize)]
+pub struct UseDownloadedRequest {
+    tool_name: String,
+}
+
 #[get("/api/tools/list")]
 pub fn web_list_tools() -> Json<ApiResponse<Vec<ToolInfo>>> {
     let tools = list_tools();
@@ -180,6 +185,37 @@ pub fn web_download_tool(request: Json<DownloadRequest>) -> Json<ApiResponse<Str
     match download_tool(&request.tool) {
         Ok(path) => Json(ApiResponse::success(path)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
+}
+
+#[post("/api/tools/use-downloaded", data = "<request>")]
+pub fn web_use_downloaded_tool(request: Json<UseDownloadedRequest>) -> Json<ApiResponse<String>> {
+    let downloaded_path = get_downloaded_path(&request.tool_name);
+    
+    if std::path::Path::new(&downloaded_path).exists() {
+        match crate::config::load_config() {
+            Ok(mut cfg) => {
+                let config_field = match request.tool_name.as_str() {
+                    "ffmpeg" => "ffmpeg_path",
+                    "ffprobe" => "ffprobe_path", 
+                    "whisper-cli" => "whispercli_path",
+                    _ => return Json(ApiResponse::error(format!("Unknown tool: {}", request.tool_name))),
+                };
+                
+                if let Err(e) = crate::config::set_config_field(&mut cfg, config_field, &downloaded_path) {
+                    return Json(ApiResponse::error(format!("Error setting config field: {}", e)));
+                }
+                
+                if let Err(e) = crate::config::store_config(&cfg) {
+                    return Json(ApiResponse::error(format!("Error saving config: {}", e)));
+                }
+                
+                Json(ApiResponse::success(format!("Set {} to use downloaded tool at {}", config_field, downloaded_path)))
+            }
+            Err(e) => Json(ApiResponse::error(format!("Error loading config: {}", e))),
+        }
+    } else {
+        Json(ApiResponse::error(format!("Tool '{}' is not downloaded", request.tool_name)))
     }
 }
 
