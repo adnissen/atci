@@ -160,6 +160,29 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
     Err(format!("Could not find {} binary in the downloaded archive", tool).into())
 }
 
+use rocket::serde::json::Json;
+use rocket::{get, post};
+use crate::web::ApiResponse;
+
+#[derive(serde::Deserialize)]
+pub struct DownloadRequest {
+    tool: String,
+}
+
+#[get("/api/tools/list")]
+pub fn web_list_tools() -> Json<ApiResponse<Vec<ToolInfo>>> {
+    let tools = list_tools();
+    Json(ApiResponse::success(tools))
+}
+
+#[post("/api/tools/download", data = "<request>")]
+pub fn web_download_tool(request: Json<DownloadRequest>) -> Json<ApiResponse<String>> {
+    match download_tool(&request.tool) {
+        Ok(path) => Json(ApiResponse::success(path)),
+        Err(e) => Json(ApiResponse::error(e.to_string())),
+    }
+}
+
 #[cfg(target_os = "macos")]
 pub fn handle_macos_quarantine(executable_path: &str, platform: &str) -> Result<(), Box<dyn std::error::Error>> {
     check_macos_version()?;

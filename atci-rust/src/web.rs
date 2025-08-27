@@ -4,7 +4,7 @@ use rocket::{get, routes, response::content};
 use rocket::response::status::NotFound;
 use std::sync::Arc;
 use crate::config::AtciConfig;
-use crate::{config, files, queue, search, transcripts, clipper, Asset};
+use crate::{config, files, queue, search, transcripts, clipper, tools_manager, model_manager, Asset};
 
 #[derive(Serialize)]
 pub struct ApiResponse<T> {
@@ -86,6 +86,7 @@ pub async fn launch_server(host: &str, port: u16, config: AtciConfig) -> Result<
             index,
             health,
             config::web_get_config,
+            config::web_set_config,
             app,
             assets,
             files::web_get_files,
@@ -95,7 +96,11 @@ pub async fn launch_server(host: &str, port: u16, config: AtciConfig) -> Result<
             queue::web_get_queue_status,
             search::web_search_transcripts,
             transcripts::web_get_transcript,
-            transcripts::web_get_transcript_by_path
+            transcripts::web_get_transcript_by_path,
+            tools_manager::web_list_tools,
+            tools_manager::web_download_tool,
+            model_manager::web_list_models,
+            model_manager::web_download_model
         ])
         .launch()
         .await?;

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use rocket::serde::json::Json;
-use rocket::{get, State};
+use rocket::{get, post, State};
 use std::sync::Arc;
 use crate::web::ApiResponse;
 
@@ -73,4 +73,57 @@ pub fn web_get_config(config_state: &State<Arc<AtciConfig>>) -> Json<ApiResponse
     };
     
     Json(ApiResponse::success(response))
+}
+
+fn is_valid_config_field(field: &str) -> bool {
+    matches!(field, "ffmpeg_path" | "ffprobe_path" | "model_name" | "whispercli_path" | "watch_directories" | "nonlocal_password")
+}
+
+pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Result<(), String> {
+    match field {
+        "ffmpeg_path" => cfg.ffmpeg_path = value.to_string(),
+        "ffprobe_path" => cfg.ffprobe_path = value.to_string(),
+        "model_name" => cfg.model_name = value.to_string(),
+        "whispercli_path" => cfg.whispercli_path = value.to_string(),
+        "nonlocal_password" => cfg.nonlocal_password = Some(value.to_string()),
+        "watch_directories" => {
+            // For watch_directories, treat the value as a single directory to add
+            if !cfg.watch_directories.contains(&value.to_string()) {
+                cfg.watch_directories.push(value.to_string());
+            }
+        },
+        _ => return Err(format!("Unknown field: {}", field)),
+    }
+    Ok(())
+}
+
+#[derive(Deserialize)]
+pub struct SetConfigRequest {
+    field: String,
+    value: String,
+}
+
+#[post("/api/config/set", data = "<request>")]
+pub fn web_set_config(request: Json<SetConfigRequest>) -> Json<ApiResponse<String>> {
+    if !is_valid_config_field(&request.field) {
+        return Json(ApiResponse::error(format!(
+            "Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, nonlocal_password", 
+            request.field
+        )));
+    }
+    
+    match load_config() {
+        Ok(mut cfg) => {
+            if let Err(e) = set_config_field(&mut cfg, &request.field, &request.value) {
+                return Json(ApiResponse::error(format!("Error setting field: {}", e)));
+            }
+            
+            if let Err(e) = store_config(&cfg) {
+                return Json(ApiResponse::error(format!("Error saving config: {}", e)));
+            }
+            
+            Json(ApiResponse::success(format!("Set {} = {}", request.field, request.value)))
+        }
+        Err(e) => Json(ApiResponse::error(format!("Error loading config: {}", e))),
+    }
 }

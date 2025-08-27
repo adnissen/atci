@@ -26690,23 +26690,24 @@ function ConfigPage({ onClose } = {}) {
   const [isLoadingModels, setIsLoadingModels] = reactExports.useState(false);
   const [modelSelection, setModelSelection] = reactExports.useState("custom");
   const [downloadingModel, setDownloadingModel] = reactExports.useState(null);
-  const [ffmpegTools, setFfmpegTools] = reactExports.useState([]);
+  const [tools, setTools] = reactExports.useState([]);
   const [downloadingTool, setDownloadingTool] = reactExports.useState(null);
-  const [whisperCliTools, setWhisperCliTools] = reactExports.useState([]);
-  const [downloadingWhisperTool, setDownloadingWhisperTool] = reactExports.useState(null);
   reactExports.useEffect(() => {
     fetchCurrentConfig();
     fetchModels();
-    fetchFFmpegTools();
-    fetchWhisperCliTools();
+    fetchTools();
   }, []);
   const fetchModels = async () => {
     setIsLoadingModels(true);
     try {
-      const response = await fetch(addTimestamp("/api/models"));
+      const response = await fetch(addTimestamp("/api/models/list"));
       if (response.ok) {
         const data = await response.json();
-        setModels(data.models || []);
+        if (data.success && data.data) {
+          setModels(data.data || []);
+        } else {
+          setErrors([data.error || "Failed to fetch models"]);
+        }
       }
     } catch (error) {
       console.error("Error fetching models:", error);
@@ -26722,7 +26723,7 @@ function ConfigPage({ onClose } = {}) {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ model_name: modelName })
+        body: JSON.stringify({ model: modelName })
       });
       if (response.ok) {
         await fetchModels();
@@ -26743,36 +26744,27 @@ function ConfigPage({ onClose } = {}) {
       setDownloadingModel(null);
     }
   };
-  const fetchFFmpegTools = async () => {
+  const fetchTools = async () => {
     try {
-      const response = await fetch(addTimestamp("/api/ffmpeg/tools"));
+      const response = await fetch(addTimestamp("/api/tools/list"));
       if (response.ok) {
         const data = await response.json();
-        setFfmpegTools(data.tools);
+        if (data.success && data.data) {
+          setTools(data.data || []);
+        } else {
+          setErrors([data.error || "Failed to fetch tools"]);
+        }
       } else {
-        console.error("Failed to fetch FFmpeg tools");
+        console.error("Failed to fetch tools");
       }
     } catch (error) {
-      console.error("Error fetching FFmpeg tools:", error);
+      console.error("Error fetching tools:", error);
     }
   };
-  const fetchWhisperCliTools = async () => {
-    try {
-      const response = await fetch(addTimestamp("/api/whisper-cli/tools"));
-      if (response.ok) {
-        const data = await response.json();
-        setWhisperCliTools(data.tools);
-      } else {
-        console.error("Failed to fetch Whisper-CLI tools");
-      }
-    } catch (error) {
-      console.error("Error fetching Whisper-CLI tools:", error);
-    }
-  };
-  const downloadFFmpegTool = async (toolName) => {
+  const downloadTool = async (toolName) => {
     setDownloadingTool(toolName);
     try {
-      const response = await fetch(addTimestamp("/api/ffmpeg/download"), {
+      const response = await fetch(addTimestamp("/api/tools/download"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -26780,7 +26772,7 @@ function ConfigPage({ onClose } = {}) {
         body: JSON.stringify({ tool_name: toolName })
       });
       if (response.ok) {
-        await fetchFFmpegTools();
+        await fetchTools();
         await fetchCurrentConfig();
         setSuccessMessage(`${toolName} downloaded successfully`);
       } else {
@@ -26794,9 +26786,9 @@ function ConfigPage({ onClose } = {}) {
       setDownloadingTool(null);
     }
   };
-  const useDownloadedFFmpegTool = async (toolName) => {
+  const useDownloadedTool = async (toolName) => {
     try {
-      const response = await fetch(addTimestamp("/api/ffmpeg/use-downloaded"), {
+      const response = await fetch(addTimestamp("/api/tools/use-downloaded"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -26805,7 +26797,7 @@ function ConfigPage({ onClose } = {}) {
       });
       if (response.ok) {
         await fetchCurrentConfig();
-        await fetchFFmpegTools();
+        await fetchTools();
         setSuccessMessage(`Now using downloaded ${toolName}`);
       } else {
         const error = await response.json();
@@ -26817,7 +26809,7 @@ function ConfigPage({ onClose } = {}) {
     }
   };
   const useAutoDetectionForTool = async (toolName) => {
-    const tool = ffmpegTools.find((t) => t.name === toolName);
+    const tool = tools.find((t) => t.name === toolName);
     if (tool && tool.system_path) {
       setConfig((prev) => ({
         ...prev,
@@ -26828,55 +26820,8 @@ function ConfigPage({ onClose } = {}) {
       setErrors([`System path not found for ${toolName}`]);
     }
   };
-  const downloadWhisperCliTool = async (toolName) => {
-    setDownloadingWhisperTool(toolName);
-    try {
-      const response = await fetch(addTimestamp("/api/whisper-cli/download"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ tool_name: toolName })
-      });
-      if (response.ok) {
-        await fetchWhisperCliTools();
-        await fetchCurrentConfig();
-        setSuccessMessage(`${toolName} downloaded successfully`);
-      } else {
-        const error = await response.json();
-        setErrors([error.message || `Failed to download ${toolName}`]);
-      }
-    } catch (error) {
-      console.error("Error downloading tool:", error);
-      setErrors([error.message || `Failed to download ${toolName}`]);
-    } finally {
-      setDownloadingWhisperTool(null);
-    }
-  };
-  const useDownloadedWhisperCliTool = async (toolName) => {
-    try {
-      const response = await fetch(addTimestamp("/api/whisper-cli/use-downloaded"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ tool_name: toolName })
-      });
-      if (response.ok) {
-        await fetchCurrentConfig();
-        await fetchWhisperCliTools();
-        setSuccessMessage(`Now using downloaded ${toolName}`);
-      } else {
-        const error = await response.json();
-        setErrors([error.message || `Failed to use downloaded ${toolName}`]);
-      }
-    } catch (error) {
-      console.error("Error setting tool path:", error);
-      setErrors([error.message || `Failed to use downloaded ${toolName}`]);
-    }
-  };
   const useAutoDetectionForWhisperCli = async (toolName) => {
-    const tool = whisperCliTools.find((t) => t.name === toolName);
+    const tool = tools.find((t) => t.name === toolName);
     if (tool && tool.system_path) {
       setConfig((prev) => ({
         ...prev,
@@ -27101,7 +27046,7 @@ function ConfigPage({ onClose } = {}) {
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-sm font-semibold text-foreground", children: "Whisper-CLI Tool" }),
-        whisperCliTools.map((tool) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border border-border rounded-lg p-4 space-y-3", children: [
+        tools.filter((tool) => tool.name === "whisper-cli").map((tool) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border border-border rounded-lg p-4 space-y-3", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "text-sm font-medium text-foreground", children: "Whisper CLI" }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-xs text-muted-foreground", children: [
@@ -27146,12 +27091,12 @@ function ConfigPage({ onClose } = {}) {
                 "button",
                 {
                   type: "button",
-                  onClick: () => downloadWhisperCliTool(tool.name),
-                  disabled: downloadingWhisperTool !== null,
+                  onClick: () => downloadTool(tool.name),
+                  disabled: downloadingTool !== null,
                   className: "flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed",
                   children: [
                     /* @__PURE__ */ jsxRuntimeExports.jsx(Download, { className: "h-3 w-3" }),
-                    downloadingWhisperTool === tool.name ? "Downloading..." : "Download"
+                    downloadingTool === tool.name ? "Downloading..." : "Download"
                   ]
                 }
               ),
@@ -27159,7 +27104,7 @@ function ConfigPage({ onClose } = {}) {
                 "button",
                 {
                   type: "button",
-                  onClick: () => useDownloadedWhisperCliTool(tool.name),
+                  onClick: () => useDownloadedTool(tool.name),
                   className: "px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700",
                   children: "Use Downloaded Version"
                 }
@@ -27230,7 +27175,7 @@ function ConfigPage({ onClose } = {}) {
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "space-y-4", children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-sm font-semibold text-foreground", children: "FFmpeg Tools" }),
-        ffmpegTools.map((tool) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border border-border rounded-lg p-4 space-y-3", children: [
+        tools.filter((tool) => tool.name === "ffmpeg" || tool.name === "ffprobe").map((tool) => /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "border border-border rounded-lg p-4 space-y-3", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "text-sm font-medium text-foreground capitalize", children: tool.name }),
             /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-xs text-muted-foreground", children: [
@@ -27275,7 +27220,7 @@ function ConfigPage({ onClose } = {}) {
                 "button",
                 {
                   type: "button",
-                  onClick: () => downloadFFmpegTool(tool.name),
+                  onClick: () => downloadTool(tool.name),
                   disabled: downloadingTool !== null,
                   className: "flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed",
                   children: [
@@ -27288,7 +27233,7 @@ function ConfigPage({ onClose } = {}) {
                 "button",
                 {
                   type: "button",
-                  onClick: () => useDownloadedFFmpegTool(tool.name),
+                  onClick: () => useDownloadedTool(tool.name),
                   className: "px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700",
                   children: "Use Downloaded Version"
                 }
