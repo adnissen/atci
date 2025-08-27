@@ -27326,107 +27326,36 @@ function QueuePage({ onClose } = {}) {
     fetchQueueStatus();
   }, []);
   const handleRemoveItem = async (item) => {
-    if (!confirm(`Remove "${item.path.split("/").pop()}" from queue?`)) {
+    if (!confirm(`Remove "${item.split("/").pop()}" from queue?`)) {
       return;
-    }
-    try {
-      const response = await fetch("/api/queue/remove", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          process_type: item.process_type,
-          path: item.path,
-          time: item.time
-        })
-      });
-      if (response.ok) {
-        await fetchQueueStatus();
-      } else {
-        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-        alert(`Failed to remove item: ${errorData.message}`);
-      }
-    } catch (err) {
-      console.error("Error removing item:", err);
-      alert("Failed to remove item from queue");
     }
   };
   const handleCancelProcessing = async (item) => {
-    if (!confirm(`Cancel processing of "${item.path.split("/").pop()}"?`)) {
+    if (!confirm(`Cancel processing of "${item.split("/").pop()}"?`)) {
       return;
-    }
-    try {
-      const response = await fetch("/api/queue/cancel-current", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json"
-        }
-      });
-      if (response.ok) {
-        await fetchQueueStatus();
-      } else {
-        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-        alert(`Failed to cancel job: ${errorData.message}`);
-      }
-    } catch (err) {
-      console.error("Error cancelling job:", err);
-      alert("Failed to cancel processing job");
     }
   };
   const handleMoveUp = async (index2) => {
     if (index2 <= 1) return;
-    const newQueue = [...queueStatus.queue];
-    const [movedItem] = newQueue.splice(index2, 1);
-    newQueue.splice(index2 - 1, 0, movedItem);
-    await updateQueueOrder(newQueue);
+    [...queueStatus.queue];
+    await updateQueueOrder();
   };
   const handleMoveDown = async (index2) => {
     if (index2 === 0 || index2 === queueStatus.queue.length - 1) return;
-    const newQueue = [...queueStatus.queue];
-    const [movedItem] = newQueue.splice(index2, 1);
-    newQueue.splice(index2 + 1, 0, movedItem);
-    await updateQueueOrder(newQueue);
+    [...queueStatus.queue];
+    await updateQueueOrder();
   };
   const handleSendToTop = async (index2) => {
     if (index2 <= 1) return;
-    const newQueue = [...queueStatus.queue];
-    const [movedItem] = newQueue.splice(index2, 1);
-    newQueue.splice(1, 0, movedItem);
-    await updateQueueOrder(newQueue);
+    [...queueStatus.queue];
+    await updateQueueOrder();
   };
   const handleSendToBottom = async (index2) => {
     if (index2 === 0 || index2 === queueStatus.queue.length - 1) return;
-    const newQueue = [...queueStatus.queue];
-    const [movedItem] = newQueue.splice(index2, 1);
-    newQueue.push(movedItem);
-    await updateQueueOrder(newQueue);
+    [...queueStatus.queue];
+    await updateQueueOrder();
   };
   const updateQueueOrder = async (newQueue) => {
-    try {
-      const response = await fetch("/api/queue/reorder", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          queue: newQueue.map((item) => ({
-            process_type: item.process_type,
-            path: item.path,
-            time: item.time
-          }))
-        })
-      });
-      if (response.ok) {
-        await fetchQueueStatus();
-      } else {
-        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
-        alert(`Failed to reorder queue: ${errorData.message}`);
-      }
-    } catch (err) {
-      console.error("Error reordering queue:", err);
-      alert("Failed to reorder queue");
-    }
   };
   const getDisplayName = (path) => {
     var _a;
@@ -27470,7 +27399,7 @@ function QueuePage({ onClose } = {}) {
           /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-orange-600 dark:text-orange-400", children: "Processing" }),
           /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 bg-orange-500 rounded-full animate-pulse" })
         ] }) : `#${index2 + 1}` }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "font-medium text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "max-w-xs truncate", title: item.path, children: getDisplayName(item.path) }) }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "font-medium text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "max-w-xs truncate", title: item, children: getDisplayName(item) }) }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "text-left", children: index2 === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
           "button",
           {
@@ -27548,7 +27477,7 @@ function QueuePage({ onClose } = {}) {
             ] })
           ] })
         ] }) })
-      ] }, `${item.path}-${item.process_type}-${index2}`)) })
+      ] }, `${item}-${index2}`)) })
     ] }) })
   ] }) });
 }

@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::Path;
-use std::process::Command;
+use tokio::process::Command;
 use std::env;
 use regex::Regex;
 use std::fs::File;
@@ -8,20 +8,20 @@ use std::io::{BufRead, BufReader, Write, Read};
 use crate::metadata;
 
 
-pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating transcript for: {}", video_path.display());
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let txt_path = video_path.with_extension("txt");
     
     if !txt_path.exists() {
         // Check for subtitle streams first
-        match get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path)) {
+        match get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path)).await {
             Ok(streams) => {
                 let mut successfully_extracted_subtitles = false;
                 if !streams.is_empty() {
                     println!("Found subtitle streams: {:?}", streams);
                     // Extract subtitles from the first stream
-                    match extract_subtitle_stream(video_path, streams[0], Path::new(&cfg.ffmpeg_path)) {
+                    match extract_subtitle_stream(video_path, streams[0], Path::new(&cfg.ffmpeg_path)).await {
                         Ok(()) => {
                             add_key_to_metadata_block(video_path, "source", "subtitles")?;
                             println!("Created transcript file: {}", txt_path.display());
@@ -33,7 +33,7 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
                     }
                 } 
                 // No subtitle streams found, extract the audio and transcribe it with whisper
-                if !(has_audio_stream(video_path, Path::new(&cfg.ffprobe_path))?) {
+                if !(has_audio_stream(video_path, Path::new(&cfg.ffprobe_path)).await?) {
                     fs::write(&txt_path, "")?;
                     println!("No audio streams found, created empty transcript file: {}", txt_path.display());
                 } else if !successfully_extracted_subtitles {
@@ -41,10 +41,10 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
                     // TODO: if this fails we should write an empty text file so we don't infinitely retry to fix this file
                     // maybe mark something in the meta file to indicate that we should try again?
                     println!("Extracting audio");
-                    extract_audio(video_path, Path::new(&cfg.ffmpeg_path))?;
+                    extract_audio(video_path, Path::new(&cfg.ffmpeg_path)).await?;
                     let audio_path = video_path.with_extension("mp3");
                     println!("Transcribing audio");
-                    transcribe_audio(&audio_path, Path::new(&cfg.whispercli_path), &cfg.model_name)?;
+                    transcribe_audio(&audio_path, Path::new(&cfg.whispercli_path), &cfg.model_name).await?;
                     add_key_to_metadata_block(video_path, "source", &cfg.model_name)?;
                 } else {
                     println!("Successfully extracted subtitles and audio, transcript file: {}", txt_path.display());
@@ -61,10 +61,10 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-pub fn add_length_to_metadata(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn add_length_to_metadata(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let meta_path = video_path.with_extension("meta");
     let cfg: crate::AtciConfig = crate::config::load_config()?;
-    add_key_to_metadata_block(video_path, "length", &get_video_length(video_path, Path::new(&cfg.ffprobe_path))?)?;
+    add_key_to_metadata_block(video_path, "length", &get_video_length(video_path, Path::new(&cfg.ffprobe_path)).await?)?;
     println!("Created or updated meta file: {}", meta_path.display());
     
     Ok(())
@@ -117,7 +117,7 @@ pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> R
     Ok(())
 }
 
-pub fn get_video_length(video_path: &Path, ffprobe_path: &Path) -> Result<String, String> {
+pub async fn get_video_length(video_path: &Path, ffprobe_path: &Path) -> Result<String, String> {
     let output = Command::new(ffprobe_path)
         .args(&[
             "-v", "error",
@@ -125,7 +125,7 @@ pub fn get_video_length(video_path: &Path, ffprobe_path: &Path) -> Result<String
             "-of", "default=noprint_wrappers=1:nokey=1",
             video_path.to_str().unwrap()
         ])
-        .output().expect("Failed to execute ffprobe to get video length");
+        .output().await.expect("Failed to execute ffprobe to get video length");
 
 
     if output.status.success() {
@@ -147,7 +147,7 @@ pub fn get_video_length(video_path: &Path, ffprobe_path: &Path) -> Result<String
 
 }
 
-pub fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Result<Vec<usize>, String> {
+pub async fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Result<Vec<usize>, String> {
     let output = Command::new(ffprobe_path)
         .args(&[
             "-v", "error",
@@ -156,7 +156,7 @@ pub fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Result<Ve
             "-of", "csv=p=0",
             video_path.to_str().unwrap()
         ])
-        .output();
+        .output().await;
 
     match output {
         Ok(output) => {
@@ -186,7 +186,7 @@ pub fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Result<Ve
     }
 }
 
-pub fn extract_subtitle_stream(video_path: &Path, stream_index: usize, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn extract_subtitle_stream(video_path: &Path, stream_index: usize, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
     let txt_path = video_path_obj.with_extension("txt");
     
@@ -200,7 +200,7 @@ pub fn extract_subtitle_stream(video_path: &Path, stream_index: usize, ffmpeg_pa
             "-c:s", "srt",
             "-y", temp_srt_path.to_str().unwrap()
         ])
-        .output();
+        .output().await;
     
     match output {
         Ok(output) => {
@@ -225,7 +225,7 @@ pub fn extract_subtitle_stream(video_path: &Path, stream_index: usize, ffmpeg_pa
     }
 }
 
-pub fn has_audio_stream(video_path: &Path, ffprobe_path: &Path) -> Result<bool, String> {
+pub async fn has_audio_stream(video_path: &Path, ffprobe_path: &Path) -> Result<bool, String> {
     let output = Command::new(ffprobe_path)
         .args(&[
             "-v",
@@ -238,7 +238,7 @@ pub fn has_audio_stream(video_path: &Path, ffprobe_path: &Path) -> Result<bool, 
             "csv=p=0",
             video_path.to_str().unwrap()
         ])
-        .output();
+        .output().await;
 
     match output {
         Ok(output) => {
@@ -258,7 +258,7 @@ pub fn has_audio_stream(video_path: &Path, ffprobe_path: &Path) -> Result<bool, 
     }
 }
 
-pub fn extract_audio(video_path: &Path, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn extract_audio(video_path: &Path, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let audio_path = video_path.with_extension("mp3");
     
     let output = Command::new(ffmpeg_path)
@@ -280,7 +280,7 @@ pub fn extract_audio(video_path: &Path, ffmpeg_path: &Path) -> Result<(), Box<dy
                  "-y",
                  audio_path.to_str().unwrap()
         ])
-        .output();
+        .output().await;
 
     match output {
         Ok(output) => {
@@ -295,7 +295,7 @@ pub fn extract_audio(video_path: &Path, ffmpeg_path: &Path) -> Result<(), Box<dy
     }
 }
 
-pub fn transcribe_audio(audio_path: &Path, whisper_path: &Path, model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn transcribe_audio(audio_path: &Path, whisper_path: &Path, model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let model_path = format!("{}/.atci/models/{}.bin", home_dir, model_name);
     let args = vec![
@@ -303,7 +303,7 @@ pub fn transcribe_audio(audio_path: &Path, whisper_path: &Path, model_name: &str
     ];
     let output = Command::new(whisper_path)
         .args(&args)
-        .output();
+        .output().await;
     match output {
         Ok(output) => {
             if output.status.success() {

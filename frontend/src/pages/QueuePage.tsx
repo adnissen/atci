@@ -17,15 +17,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addTimestamp } from '../lib/utils'
 
-type QueueItem = {
-  process_type: string
-  path: string
-  time?: string
-}
 
 type QueueStatus = {
-  queue: QueueItem[]
-  current_processing?: QueueItem | null
+  queue: string[]
+  current_processing?: string | null
   processing_state: string
   age_in_seconds?: number
 }
@@ -73,64 +68,64 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
   }, [])
 
   // Remove item from queue
-  const handleRemoveItem = async (item: QueueItem) => {
-    if (!confirm(`Remove "${item.path.split('/').pop()}" from queue?`)) {
+  const handleRemoveItem = async (item: string) => {
+    if (!confirm(`Remove "${item.split('/').pop()}" from queue?`)) {
       return
     }
 
-    try {
-      const response = await fetch('/api/queue/remove', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          process_type: item.process_type,
-          path: item.path,
-          time: item.time
-        })
-      })
+    // try {
+    //   const response = await fetch('/api/queue/remove', {
+    //     method: 'DELETE',
+    //     headers: {
+    //       'Content-Type': 'application/json',
+    //     },
+    //     body: JSON.stringify({
+    //       process_type: item.process_type,
+    //       path: item.path,
+    //       time: item.time
+    //     })
+    //   })
 
-      if (response.ok) {
-        // Refresh queue status
-        await fetchQueueStatus()
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        alert(`Failed to remove item: ${errorData.message}`)
-      }
-    } catch (err) {
-      console.error('Error removing item:', err)
-      alert('Failed to remove item from queue')
-    }
+    //   if (response.ok) {
+    //     // Refresh queue status
+    //     await fetchQueueStatus()
+    //   } else {
+    //     const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+    //     alert(`Failed to remove item: ${errorData.message}`)
+    //   }
+    // } catch (err) {
+    //   console.error('Error removing item:', err)
+    //   alert('Failed to remove item from queue')
+    // }
   }
 
 
 
   // Cancel processing job from queue table
-  const handleCancelProcessing = async (item: QueueItem) => {
-    if (!confirm(`Cancel processing of "${item.path.split('/').pop()}"?`)) {
+  const handleCancelProcessing = async (item: string) => {
+    if (!confirm(`Cancel processing of "${item.split('/').pop()}"?`)) {
       return
     }
 
-    try {
-      const response = await fetch('/api/queue/cancel-current', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      })
+    // try {
+    //   const response = await fetch('/api/queue/cancel-current', {
+    //     method: 'DELETE',
+    //     headers: {
+    //       'Content-Type': 'application/json',
+    //     }
+    //   })
 
-      if (response.ok) {
-        // Refresh queue status
-        await fetchQueueStatus()
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        alert(`Failed to cancel job: ${errorData.message}`)
-      }
-    } catch (err) {
-      console.error('Error cancelling job:', err)
-      alert('Failed to cancel processing job')
-    }
+    //   if (response.ok) {
+    //     // Refresh queue status
+    //     await fetchQueueStatus()
+    //   } else {
+    //     const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+    //     alert(`Failed to cancel job: ${errorData.message}`)
+    //   }
+    // } catch (err) {
+    //   console.error('Error cancelling job:', err)
+    //   alert('Failed to cancel processing job')
+    // }
   }
 
   // Move item up in queue
@@ -179,33 +174,33 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
   }
 
   // Update queue order
-  const updateQueueOrder = async (newQueue: QueueItem[]) => {
-    try {
-      const response = await fetch('/api/queue/reorder', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          queue: newQueue.map(item => ({
-            process_type: item.process_type,
-            path: item.path,
-            time: item.time
-          }))
-        })
-      })
+  const updateQueueOrder = async (newQueue: string[]) => {
+    // try {
+    //   const response = await fetch('/api/queue/reorder', {
+    //     method: 'POST',
+    //     headers: {
+    //       'Content-Type': 'application/json',
+    //     },
+    //     body: JSON.stringify({
+    //       queue: newQueue.map(item => ({
+    //         process_type: item.process_type,
+    //         path: item.path,
+    //         time: item.time
+    //       }))
+    //     })
+    //   })
 
-      if (response.ok) {
-        // Refresh queue status
-        await fetchQueueStatus()
-      } else {
-        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-        alert(`Failed to reorder queue: ${errorData.message}`)
-      }
-    } catch (err) {
-      console.error('Error reordering queue:', err)
-      alert('Failed to reorder queue')
-    }
+    //   if (response.ok) {
+    //     // Refresh queue status
+    //     await fetchQueueStatus()
+    //   } else {
+    //     const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+    //     alert(`Failed to reorder queue: ${errorData.message}`)
+    //   }
+    // } catch (err) {
+    //   console.error('Error reordering queue:', err)
+    //   alert('Failed to reorder queue')
+    // }
   }
 
   // Get display name for file path
@@ -276,7 +271,7 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
             </TableHeader>
             <TableBody>
               {queueStatus.queue.map((item, index) => (
-                <TableRow key={`${item.path}-${item.process_type}-${index}`}>
+                <TableRow key={`${item}-${index}`}>
                   <TableCell className="font-mono text-sm text-left">
                     {index === 0 ? (
                       <span className="inline-flex items-center gap-2">
@@ -288,8 +283,8 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
                     )}
                   </TableCell>
                   <TableCell className="font-medium text-left">
-                    <div className="max-w-xs truncate" title={item.path}>
-                      {getDisplayName(item.path)}
+                    <div className="max-w-xs truncate" title={item}>
+                      {getDisplayName(item)}
                     </div>
                   </TableCell>
                   <TableCell className="text-left">

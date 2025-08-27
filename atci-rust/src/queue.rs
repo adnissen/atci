@@ -125,14 +125,14 @@ fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async {
         loop {
-           let _ = process_queue_iteration();
+           let _ = process_queue_iteration().await;
            sleep(Duration::from_secs(2)).await;
         }
     });
     Ok(())
 }
 
-pub fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
+pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
     if currently_processing_path.exists() {
@@ -180,14 +180,14 @@ pub fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
         fs::write(&currently_processing_path, video_path_str)?;
         
         if !txt_path.exists() {
-            video_processor::create_transcript(video_path)?;
+            video_processor::create_transcript(video_path).await?;
             if currently_processing_path.exists() {
                 let _ = fs::remove_file(&currently_processing_path);
             }
         }
         
         // we always update the meta file with the latest length
-        video_processor::add_length_to_metadata(video_path)?;
+        video_processor::add_length_to_metadata(video_path).await?;
 
         if currently_processing_path.exists() {
             let _ = fs::remove_file(&currently_processing_path);
