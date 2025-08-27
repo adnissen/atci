@@ -1,5 +1,8 @@
 use std::path::Path;
 use std::process::Command;
+use rocket::serde::Deserialize;
+use rocket::{get, response::status};
+use std::fs;
 
 fn get_video_extensions() -> Vec<&'static str> {
     vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
@@ -40,11 +43,13 @@ pub fn clip(
     font_size: Option<u32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     validate_video_file(path)?;
-    
+
     if end <= start {
         return Err("End time must be greater than start time".into());
     }
+    
     let cfg: crate::AtciConfig = crate::config::load_config()?;
+
     // Create a static filename with start/end times and caption
     let caption_part = match display_text || text.is_some() {
         false => String::new(),
@@ -491,6 +496,79 @@ pub fn check_if_advanced_audio_reencoding_needed(
         Ok((needs_reencoding, layout))
     } else {
         Ok((false, "stereo".to_string()))
+    }
+}
+
+#[derive(Deserialize, rocket::FromForm)]
+pub struct ClipQuery {
+    filename: String,
+    start_time: String,
+    end_time: String,
+    text: Option<String>,
+    display_text: Option<String>,
+    font_size: Option<String>,
+    format: Option<String>,
+}
+
+
+#[get("/api/clip?<query..>")]
+pub fn web_clip(query: ClipQuery) -> Result<Vec<u8>, status::BadRequest<&'static str>> {
+    let start_time = query.start_time.parse::<f64>()
+        .map_err(|_| status::BadRequest("Invalid start_time parameter"))?;
+    
+    let end_time = query.end_time.parse::<f64>()
+        .map_err(|_| status::BadRequest("Invalid end_time parameter"))?;
+    
+    // Check if the video file exists at the given path
+    let video_path = Path::new(&query.filename);
+    if !video_path.exists() {
+        return Err(status::BadRequest("Video file not found"));
+    }
+    
+    // Parse optional parameters
+    let text = query.text.as_deref();
+    let display_text = query.display_text.as_deref() == Some("true");
+    let format = query.format.as_deref().unwrap_or("mp4");
+    let font_size = query.font_size.as_deref().and_then(|s| s.parse().ok());
+
+    // Call the existing clip function
+    match clip(video_path, start_time, end_time, text, display_text, format, font_size) {
+        Ok(()) => {
+            // The clip function prints the output path, but we need to construct it ourselves
+            // to read the file and return its contents
+            let caption_part = match display_text || text.is_some() {
+                false => String::new(),
+                true => {
+                    if let Some(text_content) = text {
+                        let sanitized_text = text_content
+                            .chars()
+                            .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == '-')
+                            .collect::<String>()
+                            .split_whitespace()
+                            .collect::<Vec<&str>>()
+                            .join("_")
+                            .chars()
+                            .take(50)
+                            .collect::<String>();
+                        
+                        format!("_{}", sanitized_text)
+                    } else {
+                        String::new()
+                    }
+                }
+            };
+
+            let start_time_str = format!("{:.1}", start_time);
+            let end_time_str = format!("{:.1}", end_time);
+            let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
+            
+            let temp_clip_name = format!("clip_{}_{}{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format);
+            let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
+            
+            fs::read(&temp_clip_path)
+                .map_err(|_| status::BadRequest("Error reading generated clip"))
+        },
+        Err(_) => Err(status::BadRequest("Error creating clip"))
     }
 }
 

@@ -23758,6 +23758,7 @@ const TranscriptBlock = React.memo(({
   visible,
   text,
   name,
+  fullPath,
   isSearchResult = false,
   lineNumbers,
   onEditSuccess,
@@ -23801,7 +23802,7 @@ const TranscriptBlock = React.memo(({
     return clipEnd >= blockStart && clipEnd <= blockEnd;
   }, [startTime, endTime, clipEnd, clipTranscript, name]);
   const blockWithinClipRange = React.useMemo(() => {
-    if (!startTime || !endTime || clipStart === null || clipStart === void 0 || clipEnd === null || clipEnd === void 0 || clipTranscript !== name) return false;
+    if (!startTime || !endTime || clipStart === null || clipStart === void 0 || clipEnd === null || clipEnd === void 0 || clipTranscript !== fullPath) return false;
     const blockStart = timestampToSeconds(startTime);
     const blockEnd = timestampToSeconds(endTime);
     return blockStart >= clipStart && blockEnd <= clipEnd;
@@ -23969,7 +23970,7 @@ const TranscriptBlock = React.memo(({
               }),
               onClearClip: onClearClip || (() => {
               }),
-              onClipBlock: onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, name) : void 0,
+              onClipBlock: onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, fullPath) : void 0,
               blockStartTime: startTime ? timestampToSeconds(startTime) : void 0,
               blockEndTime: endTime ? timestampToSeconds(endTime) : void 0,
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -24004,7 +24005,7 @@ const TranscriptBlock = React.memo(({
               }),
               onClearClip: onClearClip || (() => {
               }),
-              onClipBlock: onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, name) : void 0,
+              onClipBlock: onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, fullPath) : void 0,
               blockStartTime: startTime ? timestampToSeconds(startTime) : void 0,
               blockEndTime: endTime ? timestampToSeconds(endTime) : void 0,
               children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -24296,6 +24297,7 @@ const TranscriptView = ({
           children: allBlocks.map((item, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx("div", { children: item.type === "block" ? /* @__PURE__ */ jsxRuntimeExports.jsx(
             TranscriptBlock,
             {
+              fullPath,
               startTime: item.data.startTime,
               endTime: item.data.endTime,
               visible: item.data.visible,
@@ -24676,6 +24678,7 @@ function MobileTranscriptList({
         {
           visible: true,
           name: file.base_name,
+          fullPath: file.full_path,
           className: "w-full",
           searchTerm: activeSearchTerm,
           text: transcriptInfo.text,
@@ -26226,7 +26229,7 @@ const ClipPlayer = ({
     if (showTextOverlay) {
       clipParams.set("display_text", "true");
     }
-    return "/clip?" + clipParams.toString();
+    return "/api/clip?" + clipParams.toString();
   };
   const generateFilename = (format) => {
     let filename2 = `${filenameForDownload}_clip_start_${startTime}_end_${endTime}.${format}`;
@@ -27912,6 +27915,7 @@ function HomePage() {
     }
   };
   const handleSetClipStart = (time, transcript) => {
+    console.log("handleSetClipStart", time, transcript);
     if (clipTranscript && clipTranscript !== transcript) {
       setClipStart(time);
       setClipEnd(null);
@@ -27922,6 +27926,7 @@ function HomePage() {
     }
   };
   const handleSetClipEnd = (time, transcript) => {
+    console.log("handleSetClipEnd", time, transcript);
     if (clipTranscript && clipTranscript !== transcript) {
       setClipStart(null);
       setClipEnd(time);
