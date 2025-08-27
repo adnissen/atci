@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem,
 } from '../components/ui/dropdown-menu'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, RefreshCw } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addTimestamp } from '../lib/utils'
@@ -232,9 +232,15 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
     <div className="h-full overflow-auto">
       <div className="p-6 h-full">
         <div className="flex items-center justify-between mb-6">
-        <h2 className="text-lg font-semibold">Queue</h2>
-          <div className="flex items-center gap-4">
-
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-semibold">Queue</h2>
+            <button
+              onClick={fetchQueueStatus}
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
+              title="Refresh queue"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
           </div>
           {onClose && (
             <button

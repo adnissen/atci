@@ -27373,8 +27373,18 @@ function QueuePage({ onClose } = {}) {
   }
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-full overflow-auto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-6 h-full", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between mb-6", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-lg font-semibold", children: "Queue" }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-4" }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-lg font-semibold", children: "Queue" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            onClick: fetchQueueStatus,
+            className: "p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors",
+            title: "Refresh queue",
+            children: /* @__PURE__ */ jsxRuntimeExports.jsx(RefreshCw, { className: "h-4 w-4" })
+          }
+        )
+      ] }),
       onClose && /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "button",
         {
