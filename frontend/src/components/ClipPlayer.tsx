@@ -107,7 +107,7 @@ const ClipPlayer: React.FC<ClipPlayerProps> = ({
       clipParams.set('display_text', 'true')
     }
 
-    return '/clip?' + clipParams.toString()
+    return '/api/clip?' + clipParams.toString()
   }
 
   // Generate filename for downloads

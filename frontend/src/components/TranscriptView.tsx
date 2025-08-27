@@ -221,7 +221,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
 
   const handleExpandAll = () => {
     if (expandAll) {
-      expandAll(fullPath);
+      expandAll(name);
     }
   }
 
@@ -259,6 +259,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                 <div key={item.type === 'block' ? `${(item.data as TranscriptBlockData).originalIndex}-${item.virtualIndex}` : `message-${item.virtualIndex}`}>
                   {item.type === 'block' ? (
                     <TranscriptBlock
+                      fullPath={fullPath}
                       startTime={(item.data as TranscriptBlockData).startTime}
                       endTime={(item.data as TranscriptBlockData).endTime}
                       visible={(item.data as TranscriptBlockData).visible}

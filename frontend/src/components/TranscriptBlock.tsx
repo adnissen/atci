@@ -16,6 +16,7 @@ interface TranscriptBlockProps {
   visible: boolean;
   text: string;
   name: string;
+  fullPath: string;
   isSearchResult?: boolean;
   lineNumbers: number[];
   onEditSuccess?: () => void;
@@ -38,6 +39,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
   visible,
   text,
   name,
+  fullPath,
   isSearchResult = false,
   lineNumbers,
   onEditSuccess,
@@ -89,7 +91,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
 
   // Check if this block falls completely within the clip range
   const blockWithinClipRange = React.useMemo(() => {
-    if (!startTime || !endTime || clipStart === null || clipStart === undefined || clipEnd === null || clipEnd === undefined || clipTranscript !== name) return false;
+    if (!startTime || !endTime || clipStart === null || clipStart === undefined || clipEnd === null || clipEnd === undefined || clipTranscript !== fullPath) return false;
     const blockStart = timestampToSeconds(startTime);
     const blockEnd = timestampToSeconds(endTime);
     return blockStart >= clipStart && blockEnd <= clipEnd;
@@ -313,7 +315,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
                       onSetClipEnd={onSetClipEnd || (() => {})}
                       onClearClip={onClearClip || (() => {})}
 
-                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, name) : undefined}
+                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, fullPath) : undefined}
                       blockStartTime={startTime ? timestampToSeconds(startTime) : undefined}
                       blockEndTime={endTime ? timestampToSeconds(endTime) : undefined}
                     >
@@ -342,7 +344,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
                       onSetClipEnd={onSetClipEnd || (() => {})}
                       onClearClip={onClearClip || (() => {})}
 
-                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, name) : undefined}
+                      onClipBlock={onClipBlock ? (blockStart, blockEnd) => onClipBlock(blockStart, blockEnd, text, fullPath) : undefined}
                       blockStartTime={startTime ? timestampToSeconds(startTime) : undefined}
                       blockEndTime={endTime ? timestampToSeconds(endTime) : undefined}
                     >

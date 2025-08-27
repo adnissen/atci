@@ -117,6 +117,7 @@ export default function MobileTranscriptList({
               <TranscriptView
                 visible={true}
                 name={file.base_name}
+                fullPath={file.full_path}
                 className="w-full"
                 searchTerm={activeSearchTerm}
                 text={transcriptInfo.text}
