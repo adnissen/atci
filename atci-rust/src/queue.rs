@@ -187,7 +187,7 @@ pub fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
         }
         
         // we always update the meta file with the latest length
-        video_processor::create_metafile(video_path)?;
+        video_processor::add_length_to_metadata(video_path)?;
 
         if currently_processing_path.exists() {
             let _ = fs::remove_file(&currently_processing_path);
@@ -236,9 +236,8 @@ pub async fn watch_for_missing_metadata(cfg: &AtciConfig) -> Result<(), Box<dyn 
                                 if let Ok(duration) = now.duration_since(modified) {
                                     if duration.as_secs() >= 3 {
                                         let txt_path = file_path.with_extension("txt");
-                                        let meta_path = file_path.with_extension("meta");
                                         
-                                        if !txt_path.exists() || !meta_path.exists() {
+                                        if !txt_path.exists() {
                                             if let Err(e) = add_to_queue(&file_path.to_string_lossy()) {
                                                 eprintln!("Error adding to queue: {}", e);
                                             }

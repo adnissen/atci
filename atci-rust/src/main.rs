@@ -17,6 +17,7 @@ mod model_manager;
 mod search;
 mod transcripts;
 mod web;
+mod metadata;
 
 #[derive(Embed)]
 #[folder = "assets/"]
@@ -810,7 +811,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Some(TranscriptsCommands::Regenerate { video_path }) => {
                     match transcripts::regenerate(&video_path) {
                         Ok(()) => {
-                            println!("Successfully deleted transcript and meta files for {}", video_path);
+                            println!("Successfully deleted transcript files for {}", video_path);
                         }
                         Err(e) => {
                             eprintln!("Error deleting files: {}", e);

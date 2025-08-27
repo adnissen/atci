@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
 use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
@@ -9,6 +8,7 @@ use rocket::get;
 use crate::web::ApiResponse;
 use crate::config::AtciConfig;
 use rayon::prelude::*;
+use crate::metadata;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VideoInfo {
@@ -30,25 +30,6 @@ fn format_datetime(timestamp: std::time::SystemTime) -> String {
 
 pub fn get_video_extensions() -> Vec<&'static str> {
     vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
-}
-
-fn get_meta_fields(meta_path: &Path, fields: &[&str]) -> Vec<Option<String>> {
-    let mut results = vec![None; fields.len()];
-    if let Ok(content) = fs::read_to_string(meta_path) {
-        for line in content.lines() {
-            for (i, field) in fields.iter().enumerate() {
-                if results[i].is_none() && line.starts_with(&format!("{}:", field)) {
-                    if let Some(value) = line.splitn(2, ':').nth(1) {
-                        results[i] = Some(value.trim().to_string());
-                    }
-                }
-            }
-            if results.iter().all(|r| r.is_some()) {
-                break;
-            }
-        }
-    }
-    results
 }
 
 pub fn get_cache_file_path() -> std::path::PathBuf {
@@ -131,7 +112,6 @@ pub fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<
                 .to_string();
             
             let txt_path = file_path.with_extension("txt");
-            let meta_path = file_path.with_extension("meta");
             
             let transcript_exists = txt_path.exists();
             
@@ -151,9 +131,8 @@ pub fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<
             };
             
             let (length, model) = if transcript_exists {
-                let fields = ["length", "source"];
-                let results = get_meta_fields(&meta_path, &fields);
-                (results[0].clone(), results[1].clone())
+                let metadata = metadata::get_metadata_fields(file_path);
+                (metadata.clone().unwrap().length.clone(), metadata.clone().unwrap().source.clone())
             } else {
                 (None, None)
             };

@@ -15,13 +15,6 @@ fn create_test_video_with_transcript(dir: &TempDir, video_name: &str, content: &
     video_path.to_string_lossy().to_string()
 }
 
-fn create_test_video_with_meta(dir: &TempDir, video_name: &str, txt_content: &str, meta_content: &str) -> String {
-    let video_path = create_test_video_with_transcript(dir, video_name, txt_content);
-    let meta_path = dir.path().join(format!("{}.meta", video_name));
-    fs::write(&meta_path, meta_content).unwrap();
-    video_path
-}
-
 #[test]
 fn test_transcripts_get_success() {
     let temp_dir = TempDir::new().unwrap();
@@ -152,32 +145,7 @@ fn test_transcripts_set_creates_new_file() {
 }
 
 #[test]
-fn test_transcripts_regenerate_success_both_files() {
-    let temp_dir = TempDir::new().unwrap();
-    let txt_content = "Test content";
-    let meta_content = "length: 120\nsource: test";
-    let video_path = create_test_video_with_meta(&temp_dir, "test_video", txt_content, meta_content);
-    
-    let txt_path = temp_dir.path().join("test_video.txt");
-    let meta_path = temp_dir.path().join("test_video.meta");
-    
-    // Verify files exist before deletion
-    assert!(txt_path.exists());
-    assert!(meta_path.exists());
-    
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
-    cmd.args(&["transcripts", "regenerate", &video_path]);
-    
-    cmd.assert()
-        .success()
-        .stdout(str::contains("Successfully deleted transcript and meta files"));
-    
-    // Verify files were deleted
-    assert!(!txt_path.exists());
-    assert!(!meta_path.exists());
-}
 
-#[test]
 fn test_transcripts_regenerate_success_txt_only() {
     let temp_dir = TempDir::new().unwrap();
     let content = "Test content";
@@ -195,7 +163,7 @@ fn test_transcripts_regenerate_success_txt_only() {
     
     cmd.assert()
         .success()
-        .stdout(str::contains("Successfully deleted transcript and meta files"));
+        .stdout(str::contains("Successfully deleted transcript files"));
     
     // Verify txt file was deleted
     assert!(!txt_path.exists());
@@ -211,7 +179,7 @@ fn test_transcripts_regenerate_no_files_to_delete() {
     
     cmd.assert()
         .failure()
-        .stderr(str::contains("No transcript or meta files found to delete"));
+        .stderr(str::contains("No transcript files found to delete"));
 }
 
 #[test]

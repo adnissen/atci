@@ -3,7 +3,10 @@ use std::path::Path;
 use std::process::Command;
 use std::env;
 use regex::Regex;
-use std::io::{BufRead, BufReader};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Write, Read};
+use crate::metadata;
+
 
 pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("Creating transcript for: {}", video_path.display());
@@ -20,7 +23,7 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
                     // Extract subtitles from the first stream
                     match extract_subtitle_stream(video_path, streams[0], Path::new(&cfg.ffmpeg_path)) {
                         Ok(()) => {
-                            write_key_to_meta_file(video_path, "source", "subtitles")?;
+                            add_key_to_metadata_block(video_path, "source", "subtitles")?;
                             println!("Created transcript file: {}", txt_path.display());
                             successfully_extracted_subtitles = true;
                         }
@@ -42,7 +45,7 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
                     let audio_path = video_path.with_extension("mp3");
                     println!("Transcribing audio");
                     transcribe_audio(&audio_path, Path::new(&cfg.whispercli_path), &cfg.model_name)?;
-                    write_key_to_meta_file(video_path, "source", &cfg.model_name)?;
+                    add_key_to_metadata_block(video_path, "source", &cfg.model_name)?;
                 } else {
                     println!("Successfully extracted subtitles and audio, transcript file: {}", txt_path.display());
                 }
@@ -58,45 +61,58 @@ pub fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Er
     Ok(())
 }
 
-pub fn create_metafile(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub fn add_length_to_metadata(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let meta_path = video_path.with_extension("meta");
     let cfg: crate::AtciConfig = crate::config::load_config()?;
-    write_key_to_meta_file(video_path, "length", &get_video_length(video_path, Path::new(&cfg.ffprobe_path))?)?;
+    add_key_to_metadata_block(video_path, "length", &get_video_length(video_path, Path::new(&cfg.ffprobe_path))?)?;
     println!("Created or updated meta file: {}", meta_path.display());
     
     Ok(())
 }
 
-pub fn write_key_to_meta_file(video_path: &Path, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
     let video_path = Path::new(video_path);
-    let meta_path = video_path.with_extension("meta");
+    let txt_path = video_path.with_extension("txt");
     
     // Read existing content
     let mut lines = Vec::new();
     let mut key_found = false;
+    let mut _metadata_section_end = 0;
     
-    if meta_path.exists() {
-        let file = fs::File::open(&meta_path)?;
+    if txt_path.exists() {
+        let file = fs::File::open(&txt_path)?;
         let reader = BufReader::new(file);
         
-        for line in reader.lines() {
+        for (i, line) in reader.lines().enumerate() {
             let line = line?;
-            if line.starts_with(&format!("{}:", key)) {
-                lines.push(format!("{}: {}", key, value));
-                key_found = true;
+            
+            // Check if this line is a metadata line (key: value format at the top)
+            if line.contains(": ") && i < metadata::META_FIELDS.len() {
+                if line.starts_with(&format!("{}:", key)) {
+                    lines.push(format!("{}: {}", key, value));
+                    key_found = true;
+                } else {
+                    lines.push(line);
+                }
+                _metadata_section_end = i + 1;
+            } else if line.trim().is_empty() && i < metadata::META_FIELDS.len() {
+                // Empty line in metadata section
+                lines.push(line);
+                _metadata_section_end = i + 1;
             } else {
+                // This is content, not metadata
                 lines.push(line);
             }
         }
     }
     
-    // If key wasn't found, add it
+    // If key wasn't found, add it at the top
     if !key_found {
-        lines.push(format!("{}: {}", key, value));
+        lines.insert(0, format!("{}: {}", key, value));
     }
     
     // Write back to file
-    fs::write(&meta_path, lines.join("\n"))?;
+    fs::write(&txt_path, lines.join("\n"))?;
     
     Ok(())
 }
@@ -292,6 +308,18 @@ pub fn transcribe_audio(audio_path: &Path, whisper_path: &Path, model_name: &str
         Ok(output) => {
             if output.status.success() {
                 let vtt_path = audio_path.with_extension("mp3.vtt");  //whisper outputs a .vtt file which includes the filename of the input file
+
+                // remove the first line of the vtt file, because it just says "WEBVTT"
+                let buf = {
+                    let r = File::open(&vtt_path)?;
+                    let mut reader = BufReader::new(r);
+                    reader.read_until(b'\n', &mut Vec::new())?;
+                    let mut buf = Vec::new();
+                    reader.read_to_end(&mut buf)?;
+                    buf
+                };
+                File::create(&vtt_path)?.write_all(&buf)?;
+
                 let txt_path = audio_path.with_extension("txt");
                 fs::rename(vtt_path, txt_path)?;
                 fs::remove_file(audio_path)?;
@@ -355,5 +383,6 @@ fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
         })
         .collect();
     
-    Ok(processed_blocks.join("\n\n"))
+    //add a newline to the start of the file so our metadata block has space before the content starts
+    Ok(format!("\n{}", processed_blocks.join("\n\n")))
 }

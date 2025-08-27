@@ -64,7 +64,6 @@ pub fn set(video_path: &str, new_content: &str) -> Result<(), Box<dyn std::error
 pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
     let txt_path = video_path_obj.with_extension("txt");
-    let meta_path = video_path_obj.with_extension("meta");
     
     let mut deleted_files = Vec::new();
     
@@ -73,13 +72,8 @@ pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         deleted_files.push("transcript");
     }
     
-    if meta_path.exists() {
-        fs::remove_file(&meta_path)?;
-        deleted_files.push("meta");
-    }
-    
     if deleted_files.is_empty() {
-        return Err("No transcript or meta files found to delete".into());
+        return Err("No transcript files found to delete".into());
     }
     
     Ok(())
@@ -237,15 +231,12 @@ mod tests {
         let video_path = temp_dir.path().join("test_video.mp4");
         
         create_test_file(temp_dir.path(), "test_video.txt", "transcript content");
-        create_test_file(temp_dir.path(), "test_video.meta", "meta content");
         
         let result = regenerate(video_path.to_str().unwrap());
         assert!(result.is_ok());
         
         let txt_path = temp_dir.path().join("test_video.txt");
-        let meta_path = temp_dir.path().join("test_video.meta");
         assert!(!txt_path.exists());
-        assert!(!meta_path.exists());
     }
 
     #[test]
@@ -263,26 +254,12 @@ mod tests {
     }
 
     #[test]
-    fn test_regenerate_success_with_only_meta() {
-        let temp_dir = TempDir::new().unwrap();
-        let video_path = temp_dir.path().join("test_video.mp4");
-        
-        create_test_file(temp_dir.path(), "test_video.meta", "meta content");
-        
-        let result = regenerate(video_path.to_str().unwrap());
-        assert!(result.is_ok());
-        
-        let meta_path = temp_dir.path().join("test_video.meta");
-        assert!(!meta_path.exists());
-    }
-
-    #[test]
     fn test_regenerate_no_files_to_delete() {
         let temp_dir = TempDir::new().unwrap();
         let video_path = temp_dir.path().join("test_video.mp4");
         
         let result = regenerate(video_path.to_str().unwrap());
         assert!(result.is_err());
-        assert_eq!(result.unwrap_err().to_string(), "No transcript or meta files found to delete");
+        assert_eq!(result.unwrap_err().to_string(), "No transcript files found to delete");
     }
 }
