@@ -23,6 +23,12 @@ pub struct VideoInfo {
     pub model: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CacheData {
+    pub files: Vec<VideoInfo>,
+    pub sources: Vec<String>,
+}
+
 fn format_datetime(timestamp: std::time::SystemTime) -> String {
     let datetime: DateTime<Local> = timestamp.into();
     datetime.format("%Y-%m-%d %H:%M:%S").to_string()
@@ -37,28 +43,37 @@ pub fn get_cache_file_path() -> std::path::PathBuf {
     std::path::Path::new(&home_dir).join(".atci_video_info_cache.msgpack")
 }
 
-pub fn save_video_info_to_cache(video_infos: &[VideoInfo]) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_video_info_to_cache(cache_data: &CacheData) -> Result<(), Box<dyn std::error::Error>> {
     let cache_path = get_cache_file_path();
-    let msgpack_data = rmp_serde::to_vec(video_infos)?;
+    let msgpack_data = rmp_serde::to_vec(cache_data)?;
     fs::write(cache_path, msgpack_data)?;
     Ok(())
 }
 
-pub fn load_video_info_from_cache(filter: Option<&Vec<String>>) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
+pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
     let cache_path = get_cache_file_path();
     
     let msgpack_data = match fs::read(&cache_path) {
         Ok(data) => data,
         Err(_) => {
-            // File doesn't exist, create it with empty array
-            let empty_array: Vec<VideoInfo> = Vec::new();
-            let empty_data = rmp_serde::to_vec(&empty_array)?;
+            // File doesn't exist, create it with empty cache data
+            let empty_cache = CacheData {
+                files: Vec::new(),
+                sources: Vec::new(),
+            };
+            let empty_data = rmp_serde::to_vec(&empty_cache)?;
             fs::write(&cache_path, &empty_data)?;
             empty_data
         }
     };
     
-    let mut video_infos: Vec<VideoInfo> = rmp_serde::from_slice(&msgpack_data)?;
+    let cache_data: CacheData = rmp_serde::from_slice(&msgpack_data)?;
+    Ok(cache_data)
+}
+
+pub fn load_video_info_from_cache(filter: Option<&Vec<String>>) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
+    let cache_data = load_cache_data()?;
+    let mut video_infos = cache_data.files;
     
     if let Some(filters) = filter {
         if !filters.is_empty() {
@@ -72,11 +87,7 @@ pub fn load_video_info_from_cache(filter: Option<&Vec<String>>) -> Result<Vec<Vi
     Ok(video_infos)
 }
 
-pub fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
-    if cfg.watch_directories.is_empty() {
-        return Ok(Vec::new());
-    }
-
+pub fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<CacheData, Box<dyn std::error::Error>> {
     let mut builder = GlobSetBuilder::new();
     let video_extensions = get_video_extensions();
     
@@ -168,7 +179,25 @@ pub fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<Vec<VideoInfo>, Box<
         .collect();
     
     video_infos.sort_by(|a, b| b.created_at.cmp(&a.created_at));
-    Ok(video_infos)
+    
+    // Calculate unique sources
+    let sources: std::collections::HashSet<String> = video_infos
+        .par_iter()
+        .filter_map(|info| {
+            info.model.as_ref().filter(|m| !m.is_empty()).cloned()
+        })
+        .collect();
+    
+    let mut unique_sources: Vec<String> = sources.into_iter().collect();
+    unique_sources.sort();
+    
+    // Save to cache with sources
+    let cache_data = CacheData {
+        files: video_infos.clone(),
+        sources: unique_sources,
+    };
+    
+    Ok(cache_data)
 }
 
 #[get("/api/files?<filter>")]
@@ -182,28 +211,8 @@ pub fn web_get_files(filter: Option<String>) -> Json<ApiResponse<serde_json::Val
 
 #[get("/api/sources")]
 pub fn web_get_sources() -> Json<ApiResponse<serde_json::Value>> {
-    let cfg = match crate::config::load_config() {
-        Ok(config) => config,
-        Err(e) => return Json(ApiResponse::error(format!("Failed to load config: {}", e))),
-    };
-    
-    match get_video_info_from_disk(&cfg) {
-        Ok(video_infos) => {
-            let mut sources: std::collections::HashSet<String> = std::collections::HashSet::new();
-            
-            for info in video_infos {
-                if let Some(model) = info.model {
-                    if !model.is_empty() {
-                        sources.insert(model);
-                    }
-                }
-            }
-            
-            let mut unique_sources: Vec<String> = sources.into_iter().collect();
-            unique_sources.sort();
-            
-            Json(ApiResponse::success(serde_json::to_value(unique_sources).unwrap_or_default()))
-        },
-        Err(e) => Json(ApiResponse::error(format!("Failed to get video info from disk: {}", e))),
+    match load_cache_data() {
+        Ok(cache_data) => Json(ApiResponse::success(serde_json::to_value(cache_data.sources).unwrap_or_default())),
+        Err(e) => Json(ApiResponse::error(format!("Failed to load cache data: {}", e))),
     }
 }
