@@ -744,9 +744,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::Search { query, pretty, filter }) => {
             let search_query = query.join(" ");
-            let cfg: AtciConfig = config::load_config()?;
             
-            match search::search(&search_query, &cfg, filter.as_ref()) {
+            match search::search(&search_query, filter.as_ref()) {
                 Ok(results) => {
                     if pretty {
                         for result in results {

@@ -1,11 +1,10 @@
 use std::fs;
 use walkdir::WalkDir;
 use serde::Serialize;
-use crate::config::AtciConfig;
+use crate::{config, config::AtciConfig};
 use rayon::prelude::*;
-use std::sync::Arc;
 use rocket::serde::json::Json;
-use rocket::{get, State};
+use rocket::get;
 use crate::web::ApiResponse;
 
 #[derive(Debug, Serialize)]
@@ -21,7 +20,8 @@ pub struct SearchResult {
     pub matches: Vec<SearchMatch>,
 }
 
-pub fn search(query: &str, cfg: &AtciConfig, filter: Option<&Vec<String>>) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
+pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
+    let cfg: AtciConfig = config::load_config()?;
     let video_extensions = crate::files::get_video_extensions();
     
     let filtered_directories = if let Some(filters) = filter {
@@ -131,8 +131,8 @@ pub fn search(query: &str, cfg: &AtciConfig, filter: Option<&Vec<String>>) -> Re
 }
 
 #[get("/api/search?<query>&<filter>")]
-pub fn web_search_transcripts(query: String, filter: Option<Vec<String>>, config: &State<Arc<AtciConfig>>) -> Json<ApiResponse<serde_json::Value>> {
-    match search(&query, config, filter.as_ref()) {
+pub fn web_search_transcripts(query: String, filter: Option<Vec<String>>) -> Json<ApiResponse<serde_json::Value>> {
+    match search(&query, filter.as_ref()) {
         Ok(results) => Json(ApiResponse::success(serde_json::to_value(results).unwrap_or_default())),
         Err(e) => Json(ApiResponse::error(format!("Search failed: {}", e))),
     }
