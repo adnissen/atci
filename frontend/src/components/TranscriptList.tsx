@@ -209,16 +209,6 @@ export default function TranscriptList({
     fetchSources()
   }, [setAvailableSources])
 
-  // Initial refresh when component mounts and filters are ready
-  useEffect(() => {
-    const hasInitializedWatchDirs = availableWatchDirs.length === 0 || selectedWatchDirs.length > 0
-    const hasInitializedSources = availableSources.length === 0 || selectedSources.length > 0
-    
-    if (hasInitializedWatchDirs && hasInitializedSources) {
-      refreshFiles()
-    }
-  }, [availableWatchDirs, availableSources, selectedWatchDirs, selectedSources])
-
   // Set up ResizeObserver to track left pane width
   useEffect(() => {
     if (!leftPaneRef.current) return
@@ -242,15 +232,10 @@ export default function TranscriptList({
     fetchExpandedTranscripts()
   }, [expandedFiles])
 
-  // Refresh files when selectedWatchDirs changes
+  // Refresh files when selectedWatchDirs or sources changes
   useEffect(() => {
     refreshFiles()
-  }, [selectedWatchDirs])
-
-  // Refresh files when selectedSources changes
-  useEffect(() => {
-    refreshFiles()
-  }, [selectedSources])
+  }, [selectedWatchDirs, selectedSources])
 
   const refreshFiles = async () => {
     try {
