@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::time::Duration;
 use walkdir::WalkDir;
+use fs2::FileExt;
 use crate::config::AtciConfig;
 use crate::video_processor;
 use tokio::time::sleep;
@@ -54,7 +55,10 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
         .create(true)
         .append(true)
         .open(queue_path)?;
+    
+    file.lock_exclusive()?;
     writeln!(file, "{}", path)?;
+    file.unlock()?;
     Ok(())
 }
 
@@ -106,6 +110,13 @@ fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&queue_path)?;
+    
+    file.lock_exclusive()?;
+    
     let content = fs::read_to_string(&queue_path)?;
     let lines: Vec<&str> = content.lines().collect();
     
@@ -119,7 +130,8 @@ fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
             fs::write(&queue_path, "")?;
         }
     }
-    println!("Removed first line from queue");
+    
+    file.unlock()?;
     Ok(())
 }
 
