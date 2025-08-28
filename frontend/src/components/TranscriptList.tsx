@@ -589,13 +589,13 @@ export default function TranscriptList({
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(replaceTranscriptFilename)}/replace`), {
+      const response = await fetch(addTimestamp(`/api/transcripts/replace`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: newText })
+        body: JSON.stringify({ video_path: replaceTranscriptFilename, new_content: newText })
       })
       
       if (response.ok) {
@@ -1369,9 +1369,7 @@ export default function TranscriptList({
         isOpen={isReplaceDialogOpen}
         filename={replaceTranscriptFilename}
         transcriptInitialValue={replaceTranscriptInitialContent}
-        metaInitialValue=""
         onTranscriptSave={handleReplaceTranscript}
-        onMetaSave={() => {}}
         onCancel={handleReplaceCancel}
         isTranscriptSubmitting={isReplacingTranscript}
       />

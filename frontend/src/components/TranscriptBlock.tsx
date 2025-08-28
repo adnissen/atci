@@ -167,13 +167,13 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(name)}/replace`), {
+      const response = await fetch(addTimestamp(`/api/transcripts/replace`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: newText }),
+        body: JSON.stringify({ video_path: name, new_content: newText }),
       });
 
       if (response.ok) {
@@ -215,13 +215,13 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(name)}/replace`), {
+      const response = await fetch(addTimestamp(`/api/transcripts/replace`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text: newText }),
+        body: JSON.stringify({ video_path: fullPath, new_content: newText }),
       });
 
       if (response.ok) {
@@ -471,11 +471,9 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
       {/* Edit Dialog for Content */}
       <DualEditDialog
         isOpen={isEditing}
-        filename={name}
+        filename={fullPath}
         transcriptInitialValue={fullTranscript}
-        metaInitialValue=""
         onTranscriptSave={handleSaveEdit}
-        onMetaSave={() => {}}
         onCancel={handleCancelEdit}
         isTranscriptSubmitting={isSubmitting}
         transcriptTargetLineNumber={contentLineNumber}
@@ -484,11 +482,9 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
       {/* Edit Dialog for Timestamp */}
       <DualEditDialog
         isOpen={isEditingTimestamp}
-        filename={name}
+        filename={fullPath}
         transcriptInitialValue={fullTranscript}
-        metaInitialValue=""
         onTranscriptSave={handleSaveTimestampEdit}
-        onMetaSave={() => {}}
         onCancel={handleCancelTimestampEdit}
         isTranscriptSubmitting={isSubmitting}
         transcriptTargetLineNumber={timestampLineNumber}
