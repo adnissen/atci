@@ -1,8 +1,9 @@
 use std::fs;
 use std::path::Path;
-use rocket::serde::json::Json;
-use rocket::get;
+use rocket::serde::{Deserialize, json::Json};
+use rocket::{get, post};
 use crate::web::ApiResponse;
+use crate::config::load_config_or_default;
 
 pub fn get_transcript(video_path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
@@ -55,8 +56,34 @@ pub fn set_line(video_path: &str, line_number: usize, new_content: &str) -> Resu
 
 pub fn set(video_path: &str, new_content: &str) -> Result<(), Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
-    let txt_path = video_path_obj.with_extension("txt");
     
+    // Validate that the video path exists
+    if !video_path_obj.exists() {
+        return Err(format!("Video file does not exist: {}", video_path_obj.display()).into());
+    }
+    
+    // Load config to get watch directories
+    let config = load_config_or_default();
+    
+    // Check if the video path is within any of the watch directories
+    let video_canonical = video_path_obj.canonicalize()
+        .map_err(|e| format!("Cannot canonicalize video path {}: {}", video_path_obj.display(), e))?;
+    
+    let mut is_in_watch_dir = false;
+    for watch_dir in &config.watch_directories {
+        if let Ok(watch_canonical) = Path::new(watch_dir).canonicalize() {
+            if video_canonical.starts_with(&watch_canonical) {
+                is_in_watch_dir = true;
+                break;
+            }
+        }
+    }
+    
+    if !is_in_watch_dir {
+        return Err(format!("Video path {} is not within any watch directory", video_path_obj.display()).into());
+    }
+    
+    let txt_path = video_path_obj.with_extension("txt");
     fs::write(txt_path, new_content)?;
     Ok(())
 }
@@ -79,13 +106,10 @@ pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-#[get("/api/transcripts/<path..>")]
-pub fn web_get_transcript(path: std::path::PathBuf) -> Json<ApiResponse<String>> {
-    let path_str = path.to_string_lossy().to_string();
-    match get_transcript(&path_str) {
-        Ok(content) => Json(ApiResponse::success(content)),
-        Err(e) => Json(ApiResponse::error(format!("Failed to get transcript: {}", e))),
-    }
+#[derive(Deserialize)]
+pub struct ReplaceTranscriptRequest {
+    pub video_path: String,
+    pub new_content: String,
 }
 
 #[get("/api/transcripts?<video_path>")]
@@ -93,6 +117,14 @@ pub fn web_get_transcript_by_path(video_path: String) -> Json<ApiResponse<String
     match get_transcript(&video_path) {
         Ok(content) => Json(ApiResponse::success(content)),
         Err(e) => Json(ApiResponse::error(format!("Failed to get transcript: {}", e))),
+    }
+}
+
+#[post("/api/transcripts/replace", data = "<request>")]
+pub fn web_replace_transcript(request: Json<ReplaceTranscriptRequest>) -> Json<ApiResponse<String>> {
+    match set(&request.video_path, &request.new_content) {
+        Ok(_) => Json(ApiResponse::success("Transcript replaced successfully".to_string())),
+        Err(e) => Json(ApiResponse::error(format!("Failed to replace transcript: {}", e))),
     }
 }
 
@@ -202,11 +234,24 @@ mod tests {
         let video_path = temp_dir.path().join("test_video.mp4");
         let new_content = "Completely new content\nWith multiple lines";
         
+        create_test_file(temp_dir.path(), "test_video.mp4", "fake video content");
+        
+        // Mock config by setting environment variable
+        std::env::set_var("ATCI_CONFIG_PATH", temp_dir.path().join("config.toml"));
+        let config = crate::config::AtciConfig {
+            watch_directories: vec![temp_dir.path().to_string_lossy().to_string()],
+            ..Default::default()
+        };
+        crate::config::store_config(&config).unwrap();
+        
         let result = set(video_path.to_str().unwrap(), new_content);
         assert!(result.is_ok());
         
         let saved_content = get_transcript(video_path.to_str().unwrap()).unwrap();
         assert_eq!(saved_content, new_content);
+        
+        // Cleanup
+        std::env::remove_var("ATCI_CONFIG_PATH");
     }
 
     #[test]
@@ -217,12 +262,60 @@ mod tests {
         let new_content = "New content";
         
         create_test_file(temp_dir.path(), "test_video.txt", original_content);
+        create_test_file(temp_dir.path(), "test_video.mp4", "fake video content");
+        
+        // Mock config by setting environment variable
+        std::env::set_var("ATCI_CONFIG_PATH", temp_dir.path().join("config.toml"));
+        let config = crate::config::AtciConfig {
+            watch_directories: vec![temp_dir.path().to_string_lossy().to_string()],
+            ..Default::default()
+        };
+        crate::config::store_config(&config).unwrap();
         
         let result = set(video_path.to_str().unwrap(), new_content);
         assert!(result.is_ok());
         
         let saved_content = get_transcript(video_path.to_str().unwrap()).unwrap();
         assert_eq!(saved_content, new_content);
+        
+        // Cleanup
+        std::env::remove_var("ATCI_CONFIG_PATH");
+    }
+
+    #[test]
+    fn test_set_video_file_not_exists() {
+        let temp_dir = TempDir::new().unwrap();
+        let video_path = temp_dir.path().join("nonexistent_video.mp4");
+        let new_content = "New content";
+        
+        let result = set(video_path.to_str().unwrap(), new_content);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Video file does not exist"));
+    }
+
+    #[test]
+    fn test_set_path_not_in_watch_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let other_dir = TempDir::new().unwrap();
+        let video_path = other_dir.path().join("test_video.mp4");
+        let new_content = "New content";
+        
+        create_test_file(other_dir.path(), "test_video.mp4", "fake video content");
+        
+        // Mock config with different watch directory
+        std::env::set_var("ATCI_CONFIG_PATH", temp_dir.path().join("config.toml"));
+        let config = crate::config::AtciConfig {
+            watch_directories: vec![temp_dir.path().to_string_lossy().to_string()],
+            ..Default::default()
+        };
+        crate::config::store_config(&config).unwrap();
+        
+        let result = set(video_path.to_str().unwrap(), new_content);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("is not within any watch directory"));
+        
+        // Cleanup
+        std::env::remove_var("ATCI_CONFIG_PATH");
     }
 
     #[test]

@@ -23525,22 +23525,16 @@ const DualEditDialog = ({
   isOpen,
   filename,
   transcriptInitialValue,
-  metaInitialValue,
   onTranscriptSave,
-  onMetaSave,
   onCancel,
   isTranscriptSubmitting,
   transcriptTargetLineNumber
 }) => {
-  const [metaContent, setMetaContent] = React.useState(metaInitialValue);
   const [transcriptContent, setTranscriptContent] = React.useState(transcriptInitialValue);
-  const [isLoadingMeta, setIsLoadingMeta] = React.useState(false);
-  const [isSavingMeta, setIsSavingMeta] = React.useState(false);
   const transcriptTextareaRef = React.useRef(null);
   React.useEffect(() => {
     if (isOpen) {
       setTranscriptContent(transcriptInitialValue);
-      fetchMetaContent();
     }
   }, [isOpen, transcriptInitialValue]);
   React.useEffect(() => {
@@ -23563,51 +23557,6 @@ const DualEditDialog = ({
       }, 100);
     }
   }, [isOpen, transcriptTargetLineNumber]);
-  const fetchMetaContent = async () => {
-    if (!filename) return;
-    setIsLoadingMeta(true);
-    try {
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}/meta`));
-      if (response.ok) {
-        const data = await response.json();
-        setMetaContent(data.content || "");
-      } else {
-        console.error("Failed to fetch meta content");
-        setMetaContent("");
-      }
-    } catch (error) {
-      console.error("Error fetching meta content:", error);
-      setMetaContent("");
-    } finally {
-      setIsLoadingMeta(false);
-    }
-  };
-  const handleMetaSave = async () => {
-    var _a;
-    setIsSavingMeta(true);
-    try {
-      const csrfToken = (_a = document.querySelector('meta[name="csrf-token"]')) == null ? void 0 : _a.getAttribute("content");
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(filename)}/meta`), {
-        method: "POST",
-        headers: {
-          "X-CSRF-Token": csrfToken || "",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ content: metaContent })
-      });
-      if (response.ok) {
-        onMetaSave(metaContent);
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.error || "Failed to update meta file"}`);
-      }
-    } catch (error) {
-      console.error("Error updating meta file:", error);
-      alert("Error: Failed to update meta file. Please try again.");
-    } finally {
-      setIsSavingMeta(false);
-    }
-  };
   const handleTranscriptSave = () => {
     onTranscriptSave(transcriptContent);
   };
@@ -23615,7 +23564,7 @@ const DualEditDialog = ({
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "bg-card border border-border rounded-lg max-w-5xl w-full mx-4 max-h-[90vh] flex flex-col", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between items-center p-6 border-b border-border", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsxs("h3", { className: "text-lg font-semibold text-foreground", children: [
-        "Edit Files - ",
+        "Edit Transcript - ",
         filename
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -23628,57 +23577,31 @@ const DualEditDialog = ({
         }
       )
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex-1 p-6 overflow-y-auto", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-6", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between items-center mb-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "text-md font-medium text-foreground", children: "Transcript (.txt)" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "button",
-            {
-              onClick: handleTranscriptSave,
-              disabled: isTranscriptSubmitting,
-              className: "px-3 py-1.5 text-xs font-normal text-primary-foreground bg-primary border border-transparent rounded hover:bg-primary/90 disabled:opacity-50 transition-colors",
-              children: isTranscriptSubmitting ? "Saving..." : "Save Transcript"
-            }
-          )
-        ] }),
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex-1 p-6 overflow-y-auto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-6", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between items-center mb-2", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "text-md font-medium text-foreground", children: "Transcript (.txt)" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "textarea",
+          "button",
           {
-            ref: transcriptTextareaRef,
-            value: transcriptContent,
-            onChange: (e) => setTranscriptContent(e.target.value),
-            className: "w-full h-64 p-3 border border-input bg-background text-foreground rounded-md font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-            placeholder: "Enter transcript content...",
-            readOnly: isTranscriptSubmitting
+            onClick: handleTranscriptSave,
+            disabled: isTranscriptSubmitting,
+            className: "px-3 py-1.5 text-xs font-normal text-primary-foreground bg-primary border border-transparent rounded hover:bg-primary/90 disabled:opacity-50 transition-colors",
+            children: isTranscriptSubmitting ? "Saving..." : "Save Transcript"
           }
         )
       ] }),
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mb-4", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex justify-between items-center mb-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("h4", { className: "text-md font-medium text-foreground", children: "Meta File (.meta)" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "button",
-            {
-              onClick: handleMetaSave,
-              disabled: isSavingMeta || isLoadingMeta,
-              className: "px-3 py-1.5 text-xs font-normal text-primary-foreground bg-primary border border-transparent rounded hover:bg-primary/90 disabled:opacity-50 transition-colors",
-              children: isSavingMeta ? "Saving..." : "Save Meta"
-            }
-          )
-        ] }),
-        isLoadingMeta ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-full h-32 p-3 border border-input bg-background rounded-md flex items-center justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-muted-foreground", children: "Loading meta file..." }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "textarea",
-          {
-            value: metaContent,
-            onChange: (e) => setMetaContent(e.target.value),
-            className: "w-full h-32 p-3 border border-input bg-background text-foreground rounded-md font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-            placeholder: "Enter meta file content (key: value format)...",
-            readOnly: isSavingMeta
-          }
-        )
-      ] })
-    ] })
+      /* @__PURE__ */ jsxRuntimeExports.jsx(
+        "textarea",
+        {
+          ref: transcriptTextareaRef,
+          value: transcriptContent,
+          onChange: (e) => setTranscriptContent(e.target.value),
+          className: "w-full h-64 p-3 border border-input bg-background text-foreground rounded-md font-mono text-sm leading-6 focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
+          placeholder: "Enter transcript content...",
+          readOnly: isTranscriptSubmitting
+        }
+      )
+    ] }) })
   ] }) });
 };
 const ClipMenu = ({
@@ -23854,13 +23777,13 @@ const TranscriptBlock = React.memo(({
     setIsSubmitting(true);
     try {
       const csrfToken = (_a = document.querySelector('meta[name="csrf-token"]')) == null ? void 0 : _a.getAttribute("content");
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(name)}/replace`), {
+      const response = await fetch(addTimestamp(`/api/transcripts/replace`), {
         method: "POST",
         headers: {
           "X-CSRF-Token": csrfToken || "",
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ text: newText })
+        body: JSON.stringify({ video_path: name, new_content: newText })
       });
       if (response.ok) {
         if (onEditSuccess) {
@@ -23893,13 +23816,13 @@ const TranscriptBlock = React.memo(({
     setIsSubmitting(true);
     try {
       const csrfToken = (_a = document.querySelector('meta[name="csrf-token"]')) == null ? void 0 : _a.getAttribute("content");
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(name)}/replace`), {
+      const response = await fetch(addTimestamp(`/api/transcripts/replace`), {
         method: "POST",
         headers: {
           "X-CSRF-Token": csrfToken || "",
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ text: newText })
+        body: JSON.stringify({ video_path: fullPath, new_content: newText })
       });
       if (response.ok) {
         if (onEditSuccess) {
@@ -24113,12 +24036,9 @@ const TranscriptBlock = React.memo(({
       DualEditDialog,
       {
         isOpen: isEditing,
-        filename: name,
+        filename: fullPath,
         transcriptInitialValue: fullTranscript,
-        metaInitialValue: "",
         onTranscriptSave: handleSaveEdit,
-        onMetaSave: () => {
-        },
         onCancel: handleCancelEdit,
         isTranscriptSubmitting: isSubmitting,
         transcriptTargetLineNumber: contentLineNumber
@@ -24128,12 +24048,9 @@ const TranscriptBlock = React.memo(({
       DualEditDialog,
       {
         isOpen: isEditingTimestamp,
-        filename: name,
+        filename: fullPath,
         transcriptInitialValue: fullTranscript,
-        metaInitialValue: "",
         onTranscriptSave: handleSaveTimestampEdit,
-        onMetaSave: () => {
-        },
         onCancel: handleCancelTimestampEdit,
         isTranscriptSubmitting: isSubmitting,
         transcriptTargetLineNumber: timestampLineNumber
@@ -25086,13 +25003,13 @@ function TranscriptList({
     setIsReplacingTranscript(true);
     try {
       const csrfToken = (_a2 = document.querySelector('meta[name="csrf-token"]')) == null ? void 0 : _a2.getAttribute("content");
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(replaceTranscriptFilename)}/replace`), {
+      const response = await fetch(addTimestamp(`/api/transcripts/replace`), {
         method: "POST",
         headers: {
           "X-CSRF-Token": csrfToken || "",
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ text: newText })
+        body: JSON.stringify({ video_path: replaceTranscriptFilename, new_content: newText })
       });
       if (response.ok) {
         setIsReplaceDialogOpen(false);
@@ -25729,10 +25646,7 @@ function TranscriptList({
         isOpen: isReplaceDialogOpen,
         filename: replaceTranscriptFilename,
         transcriptInitialValue: replaceTranscriptInitialContent,
-        metaInitialValue: "",
         onTranscriptSave: handleReplaceTranscript,
-        onMetaSave: () => {
-        },
         onCancel: handleReplaceCancel,
         isTranscriptSubmitting: isReplacingTranscript
       }
