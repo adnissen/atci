@@ -24802,13 +24802,6 @@ function TranscriptList({
     fetchSources();
   }, [setAvailableSources]);
   reactExports.useEffect(() => {
-    const hasInitializedWatchDirs = availableWatchDirs.length === 0 || selectedWatchDirs.length > 0;
-    const hasInitializedSources = availableSources.length === 0 || selectedSources.length > 0;
-    if (hasInitializedWatchDirs && hasInitializedSources) {
-      refreshFiles();
-    }
-  }, [availableWatchDirs, availableSources, selectedWatchDirs, selectedSources]);
-  reactExports.useEffect(() => {
     if (!leftPaneRef.current) return;
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -24826,10 +24819,7 @@ function TranscriptList({
   }, [expandedFiles]);
   reactExports.useEffect(() => {
     refreshFiles();
-  }, [selectedWatchDirs]);
-  reactExports.useEffect(() => {
-    refreshFiles();
-  }, [selectedSources]);
+  }, [selectedWatchDirs, selectedSources]);
   const refreshFiles = async () => {
     try {
       const params = new URLSearchParams();
