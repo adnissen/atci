@@ -10,6 +10,7 @@ use tokio::time::sleep;
 use rocket::serde::json::Json;
 use rocket::get;
 use crate::web::ApiResponse;
+use crate::config;
 
 #[get("/api/queue")]
 pub fn web_get_queue() -> Json<ApiResponse<serde_json::Value>> {
@@ -200,18 +201,18 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
     Ok(false)
 }
 
-pub async fn watch_for_missing_metadata(cfg: &AtciConfig) -> Result<(), Box<dyn std::error::Error>> {
-    let cfg_clone = cfg.clone();
+pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Error>> {
+    let cfg: AtciConfig = config::load_config()?;
     tokio::spawn(async move {
         let video_extensions = crate::files::get_video_extensions();
         
-        if cfg_clone.watch_directories.is_empty() {
+        if cfg.watch_directories.is_empty() {
             eprintln!("No watch directories configured");
             return;
         }
         
         loop {
-            for watch_directory in &cfg_clone.watch_directories {
+            for watch_directory in &cfg.watch_directories {
                 for entry in WalkDir::new(watch_directory).into_iter().filter_map(|e| e.ok()) {
                     let file_path = entry.path();
 

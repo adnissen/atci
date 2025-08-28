@@ -676,7 +676,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
-                if let Err(e) = queue::watch_for_missing_metadata(&cfg).await {
+                if let Err(e) = queue::watch_for_missing_metadata().await {
                     eprintln!("Error starting metadata watcher: {}", e);
                     std::process::exit(1);
                 }
@@ -837,7 +837,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
-                if let Err(e) = queue::watch_for_missing_metadata(&cfg).await {
+                if let Err(e) = queue::watch_for_missing_metadata().await {
                     eprintln!("Error starting metadata watcher: {}", e);
                     std::process::exit(1);
                 }
@@ -847,7 +847,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(1);
                 }
 
-                if let Err(e) = web::launch_server(&host, port, cfg).await {
+                if let Err(e) = web::launch_server(&host, port).await {
                     eprintln!("Error starting web server: {}", e);
                     std::process::exit(1);
                 }

@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use rocket::serde::json::Json;
-use rocket::{get, post, State};
-use std::sync::Arc;
+use rocket::{get, post};
 use crate::web::ApiResponse;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -59,8 +58,8 @@ pub fn store_config(config: &AtciConfig) -> Result<(), confy::ConfyError> {
 }
 
 #[get("/api/config")]
-pub fn web_get_config(config_state: &State<Arc<AtciConfig>>) -> Json<ApiResponse<ConfigResponse>> {
-    let config = config_state.inner().as_ref().clone();
+pub fn web_get_config() -> Json<ApiResponse<ConfigResponse>> {
+    let config = load_config().unwrap_or_default();
     
     let is_complete = !config.ffmpeg_path.is_empty() 
         && !config.ffprobe_path.is_empty()

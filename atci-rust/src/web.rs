@@ -2,8 +2,6 @@ use rocket::serde::json::Json;
 use rocket::serde::Serialize;
 use rocket::{get, routes, response::content};
 use rocket::response::status::NotFound;
-use std::sync::Arc;
-use crate::config::AtciConfig;
 use crate::{config, files, queue, search, transcripts, clipper, tools_manager, model_manager, Asset};
 
 #[derive(Serialize)]
@@ -75,13 +73,12 @@ fn assets(file: std::path::PathBuf) -> Result<(rocket::http::ContentType, std::b
 }
 
 
-pub async fn launch_server(host: &str, port: u16, config: AtciConfig) -> Result<(), rocket::Error> {
+pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
     let figment = rocket::Config::figment()
         .merge(("address", host))
         .merge(("port", port));
 
     rocket::custom(figment)
-        .manage(Arc::new(config))
         .mount("/", routes![
             index,
             health,
