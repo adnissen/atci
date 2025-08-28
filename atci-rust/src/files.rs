@@ -34,20 +34,31 @@ pub fn get_video_extensions() -> Vec<&'static str> {
 
 pub fn get_cache_file_path() -> std::path::PathBuf {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    std::path::Path::new(&home_dir).join(".atci_video_info_cache.json")
+    std::path::Path::new(&home_dir).join(".atci_video_info_cache.msgpack")
 }
 
 pub fn save_video_info_to_cache(video_infos: &[VideoInfo]) -> Result<(), Box<dyn std::error::Error>> {
     let cache_path = get_cache_file_path();
-    let json_data = serde_json::to_string_pretty(video_infos)?;
-    fs::write(cache_path, json_data)?;
+    let msgpack_data = rmp_serde::to_vec(video_infos)?;
+    fs::write(cache_path, msgpack_data)?;
     Ok(())
 }
 
 pub fn load_video_info_from_cache(filter: Option<&Vec<String>>) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
     let cache_path = get_cache_file_path();
-    let json_data = fs::read_to_string(cache_path)?;
-    let mut video_infos: Vec<VideoInfo> = serde_json::from_str(&json_data)?;
+    
+    let msgpack_data = match fs::read(&cache_path) {
+        Ok(data) => data,
+        Err(_) => {
+            // File doesn't exist, create it with empty array
+            let empty_array: Vec<VideoInfo> = Vec::new();
+            let empty_data = rmp_serde::to_vec(&empty_array)?;
+            fs::write(&cache_path, &empty_data)?;
+            empty_data
+        }
+    };
+    
+    let mut video_infos: Vec<VideoInfo> = rmp_serde::from_slice(&msgpack_data)?;
     
     if let Some(filters) = filter {
         if !filters.is_empty() {
