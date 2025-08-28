@@ -24942,12 +24942,13 @@ function TranscriptList({
     setRegeneratingFiles((prev) => new Set(prev).add(filename));
     const csrfToken = (_a2 = document.querySelector('meta[name="csrf-token"]')) == null ? void 0 : _a2.getAttribute("content");
     try {
-      const response = await fetch(addTimestamp(`/regenerate/${encodeURIComponent(filename)}`), {
+      const response = await fetch(addTimestamp(`/api/transcripts/regenerate`), {
         method: "POST",
         headers: {
           "X-CSRF-Token": csrfToken || "",
           "Content-Type": "application/json"
-        }
+        },
+        body: JSON.stringify({ video_path: filename })
       });
       if (!response.ok) {
         setRegeneratingFiles((prev) => {
@@ -25192,12 +25193,13 @@ function TranscriptList({
       let errorCount = 0;
       const results = await Promise.allSettled(
         displayedFiles.map(async (file) => {
-          const response = await fetch(addTimestamp(`/api/regenerate/${encodeURIComponent(file.full_path)}`), {
+          const response = await fetch(addTimestamp(`/api/transcripts/regenerate`), {
             method: "POST",
             headers: {
               "X-CSRF-Token": csrfToken || "",
               "Content-Type": "application/json"
-            }
+            },
+            body: JSON.stringify({ video_path: file.full_path })
           });
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
@@ -27200,8 +27202,9 @@ function QueuePage({ onClose } = {}) {
   const navigate = useNavigate();
   const [queueStatus, setQueueStatus] = reactExports.useState({
     queue: [],
-    current_processing: null,
-    processing_state: "idle"
+    currently_processing: null,
+    processing_state: "idle",
+    age_in_seconds: 0
   });
   const [isLoading, setIsLoading] = reactExports.useState(true);
   const [error, setError] = reactExports.useState(null);
@@ -27228,6 +27231,10 @@ function QueuePage({ onClose } = {}) {
   };
   reactExports.useEffect(() => {
     fetchQueueStatus();
+    const interval = setInterval(() => {
+      fetchQueueStatus();
+    }, 1e3);
+    return () => clearInterval(interval);
   }, []);
   const handleRemoveItem = async (item) => {
     if (!confirm(`Remove "${item.split("/").pop()}" from queue?`)) {
@@ -27277,18 +27284,7 @@ function QueuePage({ onClose } = {}) {
   }
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "h-full overflow-auto", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "p-6 h-full", children: [
     /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center justify-between mb-6", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-3", children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-lg font-semibold", children: "Queue" }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            onClick: fetchQueueStatus,
-            className: "p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors",
-            title: "Refresh queue",
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx(RefreshCw, { className: "h-4 w-4" })
-          }
-        )
-      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center gap-3", children: /* @__PURE__ */ jsxRuntimeExports.jsx("h2", { className: "text-lg font-semibold", children: "Queue" }) }),
       onClose && /* @__PURE__ */ jsxRuntimeExports.jsxs(
         "button",
         {
@@ -27302,96 +27298,108 @@ function QueuePage({ onClose } = {}) {
       )
     ] }),
     error && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-md", children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-destructive", children: error }) }),
-    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border border-border rounded-md", children: queueStatus.queue.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "p-8 text-center text-muted-foreground", children: "No items in queue" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(Table, { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "border border-border rounded-md", children: !queueStatus.currently_processing && queueStatus.queue.length === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "p-8 text-center text-muted-foreground", children: "No items in queue" }) : /* @__PURE__ */ jsxRuntimeExports.jsxs(Table, { children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(TableHeader, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(TableRow, { children: [
         /* @__PURE__ */ jsxRuntimeExports.jsx(TableHead, { className: "w-[15%] text-left", children: "Position" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(TableHead, { className: "w-[65%] text-left", children: "File" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(TableHead, { className: "w-[20%] text-left", children: "Actions" })
       ] }) }),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(TableBody, { children: queueStatus.queue.map((item, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(TableRow, { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "font-mono text-sm text-left", children: index2 === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "inline-flex items-center gap-2", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-orange-600 dark:text-orange-400", children: "Processing" }),
-          /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 bg-orange-500 rounded-full animate-pulse" })
-        ] }) : `#${index2 + 1}` }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "font-medium text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "max-w-xs truncate", title: item, children: getDisplayName(item) }) }),
-        /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "text-left", children: index2 === 0 ? /* @__PURE__ */ jsxRuntimeExports.jsx(
-          "button",
-          {
-            onClick: () => handleCancelProcessing(item),
-            className: "p-1.5 border border-red-500 text-red-500 bg-transparent rounded hover:bg-red-50 hover:border-red-600 hover:text-red-600 dark:hover:bg-red-950/20 focus:outline-none focus:ring-1 focus:ring-red-500 transition-colors",
-            title: "Cancel processing",
-            children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" }) })
-          }
-        ) : /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1", children: [
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
+      /* @__PURE__ */ jsxRuntimeExports.jsxs(TableBody, { children: [
+        queueStatus.currently_processing && /* @__PURE__ */ jsxRuntimeExports.jsxs(TableRow, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "font-mono text-sm text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "inline-flex items-center gap-2", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-orange-600 dark:text-orange-400", children: "Processing" }),
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "w-2 h-2 bg-orange-500 rounded-full animate-pulse" }),
+            queueStatus.age_in_seconds !== void 0 && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "text-[10px] text-muted-foreground", children: [
+              "(",
+              queueStatus.age_in_seconds,
+              "s)"
+            ] })
+          ] }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "font-medium text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "max-w-xs truncate", title: queueStatus.currently_processing, children: getDisplayName(queueStatus.currently_processing) }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
             "button",
             {
-              onClick: () => handleMoveUp(index2),
-              disabled: index2 === 1,
-              className: "p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
-              title: "Move up",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M5 15l7-7 7 7" }) })
+              onClick: () => handleCancelProcessing(queueStatus.currently_processing),
+              className: "p-1.5 border border-red-500 text-red-500 bg-transparent rounded hover:bg-red-50 hover:border-red-600 hover:text-red-600 dark:hover:bg-red-950/20 focus:outline-none focus:ring-1 focus:ring-red-500 transition-colors",
+              title: "Cancel processing",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M6 18L18 6M6 6l12 12" }) })
             }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "button",
-            {
-              onClick: () => handleMoveDown(index2),
-              disabled: index2 === queueStatus.queue.length - 1,
-              className: "p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
-              title: "Move down",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 9l-7 7-7-7" }) })
-            }
-          ),
-          /* @__PURE__ */ jsxRuntimeExports.jsxs(DropdownMenu, { modal: false, children: [
-            /* @__PURE__ */ jsxRuntimeExports.jsx(DropdownMenuTrigger, { asChild: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+          ) })
+        ] }, `processing-${queueStatus.currently_processing}`),
+        queueStatus.queue.map((item, index2) => /* @__PURE__ */ jsxRuntimeExports.jsxs(TableRow, { children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "font-mono text-sm text-left", children: `#${index2 + 1}` }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "font-medium text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "max-w-xs truncate", title: item, children: getDisplayName(item) }) }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "text-left", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
               "button",
               {
-                className: "p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors",
-                title: "More actions",
-                children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" }) })
+                onClick: () => handleMoveUp(index2),
+                disabled: index2 === 0,
+                className: "p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
+                title: "Move up",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M5 15l7-7 7 7" }) })
               }
-            ) }),
-            /* @__PURE__ */ jsxRuntimeExports.jsxs(DropdownMenuContent, { align: "end", children: [
-              /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                DropdownMenuItem,
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsx(
+              "button",
+              {
+                onClick: () => handleMoveDown(index2),
+                disabled: index2 === queueStatus.queue.length - 1,
+                className: "p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed",
+                title: "Move down",
+                children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 9l-7 7-7-7" }) })
+              }
+            ),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs(DropdownMenu, { modal: false, children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(DropdownMenuTrigger, { asChild: true, children: /* @__PURE__ */ jsxRuntimeExports.jsx(
+                "button",
                 {
-                  onClick: () => handleSendToTop(index2),
-                  disabled: index2 === 1,
-                  className: "focus:text-primary",
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Send to top" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M5 10l7-7m0 0l7 7m-7-7v18" }) })
-                  ]
+                  className: "p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors",
+                  title: "More actions",
+                  children: /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" }) })
                 }
-              ),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                DropdownMenuItem,
-                {
-                  onClick: () => handleSendToBottom(index2),
-                  disabled: index2 === queueStatus.queue.length - 1,
-                  className: "focus:text-primary",
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Send to bottom" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 14l-7 7m0 0l-7-7m7 7V3" }) })
-                  ]
-                }
-              ),
-              /* @__PURE__ */ jsxRuntimeExports.jsxs(
-                DropdownMenuItem,
-                {
-                  onClick: () => handleRemoveItem(item),
-                  className: "text-destructive focus:text-destructive",
-                  children: [
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Remove from queue" }),
-                    /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" }) })
-                  ]
-                }
-              )
+              ) }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs(DropdownMenuContent, { align: "end", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  DropdownMenuItem,
+                  {
+                    onClick: () => handleSendToTop(index2),
+                    disabled: index2 === 0,
+                    className: "focus:text-primary",
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Send to top" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M5 10l7-7m0 0l7 7m-7-7v18" }) })
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  DropdownMenuItem,
+                  {
+                    onClick: () => handleSendToBottom(index2),
+                    disabled: index2 === queueStatus.queue.length - 1,
+                    className: "focus:text-primary",
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Send to bottom" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 14l-7 7m0 0l-7-7m7 7V3" }) })
+                    ]
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  DropdownMenuItem,
+                  {
+                    onClick: () => handleRemoveItem(item),
+                    className: "text-destructive focus:text-destructive",
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Remove from queue" }),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" }) })
+                    ]
+                  }
+                )
+              ] })
             ] })
-          ] })
-        ] }) })
-      ] }, `${item}-${index2}`)) })
+          ] }) })
+        ] }, `${item}-${index2}`))
+      ] })
     ] }) })
   ] }) });
 }

@@ -112,6 +112,11 @@ pub struct ReplaceTranscriptRequest {
     pub new_content: String,
 }
 
+#[derive(Deserialize)]
+pub struct RegenerateTranscriptRequest {
+    pub video_path: String,
+}
+
 #[get("/api/transcripts?<video_path>")]
 pub fn web_get_transcript_by_path(video_path: String) -> Json<ApiResponse<String>> {
     match get_transcript(&video_path) {
@@ -125,6 +130,14 @@ pub fn web_replace_transcript(request: Json<ReplaceTranscriptRequest>) -> Json<A
     match set(&request.video_path, &request.new_content) {
         Ok(_) => Json(ApiResponse::success("Transcript replaced successfully".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Failed to replace transcript: {}", e))),
+    }
+}
+
+#[post("/api/transcripts/regenerate", data = "<request>")]
+pub fn web_regenerate_transcript(request: Json<RegenerateTranscriptRequest>) -> Json<ApiResponse<String>> {
+    match regenerate(&request.video_path) {
+        Ok(_) => Json(ApiResponse::success("Transcript regenerated successfully".to_string())),
+        Err(e) => Json(ApiResponse::error(format!("Failed to regenerate transcript: {}", e))),
     }
 }
 

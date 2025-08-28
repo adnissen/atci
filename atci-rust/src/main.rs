@@ -508,8 +508,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Some(FilesCommands::Update) => {
-                    let cfg: AtciConfig = config::load_config()?;
-                    let cache_data = files::get_video_info_from_disk(&cfg)?;
+                    let cache_data = files::get_video_info_from_disk()?;
                     files::save_video_info_to_cache(&cache_data)?;
                     let json_output = serde_json::to_string_pretty(&cache_data.files)?;
                     println!("{}", json_output);

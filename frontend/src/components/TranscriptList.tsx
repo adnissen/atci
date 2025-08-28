@@ -515,12 +515,13 @@ export default function TranscriptList({
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     try {
-      const response = await fetch(addTimestamp(`/regenerate/${encodeURIComponent(filename)}`), {
+      const response = await fetch(addTimestamp(`/api/transcripts/regenerate`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify({ video_path: filename })
       })
       
       if (!response.ok) {
@@ -828,12 +829,13 @@ export default function TranscriptList({
       // Process files in parallel
       const results = await Promise.allSettled(
         displayedFiles.map(async (file) => {
-          const response = await fetch(addTimestamp(`/api/regenerate/${encodeURIComponent(file.full_path)}`), {
+          const response = await fetch(addTimestamp(`/api/transcripts/regenerate`), {
             method: 'POST',
             headers: {
               'X-CSRF-Token': csrfToken || '',
               'Content-Type': 'application/json',
             },
+            body: JSON.stringify({ video_path: file.full_path })
           })
           
           if (!response.ok) {

@@ -12,6 +12,7 @@ use rocket::serde::json::Json;
 use rocket::get;
 use crate::web::ApiResponse;
 use crate::config;
+use crate::files;
 
 #[get("/api/queue")]
 pub fn web_get_queue() -> Json<ApiResponse<serde_json::Value>> {
@@ -207,6 +208,8 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
         }
         
         println!("Processed queue item: {}", video_path_str);
+        let new_cache = files::get_video_info_from_disk()?;
+        files::save_video_info_to_cache(&new_cache)?;
         return Ok(true);
     }
     

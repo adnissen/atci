@@ -1,12 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::Write;
+use fs2::FileExt;
 use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
 use rocket::serde::json::Json;
 use rocket::get;
 use crate::web::ApiResponse;
-use crate::config::AtciConfig;
+use crate::config;
 use rayon::prelude::*;
 use crate::metadata;
 
@@ -44,9 +46,21 @@ pub fn get_cache_file_path() -> std::path::PathBuf {
 }
 
 pub fn save_video_info_to_cache(cache_data: &CacheData) -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs::OpenOptions;
+    
     let cache_path = get_cache_file_path();
     let msgpack_data = rmp_serde::to_vec(cache_data)?;
-    fs::write(cache_path, msgpack_data)?;
+    
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(&cache_path)?;
+        
+    file.lock_exclusive()?;
+    file.write_all(&msgpack_data)?;
+    file.unlock()?;
+    
     Ok(())
 }
 
@@ -87,7 +101,8 @@ pub fn load_video_info_from_cache(filter: Option<&Vec<String>>) -> Result<Vec<Vi
     Ok(video_infos)
 }
 
-pub fn get_video_info_from_disk(cfg: &AtciConfig) -> Result<CacheData, Box<dyn std::error::Error>> {
+pub fn get_video_info_from_disk() -> Result<CacheData, Box<dyn std::error::Error>> {
+    let cfg = config::load_config_or_default();
     let mut builder = GlobSetBuilder::new();
     let video_extensions = get_video_extensions();
     

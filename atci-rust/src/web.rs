@@ -94,6 +94,7 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
             search::web_search_transcripts,
             transcripts::web_get_transcript_by_path,
             transcripts::web_replace_transcript,
+            transcripts::web_regenerate_transcript,
             tools_manager::web_list_tools,
             tools_manager::web_download_tool,
             tools_manager::web_use_downloaded_tool,

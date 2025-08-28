@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem,
 } from '../components/ui/dropdown-menu'
-import { ChevronLeft, RefreshCw } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addTimestamp } from '../lib/utils'
@@ -20,7 +20,7 @@ import { addTimestamp } from '../lib/utils'
 
 type QueueStatus = {
   queue: string[]
-  current_processing?: string | null
+  currently_processing?: string | null
   processing_state: string
   age_in_seconds?: number
 }
@@ -33,8 +33,9 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
   const navigate = useNavigate()
   const [queueStatus, setQueueStatus] = useState<QueueStatus>({
     queue: [],
-    current_processing: null,
-    processing_state: 'idle'
+    currently_processing: null,
+    processing_state: 'idle',
+    age_in_seconds: 0
   })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,9 +63,13 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
     }
   }
 
-  // Poll for updates every second
+  // Poll for updates every two seconds
   useEffect(() => {
     fetchQueueStatus()
+    const interval = setInterval(() => {
+      fetchQueueStatus()
+    }, 1000)
+    return () => clearInterval(interval)
   }, [])
 
   // Remove item from queue
@@ -234,13 +239,6 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold">Queue</h2>
-            <button
-              onClick={fetchQueueStatus}
-              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
-              title="Refresh queue"
-            >
-              <RefreshCw className="h-4 w-4" />
-            </button>
           </div>
           {onClose && (
             <button
@@ -262,7 +260,7 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
       {/* Queue Table */}
       <div className="border border-border rounded-md">
         
-        {queueStatus.queue.length === 0 ? (
+        {!queueStatus.currently_processing && queueStatus.queue.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
             No items in queue
           </div>
@@ -276,17 +274,39 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {queueStatus.currently_processing && (
+                <TableRow key={`processing-${queueStatus.currently_processing}`}>
+                  <TableCell className="font-mono text-sm text-left">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="text-orange-600 dark:text-orange-400">Processing</span>
+                      <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+                      {queueStatus.age_in_seconds !== undefined && (
+                        <span className="text-[10px] text-muted-foreground">({queueStatus.age_in_seconds}s)</span>
+                      )}
+                    </span>
+                  </TableCell>
+                  <TableCell className="font-medium text-left">
+                    <div className="max-w-xs truncate" title={queueStatus.currently_processing}>
+                      {getDisplayName(queueStatus.currently_processing)}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-left">
+                    <button
+                      onClick={() => handleCancelProcessing(queueStatus.currently_processing!)}
+                      className="p-1.5 border border-red-500 text-red-500 bg-transparent rounded hover:bg-red-50 hover:border-red-600 hover:text-red-600 dark:hover:bg-red-950/20 focus:outline-none focus:ring-1 focus:ring-red-500 transition-colors"
+                      title="Cancel processing"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </TableCell>
+                </TableRow>
+              )}
               {queueStatus.queue.map((item, index) => (
                 <TableRow key={`${item}-${index}`}>
                   <TableCell className="font-mono text-sm text-left">
-                    {index === 0 ? (
-                      <span className="inline-flex items-center gap-2">
-                        <span className="text-orange-600 dark:text-orange-400">Processing</span>
-                        <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
-                      </span>
-                    ) : (
-                      `#${index + 1}`
-                    )}
+                    {`#${index + 1}`}
                   </TableCell>
                   <TableCell className="font-medium text-left">
                     <div className="max-w-xs truncate" title={item}>
@@ -294,88 +314,76 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
                     </div>
                   </TableCell>
                   <TableCell className="text-left">
-                    {index === 0 ? (
+                    <div className="flex items-center gap-1">
+                      {/* Move up button */}
                       <button
-                        onClick={() => handleCancelProcessing(item)}
-                        className="p-1.5 border border-red-500 text-red-500 bg-transparent rounded hover:bg-red-50 hover:border-red-600 hover:text-red-600 dark:hover:bg-red-950/20 focus:outline-none focus:ring-1 focus:ring-red-500 transition-colors"
-                        title="Cancel processing"
+                        onClick={() => handleMoveUp(index)}
+                        disabled={index === 0}
+                        className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move up"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                         </svg>
                       </button>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        {/* Move up button */}
-                        <button
-                          onClick={() => handleMoveUp(index)}
-                          disabled={index === 1} // Disable for position #2 since it can't move above processing item
-                          className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Move up"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                        </button>
-                        
-                        {/* Move down button */}
-                        <button
-                          onClick={() => handleMoveDown(index)}
-                          disabled={index === queueStatus.queue.length - 1}
-                          className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Move down"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        
-                        {/* More actions dropdown */}
-                        <DropdownMenu modal={false}>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
-                              title="More actions"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                              </svg>
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => handleSendToTop(index)}
-                              disabled={index === 1} // Can't send to top above processing item
-                              className="focus:text-primary"
-                            >
-                              <span>Send to top</span>
-                              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                              </svg>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleSendToBottom(index)}
-                              disabled={index === queueStatus.queue.length - 1}
-                              className="focus:text-primary"
-                            >
-                              <span>Send to bottom</span>
-                              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                              </svg>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleRemoveItem(item)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <span>Remove from queue</span>
-                              <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    )}
+                      
+                      {/* Move down button */}
+                      <button
+                        onClick={() => handleMoveDown(index)}
+                        disabled={index === queueStatus.queue.length - 1}
+                        className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Move down"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                      
+                      {/* More actions dropdown */}
+                      <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
+                            title="More actions"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                            </svg>
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleSendToTop(index)}
+                            disabled={index === 0}
+                            className="focus:text-primary"
+                          >
+                            <span>Send to top</span>
+                            <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                            </svg>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleSendToBottom(index)}
+                            disabled={index === queueStatus.queue.length - 1}
+                            className="focus:text-primary"
+                          >
+                            <span>Send to bottom</span>
+                            <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                            </svg>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleRemoveItem(item)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <span>Remove from queue</span>
+                            <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
