@@ -27208,34 +27208,37 @@ function QueuePage({ onClose } = {}) {
   });
   const [isLoading, setIsLoading] = reactExports.useState(true);
   const [error, setError] = reactExports.useState(null);
-  const fetchQueueStatus = async () => {
-    try {
-      const response = await fetch(addTimestamp("/api/queue/status"));
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setQueueStatus(data.data);
-        } else {
-          setError(data.error);
-        }
-        setError(null);
-      } else {
-        throw new Error(`Failed to fetch queue status: ${response.status}`);
-      }
-    } catch (err) {
-      console.error("Error fetching queue status:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch queue status");
-    } finally {
-      setIsLoading(false);
-    }
-  };
   reactExports.useEffect(() => {
-    fetchQueueStatus();
     const interval = setInterval(() => {
+      const fetchQueueStatus = async () => {
+        try {
+          const response = await fetch(addTimestamp("/api/queue/status"));
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+              console.log(queueStatus.currently_processing + " " + data.data.currently_processing);
+              if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
+                console.log(queueStatus.currently_processing + " just finished");
+              }
+              setQueueStatus(data.data);
+            } else {
+              setError(data.error);
+            }
+            setError(null);
+          } else {
+            throw new Error(`Failed to fetch queue status: ${response.status}`);
+          }
+        } catch (err) {
+          console.error("Error fetching queue status:", err);
+          setError(err instanceof Error ? err.message : "Failed to fetch queue status");
+        } finally {
+          setIsLoading(false);
+        }
+      };
       fetchQueueStatus();
     }, 1e3);
     return () => clearInterval(interval);
-  }, []);
+  }, [queueStatus.currently_processing]);
   const handleRemoveItem = async (item) => {
     if (!confirm(`Remove "${item.split("/").pop()}" from queue?`)) {
       return;
