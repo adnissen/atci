@@ -1,6 +1,17 @@
 # atci (Andrew's Transcript and Clipping Interface)
 
-atci is a powerful web-based video transcription system that automatically converts your video files to searchable text. Built with Elixir/Phoenix and React, it provides a beautiful interface for managing, viewing, and searching through your video transcripts.
+atci is an application which provides both a simple command line interface and a responsive web interface for automatically creating video transcripts for all videos in a given set of folders (with whisper) as well as searching through them to easily make gifs, audio, and video clips (via ffmpeg).
+
+The different parts of the application can be run separately. For instance:
+
+* To just watch the set of configured directories for new videos to transcribe:
+* * `atci watch`
+* To host only the `/api` endpoints (i.e. not the react app, if you want to build your own interface):
+* * `atci web api`
+* To launch everything, including the directory watcher and the web interface:
+* * `atci web`
+
+All of the data that backs the `/api` routes is also available via the command line interface as json output. Run `atci` with no arguments to display the help dialog which lists subcommands, many of which have subcommands themselves.
 
 ## 🎯 Why atci?
 
@@ -32,23 +43,23 @@ atci is a powerful web-based video transcription system that automatically conve
 
 2. **Run the application**
    ```bash
-   ./atci
-   ```
+   ./atci web
 
-3. **Open your browser**
-   Navigate to [http://localhost:4000](http://localhost:4000)
-
-4. **Follow the guided setup**
+3. **Follow the guided setup**
    - The application will guide you through configuration
    - Set your watch directories (where your videos are stored)
    - Configure paths to required tools (or let the app download them automatically on M-series Macs)
-   - Choose and download an AI model for transcription
+   - Choose and download an AI model for transcription   ```
+
+4. **Open your browser**
+   Navigate to [http://localhost:4620](http://localhost:4620)
+
 
 That's it! Drop video files (MP4, MOV, MKV) into your watch directories and atci will automatically process them.
 
-## ⚙️ Configuration File (.atciconfig)
+## ⚙️ Configuration File
 
-The application stores its configuration in a `.atciconfig` file in your home directory. This JSON file contains the following properties:
+The application stores its configuration in a JSON file containing the following properties:
 
 ```json
 {
@@ -59,6 +70,22 @@ The application stores its configuration in a `.atciconfig` file in your home di
   "model_path": "/path/to/model.bin",
   "model_name": "ggml-base",
   "nonlocal_password": ""
+}
+```
+
+Get the path to the configuration file with:
+```
+atci config path
+```
+
+Or output the configuration file with:
+```
+atci config
+```
+
+You can also manually set the path to the config file by running any command with the `ATCI_CONFIG_PATH` var set, for example:
+```
+ATCI_CONFIG_PATH=~/.mycustomconfig.json atci web
 ```
 
 **Configuration Properties:**
@@ -79,30 +106,12 @@ The application stores its configuration in a `.atciconfig` file in your home di
 
 ## 💻 Developer Guide
 
-### Project Structure
-
-```
-atci/
-├── lib/                    # Elixir/Phoenix backend
-│   └── atci/
-│       ├── web/           # Phoenix web layer
-│       ├── transcriber/   # Core transcription logic
-│       └── *.ex           # Various managers and helpers
-├── frontend/              # React frontend
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   └── pages/        # Page components
-│   └── package.json
-├── test/                  # Elixir tests
-└── mix.exs               # Elixir project file
-```
-
 ### Development Setup
 
 1. **Install all dependencies**
    ```bash
    # Backend dependencies
-   mix deps.get
+   cargo check
    
    # Frontend dependencies
    cd frontend
@@ -112,8 +121,8 @@ atci/
 
 2. **Start development servers**
    ```bash
-   # In one terminal - Phoenix server with live reload
-   mix phx.server
+   # In one terminal
+   cargo run -- web
    
    # In another terminal - Vite build with watch (constantly builds static files on change)
    cd frontend
@@ -122,91 +131,5 @@ atci/
 
 3. **Run tests**
    ```bash
-   # Elixir tests
-   mix test
+   cargo test
    ```
-
-### Key Components
-
-#### Backend (Elixir/Phoenix)
-
-- **VideoProcessor**: Manages the transcription queue and processing pipeline
-- **Transcriber**: Handles the actual transcription using whisper.cpp
-- **ConfigManager**: Manages application configuration and .atciconfig file
-- **MetaFileHandler**: Handles metadata storage for transcripts
-- **FFmpegManager**: Manages FFmpeg and FFprobe binaries, including downloading them for different platforms
-- **ModelManager**: Manages Whisper models, including listing available models and downloading them from Hugging Face
-- **WhisperCLIManager**: Manages whisper-cli binaries, including downloading them for different platforms
-- **VideoInfoCache**: Maintains a cache of video file information and updates when videos are processed
-- **Web Controllers**: RESTful API endpoints for the frontend
-
-#### Frontend (React/TypeScript)
-
-- **HomePage**: Main transcript listing with search
-- **TranscriptView**: Individual transcript viewer with video player
-- **ConfigPage**: Configuration management interface
-- **FileCard**: Video file representation with status indicators
-
-### API Endpoints
-
-#### Main Routes
-- `GET /` - Main application entry point
-- `GET /app` - React application
-- `GET /app/*path` - React application catch-all
-
-#### Transcript Routes
-- `GET /transcripts/:filename` - Get specific transcript content
-- `POST /transcripts/:filename/replace` - Replace entire transcript
-- `POST /transcripts/:filename/partial_reprocess` - Reprocess part of transcript
-- `POST /transcripts/:filename/set_line` - Update specific line in transcript
-- `POST /transcripts/:filename/rename` - Rename transcript and associated files
-- `GET /transcripts/:filename/meta` - Get transcript metadata
-- `POST /transcripts/:filename/meta` - Set transcript metadata
-
-#### Processing Routes
-- `POST /regenerate/:filename` - Reprocess entire video
-- `POST /regenerate-meta/:filename` - Regenerate metadata
-- `GET /queue` - Get processing queue status
-
-#### Search and Browse Routes
-- `GET /grep/:text` - Search across all transcripts
-- `GET /files` - List all video files with metadata
-- `GET /sources` - Get unique transcript sources (models used)
-- `GET /watch_directory` - Get watch directory info
-- `GET /watch_directories` - Get all watch directories
-
-#### Video Player Routes
-- `GET /player/:filename` - Video player interface
-- `GET /clip_player/:filename` - Clip player interface
-- `GET /frame/:filename/:time` - Get video frame at specific time
-- `GET /random_frame` - Get random frame from random video
-- `GET /clip` - Generate video/audio clip
-
-#### Configuration Routes
-- `GET /config` - Get configuration
-- `POST /config` - Update configuration
-
-#### API Routes (JSON)
-- `GET /api/models` - List available Whisper models
-- `POST /api/models/download` - Download a Whisper model
-- `GET /api/ffmpeg/tools` - List FFmpeg/FFprobe tools status
-- `POST /api/ffmpeg/download` - Download FFmpeg tools
-- `POST /api/ffmpeg/use-downloaded` - Use downloaded FFmpeg tools
-- `POST /api/ffmpeg/use-auto-detection` - Use auto-detected FFmpeg tools
-- `GET /api/whisper-cli/tools` - List Whisper CLI tools status
-- `POST /api/whisper-cli/download` - Download Whisper CLI tools
-- `POST /api/whisper-cli/use-downloaded` - Use downloaded Whisper CLI tools
-- `POST /api/whisper-cli/use-auto-detection` - Use auto-detected Whisper CLI tools
-
-### Building for Production
-
-```bash
-# Build frontend assets
-cd frontend && npx vite build && cd ..
-
-# Create production release
-MIX_ENV=prod mix release
-
-# Run the release
-_build/prod/rel/atci/bin/atci start
-```
