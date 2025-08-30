@@ -124,6 +124,11 @@ enum QueueCommands {
     },
     #[command(about = "Get current queue processing status")]
     Status,
+    #[command(about = "Add a path to the blocklist")]
+    Block {
+        #[arg(help = "Path to add to the blocklist")]
+        path: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -552,6 +557,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Err(e) => {
                             eprintln!("Error reading queue status: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(QueueCommands::Block { path }) => {
+                    match queue::add_to_blocklist(&path) {
+                        Ok(()) => {
+                            println!("Added to blocklist: {}", path);
+                        }
+                        Err(e) => {
+                            eprintln!("Error adding to blocklist: {}", e);
                             std::process::exit(1);
                         }
                     }
