@@ -26,3 +26,5 @@ atci-*.tar
 .atciconfig
 
 /atci-rust/target/
+
+.DS_STORE/
