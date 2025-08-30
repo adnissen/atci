@@ -47,9 +47,9 @@ All of the data that backs the `/api` routes is also available via the command l
 
 3. **Follow the guided setup**
    - The application will guide you through configuration
-   - Set your watch directories (where your videos are stored)
    - Configure paths to required tools (or let the app download them automatically on M-series Macs)
-   - Choose and download an AI model for transcription   ```
+   - Set your watch directories (where your videos are stored)
+   - Choose and download an AI model for transcription
 
 4. **Open your browser**
    Navigate to [http://localhost:4620](http://localhost:4620)
@@ -73,7 +73,7 @@ The application stores its configuration in a JSON file containing the following
 }
 ```
 
-Get the path to the configuration file with:
+Get the path to the current configuration file with:
 ```
 atci config path
 ```
@@ -87,6 +87,8 @@ You can also manually set the path to the config file by running any command wit
 ```
 ATCI_CONFIG_PATH=~/.mycustomconfig.json atci web
 ```
+
+You can use this to have multiple instances of `atci` running at the same time with different configurations.
 
 **Configuration Properties:**
 
