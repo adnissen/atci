@@ -156,8 +156,6 @@
     --spacing: .25rem;
     --container-xs: 20rem;
     --container-md: 28rem;
-    --container-2xl: 42rem;
-    --container-4xl: 56rem;
     --container-5xl: 64rem;
     --container-6xl: 72rem;
     --text-xs: .75rem;
@@ -757,16 +755,8 @@
     height: calc(var(--spacing) * 16);
   }
 
-  .h-32 {
-    height: calc(var(--spacing) * 32);
-  }
-
   .h-64 {
     height: calc(var(--spacing) * 64);
-  }
-
-  .h-96 {
-    height: calc(var(--spacing) * 96);
   }
 
   .h-\[18px\] {
@@ -907,14 +897,6 @@
 
   .max-w-0 {
     max-width: calc(var(--spacing) * 0);
-  }
-
-  .max-w-2xl {
-    max-width: var(--container-2xl);
-  }
-
-  .max-w-4xl {
-    max-width: var(--container-4xl);
   }
 
   .max-w-5xl {
@@ -1288,7 +1270,7 @@
     border-top-color: #0000;
   }
 
-  .bg-accent\/10 {
+  .bg-accent, .bg-accent\/10 {
     background-color: var(--accent);
   }
 

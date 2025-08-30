@@ -74,7 +74,7 @@ interface TranscriptListProps {
   setSelectedSources: (sources: string[] | ((prev: string[]) => string[])) => void
   availableSources: string[]
   setAvailableSources: (sources: string[]) => void
-
+  showAllFiles: boolean
 
   leftPaneWidth: number
   setLeftPaneWidth: (width: number) => void
@@ -119,8 +119,7 @@ export default function TranscriptList({
   setSelectedSources,
   availableSources,
   setAvailableSources,
-
-
+  showAllFiles,
 
   leftPaneWidth,
   setLeftPaneWidth,
@@ -1042,7 +1041,7 @@ export default function TranscriptList({
             </div>
           )}
 
-          {!activeSearchTerm && (
+          {!activeSearchTerm && !showAllFiles && (
             <div className={`mb-6 p-4 bg-muted border border-border rounded-md ${shouldUseMobileView ? 'mx-4' : ''}`}>
               <p className="text-sm text-muted-foreground">Search to get started!</p>
             </div>
@@ -1059,6 +1058,7 @@ export default function TranscriptList({
               sortedFiles={sortedFiles}
               activeSearchTerm={activeSearchTerm}
               searchResults={searchResults}
+              showAllFiles={showAllFiles}
               transcriptData={transcriptData}
               expandedFiles={expandedFiles}
               regeneratingFiles={regeneratingFiles}
@@ -1158,7 +1158,12 @@ export default function TranscriptList({
             </TableHeader>
             <TableBody>
               {sortedFiles.map((file) => {
-                if (!searchResults.includes(file.full_path)) {
+                // When searching, only show files with search results regardless of showAllFiles toggle
+                // When not searching, show all files if showAllFiles is enabled, otherwise show none
+                const shouldShowFile = activeSearchTerm 
+                  ? searchResults.includes(file.full_path)
+                  : showAllFiles
+                if (!shouldShowFile) {
                   return <></>;
                 }
                 

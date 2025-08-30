@@ -23,6 +23,7 @@ interface MobileTranscriptListProps {
   sortedFiles: FileRow[]
   activeSearchTerm: string
   searchResults: string[]
+  showAllFiles: boolean
   transcriptData: Record<string, TranscriptData>
   expandedFiles: Set<string>
   regeneratingFiles: Set<string>
@@ -55,6 +56,7 @@ export default function MobileTranscriptList({
   sortedFiles,
   activeSearchTerm,
   searchResults,
+  showAllFiles,
   transcriptData,
   expandedFiles,
   regeneratingFiles,
@@ -85,7 +87,12 @@ export default function MobileTranscriptList({
   return (
     <div className="divide-y divide-border">
       {sortedFiles.map((file) => {
-        if (activeSearchTerm !== '' && !searchResults.includes(file.full_path)) {
+        // When searching, only show files with search results regardless of showAllFiles toggle
+        // When not searching, show all files if showAllFiles is enabled, otherwise show none
+        const shouldShowFile = activeSearchTerm 
+          ? searchResults.includes(file.full_path)
+          : showAllFiles
+        if (!shouldShowFile) {
           return null;
         }
         

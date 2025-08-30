@@ -52,7 +52,7 @@ export default function HomePage() {
   const [availableWatchDirs, setAvailableWatchDirs] = useState<string[]>([])
   const [selectedSources, setSelectedSources] = useLSState<string[]>('selectedSources', [])
   const [availableSources, setAvailableSources] = useState<string[]>([])
-
+  const [showAllFiles, setShowAllFiles] = useLSState<boolean>('showAllFiles', false)
 
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
   const [leftPaneScrollOffset, setLeftPaneScrollOffset] = useState<number>(0)
@@ -250,6 +250,10 @@ export default function HomePage() {
     } finally {
       setIsSearching(false)
     }
+  }
+
+  const handleToggleShowAllFiles = () => {
+    setShowAllFiles(prev => !prev)
   }
 
   const handleClearSearch = () => {
@@ -629,6 +633,8 @@ export default function HomePage() {
         onCollapseAll={handleCollapseAll}
         onConfigClick={handleConfigClick}
         onQueueClick={handleQueueClick}
+        showAllFiles={showAllFiles}
+        onToggleShowAllFiles={handleToggleShowAllFiles}
         clipStart={clipStart}
         clipEnd={clipEnd}
         clipTranscript={clipTranscript}
@@ -689,6 +695,7 @@ export default function HomePage() {
             onSetClipEnd={handleSetClipEnd}
             onClearClip={handleClearClip}
             onClipBlock={handleClipBlock}
+            showAllFiles={showAllFiles}
           />
         )}
         

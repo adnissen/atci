@@ -23224,6 +23224,8 @@ function TopBar({
   selectedSources,
   setSelectedSources,
   availableSources,
+  showAllFiles,
+  onToggleShowAllFiles,
   onSearch,
   onClearSearch,
   onScrollToTop,
@@ -23262,6 +23264,18 @@ function TopBar({
               children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { className: "w-4 h-4 group-hover:animate-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: [
                 /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M12 11a2 2 0 100-4 2 2 0 000 4z" })
+              ] })
+            }
+          ),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              onClick: onToggleShowAllFiles,
+              className: `p-1 rounded transition-colors ${showAllFiles ? "text-primary bg-accent" : "text-muted-foreground hover:text-primary hover:bg-accent"}`,
+              title: showAllFiles ? "Hide files (show only when searching)" : "Show all files",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M7 7h10" })
               ] })
             }
           ),
@@ -24538,6 +24552,7 @@ function MobileTranscriptList({
   sortedFiles,
   activeSearchTerm,
   searchResults,
+  showAllFiles,
   transcriptData,
   expandedFiles,
   regeneratingFiles,
@@ -24565,7 +24580,8 @@ function MobileTranscriptList({
   mobileTranscriptRowRefs
 }) {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "divide-y divide-border", children: sortedFiles.map((file) => {
-    if (activeSearchTerm !== "" && !searchResults.includes(file.full_path)) {
+    const shouldShowFile = activeSearchTerm ? searchResults.includes(file.full_path) : showAllFiles;
+    if (!shouldShowFile) {
       return null;
     }
     const transcriptInfo = transcriptData[file.full_path] || { text: "", loading: false, error: null };
@@ -24646,6 +24662,7 @@ function TranscriptList({
   setSelectedSources,
   availableSources,
   setAvailableSources,
+  showAllFiles,
   leftPaneWidth,
   setLeftPaneWidth,
   isLeftPaneWidthMeasured,
@@ -25353,7 +25370,7 @@ function TranscriptList({
               activeSearchTerm,
               '"'
             ] }) }),
-            !activeSearchTerm && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `mb-6 p-4 bg-muted border border-border rounded-md ${shouldUseMobileView ? "mx-4" : ""}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-muted-foreground", children: "Search to get started!" }) }),
+            !activeSearchTerm && !showAllFiles && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `mb-6 p-4 bg-muted border border-border rounded-md ${shouldUseMobileView ? "mx-4" : ""}`, children: /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-sm text-muted-foreground", children: "Search to get started!" }) }),
             !isSmallScreen && !isLeftPaneWidthMeasured ? (
               // Loading state - don't render anything until width is measured on desktop
               /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center justify-center py-20", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-muted-foreground", children: "Loading..." }) })
@@ -25365,6 +25382,7 @@ function TranscriptList({
                   sortedFiles,
                   activeSearchTerm,
                   searchResults,
+                  showAllFiles,
                   transcriptData,
                   expandedFiles,
                   regeneratingFiles,
@@ -25474,7 +25492,8 @@ function TranscriptList({
                 ] }) }),
                 /* @__PURE__ */ jsxRuntimeExports.jsx(TableBody, { children: sortedFiles.map((file) => {
                   var _a2;
-                  if (!searchResults.includes(file.full_path)) {
+                  const shouldShowFile = activeSearchTerm ? searchResults.includes(file.full_path) : showAllFiles;
+                  if (!shouldShowFile) {
                     return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, {});
                   }
                   const transcriptInfo = transcriptData[file.full_path] || { text: "", loading: false, error: null };
@@ -27424,6 +27443,7 @@ function HomePage() {
   const [availableWatchDirs, setAvailableWatchDirs] = reactExports.useState([]);
   const [selectedSources, setSelectedSources] = useLSState("selectedSources", []);
   const [availableSources, setAvailableSources] = reactExports.useState([]);
+  const [showAllFiles, setShowAllFiles] = useLSState("showAllFiles", false);
   const [isAtTop, setIsAtTop] = reactExports.useState(true);
   const [leftPaneScrollOffset, setLeftPaneScrollOffset] = reactExports.useState(0);
   const [rightPaneComponent, setRightPaneComponent] = reactExports.useState(null);
@@ -27561,6 +27581,9 @@ function HomePage() {
     } finally {
       setIsSearching(false);
     }
+  };
+  const handleToggleShowAllFiles = () => {
+    setShowAllFiles((prev) => !prev);
   };
   const handleClearSearch = () => {
     setSearchTerm("");
@@ -27869,6 +27892,8 @@ function HomePage() {
         onCollapseAll: handleCollapseAll,
         onConfigClick: handleConfigClick,
         onQueueClick: handleQueueClick,
+        showAllFiles,
+        onToggleShowAllFiles: handleToggleShowAllFiles,
         clipStart,
         clipEnd,
         clipTranscript,
@@ -27924,7 +27949,8 @@ function HomePage() {
             onSetClipStart: handleSetClipStart,
             onSetClipEnd: handleSetClipEnd,
             onClearClip: handleClearClip,
-            onClipBlock: handleClipBlock
+            onClipBlock: handleClipBlock,
+            showAllFiles
           }
         )
       ),
