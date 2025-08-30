@@ -54,16 +54,13 @@ pub fn set_line(video_path: &str, line_number: usize, new_content: &str) -> Resu
     Ok(())
 }
 
-pub fn set(video_path: &str, new_content: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn set_with_config(video_path: &str, new_content: &str, config: &crate::AtciConfig) -> Result<(), Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
     
     // Validate that the video path exists
     if !video_path_obj.exists() {
         return Err(format!("Video file does not exist: {}", video_path_obj.display()).into());
     }
-    
-    // Load config to get watch directories
-    let config = load_config_or_default();
     
     // Check if the video path is within any of the watch directories
     let video_canonical = video_path_obj.canonicalize()
@@ -86,6 +83,11 @@ pub fn set(video_path: &str, new_content: &str) -> Result<(), Box<dyn std::error
     let txt_path = video_path_obj.with_extension("txt");
     fs::write(txt_path, new_content)?;
     Ok(())
+}
+
+pub fn set(video_path: &str, new_content: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let config = load_config_or_default();
+    set_with_config(video_path, new_content, &config)
 }
 
 pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -249,22 +251,16 @@ mod tests {
         
         create_test_file(temp_dir.path(), "test_video.mp4", "fake video content");
         
-        // Mock config by setting environment variable
-        std::env::set_var("ATCI_CONFIG_PATH", temp_dir.path().join("config.toml"));
         let config = crate::config::AtciConfig {
             watch_directories: vec![temp_dir.path().to_string_lossy().to_string()],
             ..Default::default()
         };
-        crate::config::store_config(&config).unwrap();
         
-        let result = set(video_path.to_str().unwrap(), new_content);
+        let result = set_with_config(video_path.to_str().unwrap(), new_content, &config);
         assert!(result.is_ok());
         
         let saved_content = get_transcript(video_path.to_str().unwrap()).unwrap();
         assert_eq!(saved_content, new_content);
-        
-        // Cleanup
-        std::env::remove_var("ATCI_CONFIG_PATH");
     }
 
     #[test]
@@ -277,22 +273,16 @@ mod tests {
         create_test_file(temp_dir.path(), "test_video.txt", original_content);
         create_test_file(temp_dir.path(), "test_video.mp4", "fake video content");
         
-        // Mock config by setting environment variable
-        std::env::set_var("ATCI_CONFIG_PATH", temp_dir.path().join("config.toml"));
         let config = crate::config::AtciConfig {
             watch_directories: vec![temp_dir.path().to_string_lossy().to_string()],
             ..Default::default()
         };
-        crate::config::store_config(&config).unwrap();
         
-        let result = set(video_path.to_str().unwrap(), new_content);
+        let result = set_with_config(video_path.to_str().unwrap(), new_content, &config);
         assert!(result.is_ok());
         
         let saved_content = get_transcript(video_path.to_str().unwrap()).unwrap();
         assert_eq!(saved_content, new_content);
-        
-        // Cleanup
-        std::env::remove_var("ATCI_CONFIG_PATH");
     }
 
     #[test]
@@ -316,19 +306,14 @@ mod tests {
         create_test_file(other_dir.path(), "test_video.mp4", "fake video content");
         
         // Mock config with different watch directory
-        std::env::set_var("ATCI_CONFIG_PATH", temp_dir.path().join("config.toml"));
         let config = crate::config::AtciConfig {
             watch_directories: vec![temp_dir.path().to_string_lossy().to_string()],
             ..Default::default()
         };
-        crate::config::store_config(&config).unwrap();
         
-        let result = set(video_path.to_str().unwrap(), new_content);
+        let result = set_with_config(video_path.to_str().unwrap(), new_content, &config);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("is not within any watch directory"));
-        
-        // Cleanup
-        std::env::remove_var("ATCI_CONFIG_PATH");
     }
 
     #[test]

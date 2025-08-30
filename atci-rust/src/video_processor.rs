@@ -77,7 +77,6 @@ pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> R
     // Read existing content
     let mut lines = Vec::new();
     let mut key_found = false;
-    let mut _metadata_section_end = 0;
     
     if txt_path.exists() {
         let file = fs::File::open(&txt_path)?;
@@ -86,19 +85,15 @@ pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> R
         for (i, line) in reader.lines().enumerate() {
             let line = line?;
             
+            // we're going to re-add the metadata end marker later
+            if line == ">>>.atcimetaend" {
+                continue;
+            }
+            
             // Check if this line is a metadata line (key: value format at the top)
-            if line.contains(": ") && i < metadata::META_FIELDS.len() {
-                if line.starts_with(&format!("{}:", key)) {
-                    lines.push(format!("{}: {}", key, value));
-                    key_found = true;
-                } else {
-                    lines.push(line);
-                }
-                _metadata_section_end = i + 1;
-            } else if line.trim().is_empty() && i < metadata::META_FIELDS.len() {
-                // Empty line in metadata section
-                lines.push(line);
-                _metadata_section_end = i + 1;
+            if line.starts_with(&format!("{}:", key)) && i < metadata::META_FIELDS.len() {
+                lines.push(format!("{}: {}", key, value));
+                key_found = true;
             } else {
                 // This is content, not metadata
                 lines.push(line);
@@ -111,6 +106,18 @@ pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> R
         lines.insert(0, format!("{}: {}", key, value));
     }
     
+    let mut insert_pos = 0;
+    // Add the metadata end marker
+    // If we have content, insert before the first non-empty content line
+    for (i, line) in lines.iter().enumerate() {
+        if !line.contains(": ") {
+            insert_pos = i;
+            break;
+        }
+    }
+    
+    lines.insert(insert_pos, ">>>.atcimetaend".to_string());
+
     // Write back to file
     fs::write(&txt_path, lines.join("\n"))?;
     

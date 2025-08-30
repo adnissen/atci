@@ -1,7 +1,47 @@
 use assert_cmd::Command;
 use predicates::str;
+use std::env;
 use std::fs;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tempfile::TempDir;
+
+static TEST_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+fn setup_test_config_with_watch_dir(watch_dir: &str) -> (Command, PathBuf) {
+    let temp_dir = env::temp_dir();
+    let counter = TEST_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let test_config_path = temp_dir.join(format!("atci_transcript_test_config_{}_{}.toml", 
+        std::process::id(), 
+        counter));
+    
+    // Clean up any existing test config
+    if test_config_path.exists() {
+        fs::remove_file(&test_config_path).ok();
+    }
+    
+    // Create a simple config file with the watch directory
+    let config_content = format!(r#"
+ffmpeg_path = "ffmpeg"
+ffprobe_path = "ffprobe"
+whispercli_path = "whisper"
+model_name = "ggml-base"
+watch_directories = ["{}"]
+"#, watch_dir);
+    
+    fs::write(&test_config_path, config_content).unwrap();
+    
+    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    cmd.env("ATCI_CONFIG_PATH", &test_config_path);
+    
+    (cmd, test_config_path)
+}
+
+fn cleanup_test_config(config_path: &PathBuf) {
+    if config_path.exists() {
+        fs::remove_file(config_path).ok();
+    }
+}
 
 fn create_test_video_with_transcript(dir: &TempDir, video_name: &str, content: &str) -> String {
     let video_path = dir.path().join(format!("{}.mp4", video_name));
@@ -110,7 +150,7 @@ fn test_transcripts_set_success() {
     
     let new_content = "Completely new content\nWith multiple lines";
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let (mut cmd, config_path) = setup_test_config_with_watch_dir(&temp_dir.path().to_string_lossy());
     cmd.args(&["transcripts", "set", &video_path, new_content]);
     
     cmd.assert()
@@ -121,17 +161,23 @@ fn test_transcripts_set_success() {
     let txt_path = temp_dir.path().join("test_video.txt");
     let updated_content = fs::read_to_string(&txt_path).unwrap();
     assert_eq!(updated_content, new_content);
+    
+    cleanup_test_config(&config_path);
 }
 
 #[test]
 fn test_transcripts_set_creates_new_file() {
     let temp_dir = TempDir::new().unwrap();
-    let video_path = temp_dir.path().join("new_video.mp4").to_string_lossy().to_string();
+    
+    // Create the video file first (since set() validates this exists)
+    let video_path = temp_dir.path().join("new_video.mp4");
+    fs::write(&video_path, b"fake video content").unwrap();
+    let video_path_str = video_path.to_string_lossy().to_string();
     
     let content = "New transcript content";
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
-    cmd.args(&["transcripts", "set", &video_path, content]);
+    let (mut cmd, config_path) = setup_test_config_with_watch_dir(&temp_dir.path().to_string_lossy());
+    cmd.args(&["transcripts", "set", &video_path_str, content]);
     
     cmd.assert()
         .success()
@@ -142,6 +188,8 @@ fn test_transcripts_set_creates_new_file() {
     assert!(txt_path.exists());
     let saved_content = fs::read_to_string(&txt_path).unwrap();
     assert_eq!(saved_content, content);
+    
+    cleanup_test_config(&config_path);
 }
 
 #[test]
