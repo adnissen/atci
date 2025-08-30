@@ -8,6 +8,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLSState } from '../hooks/useLSState'
 import { useIsSmallScreen } from '../hooks/useMediaQuery'
 import { addTimestamp } from '../lib/utils'
+import { FileProvider } from '../contexts/FileContext'
 
 // Type definitions
 type FileRow = {
@@ -36,7 +37,6 @@ type QueueItem = {
 export default function HomePage() {
   const isSmallScreen = useIsSmallScreen()
   
-  const [files, setFiles] = useState<FileRow[]>([])
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
   const [activeSearchTerm, setActiveSearchTerm] = useState('')
@@ -655,8 +655,6 @@ export default function HomePage() {
           <TranscriptList
             watchDirectory={watchDirectory}
             isSmallScreen={isSmallScreen}
-            files={files}
-            setFiles={setFiles}
             activeSearchTerm={activeSearchTerm}
             searchLineNumbers={searchLineNumbers}
             setSearchLineNumbers={setSearchLineNumbers}

@@ -16,6 +16,7 @@ import { ChevronLeft } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addTimestamp } from '../lib/utils'
+import { useFileContext } from '../contexts/FileContext'
 
 
 type QueueStatus = {
@@ -31,6 +32,7 @@ interface QueuePageProps {
 
 export default function QueuePage({ onClose }: QueuePageProps = {}) {
   const navigate = useNavigate()
+  const { refreshFiles } = useFileContext()
   const [queueStatus, setQueueStatus] = useState<QueueStatus>({
     queue: [],
     currently_processing: null,
@@ -51,6 +53,8 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
           if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
             //then we need to refresh the files
             console.log(queueStatus.currently_processing + " just finished")
+            // Refresh files with all available directories and sources
+            refreshFiles([], [])
           }
           setQueueStatus(data.data)
         } else {

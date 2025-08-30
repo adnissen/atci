@@ -7,6 +7,7 @@ import ConfigPage from './pages/ConfigPage'
 import QueuePage from './pages/QueuePage'
 import ConfigSetup from './components/ConfigSetup'
 import { addTimestamp } from './lib/utils'
+import { FileProvider } from './contexts/FileContext'
 
 function App() {
   // Configuration state
@@ -144,12 +145,14 @@ function App() {
 
   return (
     <div className={`min-h-screen bg-background ${isDarkMode ? 'dark' : ''}`}>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/config" element={<ConfigPage />} />
-        <Route path="/queue" element={<QueuePage />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <FileProvider>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/config" element={<ConfigPage />} />
+          <Route path="/queue" element={<QueuePage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </FileProvider>
 
       {/* Theme Toggle Button */}
       <button

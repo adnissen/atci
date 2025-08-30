@@ -863,6 +863,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
+
+            let cache_data = files::get_video_info_from_disk()?;
+            files::save_video_info_to_cache(&cache_data)?;
+            
             println!("Starting web server on {}:{}", host, port);
             
             let rt = tokio::runtime::Runtime::new()?;

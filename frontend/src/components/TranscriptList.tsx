@@ -21,19 +21,7 @@ import MobileTranscriptList from './MobileTranscriptList'
 import { useEffect, useState } from 'react'
 import { useLSState } from '../hooks/useLSState'
 import { addTimestamp } from '../lib/utils'
-
-// Type definitions
-type FileRow = {
-  name: string
-  base_name: string
-  created_at: string
-  transcript: boolean
-  line_count?: number
-  length?: string
-  full_path: string
-  last_generated?: string
-  model?: string
-}
+import { useFileContext } from '../contexts/FileContext'
 
 type TranscriptData = {
   text: string
@@ -52,8 +40,6 @@ type QueueItem = {
 interface TranscriptListProps {
   watchDirectory: string
   isSmallScreen: boolean
-  files: FileRow[]
-  setFiles: (files: FileRow[]) => void
   activeSearchTerm: string
   searchLineNumbers: Record<string, number[]>
   setSearchLineNumbers: (lineNumbers: Record<string, number[]> | ((prev: Record<string, number[]>) => Record<string, number[]>)) => void
@@ -97,8 +83,6 @@ interface TranscriptListProps {
 export default function TranscriptList({
   watchDirectory,
   isSmallScreen,
-  files,
-  setFiles,
   activeSearchTerm,
   searchLineNumbers,
   setSearchLineNumbers,
@@ -138,6 +122,7 @@ export default function TranscriptList({
   onClearClip,
   onClipBlock
 }: TranscriptListProps) {
+  const { files, refreshFiles } = useFileContext()
   const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
   const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
   const [isBulkRegenerating, setIsBulkRegenerating] = useState(false)
@@ -233,29 +218,8 @@ export default function TranscriptList({
 
   // Refresh files when selectedWatchDirs or sources changes
   useEffect(() => {
-    refreshFiles()
+    refreshFiles(selectedWatchDirs, selectedSources)
   }, [selectedWatchDirs, selectedSources])
-
-  const refreshFiles = async () => {
-    try {
-      const params = new URLSearchParams()
-      params.append('filter', selectedWatchDirs.join(','))
-      params.append('sources', selectedSources.join(','))
-
-      const queryString = params.toString()
-      const url = queryString ? `/api/files?${queryString}` : '/api/files'
-      
-      const response = await fetch(addTimestamp(url))
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setFiles(data.data || [])
-        }
-      }
-    } catch (error) {
-      console.error('Error refreshing files:', error)
-    }
-  }
 
   // Sort files based on current sort column and direction
   const sortedFiles = [...files].sort((a, b) => {
@@ -610,7 +574,7 @@ export default function TranscriptList({
         }
         
         // Refresh the file list to update line count
-        await refreshFiles()
+        await refreshFiles(selectedWatchDirs, selectedSources)
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         console.error('Failed to replace transcript:', errorData.error)
@@ -693,7 +657,7 @@ export default function TranscriptList({
       setIsRenameDialogOpen(false)
       setRenameFilename('')
       setNewFilename('')
-      await refreshFiles()
+      await refreshFiles(selectedWatchDirs, selectedSources)
 
     } catch (err) {
       console.error('Error renaming file:', err)
@@ -728,7 +692,7 @@ export default function TranscriptList({
       
       if (response.ok) {
         // Refresh files to show updated meta
-        await refreshFiles()
+        await refreshFiles(selectedWatchDirs, selectedSources)
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         console.error('Failed to regenerate meta file:', errorData.error)

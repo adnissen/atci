@@ -24637,11 +24637,44 @@ function MobileTranscriptList({
     ] }, file.base_name);
   }) });
 }
+const FileContext = reactExports.createContext(void 0);
+const useFileContext = () => {
+  const context = reactExports.useContext(FileContext);
+  if (context === void 0) {
+    throw new Error("useFileContext must be used within a FileProvider");
+  }
+  return context;
+};
+const FileProvider = ({ children }) => {
+  const [files, setFiles] = reactExports.useState([]);
+  const refreshFiles = async (selectedWatchDirs, selectedSources) => {
+    try {
+      const params = new URLSearchParams();
+      params.append("filter", selectedWatchDirs.join(","));
+      params.append("sources", selectedSources.join(","));
+      const queryString = params.toString();
+      const url = queryString ? `/api/files?${queryString}` : "/api/files";
+      const response = await fetch(addTimestamp(url));
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setFiles(data.data || []);
+        }
+      }
+    } catch (error) {
+      console.error("Error refreshing files:", error);
+    }
+  };
+  const value = {
+    files,
+    setFiles,
+    refreshFiles
+  };
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(FileContext.Provider, { value, children });
+};
 function TranscriptList({
   watchDirectory,
   isSmallScreen,
-  files,
-  setFiles,
   activeSearchTerm,
   searchLineNumbers,
   setSearchLineNumbers,
@@ -24681,6 +24714,7 @@ function TranscriptList({
   onClipBlock
 }) {
   var _a;
+  const { files, refreshFiles } = useFileContext();
   const [sortColumn, setSortColumn] = useLSState("sortColumn", "created_at");
   const [sortDirection, setSortDirection] = useLSState("sortDirection", "desc");
   const [isBulkRegenerating, setIsBulkRegenerating] = reactExports.useState(false);
@@ -24752,26 +24786,8 @@ function TranscriptList({
     fetchExpandedTranscripts();
   }, [expandedFiles]);
   reactExports.useEffect(() => {
-    refreshFiles();
+    refreshFiles(selectedWatchDirs, selectedSources);
   }, [selectedWatchDirs, selectedSources]);
-  const refreshFiles = async () => {
-    try {
-      const params = new URLSearchParams();
-      params.append("filter", selectedWatchDirs.join(","));
-      params.append("sources", selectedSources.join(","));
-      const queryString = params.toString();
-      const url = queryString ? `/api/files?${queryString}` : "/api/files";
-      const response = await fetch(addTimestamp(url));
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          setFiles(data.data || []);
-        }
-      }
-    } catch (error) {
-      console.error("Error refreshing files:", error);
-    }
-  };
   const sortedFiles = [...files].sort((a, b) => {
     let aValue;
     let bValue;
@@ -25036,7 +25052,7 @@ function TranscriptList({
         if (expandedFiles.has(replaceTranscriptFilename)) {
           await fetchTranscript(replaceTranscriptFilename);
         }
-        await refreshFiles();
+        await refreshFiles(selectedWatchDirs, selectedSources);
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
         console.error("Failed to replace transcript:", errorData.error);
@@ -25105,7 +25121,7 @@ function TranscriptList({
       setIsRenameDialogOpen(false);
       setRenameFilename("");
       setNewFilename("");
-      await refreshFiles();
+      await refreshFiles(selectedWatchDirs, selectedSources);
     } catch (err) {
       console.error("Error renaming file:", err);
       setRenameError(err instanceof Error ? err.message : "An error occurred while renaming the file");
@@ -25133,7 +25149,7 @@ function TranscriptList({
         }
       });
       if (response.ok) {
-        await refreshFiles();
+        await refreshFiles(selectedWatchDirs, selectedSources);
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
         console.error("Failed to regenerate meta file:", errorData.error);
@@ -27219,6 +27235,7 @@ function ConfigPage({ onClose } = {}) {
 }
 function QueuePage({ onClose } = {}) {
   const navigate = useNavigate();
+  const { refreshFiles } = useFileContext();
   const [queueStatus, setQueueStatus] = reactExports.useState({
     queue: [],
     currently_processing: null,
@@ -27236,6 +27253,7 @@ function QueuePage({ onClose } = {}) {
           console.log(queueStatus.currently_processing + " " + data.data.currently_processing);
           if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
             console.log(queueStatus.currently_processing + " just finished");
+            refreshFiles([], []);
           }
           setQueueStatus(data.data);
         } else {
@@ -27455,7 +27473,6 @@ function QueuePage({ onClose } = {}) {
 }
 function HomePage() {
   const isSmallScreen = useIsSmallScreen();
-  const [files, setFiles] = reactExports.useState([]);
   const [expandedFiles, setExpandedFiles] = reactExports.useState(/* @__PURE__ */ new Set());
   const [searchTerm, setSearchTerm] = reactExports.useState("");
   const [activeSearchTerm, setActiveSearchTerm] = reactExports.useState("");
@@ -27940,8 +27957,6 @@ function HomePage() {
           {
             watchDirectory,
             isSmallScreen,
-            files,
-            setFiles,
             activeSearchTerm,
             searchLineNumbers,
             setSearchLineNumbers,
@@ -28743,12 +28758,12 @@ function App() {
     ] });
   }
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: `min-h-screen bg-background ${isDarkMode ? "dark" : ""}`, children: [
-    /* @__PURE__ */ jsxRuntimeExports.jsxs(Routes, { children: [
+    /* @__PURE__ */ jsxRuntimeExports.jsx(FileProvider, { children: /* @__PURE__ */ jsxRuntimeExports.jsxs(Routes, { children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "/", element: /* @__PURE__ */ jsxRuntimeExports.jsx(HomePage, {}) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "/config", element: /* @__PURE__ */ jsxRuntimeExports.jsx(ConfigPage, {}) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "/queue", element: /* @__PURE__ */ jsxRuntimeExports.jsx(QueuePage, {}) }),
       /* @__PURE__ */ jsxRuntimeExports.jsx(Route, { path: "*", element: /* @__PURE__ */ jsxRuntimeExports.jsx(Navigate, { to: "/", replace: true }) })
-    ] }),
+    ] }) }),
     /* @__PURE__ */ jsxRuntimeExports.jsx(
       "button",
       {
