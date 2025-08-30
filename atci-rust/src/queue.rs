@@ -9,6 +9,7 @@ use crate::video_processor;
 use tokio::time::sleep;
 
 use rocket::serde::json::Json;
+use rocket::serde::Deserialize;
 use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::config;
@@ -35,6 +36,24 @@ pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
         .filter(|line| !line.is_empty())
         .collect();
     Ok(queue)
+}
+
+pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(queue_path)?;
+    
+    file.lock_exclusive()?;
+    for path in paths {
+        writeln!(file, "{}", path)?;
+    }
+    file.unlock()?;
+    Ok(())
 }
 
 pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -116,6 +135,19 @@ pub fn web_block_path(path: String) -> Json<ApiResponse<&'static str>> {
     match add_to_blocklist(&path) {
         Ok(()) => Json(ApiResponse::success("Path added to blocklist")),
         Err(e) => Json(ApiResponse::error(format!("Failed to add path to blocklist: {}", e))),
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SetRequest {
+    paths: Vec<String>,
+}
+
+#[post("/api/queue/set", data = "<request>")]
+pub fn web_set_queue(request: Json<SetRequest>) -> Json<ApiResponse<&'static str>> {
+    match set_queue(request.paths.clone()) {
+        Ok(()) => Json(ApiResponse::success("Queue set successfully")),
+        Err(e) => Json(ApiResponse::error(format!("Failed to set queue: {}", e))),
     }
 }
 

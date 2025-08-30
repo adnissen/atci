@@ -27227,33 +27227,33 @@ function QueuePage({ onClose } = {}) {
   });
   const [isLoading, setIsLoading] = reactExports.useState(true);
   const [error, setError] = reactExports.useState(null);
+  const fetchQueueStatus = async () => {
+    try {
+      const response = await fetch(addTimestamp("/api/queue/status"));
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          console.log(queueStatus.currently_processing + " " + data.data.currently_processing);
+          if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
+            console.log(queueStatus.currently_processing + " just finished");
+          }
+          setQueueStatus(data.data);
+        } else {
+          setError(data.error);
+        }
+        setError(null);
+      } else {
+        throw new Error(`Failed to fetch queue status: ${response.status}`);
+      }
+    } catch (err) {
+      console.error("Error fetching queue status:", err);
+      setError(err instanceof Error ? err.message : "Failed to fetch queue status");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   reactExports.useEffect(() => {
     const interval = setInterval(() => {
-      const fetchQueueStatus = async () => {
-        try {
-          const response = await fetch(addTimestamp("/api/queue/status"));
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-              console.log(queueStatus.currently_processing + " " + data.data.currently_processing);
-              if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
-                console.log(queueStatus.currently_processing + " just finished");
-              }
-              setQueueStatus(data.data);
-            } else {
-              setError(data.error);
-            }
-            setError(null);
-          } else {
-            throw new Error(`Failed to fetch queue status: ${response.status}`);
-          }
-        } catch (err) {
-          console.error("Error fetching queue status:", err);
-          setError(err instanceof Error ? err.message : "Failed to fetch queue status");
-        } finally {
-          setIsLoading(false);
-        }
-      };
       fetchQueueStatus();
     }, 1e3);
     return () => clearInterval(interval);
@@ -27269,26 +27269,54 @@ function QueuePage({ onClose } = {}) {
     }
   };
   const handleMoveUp = async (index2) => {
-    if (index2 <= 1) return;
-    [...queueStatus.queue];
-    await updateQueueOrder();
+    if (index2 === 0) return;
+    const newQueue = [...queueStatus.queue];
+    const [movedItem] = newQueue.splice(index2, 1);
+    newQueue.splice(index2 - 1, 0, movedItem);
+    await updateQueueOrder(newQueue);
   };
   const handleMoveDown = async (index2) => {
-    if (index2 === 0 || index2 === queueStatus.queue.length - 1) return;
-    [...queueStatus.queue];
-    await updateQueueOrder();
+    if (index2 === queueStatus.queue.length - 1) return;
+    const newQueue = [...queueStatus.queue];
+    const [movedItem] = newQueue.splice(index2, 1);
+    newQueue.splice(index2 + 1, 0, movedItem);
+    await updateQueueOrder(newQueue);
   };
   const handleSendToTop = async (index2) => {
-    if (index2 <= 1) return;
-    [...queueStatus.queue];
-    await updateQueueOrder();
+    if (index2 === 0) return;
+    const newQueue = [...queueStatus.queue];
+    const [movedItem] = newQueue.splice(index2, 1);
+    newQueue.splice(0, 0, movedItem);
+    await updateQueueOrder(newQueue);
   };
   const handleSendToBottom = async (index2) => {
-    if (index2 === 0 || index2 === queueStatus.queue.length - 1) return;
-    [...queueStatus.queue];
-    await updateQueueOrder();
+    if (index2 === queueStatus.queue.length - 1) return;
+    const newQueue = [...queueStatus.queue];
+    const [movedItem] = newQueue.splice(index2, 1);
+    newQueue.push(movedItem);
+    await updateQueueOrder(newQueue);
   };
   const updateQueueOrder = async (newQueue) => {
+    try {
+      const response = await fetch("/api/queue/set", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          paths: newQueue
+        })
+      });
+      if (response.ok) {
+        await fetchQueueStatus();
+      } else {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        alert(`Failed to set queue: ${errorData.message}`);
+      }
+    } catch (err) {
+      console.error("Error setting queue:", err);
+      alert("Failed to set queue");
+    }
   };
   const getDisplayName = (path) => {
     var _a;

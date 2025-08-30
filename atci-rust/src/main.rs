@@ -129,6 +129,11 @@ enum QueueCommands {
         #[arg(help = "Path to add to the blocklist")]
         path: String,
     },
+    #[command(about = "Set the queue with new paths")]
+    Set {
+        #[arg(help = "Paths in desired order", num_args = 1..)]
+        paths: Vec<String>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -568,6 +573,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Err(e) => {
                             eprintln!("Error adding to blocklist: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(QueueCommands::Set { paths }) => {
+                    match queue::set_queue(paths) {
+                        Ok(()) => {
+                            println!("Queue set successfully");
+                        }
+                        Err(e) => {
+                            eprintln!("Error setting queue: {}", e);
                             std::process::exit(1);
                         }
                     }

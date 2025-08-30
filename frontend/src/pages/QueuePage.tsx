@@ -39,39 +39,37 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
   })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+  const fetchQueueStatus = async () => {
+    try {
+      const response = await fetch(addTimestamp('/api/queue/status'))
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          //if the previous state was processing something
+          // and the incoming state is not equal to what we had
+          console.log(queueStatus.currently_processing + " " + data.data.currently_processing)
+          if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
+            //then we need to refresh the files
+            console.log(queueStatus.currently_processing + " just finished")
+          }
+          setQueueStatus(data.data)
+        } else {
+          setError(data.error)
+        }
+        setError(null)
+      } else {
+        throw new Error(`Failed to fetch queue status: ${response.status}`)
+      }
+    } catch (err) {
+      console.error('Error fetching queue status:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch queue status')
+    } finally {
+      setIsLoading(false)
+    }
+  }
   // Poll for updates every two seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      // Fetch queue status
-      const fetchQueueStatus = async () => {
-        try {
-          const response = await fetch(addTimestamp('/api/queue/status'))
-          if (response.ok) {
-            const data = await response.json()
-            if (data.success) {
-              //if the previous state was processing something
-              // and the incoming state is not equal to what we had
-              console.log(queueStatus.currently_processing + " " + data.data.currently_processing)
-              if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
-                //then we need to refresh the files
-                console.log(queueStatus.currently_processing + " just finished")
-              }
-              setQueueStatus(data.data)
-            } else {
-              setError(data.error)
-            }
-            setError(null)
-          } else {
-            throw new Error(`Failed to fetch queue status: ${response.status}`)
-          }
-        } catch (err) {
-          console.error('Error fetching queue status:', err)
-          setError(err instanceof Error ? err.message : 'Failed to fetch queue status')
-        } finally {
-          setIsLoading(false)
-        }
-      }
       fetchQueueStatus()
     }, 1000)
     return () => clearInterval(interval)
@@ -140,7 +138,7 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
 
   // Move item up in queue
   const handleMoveUp = async (index: number) => {
-    if (index <= 1) return // Can't move first item (processing) or second item up above processing
+    if (index === 0) return // Can't move first item (processing) or second item up above processing
 
     const newQueue = [...queueStatus.queue]
     const [movedItem] = newQueue.splice(index, 1)
@@ -151,7 +149,7 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
 
   // Move item down in queue
   const handleMoveDown = async (index: number) => {
-    if (index === 0 || index === queueStatus.queue.length - 1) return // Can't move processing item or last item down
+    if (index === queueStatus.queue.length - 1) return // Can't move last item down
 
     const newQueue = [...queueStatus.queue]
     const [movedItem] = newQueue.splice(index, 1)
@@ -162,19 +160,19 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
 
   // Send item to top of queue
   const handleSendToTop = async (index: number) => {
-    if (index <= 1) return // Can't move processing item or item already at position #2
+    if (index === 0) return // Can't move item already at position #2
 
     const newQueue = [...queueStatus.queue]
     const [movedItem] = newQueue.splice(index, 1)
     // Insert at position 1 (after the processing item at position 0)
-    newQueue.splice(1, 0, movedItem)
+    newQueue.splice(0, 0, movedItem)
 
     await updateQueueOrder(newQueue)
   }
 
   // Send item to bottom of queue
   const handleSendToBottom = async (index: number) => {
-    if (index === 0 || index === queueStatus.queue.length - 1) return // Can't move processing item or item already at bottom
+    if (index === queueStatus.queue.length - 1) return // Can't move item already at bottom
 
     const newQueue = [...queueStatus.queue]
     const [movedItem] = newQueue.splice(index, 1)
@@ -185,32 +183,28 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
 
   // Update queue order
   const updateQueueOrder = async (newQueue: string[]) => {
-    // try {
-    //   const response = await fetch('/api/queue/reorder', {
-    //     method: 'POST',
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //     },
-    //     body: JSON.stringify({
-    //       queue: newQueue.map(item => ({
-    //         process_type: item.process_type,
-    //         path: item.path,
-    //         time: item.time
-    //       }))
-    //     })
-    //   })
+    try {
+      const response = await fetch('/api/queue/set', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paths: newQueue
+        })
+      })
 
-    //   if (response.ok) {
-    //     // Refresh queue status
-    //     await fetchQueueStatus()
-    //   } else {
-    //     const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-    //     alert(`Failed to reorder queue: ${errorData.message}`)
-    //   }
-    // } catch (err) {
-    //   console.error('Error reordering queue:', err)
-    //   alert('Failed to reorder queue')
-    // }
+      if (response.ok) {
+        // Refresh queue status
+        await fetchQueueStatus()
+      } else {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        alert(`Failed to set queue: ${errorData.message}`)
+      }
+    } catch (err) {
+      console.error('Error setting queue:', err)
+      alert('Failed to set queue')
+    }
   }
 
   // Get display name for file path
