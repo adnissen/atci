@@ -123,6 +123,33 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
     let response = reqwest::blocking::get(url)?;
     let bytes = response.bytes()?;
     
+    // Handle whisper-cli separately as it's a direct binary download
+    if tool == "whisper-cli" && platform == "macos-arm" {
+        let extension = if cfg!(target_os = "windows") { ".exe" } else { "" };
+        let output_path = binaries_dir.join(format!("{}{}", tool, extension));
+        
+        std::fs::write(&output_path, &bytes)?;
+        
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = std::fs::metadata(&output_path)?;
+            let mut permissions = metadata.permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(&output_path, permissions)?;
+        }
+        
+        #[cfg(target_os = "macos")]
+        {
+            if let Err(e) = handle_macos_quarantine(&output_path.to_string_lossy(), &platform) {
+                eprintln!("Warning: Failed to handle macOS quarantine: {}", e);
+            }
+        }
+        
+        return Ok(output_path.to_string_lossy().to_string());
+    }
+    
+    // Handle zip archives for other tools
     let cursor = std::io::Cursor::new(bytes);
     let mut archive = zip::ZipArchive::new(cursor)?;
     
