@@ -9,7 +9,7 @@ use crate::video_processor;
 use tokio::time::sleep;
 
 use rocket::serde::json::Json;
-use rocket::get;
+use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::config;
 use crate::files;
@@ -63,6 +63,38 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+pub fn add_to_blocklist(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let blocklist_path = std::path::Path::new(&home_dir).join(".blocklist");
+    
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(blocklist_path)?;
+    
+    file.lock_exclusive()?;
+    writeln!(file, "{}", path)?;
+    file.unlock()?;
+    Ok(())
+}
+
+pub fn load_blocklist() -> Vec<String> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let blocklist_path = std::path::Path::new(&home_dir).join(".blocklist");
+    if blocklist_path.exists() {
+        if let Ok(content) = fs::read_to_string(&blocklist_path) {
+            content.lines()
+                .map(|line| line.trim().to_string())
+                .filter(|line| !line.is_empty())
+                .collect()
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    }
+}
+
 #[get("/api/queue/status")]
 pub fn web_get_queue_status() -> Json<ApiResponse<serde_json::Value>> {
     match get_queue_status() {
@@ -76,6 +108,14 @@ pub fn web_get_queue_status() -> Json<ApiResponse<serde_json::Value>> {
             Json(ApiResponse::success(result))
         }
         Err(e) => Json(ApiResponse::error(format!("Failed to get queue status: {}", e))),
+    }
+}
+
+#[post("/api/queue/block", data = "<path>")]
+pub fn web_block_path(path: String) -> Json<ApiResponse<&'static str>> {
+    match add_to_blocklist(&path) {
+        Ok(()) => Json(ApiResponse::success("Path added to blocklist")),
+        Err(e) => Json(ApiResponse::error(format!("Failed to add path to blocklist: {}", e))),
     }
 }
 
@@ -225,7 +265,9 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
             eprintln!("No watch directories configured");
             return;
         }
-        
+
+        let blocklist = load_blocklist();
+
         loop {
             for watch_directory in &cfg.watch_directories {
                 for entry in WalkDir::new(watch_directory).into_iter().filter_map(|e| e.ok()) {
@@ -233,6 +275,11 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
 
                     //skip directories
                     if !file_path.is_file() {
+                        continue;
+                    }
+
+                    // skip files that are in the blocklist
+                    if blocklist.contains(&file_path.to_string_lossy().to_string()) {
                         continue;
                     }
 
