@@ -1,0 +1,11 @@
+/Users/andrewnissen/atci/atci-rust/target/debug/deps/bitflags-cddcbc32680db583.d: /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/lib.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/iter.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/parser.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/traits.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/public.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/internal.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/external.rs
+
+/Users/andrewnissen/atci/atci-rust/target/debug/deps/libbitflags-cddcbc32680db583.rmeta: /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/lib.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/iter.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/parser.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/traits.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/public.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/internal.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/external.rs
+
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/lib.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/iter.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/parser.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/traits.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/public.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/internal.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.9.2/src/external.rs:

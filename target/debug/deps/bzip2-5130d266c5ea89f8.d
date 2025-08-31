@@ -1,0 +1,11 @@
+/Users/andrewnissen/atci/atci-rust/target/debug/deps/bzip2-5130d266c5ea89f8.d: /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/lib.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/mem.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/bufread.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/read.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/write.rs
+
+/Users/andrewnissen/atci/atci-rust/target/debug/deps/libbzip2-5130d266c5ea89f8.rlib: /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/lib.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/mem.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/bufread.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/read.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/write.rs
+
+/Users/andrewnissen/atci/atci-rust/target/debug/deps/libbzip2-5130d266c5ea89f8.rmeta: /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/lib.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/mem.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/bufread.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/read.rs /Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/write.rs
+
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/lib.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/mem.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/bufread.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/read.rs:
+/Users/andrewnissen/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bzip2-0.5.2/src/write.rs:

@@ -1,5 +1,0 @@
-<script>
-  window.atci_files = <%= raw(@txt_files) %>;
-</script>
-
-<%= raw(File.read!(Path.join([Application.app_dir(:atci), "priv", "static", "index.html"]))) %>
