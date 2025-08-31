@@ -2,6 +2,7 @@ use rocket::serde::json::Json;
 use rocket::serde::Serialize;
 use rocket::{get, routes, response::content};
 use rocket::response::status::NotFound;
+use rocket::response::Redirect;
 use crate::{config, files, queue, search, transcripts, clipper, tools_manager, model_manager, Asset};
 
 #[derive(Serialize)]
@@ -30,8 +31,8 @@ impl<T> ApiResponse<T> {
 }
 
 #[get("/")]
-fn index() -> &'static str {
-    "ATCI Web Server - Video Processing API"
+fn index() -> Redirect {
+    Redirect::to("/app")
 }
 
 #[get("/api/health")]
