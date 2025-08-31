@@ -617,6 +617,14 @@ function HomePageContent() {
         currentProcessingFile={currentProcessingFile}
         isAtTop={isAtTop}
         showingTranscriptList={showingTranscriptList}
+        selectedWatchDirs={selectedWatchDirs}
+        setSelectedWatchDirs={() => {}}
+        availableWatchDirs={[]}
+        selectedSources={selectedSources}
+        setSelectedSources={() => {}}
+        availableSources={[]}
+        showAllFiles={showAllFiles}
+        onToggleShowAllFiles={handleToggleShowAllFiles}
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
         onScrollToTop={handleScrollToTop}
@@ -624,8 +632,6 @@ function HomePageContent() {
         onCollapseAll={handleCollapseAll}
         onConfigClick={handleConfigClick}
         onQueueClick={handleQueueClick}
-        showAllFiles={showAllFiles}
-        onToggleShowAllFiles={handleToggleShowAllFiles}
         clipStart={clipStart}
         clipEnd={clipEnd}
         clipTranscript={clipTranscript}
