@@ -106,14 +106,14 @@ export default function MobileTranscriptList({
               file={file}
               onExpand={() => onExpandFile(file.full_path)}
               isExpanded={isExpanded}
-              isRegenerating={regeneratingFiles.has(file.full_path)}
-              isReplacing={replacingFiles.has(file.full_path)}
-              isProcessing={isFileBeingProcessed(file.full_path)}
+              isRegenerating={!file.transcript}
+              isReplacing={!file.transcript}
+              isProcessing={false}
 
               onRegenerate={(e) => onRegenerate(file.full_path, e)}
               onReplace={(e) => onReplace(file.full_path, e)}
               onRename={(e) => onRename(file.full_path, e)}
-              onRegenerateMeta={(e) => onRegenerateMeta(file.full_path, e)}
+              onRegenerateMeta={(e) => onRegenerate(file.full_path, e)}
               formatDate={formatDate}
               getModelChipColor={getModelChipColor}
               isSmallScreen={true}

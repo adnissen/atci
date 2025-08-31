@@ -8,7 +8,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLSState } from '../hooks/useLSState'
 import { useIsSmallScreen } from '../hooks/useMediaQuery'
 import { addTimestamp } from '../lib/utils'
-import { FileProvider } from '../contexts/FileContext'
+import { FileProvider, useFileContext } from '../contexts/FileContext'
 
 // Type definitions
 type FileRow = {
@@ -34,8 +34,9 @@ type QueueItem = {
   process_type: string
 }
 
-export default function HomePage() {
+function HomePageContent() {
   const isSmallScreen = useIsSmallScreen()
+  const { selectedWatchDirs, selectedSources } = useFileContext()
   
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
@@ -48,10 +49,6 @@ export default function HomePage() {
   const [watchDirectory, setWatchDirectory] = useState<string>('TODO delete')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
-  const [selectedWatchDirs, setSelectedWatchDirs] = useLSState<string[]>('selectedWatchDirs', [])
-  const [availableWatchDirs, setAvailableWatchDirs] = useState<string[]>([])
-  const [selectedSources, setSelectedSources] = useLSState<string[]>('selectedSources', [])
-  const [availableSources, setAvailableSources] = useState<string[]>([])
   const [showAllFiles, setShowAllFiles] = useLSState<boolean>('showAllFiles', false)
 
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
@@ -620,12 +617,6 @@ export default function HomePage() {
         currentProcessingFile={currentProcessingFile}
         isAtTop={isAtTop}
         showingTranscriptList={showingTranscriptList}
-        selectedWatchDirs={selectedWatchDirs}
-        setSelectedWatchDirs={setSelectedWatchDirs}
-        availableWatchDirs={availableWatchDirs}
-        selectedSources={selectedSources}
-        setSelectedSources={setSelectedSources}
-        availableSources={availableSources}
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
         onScrollToTop={handleScrollToTop}
@@ -667,14 +658,6 @@ export default function HomePage() {
             transcriptData={transcriptData}
             setTranscriptData={setTranscriptData}
             currentProcessingFile={currentProcessingFile}
-            selectedWatchDirs={selectedWatchDirs}
-            setSelectedWatchDirs={setSelectedWatchDirs}
-            availableWatchDirs={availableWatchDirs}
-            setAvailableWatchDirs={setAvailableWatchDirs}
-            selectedSources={selectedSources}
-            setSelectedSources={setSelectedSources}
-            availableSources={availableSources}
-            setAvailableSources={setAvailableSources}
 
 
             leftPaneWidth={leftPaneWidth}
@@ -714,4 +697,8 @@ export default function HomePage() {
       </div>
     </>
   )
+}
+
+export default function HomePage() {
+  return <HomePageContent />
 }

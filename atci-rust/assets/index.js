@@ -24593,13 +24593,13 @@ function MobileTranscriptList({
           file,
           onExpand: () => onExpandFile(file.full_path),
           isExpanded,
-          isRegenerating: regeneratingFiles.has(file.full_path),
-          isReplacing: replacingFiles.has(file.full_path),
-          isProcessing: isFileBeingProcessed(file.full_path),
+          isRegenerating: !file.transcript,
+          isReplacing: !file.transcript,
+          isProcessing: false,
           onRegenerate: (e) => onRegenerate(file.full_path, e),
           onReplace: (e) => onReplace(file.full_path, e),
           onRename: (e) => onRename(file.full_path, e),
-          onRegenerateMeta: (e) => onRegenerateMeta(file.full_path, e),
+          onRegenerateMeta: (e) => onRegenerate(file.full_path, e),
           formatDate,
           getModelChipColor,
           isSmallScreen: true,
@@ -24647,11 +24647,17 @@ const useFileContext = () => {
 };
 const FileProvider = ({ children }) => {
   const [files, setFiles] = reactExports.useState([]);
-  const refreshFiles = async (selectedWatchDirs, selectedSources) => {
+  const [selectedWatchDirs, setSelectedWatchDirs] = useLSState("selectedWatchDirs", []);
+  const [availableWatchDirs, setAvailableWatchDirs] = reactExports.useState([]);
+  const [selectedSources, setSelectedSources] = useLSState("selectedSources", []);
+  const [availableSources, setAvailableSources] = reactExports.useState([]);
+  const refreshFiles = async (watchDirs, sources) => {
+    const dirsToUse = watchDirs !== void 0 ? watchDirs : selectedWatchDirs;
+    const sourcesToUse = sources !== void 0 ? sources : selectedSources;
     try {
       const params = new URLSearchParams();
-      params.append("filter", selectedWatchDirs.join(","));
-      params.append("sources", selectedSources.join(","));
+      params.append("filter", dirsToUse.join(","));
+      params.append("sources", sourcesToUse.join(","));
       const queryString = params.toString();
       const url = queryString ? `/api/files?${queryString}` : "/api/files";
       const response = await fetch(addTimestamp(url));
@@ -24665,10 +24671,53 @@ const FileProvider = ({ children }) => {
       console.error("Error refreshing files:", error);
     }
   };
+  reactExports.useEffect(() => {
+    const fetchWatchDirectories = async () => {
+      try {
+        const response = await fetch(addTimestamp("/api/config"));
+        if (response.ok) {
+          const config = await response.json();
+          if (config.success) {
+            setAvailableWatchDirs(config.data.config.watch_directories || []);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching watch directories:", error);
+      }
+    };
+    fetchWatchDirectories();
+  }, []);
+  reactExports.useEffect(() => {
+    const fetchSources = async () => {
+      try {
+        const response = await fetch(addTimestamp("/api/sources"));
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setAvailableSources(data.data || []);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching sources:", error);
+      }
+    };
+    fetchSources();
+  }, []);
+  reactExports.useEffect(() => {
+    refreshFiles();
+  }, [selectedWatchDirs, selectedSources]);
   const value = {
     files,
     setFiles,
-    refreshFiles
+    refreshFiles,
+    selectedWatchDirs,
+    setSelectedWatchDirs,
+    availableWatchDirs,
+    setAvailableWatchDirs,
+    selectedSources,
+    setSelectedSources,
+    availableSources,
+    setAvailableSources
   };
   return /* @__PURE__ */ jsxRuntimeExports.jsx(FileContext.Provider, { value, children });
 };
@@ -24687,14 +24736,6 @@ function TranscriptList({
   transcriptData,
   setTranscriptData,
   currentProcessingFile,
-  selectedWatchDirs,
-  setSelectedWatchDirs,
-  availableWatchDirs,
-  setAvailableWatchDirs,
-  selectedSources,
-  setSelectedSources,
-  availableSources,
-  setAvailableSources,
   showAllFiles,
   leftPaneWidth,
   setLeftPaneWidth,
@@ -24714,7 +24755,18 @@ function TranscriptList({
   onClipBlock
 }) {
   var _a;
-  const { files, refreshFiles } = useFileContext();
+  const {
+    files,
+    refreshFiles,
+    selectedWatchDirs,
+    setSelectedWatchDirs,
+    availableWatchDirs,
+    setAvailableWatchDirs,
+    selectedSources,
+    setSelectedSources,
+    availableSources,
+    setAvailableSources
+  } = useFileContext();
   const [sortColumn, setSortColumn] = useLSState("sortColumn", "created_at");
   const [sortDirection, setSortDirection] = useLSState("sortDirection", "desc");
   const [isBulkRegenerating, setIsBulkRegenerating] = reactExports.useState(false);
@@ -24738,38 +24790,6 @@ function TranscriptList({
   );
   const shouldUseMobileView = isSmallScreen || isLeftPaneWidthMeasured && leftPaneWidth < 753;
   reactExports.useEffect(() => {
-    const fetchWatchDirectories = async () => {
-      try {
-        const response = await fetch(addTimestamp("/api/config"));
-        if (response.ok) {
-          const config = await response.json();
-          if (config.success) {
-            setAvailableWatchDirs(config.data.config.watch_directories || []);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching watch directories:", error);
-      }
-    };
-    fetchWatchDirectories();
-  }, [setAvailableWatchDirs]);
-  reactExports.useEffect(() => {
-    const fetchSources = async () => {
-      try {
-        const response = await fetch(addTimestamp("/api/sources"));
-        if (response.ok) {
-          const data = await response.json();
-          if (data.success) {
-            setAvailableSources(data.data || []);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching sources:", error);
-      }
-    };
-    fetchSources();
-  }, [setAvailableSources]);
-  reactExports.useEffect(() => {
     if (!leftPaneRef.current) return;
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -24785,9 +24805,6 @@ function TranscriptList({
   reactExports.useEffect(() => {
     fetchExpandedTranscripts();
   }, [expandedFiles]);
-  reactExports.useEffect(() => {
-    refreshFiles(selectedWatchDirs, selectedSources);
-  }, [selectedWatchDirs, selectedSources]);
   const sortedFiles = [...files].sort((a, b) => {
     let aValue;
     let bValue;
@@ -24992,6 +25009,8 @@ function TranscriptList({
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
         console.error("Failed to regenerate transcript:", errorData.error);
         alert(`Failed to regenerate transcript: ${errorData.error}`);
+      } else {
+        await refreshFiles();
       }
     } catch (error) {
       setRegeneratingFiles((prev) => {
@@ -25052,7 +25071,7 @@ function TranscriptList({
         if (expandedFiles.has(replaceTranscriptFilename)) {
           await fetchTranscript(replaceTranscriptFilename);
         }
-        await refreshFiles(selectedWatchDirs, selectedSources);
+        await refreshFiles();
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
         console.error("Failed to replace transcript:", errorData.error);
@@ -25121,7 +25140,7 @@ function TranscriptList({
       setIsRenameDialogOpen(false);
       setRenameFilename("");
       setNewFilename("");
-      await refreshFiles(selectedWatchDirs, selectedSources);
+      await refreshFiles();
     } catch (err) {
       console.error("Error renaming file:", err);
       setRenameError(err instanceof Error ? err.message : "An error occurred while renaming the file");
@@ -25149,7 +25168,7 @@ function TranscriptList({
         }
       });
       if (response.ok) {
-        await refreshFiles(selectedWatchDirs, selectedSources);
+        await refreshFiles();
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
         console.error("Failed to regenerate meta file:", errorData.error);
@@ -25563,11 +25582,11 @@ function TranscriptList({
                           /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "w-[10%] text-foreground", children: file.length ? file.length : /* @__PURE__ */ jsxRuntimeExports.jsx(
                             "button",
                             {
-                              onClick: (e) => handleRegenerateMeta(file.full_path, e),
-                              disabled: regeneratingFiles.has(file.full_path),
+                              onClick: (e) => handleRegenerate(file.full_path, e),
+                              disabled: !file.transcript,
                               className: "p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
                               title: "Generate video length",
-                              children: regeneratingFiles.has(file.full_path) ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
+                              children: !file.transcript ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
                             }
                           ) }),
                           /* @__PURE__ */ jsxRuntimeExports.jsx(TableCell, { className: "w-[8%] text-center", children: file.model ? leftPaneWidth >= 1129 ? /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: `inline-flex items-center rounded-full font-medium ${getModelChipColor(file.model)} ${file.model.length > 10 ? "px-1.5 py-0.5 text-xs scale-75" : "px-2.5 py-0.5 text-xs"}`, children: file.model }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex justify-center", children: /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -25592,7 +25611,7 @@ function TranscriptList({
                                 DropdownMenuItem,
                                 {
                                   onClick: (e) => handleRename(file.full_path, e),
-                                  disabled: isFileBeingProcessed(file.full_path) || regeneratingFiles.has(file.full_path) || replacingFiles.has(file.full_path),
+                                  disabled: !file.transcript,
                                   children: [
                                     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Rename" }),
                                     /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" }) })
@@ -25603,11 +25622,11 @@ function TranscriptList({
                                 DropdownMenuItem,
                                 {
                                   onClick: (e) => handleReplace(file.full_path, e),
-                                  disabled: replacingFiles.has(file.full_path),
+                                  disabled: !file.transcript,
                                   className: "text-blue-600 hover:text-blue-700",
                                   children: [
                                     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Edit transcript" }),
-                                    !replacingFiles.has(file.full_path) && /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" }) })
+                                    !file.transcript && /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" }) })
                                   ]
                                 }
                               ),
@@ -25615,11 +25634,11 @@ function TranscriptList({
                                 DropdownMenuItem,
                                 {
                                   onClick: (e) => handleRegenerate(file.full_path, e),
-                                  disabled: regeneratingFiles.has(file.full_path),
+                                  disabled: !file.transcript,
                                   className: "text-green-600 hover:text-green-700",
                                   children: [
                                     /* @__PURE__ */ jsxRuntimeExports.jsx("span", { children: "Regenerate transcript" }),
-                                    regeneratingFiles.has(file.full_path) ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
+                                    !file.transcript ? /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto animate-reverse-spin", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) }) : /* @__PURE__ */ jsxRuntimeExports.jsx("svg", { className: "w-4 h-4 ml-auto", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" }) })
                                   ]
                                 }
                               ),
@@ -27252,8 +27271,7 @@ function QueuePage({ onClose } = {}) {
         if (data.success) {
           console.log(queueStatus.currently_processing + " " + data.data.currently_processing);
           if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
-            console.log(queueStatus.currently_processing + " just finished");
-            refreshFiles([], []);
+            refreshFiles();
           }
           setQueueStatus(data.data);
         } else {
@@ -27471,8 +27489,9 @@ function QueuePage({ onClose } = {}) {
     ] }) })
   ] }) });
 }
-function HomePage() {
+function HomePageContent() {
   const isSmallScreen = useIsSmallScreen();
+  const { selectedWatchDirs, selectedSources } = useFileContext();
   const [expandedFiles, setExpandedFiles] = reactExports.useState(/* @__PURE__ */ new Set());
   const [searchTerm, setSearchTerm] = reactExports.useState("");
   const [activeSearchTerm, setActiveSearchTerm] = reactExports.useState("");
@@ -27484,10 +27503,6 @@ function HomePage() {
   const [watchDirectory, setWatchDirectory] = reactExports.useState("TODO delete");
   const [replacingFiles, setReplacingFiles] = reactExports.useState(/* @__PURE__ */ new Set());
   const [transcriptData, setTranscriptData] = reactExports.useState({});
-  const [selectedWatchDirs, setSelectedWatchDirs] = useLSState("selectedWatchDirs", []);
-  const [availableWatchDirs, setAvailableWatchDirs] = reactExports.useState([]);
-  const [selectedSources, setSelectedSources] = useLSState("selectedSources", []);
-  const [availableSources, setAvailableSources] = reactExports.useState([]);
   const [showAllFiles, setShowAllFiles] = useLSState("showAllFiles", false);
   const [isAtTop, setIsAtTop] = reactExports.useState(true);
   const [leftPaneScrollOffset, setLeftPaneScrollOffset] = reactExports.useState(0);
@@ -27924,12 +27939,6 @@ function HomePage() {
         currentProcessingFile,
         isAtTop,
         showingTranscriptList,
-        selectedWatchDirs,
-        setSelectedWatchDirs,
-        availableWatchDirs,
-        selectedSources,
-        setSelectedSources,
-        availableSources,
         onSearch: handleSearch,
         onClearSearch: handleClearSearch,
         onScrollToTop: handleScrollToTop,
@@ -27969,14 +27978,6 @@ function HomePage() {
             transcriptData,
             setTranscriptData,
             currentProcessingFile,
-            selectedWatchDirs,
-            setSelectedWatchDirs,
-            availableWatchDirs,
-            setAvailableWatchDirs,
-            selectedSources,
-            setSelectedSources,
-            availableSources,
-            setAvailableSources,
             leftPaneWidth,
             setLeftPaneWidth,
             isLeftPaneWidthMeasured,
@@ -28000,6 +28001,9 @@ function HomePage() {
       !isSmallScreen && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: `w-1/2 border-l border-border flex flex-col scrollbar-hide ${watchDirectory ? "pt-20" : ""}`, children: showConfigInRightPane ? /* @__PURE__ */ jsxRuntimeExports.jsx(ConfigPage, { onClose: handleCloseConfig }) : showQueueInRightPane ? /* @__PURE__ */ jsxRuntimeExports.jsx(QueuePage, { onClose: handleCloseQueue }) : rightPaneComponent ? rightPaneComponent : /* @__PURE__ */ jsxRuntimeExports.jsx(RightPanePlaceholder, {}) })
     ] })
   ] });
+}
+function HomePage() {
+  return /* @__PURE__ */ jsxRuntimeExports.jsx(HomePageContent, {});
 }
 const ConfigSetup = ({ onConfigComplete, isEditMode = false }) => {
   const [config, setConfig] = reactExports.useState({

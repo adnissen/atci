@@ -52,14 +52,6 @@ interface TranscriptListProps {
   transcriptData: Record<string, TranscriptData>
   setTranscriptData: (data: Record<string, TranscriptData> | ((prev: Record<string, TranscriptData>) => Record<string, TranscriptData>)) => void
   currentProcessingFile: QueueItem | null
-  selectedWatchDirs: string[]
-  setSelectedWatchDirs: (dirs: string[] | ((prev: string[]) => string[])) => void
-  availableWatchDirs: string[]
-  setAvailableWatchDirs: (dirs: string[]) => void
-  selectedSources: string[]
-  setSelectedSources: (sources: string[] | ((prev: string[]) => string[])) => void
-  availableSources: string[]
-  setAvailableSources: (sources: string[]) => void
   showAllFiles: boolean
 
   leftPaneWidth: number
@@ -95,14 +87,6 @@ export default function TranscriptList({
   transcriptData,
   setTranscriptData,
   currentProcessingFile,
-  selectedWatchDirs,
-  setSelectedWatchDirs,
-  availableWatchDirs,
-  setAvailableWatchDirs,
-  selectedSources,
-  setSelectedSources,
-  availableSources,
-  setAvailableSources,
   showAllFiles,
 
   leftPaneWidth,
@@ -122,7 +106,18 @@ export default function TranscriptList({
   onClearClip,
   onClipBlock
 }: TranscriptListProps) {
-  const { files, refreshFiles } = useFileContext()
+  const { 
+    files, 
+    refreshFiles, 
+    selectedWatchDirs, 
+    setSelectedWatchDirs, 
+    availableWatchDirs, 
+    setAvailableWatchDirs,
+    selectedSources, 
+    setSelectedSources, 
+    availableSources, 
+    setAvailableSources 
+  } = useFileContext()
   const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
   const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
   const [isBulkRegenerating, setIsBulkRegenerating] = useState(false)
@@ -155,44 +150,6 @@ export default function TranscriptList({
   // Determine if we should use mobile view based on left pane width or screen size
   const shouldUseMobileView = isSmallScreen || (isLeftPaneWidthMeasured && leftPaneWidth < 753)
 
-  // Fetch configured watch directories from the API
-  useEffect(() => {
-    const fetchWatchDirectories = async () => {
-      try {
-        const response = await fetch(addTimestamp('/api/config'))
-        if (response.ok) {
-          const config = await response.json()
-          if (config.success) {
-            setAvailableWatchDirs(config.data.config.watch_directories || [])
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching watch directories:', error)
-      }
-    }
-    
-    fetchWatchDirectories()
-  }, [setAvailableWatchDirs])
-
-  // Fetch available sources from the API
-  useEffect(() => {
-    const fetchSources = async () => {
-      try {
-        const response = await fetch(addTimestamp('/api/sources'))
-        if (response.ok) {
-          const data = await response.json()
-          if (data.success) {
-            setAvailableSources(data.data || [])
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching sources:', error)
-      }
-    }
-    
-    fetchSources()
-  }, [setAvailableSources])
-
   // Set up ResizeObserver to track left pane width
   useEffect(() => {
     if (!leftPaneRef.current) return
@@ -216,10 +173,6 @@ export default function TranscriptList({
     fetchExpandedTranscripts()
   }, [expandedFiles])
 
-  // Refresh files when selectedWatchDirs or sources changes
-  useEffect(() => {
-    refreshFiles(selectedWatchDirs, selectedSources)
-  }, [selectedWatchDirs, selectedSources])
 
   // Sort files based on current sort column and direction
   const sortedFiles = [...files].sort((a, b) => {
@@ -498,8 +451,10 @@ export default function TranscriptList({
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         console.error('Failed to regenerate transcript:', errorData.error)
         alert(`Failed to regenerate transcript: ${errorData.error}`)
+      } else {
+        // If successful, refresh files to update the file list
+        await refreshFiles()
       }
-      // If successful, the file will remain in regeneratingFiles until the queue refresh removes it
     } catch (error) {
       // Remove from regenerating set if request failed
       setRegeneratingFiles(prev => {
@@ -574,7 +529,7 @@ export default function TranscriptList({
         }
         
         // Refresh the file list to update line count
-        await refreshFiles(selectedWatchDirs, selectedSources)
+        await refreshFiles()
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         console.error('Failed to replace transcript:', errorData.error)
@@ -657,7 +612,7 @@ export default function TranscriptList({
       setIsRenameDialogOpen(false)
       setRenameFilename('')
       setNewFilename('')
-      await refreshFiles(selectedWatchDirs, selectedSources)
+      await refreshFiles()
 
     } catch (err) {
       console.error('Error renaming file:', err)
@@ -692,7 +647,7 @@ export default function TranscriptList({
       
       if (response.ok) {
         // Refresh files to show updated meta
-        await refreshFiles(selectedWatchDirs, selectedSources)
+        await refreshFiles()
       } else {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         console.error('Failed to regenerate meta file:', errorData.error)
@@ -1182,12 +1137,12 @@ export default function TranscriptList({
                       file.length
                     ) : (
                       <button
-                        onClick={(e) => handleRegenerateMeta(file.full_path, e)}
-                        disabled={regeneratingFiles.has(file.full_path)}
+                        onClick={(e) => handleRegenerate(file.full_path, e)}
+                        disabled={!file.transcript}
                         className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Generate video length"
                       >
-                        {regeneratingFiles.has(file.full_path) ? (
+                        {!file.transcript ? (
                           <svg className="w-4 h-4 animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
@@ -1240,7 +1195,7 @@ export default function TranscriptList({
                         {/* Rename option */}
                         <DropdownMenuItem
                           onClick={(e) => handleRename(file.full_path, e)}
-                          disabled={isFileBeingProcessed(file.full_path) || regeneratingFiles.has(file.full_path) || replacingFiles.has(file.full_path)}
+                          disabled={!file.transcript}
                         >
                           <span>Rename</span>
                           <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1252,11 +1207,11 @@ export default function TranscriptList({
                         {file.transcript && (
                           <DropdownMenuItem
                             onClick={(e) => handleReplace(file.full_path, e)}
-                            disabled={replacingFiles.has(file.full_path)}
+                            disabled={!file.transcript}
                             className="text-blue-600 hover:text-blue-700"
                           >
                             <span>Edit transcript</span>
-                            {!replacingFiles.has(file.full_path) && (
+                            {!file.transcript && (
                               <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
@@ -1268,11 +1223,11 @@ export default function TranscriptList({
                         {file.transcript && (
                           <DropdownMenuItem
                             onClick={(e) => handleRegenerate(file.full_path, e)}
-                            disabled={regeneratingFiles.has(file.full_path)}
+                            disabled={!file.transcript}
                             className="text-green-600 hover:text-green-700"
                           >
                             <span>Regenerate transcript</span>
-                            {regeneratingFiles.has(file.full_path) ? (
+                            {!file.transcript ? (
                               <svg className="w-4 h-4 ml-auto animate-reverse-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                               </svg>

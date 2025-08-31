@@ -4,6 +4,7 @@ use rocket::serde::{Deserialize, json::Json};
 use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::config::load_config_or_default;
+use crate::files;
 
 pub fn get_transcript(video_path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
@@ -104,6 +105,9 @@ pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     if deleted_files.is_empty() {
         return Err("No transcript files found to delete".into());
     }
+
+    let cache_data = files::get_video_info_from_disk()?;
+    files::save_video_info_to_cache(&cache_data)?;
     
     Ok(())
 }

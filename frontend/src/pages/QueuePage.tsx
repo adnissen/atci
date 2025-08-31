@@ -51,10 +51,8 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
           // and the incoming state is not equal to what we had
           console.log(queueStatus.currently_processing + " " + data.data.currently_processing)
           if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
-            //then we need to refresh the files
-            console.log(queueStatus.currently_processing + " just finished")
-            // Refresh files with all available directories and sources
-            refreshFiles([], [])
+            // Refresh files using current filter settings
+            refreshFiles()
           }
           setQueueStatus(data.data)
         } else {
