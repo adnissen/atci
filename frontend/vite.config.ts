@@ -9,7 +9,7 @@ export default defineConfig({
   base: '/assets/',
   build: {
     minify: false,
-    outDir: '../atci-rust/assets/',
+    outDir: '../assets/',
     rollupOptions: {  
       output: {
         entryFileNames: '[name].js',
