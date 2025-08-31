@@ -14,9 +14,10 @@ use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::config;
 use crate::files;
+use crate::auth::AuthGuard;
 
 #[get("/api/queue")]
-pub fn web_get_queue() -> Json<ApiResponse<serde_json::Value>> {
+pub fn web_get_queue(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
     match get_queue() {
         Ok(queue_data) => Json(ApiResponse::success(queue_data.into())),
         Err(e) => Json(ApiResponse::error(format!("Failed to get queue: {}", e))),
@@ -115,7 +116,7 @@ pub fn load_blocklist() -> Vec<String> {
 }
 
 #[get("/api/queue/status")]
-pub fn web_get_queue_status() -> Json<ApiResponse<serde_json::Value>> {
+pub fn web_get_queue_status(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
     match get_queue_status() {
         Ok((path, age)) => {
             let queue = get_queue().unwrap_or_else(|_| Vec::new());
@@ -131,7 +132,7 @@ pub fn web_get_queue_status() -> Json<ApiResponse<serde_json::Value>> {
 }
 
 #[post("/api/queue/block", data = "<path>")]
-pub fn web_block_path(path: String) -> Json<ApiResponse<&'static str>> {
+pub fn web_block_path(_auth: AuthGuard, path: String) -> Json<ApiResponse<&'static str>> {
     match add_to_blocklist(&path) {
         Ok(()) => Json(ApiResponse::success("Path added to blocklist")),
         Err(e) => Json(ApiResponse::error(format!("Failed to add path to blocklist: {}", e))),
@@ -144,7 +145,7 @@ pub struct SetRequest {
 }
 
 #[post("/api/queue/set", data = "<request>")]
-pub fn web_set_queue(request: Json<SetRequest>) -> Json<ApiResponse<&'static str>> {
+pub fn web_set_queue(_auth: AuthGuard, request: Json<SetRequest>) -> Json<ApiResponse<&'static str>> {
     match set_queue(request.paths.clone()) {
         Ok(()) => Json(ApiResponse::success("Queue set successfully")),
         Err(e) => Json(ApiResponse::error(format!("Failed to set queue: {}", e))),

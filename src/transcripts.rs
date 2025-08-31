@@ -5,6 +5,7 @@ use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::config::load_config_or_default;
 use crate::files;
+use crate::auth::AuthGuard;
 
 pub fn get_transcript(video_path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
@@ -184,7 +185,7 @@ pub struct RenameTranscriptRequest {
 }
 
 #[get("/api/transcripts?<video_path>")]
-pub fn web_get_transcript_by_path(video_path: String) -> Json<ApiResponse<String>> {
+pub fn web_get_transcript_by_path(_auth: AuthGuard, video_path: String) -> Json<ApiResponse<String>> {
     match get_transcript(&video_path) {
         Ok(content) => Json(ApiResponse::success(content)),
         Err(e) => Json(ApiResponse::error(format!("Failed to get transcript: {}", e))),
@@ -192,7 +193,7 @@ pub fn web_get_transcript_by_path(video_path: String) -> Json<ApiResponse<String
 }
 
 #[post("/api/transcripts/replace", data = "<request>")]
-pub fn web_replace_transcript(request: Json<ReplaceTranscriptRequest>) -> Json<ApiResponse<String>> {
+pub fn web_replace_transcript(_auth: AuthGuard, request: Json<ReplaceTranscriptRequest>) -> Json<ApiResponse<String>> {
     match set(&request.video_path, &request.new_content) {
         Ok(_) => Json(ApiResponse::success("Transcript replaced successfully".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Failed to replace transcript: {}", e))),
@@ -200,7 +201,7 @@ pub fn web_replace_transcript(request: Json<ReplaceTranscriptRequest>) -> Json<A
 }
 
 #[post("/api/transcripts/regenerate", data = "<request>")]
-pub fn web_regenerate_transcript(request: Json<RegenerateTranscriptRequest>) -> Json<ApiResponse<String>> {
+pub fn web_regenerate_transcript(_auth: AuthGuard, request: Json<RegenerateTranscriptRequest>) -> Json<ApiResponse<String>> {
     match regenerate(&request.video_path) {
         Ok(_) => Json(ApiResponse::success("Transcript regenerated successfully".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Failed to regenerate transcript: {}", e))),
@@ -208,7 +209,7 @@ pub fn web_regenerate_transcript(request: Json<RegenerateTranscriptRequest>) -> 
 }
 
 #[post("/api/transcripts/rename", data = "<request>")]
-pub fn web_rename_transcript(request: Json<RenameTranscriptRequest>) -> Json<ApiResponse<String>> {
+pub fn web_rename_transcript(_auth: AuthGuard, request: Json<RenameTranscriptRequest>) -> Json<ApiResponse<String>> {
     match rename(&request.video_path, &request.new_path) {
         Ok(_) => Json(ApiResponse::success("Transcript renamed successfully".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Failed to rename transcript: {}", e))),

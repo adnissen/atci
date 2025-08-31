@@ -18,6 +18,7 @@ mod search;
 mod transcripts;
 mod web;
 mod metadata;
+mod auth;
 
 #[derive(Embed)]
 #[folder = "assets/"]

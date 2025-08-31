@@ -101,6 +101,7 @@ pub fn download_model(model_name: &str) -> Result<String, Box<dyn std::error::Er
 use rocket::serde::json::Json;
 use rocket::{get, post};
 use crate::web::ApiResponse;
+use crate::auth::AuthGuard;
 
 #[derive(serde::Deserialize)]
 pub struct DownloadModelRequest {
@@ -108,13 +109,13 @@ pub struct DownloadModelRequest {
 }
 
 #[get("/api/models/list")]
-pub fn web_list_models() -> Json<ApiResponse<Vec<ModelInfo>>> {
+pub fn web_list_models(_auth: AuthGuard) -> Json<ApiResponse<Vec<ModelInfo>>> {
     let models = list_models();
     Json(ApiResponse::success(models))
 }
 
 #[post("/api/models/download", data = "<request>")]
-pub fn web_download_model(request: Json<DownloadModelRequest>) -> Json<ApiResponse<String>> {
+pub fn web_download_model(_auth: AuthGuard, request: Json<DownloadModelRequest>) -> Json<ApiResponse<String>> {
     match download_model(&request.model) {
         Ok(path) => Json(ApiResponse::success(path)),
         Err(e) => Json(ApiResponse::error(e.to_string())),

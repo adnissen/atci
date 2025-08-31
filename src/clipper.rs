@@ -3,6 +3,7 @@ use std::process::Command;
 use rocket::serde::Deserialize;
 use rocket::{get, response::status};
 use std::fs;
+use crate::auth::AuthGuard;
 
 fn get_video_extensions() -> Vec<&'static str> {
     vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
@@ -512,7 +513,7 @@ pub struct ClipQuery {
 
 
 #[get("/api/clip?<query..>")]
-pub fn web_clip(query: ClipQuery) -> Result<Vec<u8>, status::BadRequest<&'static str>> {
+pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::BadRequest<&'static str>> {
     let start_time = query.start_time.parse::<f64>()
         .map_err(|_| status::BadRequest("Invalid start_time parameter"))?;
     

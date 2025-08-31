@@ -6,6 +6,7 @@ use rayon::prelude::*;
 use rocket::serde::json::Json;
 use rocket::get;
 use crate::web::ApiResponse;
+use crate::auth::AuthGuard;
 
 #[derive(Debug, Serialize)]
 pub struct SearchMatch {
@@ -131,7 +132,7 @@ pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchRes
 }
 
 #[get("/api/search?<query>&<filter>")]
-pub fn web_search_transcripts(query: String, filter: Option<Vec<String>>) -> Json<ApiResponse<serde_json::Value>> {
+pub fn web_search_transcripts(_auth: AuthGuard, query: String, filter: Option<Vec<String>>) -> Json<ApiResponse<serde_json::Value>> {
     match search(&query, filter.as_ref()) {
         Ok(results) => Json(ApiResponse::success(serde_json::to_value(results).unwrap_or_default())),
         Err(e) => Json(ApiResponse::error(format!("Search failed: {}", e))),

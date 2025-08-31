@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use rocket::serde::json::Json;
 use rocket::{get, post};
 use crate::web::ApiResponse;
+use crate::auth::AuthGuard;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AtciConfig {
@@ -58,7 +59,7 @@ pub fn store_config(config: &AtciConfig) -> Result<(), confy::ConfyError> {
 }
 
 #[get("/api/config")]
-pub fn web_get_config() -> Json<ApiResponse<ConfigResponse>> {
+pub fn web_get_config(_auth: AuthGuard) -> Json<ApiResponse<ConfigResponse>> {
     let config = load_config().unwrap_or_default();
     
     let is_complete = !config.ffmpeg_path.is_empty() 
@@ -93,7 +94,7 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
 }
 
 #[post("/api/config", data = "<config>")]
-pub fn web_set_config(config: Json<AtciConfig>) -> Json<ApiResponse<String>> {
+pub fn web_set_config(_auth: AuthGuard, config: Json<AtciConfig>) -> Json<ApiResponse<String>> {
     match store_config(&config) {
         Ok(()) => Json(ApiResponse::success("Config updated successfully".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Error saving config: {}", e))),

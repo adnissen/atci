@@ -190,6 +190,7 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
 use rocket::serde::json::Json;
 use rocket::{get, post};
 use crate::web::ApiResponse;
+use crate::auth::AuthGuard;
 
 #[derive(serde::Deserialize)]
 pub struct DownloadRequest {
@@ -202,13 +203,13 @@ pub struct UseDownloadedRequest {
 }
 
 #[get("/api/tools/list")]
-pub fn web_list_tools() -> Json<ApiResponse<Vec<ToolInfo>>> {
+pub fn web_list_tools(_auth: AuthGuard) -> Json<ApiResponse<Vec<ToolInfo>>> {
     let tools = list_tools();
     Json(ApiResponse::success(tools))
 }
 
 #[post("/api/tools/download", data = "<request>")]
-pub fn web_download_tool(request: Json<DownloadRequest>) -> Json<ApiResponse<String>> {
+pub fn web_download_tool(_auth: AuthGuard, request: Json<DownloadRequest>) -> Json<ApiResponse<String>> {
     match download_tool(&request.tool) {
         Ok(path) => Json(ApiResponse::success(path)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
@@ -216,7 +217,7 @@ pub fn web_download_tool(request: Json<DownloadRequest>) -> Json<ApiResponse<Str
 }
 
 #[post("/api/tools/use-downloaded", data = "<request>")]
-pub fn web_use_downloaded_tool(request: Json<UseDownloadedRequest>) -> Json<ApiResponse<String>> {
+pub fn web_use_downloaded_tool(_auth: AuthGuard, request: Json<UseDownloadedRequest>) -> Json<ApiResponse<String>> {
     let downloaded_path = get_downloaded_path(&request.tool_name);
     
     if std::path::Path::new(&downloaded_path).exists() {

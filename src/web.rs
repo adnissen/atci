@@ -1,15 +1,24 @@
 use rocket::serde::json::Json;
 use rocket::serde::Serialize;
-use rocket::{get, routes, response::content};
+use rocket::{get, post, routes, response::content, catch, catchers, Request};
 use rocket::response::status::NotFound;
 use rocket::response::Redirect;
-use crate::{config, files, queue, search, transcripts, clipper, tools_manager, model_manager, Asset};
+use rocket::form::{Form, FromForm};
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
+use rocket_dyn_templates::{Template, context};
+use crate::{config, files, queue, search, transcripts, clipper, tools_manager, model_manager, Asset, auth::AuthGuard};
 
 #[derive(Serialize)]
 pub struct ApiResponse<T> {
     pub success: bool,
     pub data: Option<T>,
     pub error: Option<String>,
+}
+
+#[derive(FromForm)]
+struct AuthForm {
+    password: String,
+    redirect: Option<String>,
 }
 
 impl<T> ApiResponse<T> {
@@ -42,7 +51,7 @@ fn health() -> Json<ApiResponse<&'static str>> {
 
 
 #[get("/app")]
-fn app() -> Result<content::RawHtml<std::borrow::Cow<'static, [u8]>>, NotFound<String>> {
+fn app(_auth: AuthGuard) -> Result<content::RawHtml<std::borrow::Cow<'static, [u8]>>, NotFound<String>> {
     match Asset::get("index.html") {
         Some(content) => Ok(content::RawHtml(content.data)),
         None => Err(NotFound("index.html not found".to_string())),
@@ -73,6 +82,60 @@ fn assets(file: std::path::PathBuf) -> Result<(rocket::http::ContentType, std::b
     }
 }
 
+#[get("/auth?<redirect>")]
+fn auth_page(redirect: Option<String>) -> Template {
+    Template::render("auth", context! {
+        redirect: redirect.unwrap_or_else(|| "/app".to_string()),
+        error: None::<String>
+    })
+}
+
+#[post("/auth", data = "<form>")]
+fn auth_submit(form: Form<AuthForm>, cookies: &CookieJar<'_>) -> Result<Redirect, Template> {
+    let config = config::load_config_or_default();
+    let expected_password = config.nonlocal_password.as_deref().unwrap_or("default-password");
+    
+    if form.password == expected_password {
+        // Set authentication cookie
+        let cookie = Cookie::build(("auth_token", form.password.clone()))
+            .same_site(SameSite::Lax)
+            .http_only(true)
+            .path("/")
+            .build();
+        cookies.add(cookie);
+        
+        // Redirect to intended destination
+        let redirect_url = form.redirect.as_deref().unwrap_or("/app");
+        Ok(Redirect::to(redirect_url.to_string()))
+    } else {
+        // Return auth page with error
+        Err(Template::render("auth", context! {
+            redirect: form.redirect.as_deref().unwrap_or("/app"),
+            error: "Invalid password"
+        }))
+    }
+}
+
+#[get("/logout")]
+fn logout(cookies: &CookieJar<'_>) -> Redirect {
+    cookies.remove("auth_token");
+    Redirect::to("/auth")
+}
+
+#[catch(401)]
+fn unauthorized(req: &Request) -> Result<Redirect, Status> {
+    // Check if this is a browser request (HTML accept header) vs API request
+    let accept_header = req.headers().get_one("Accept").unwrap_or("");
+    let is_browser_request = accept_header.contains("text/html");
+    
+    if is_browser_request {
+        let redirect_url = format!("/auth?redirect={}", urlencoding::encode(req.uri().path().as_str()));
+        Ok(Redirect::to(redirect_url))
+    } else {
+        // For API requests, return 401 JSON
+        Err(Status::Unauthorized)
+    }
+}
 
 pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
     let figment = rocket::Config::figment()
@@ -83,6 +146,9 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
         .mount("/", routes![
             index,
             health,
+            auth_page,
+            auth_submit,
+            logout,
             config::web_get_config,
             config::web_set_config,
             app,
@@ -105,6 +171,8 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
             model_manager::web_list_models,
             model_manager::web_download_model
         ])
+        .register("/", catchers![unauthorized])
+        .attach(Template::fairing())
         .launch()
         .await?;
 

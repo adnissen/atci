@@ -11,6 +11,7 @@ use crate::web::ApiResponse;
 use crate::config;
 use rayon::prelude::*;
 use crate::metadata;
+use crate::auth::AuthGuard;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VideoInfo {
@@ -216,7 +217,7 @@ pub fn get_video_info_from_disk() -> Result<CacheData, Box<dyn std::error::Error
 }
 
 #[get("/api/files?<filter>")]
-pub fn web_get_files(filter: Option<String>) -> Json<ApiResponse<serde_json::Value>> {
+pub fn web_get_files(_auth: AuthGuard, filter: Option<String>) -> Json<ApiResponse<serde_json::Value>> {
     let filter_vec = filter.map(|f| f.split(',').map(|s| s.trim().to_string()).collect::<Vec<String>>());
     match load_video_info_from_cache(filter_vec.as_ref()) {
         Ok(video_infos) => Json(ApiResponse::success(serde_json::to_value(video_infos).unwrap_or_default())),
@@ -225,7 +226,7 @@ pub fn web_get_files(filter: Option<String>) -> Json<ApiResponse<serde_json::Val
 }
 
 #[get("/api/sources")]
-pub fn web_get_sources() -> Json<ApiResponse<serde_json::Value>> {
+pub fn web_get_sources(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
     match load_cache_data() {
         Ok(cache_data) => Json(ApiResponse::success(serde_json::to_value(cache_data.sources).unwrap_or_default())),
         Err(e) => Json(ApiResponse::error(format!("Failed to load cache data: {}", e))),
