@@ -112,6 +112,60 @@ pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+pub fn rename(video_path: &str, new_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let video_path_obj = Path::new(video_path);
+    let new_path_obj = Path::new(new_path);
+    
+    // Validate that the video path exists
+    if !video_path_obj.exists() {
+        return Err(format!("Video file does not exist: {}", video_path_obj.display()).into());
+    }
+    
+    // Validate that it's a video file by checking common video extensions
+    let is_video = video_path_obj
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| files::get_video_extensions().contains(&ext.to_lowercase().as_str()))
+        .unwrap_or(false);
+    
+    if !is_video {
+        return Err(format!("File is not a supported video format: {}", video_path_obj.display()).into());
+    }
+    
+    // Check if corresponding txt file exists
+    let txt_path = video_path_obj.with_extension("txt");
+    if !txt_path.exists() {
+        return Err(format!("Transcript file does not exist: {}", txt_path.display()).into());
+    }
+    
+    // Validate new path has same extension as original
+    let original_ext = video_path_obj.extension();
+    let new_ext = new_path_obj.extension();
+    if original_ext != new_ext {
+        return Err("New path must have the same file extension as the original".into());
+    }
+    
+    // Check if new paths already exist
+    if new_path_obj.exists() {
+        return Err(format!("Target video file already exists: {}", new_path_obj.display()).into());
+    }
+    
+    let new_txt_path = new_path_obj.with_extension("txt");
+    if new_txt_path.exists() {
+        return Err(format!("Target transcript file already exists: {}", new_txt_path.display()).into());
+    }
+    
+    // Rename both files
+    fs::rename(&video_path_obj, &new_path_obj)?;
+    fs::rename(&txt_path, &new_txt_path)?;
+    
+    // Update cache
+    let cache_data = files::get_video_info_from_disk()?;
+    files::save_video_info_to_cache(&cache_data)?;
+    
+    Ok(())
+}
+
 #[derive(Deserialize)]
 pub struct ReplaceTranscriptRequest {
     pub video_path: String,
@@ -121,6 +175,12 @@ pub struct ReplaceTranscriptRequest {
 #[derive(Deserialize)]
 pub struct RegenerateTranscriptRequest {
     pub video_path: String,
+}
+
+#[derive(Deserialize)]
+pub struct RenameTranscriptRequest {
+    pub video_path: String,
+    pub new_path: String,
 }
 
 #[get("/api/transcripts?<video_path>")]
@@ -144,6 +204,14 @@ pub fn web_regenerate_transcript(request: Json<RegenerateTranscriptRequest>) -> 
     match regenerate(&request.video_path) {
         Ok(_) => Json(ApiResponse::success("Transcript regenerated successfully".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Failed to regenerate transcript: {}", e))),
+    }
+}
+
+#[post("/api/transcripts/rename", data = "<request>")]
+pub fn web_rename_transcript(request: Json<RenameTranscriptRequest>) -> Json<ApiResponse<String>> {
+    match rename(&request.video_path, &request.new_path) {
+        Ok(_) => Json(ApiResponse::success("Transcript renamed successfully".to_string())),
+        Err(e) => Json(ApiResponse::error(format!("Failed to rename transcript: {}", e))),
     }
 }
 

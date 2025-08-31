@@ -592,14 +592,20 @@ export default function TranscriptList({
     try {
       const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(renameFilename)}/rename`), {
+      // Construct the full new path by replacing the filename part
+      const pathParts = renameFilename.split('/')
+      pathParts[pathParts.length - 1] = newFilename.trim()
+      const newPath = pathParts.join('/')
+
+      const response = await fetch(addTimestamp(`/api/transcripts/rename`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          new_filename: newFilename.trim()
+          video_path: renameFilename,
+          new_path: newPath
         })
       })
 

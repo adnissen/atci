@@ -215,6 +215,13 @@ enum TranscriptsCommands {
         #[arg(help = "Path to the video file")]
         video_path: String,
     },
+    #[command(about = "Rename both video file and its corresponding transcript file")]
+    Rename {
+        #[arg(help = "Path to the video file")]
+        video_path: String,
+        #[arg(help = "New path for the video file")]
+        new_path: String,
+    },
 }
 
 
@@ -845,6 +852,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Err(e) => {
                             eprintln!("Error deleting files: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(TranscriptsCommands::Rename { video_path, new_path }) => {
+                    match transcripts::rename(&video_path, &new_path) {
+                        Ok(()) => {
+                            println!("Successfully renamed {} to {}", video_path, new_path);
+                        }
+                        Err(e) => {
+                            eprintln!("Error renaming files: {}", e);
                             std::process::exit(1);
                         }
                     }

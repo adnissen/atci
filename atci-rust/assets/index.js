@@ -25123,14 +25123,18 @@ function TranscriptList({
     setRenameError("");
     try {
       const csrfToken = (_b = document.querySelector('meta[name="csrf-token"]')) == null ? void 0 : _b.getAttribute("content");
-      const response = await fetch(addTimestamp(`/transcripts/${encodeURIComponent(renameFilename)}/rename`), {
+      const pathParts = renameFilename.split("/");
+      pathParts[pathParts.length - 1] = newFilename.trim();
+      const newPath = pathParts.join("/");
+      const response = await fetch(addTimestamp(`/api/transcripts/rename`), {
         method: "POST",
         headers: {
           "X-CSRF-Token": csrfToken || "",
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          new_filename: newFilename.trim()
+          video_path: renameFilename,
+          new_path: newPath
         })
       });
       if (!response.ok) {
