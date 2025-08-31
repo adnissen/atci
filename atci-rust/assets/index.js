@@ -23267,18 +23267,6 @@ function TopBar({
               ] })
             }
           ),
-          /* @__PURE__ */ jsxRuntimeExports.jsx(
-            "button",
-            {
-              onClick: onToggleShowAllFiles,
-              className: `p-1 rounded transition-colors ${showAllFiles ? "text-primary bg-accent" : "text-muted-foreground hover:text-primary hover:bg-accent"}`,
-              title: showAllFiles ? "Hide files (show only when searching)" : "Show all files",
-              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: [
-                /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" }),
-                /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M7 7h10" })
-              ] })
-            }
-          ),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx(
               "button",
@@ -23291,6 +23279,18 @@ function TopBar({
             ),
             queue.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1", children: queue.length })
           ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsx(
+            "button",
+            {
+              onClick: onToggleShowAllFiles,
+              className: `p-1 rounded transition-colors ${showAllFiles ? "text-primary bg-accent" : "text-muted-foreground hover:text-primary hover:bg-accent"}`,
+              title: showAllFiles ? "Hide files (show only when searching)" : "Show all files",
+              children: /* @__PURE__ */ jsxRuntimeExports.jsxs("svg", { className: "w-4 h-4", fill: "none", stroke: "currentColor", viewBox: "0 0 24 24", children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M7 7h10" })
+              ] })
+            }
+          ),
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-1 items-center", children: [
             /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "relative hidden sm:block", children: [
               /* @__PURE__ */ jsxRuntimeExports.jsx(

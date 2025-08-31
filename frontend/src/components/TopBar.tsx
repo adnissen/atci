@@ -118,20 +118,6 @@ export default function TopBar({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11a2 2 0 100-4 2 2 0 000 4z" />
                     </svg>
                   </button>
-                  <button
-                    onClick={onToggleShowAllFiles}
-                    className={`p-1 rounded transition-colors ${
-                      showAllFiles 
-                        ? 'text-primary bg-accent' 
-                        : 'text-muted-foreground hover:text-primary hover:bg-accent'
-                    }`}
-                    title={showAllFiles ? "Hide files (show only when searching)" : "Show all files"}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10" />
-                    </svg>
-                  </button>
                   <div className="relative">
                     <button
                       onClick={onQueueClick}
@@ -148,6 +134,20 @@ export default function TopBar({
                       </div>
                     )}
                   </div>
+                  <button
+                    onClick={onToggleShowAllFiles}
+                    className={`p-1 rounded transition-colors ${
+                      showAllFiles 
+                        ? 'text-primary bg-accent' 
+                        : 'text-muted-foreground hover:text-primary hover:bg-accent'
+                    }`}
+                    title={showAllFiles ? "Hide files (show only when searching)" : "Show all files"}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10" />
+                    </svg>
+                  </button>
                   
                   {/* Search Bar in Top Bar - Left justified with nav buttons */}
                   <div className="flex gap-1 items-center">
