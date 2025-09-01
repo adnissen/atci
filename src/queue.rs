@@ -58,26 +58,30 @@ pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let existing_queue = get_queue()?;
+    
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+
     let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
     if currently_processing_path.exists() && fs::read_to_string(&currently_processing_path)? == path {
         return Ok(());
     }
-    
-    if existing_queue.contains(&path.to_string()) {
-        return Ok(());
-    }
-    
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".queue");
-    
+
+    let existing_queue = get_queue()?;
+    // we need to lock the file before we perform out duplication check so that someone doesn't write 
+    // to it after we check but before we lock
     let mut file = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(queue_path)?;
     
     file.lock_exclusive()?;
+
+    if existing_queue.contains(&path.to_string()) {
+        file.unlock()?;
+        return Ok(());
+    }
+    
     writeln!(file, "{}", path)?;
     file.unlock()?;
     Ok(())
