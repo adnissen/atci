@@ -1,9 +1,19 @@
 pub fn get_ffmpeg_url(platform: &str) -> Option<&'static str> {
     match platform {
         "windows" => Some("https://example.com/ffmpeg-windows.exe"),
-        "macos-arm" => Some("https://www.osxexperts.net/ffmpeg711arm.zip"),
+        "macos-arm" => Some("https://www.osxexperts.net/ffmpeg80arm.zip"),
         "macos-x86" => Some("https://www.osxexperts.net/ffmpeg71intel.zip"),
         "linux" => Some("https://example.com/ffmpeg-linux"),
+        _ => None,
+    }
+}
+
+pub fn get_ffmpeg_sha256(platform: &str) -> Option<&'static str> {
+    match platform {
+        "windows" => Some(""),
+        "macos-arm" => Some("77d2c853f431318d55ec02676d9b2f185ebfdddb9f7677a251fbe453affe025a"),
+        "macos-x86" => Some(""),
+        "linux" => Some(""),
         _ => None,
     }
 }
@@ -11,9 +21,19 @@ pub fn get_ffmpeg_url(platform: &str) -> Option<&'static str> {
 pub fn get_ffprobe_url(platform: &str) -> Option<&'static str> {
     match platform {
         "windows" => Some("https://example.com/ffprobe-windows.exe"),
-        "macos-arm" => Some("https://www.osxexperts.net/ffprobe711arm.zip"),
+        "macos-arm" => Some("https://www.osxexperts.net/ffprobe80arm.zip"),
         "macos-x86" => Some("https://www.osxexperts.net/ffprobe71intel.zip"),
         "linux" => Some("https://example.com/ffprobe-linux"),
+        _ => None,
+    }
+}
+
+pub fn get_ffprobe_sha256(platform: &str) -> Option<&'static str> {
+    match platform {
+        "windows" => Some(""),
+        "macos-arm" => Some("babf170e86bd6b0b2fefee5fa56f57721b0acb98ad2794b095d8030b02857dfe"),
+        "macos-x86" => Some(""),
+        "linux" => Some(""),
         _ => None,
     }
 }
@@ -24,6 +44,16 @@ pub fn get_whisper_cli_url(platform: &str) -> Option<&'static str> {
         "macos-arm" => Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/whisper-cli"),
         "macos-x86" => Some("https://www.osxexperts.net/ffprobe71intel.zip"),
         "linux" => Some("https://example.com/ffprobe-linux"),
+        _ => None,
+    }
+}
+
+pub fn get_whisper_cli_sha256(platform: &str) -> Option<&'static str> {
+    match platform {
+        "windows" => Some(""),
+        "macos-arm" => Some("f2aa391fb826ae37fcf39911280985d8776ff9c77ff7c371ab878d47c20d11df"),
+        "macos-x86" => Some(""),
+        "linux" => Some(""),
         _ => None,
     }
 }
@@ -146,6 +176,22 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
             }
         }
         
+        // Verify SHA256 hash
+        if let Some(expected_hash) = get_tool_sha256(tool, &platform) {
+            match verify_sha256(&output_path.to_string_lossy(), expected_hash) {
+                Ok(true) => println!("SHA256 verification successful for {}", tool),
+                Ok(false) => {
+                    std::fs::remove_file(&output_path)?;
+                    return Err(format!("SHA256 hash verification failed for {}", tool).into());
+                }
+                Err(e) => {
+                    eprintln!("Warning: SHA256 verification error for {}: {}", tool, e);
+                }
+            }
+        } else {
+            eprintln!("Warning: No expected SHA256 hash found for {} on {}", tool, platform);
+        }
+        
         return Ok(output_path.to_string_lossy().to_string());
     }
     
@@ -180,6 +226,22 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
                 }
             }
             
+            // Verify SHA256 hash
+            if let Some(expected_hash) = get_tool_sha256(tool, &platform) {
+                match verify_sha256(&output_path.to_string_lossy(), expected_hash) {
+                    Ok(true) => println!("SHA256 verification successful for {}", tool),
+                    Ok(false) => {
+                        std::fs::remove_file(&output_path)?;
+                        return Err(format!("SHA256 hash verification failed for {}", tool).into());
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: SHA256 verification error for {}: {}", tool, e);
+                    }
+                }
+            } else {
+                eprintln!("Warning: No expected SHA256 hash found for {} on {}", tool, platform);
+            }
+            
             return Ok(output_path.to_string_lossy().to_string());
         }
     }
@@ -191,6 +253,25 @@ use rocket::serde::json::Json;
 use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::auth::AuthGuard;
+use sha2::{Sha256, Digest};
+
+fn verify_sha256(file_path: &str, expected_hash: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    let file_contents = std::fs::read(file_path)?;
+    let mut hasher = Sha256::new();
+    hasher.update(&file_contents);
+    let computed_hash = format!("{:x}", hasher.finalize());
+    
+    Ok(computed_hash == expected_hash)
+}
+
+fn get_tool_sha256(tool: &str, platform: &str) -> Option<&'static str> {
+    match tool {
+        "ffmpeg" => get_ffmpeg_sha256(platform),
+        "ffprobe" => get_ffprobe_sha256(platform),
+        "whisper-cli" => get_whisper_cli_sha256(platform),
+        _ => None,
+    }
+}
 
 #[derive(serde::Deserialize)]
 pub struct DownloadRequest {
