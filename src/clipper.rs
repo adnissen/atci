@@ -661,7 +661,7 @@ fn grab_frame_args(
 
 fn calculate_font_size_for_video(text_length: usize) -> u32 {
     // Simple heuristic: base font size adjusted by text length
-    let base_size = 24;
+    let base_size = 72;
     if text_length > 100 {
         base_size - 4
     } else if text_length > 50 {
