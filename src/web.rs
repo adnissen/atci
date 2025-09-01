@@ -93,7 +93,7 @@ fn auth_page(redirect: Option<String>) -> Template {
 #[post("/auth", data = "<form>")]
 fn auth_submit(form: Form<AuthForm>, cookies: &CookieJar<'_>) -> Result<Redirect, Template> {
     let config = config::load_config_or_default();
-    let expected_password = config.nonlocal_password.as_deref().unwrap_or("default-password");
+    let expected_password = config.password.as_deref().unwrap_or("default-password");
     
     if form.password == expected_password {
         // Set authentication cookie

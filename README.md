@@ -69,7 +69,7 @@ The application stores its configuration in a JSON file containing the following
   "ffprobe_path": "/path/to/ffprobe",
   "model_path": "/path/to/model.bin",
   "model_name": "ggml-base",
-  "nonlocal_password": ""
+  "password": ""
 }
 ```
 
@@ -98,7 +98,7 @@ You can use this to have multiple instances of `atci` running at the same time w
 - **`ffprobe_path`** (string): Path to the ffprobe executable
 - **`model_path`** (string): Direct path to a Whisper model file (.bin) (alternative to model_name)
 - **`model_name`** (string): Name of a model to use from ~/.atci/models/ (alternative to model_path)
-- **`nonlocal_password`** (string): Optional password for connections with a non-localhost origin
+- **`password`** (string): Optional password for all connections. Can be set either in the cookie or via basic auth (no username)
 
 **Notes:**
 - Either `model_path` or `model_name` must be specified

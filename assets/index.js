@@ -26817,7 +26817,7 @@ function ConfigPage({ onClose } = {}) {
             model_name: config2.model_name || "",
             ffmpeg_path: config2.ffmpeg_path || "",
             ffprobe_path: config2.ffprobe_path || "",
-            nonlocal_password: config2.nonlocal_password || ""
+            password: config2.password || ""
           };
           setConfig(configData);
           if (configData.model_name) {
@@ -26915,8 +26915,8 @@ function ConfigPage({ onClose } = {}) {
     } else {
       submitData.model_name = modelSelection;
     }
-    if (config.nonlocal_password !== void 0) {
-      submitData.nonlocal_password = config.nonlocal_password;
+    if (config.password !== void 0) {
+      submitData.password = config.password;
     }
     try {
       const response = await fetch(addTimestamp("/api/config"), {
@@ -27216,19 +27216,19 @@ function ConfigPage({ onClose } = {}) {
         ] }, tool.name))
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "nonlocal_password", className: "block text-sm font-medium text-foreground mb-1", children: "API Password (optional)" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "password", className: "block text-sm font-medium text-foreground mb-1", children: "API Password (optional)" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "input",
           {
             type: "password",
-            id: "nonlocal_password",
-            value: config.nonlocal_password || "",
-            onChange: (e) => handleInputChange("nonlocal_password", e.target.value),
+            id: "password",
+            value: config.password || "",
+            onChange: (e) => handleInputChange("password", e.target.value),
             placeholder: "Set or clear API password (leave blank to disable)",
             className: "w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-muted-foreground mt-1", children: "If set, all non-local API requests require this password (via Basic Auth or cookie)." })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-muted-foreground mt-1", children: "If set, all API requests require this password (via Basic Auth or cookie)." })
       ] }),
       errors.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-destructive/10 border border-destructive/20 rounded-md p-3", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm text-destructive", children: /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "list-disc list-inside space-y-1", children: errors.map((error, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: error }, index2)) }) }) }),
       successMessage && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-accent/10 border border-accent/20 rounded-md p-3", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm text-accent-foreground", children: successMessage }) }),
@@ -28242,7 +28242,7 @@ const ConfigSetup = ({ onConfigComplete, isEditMode = false }) => {
             model_name: config2.model_name || "",
             ffmpeg_path: config2.ffmpeg_path || "",
             ffprobe_path: config2.ffprobe_path || "",
-            nonlocal_password: config2.nonlocal_password || ""
+            password: config2.password || ""
           };
           setConfig(configData);
           if (configData.model_name) {
@@ -28337,8 +28337,8 @@ const ConfigSetup = ({ onConfigComplete, isEditMode = false }) => {
     } else {
       submitData.model_name = modelSelection;
     }
-    if (config.nonlocal_password !== void 0) {
-      submitData.nonlocal_password = config.nonlocal_password;
+    if (config.password !== void 0) {
+      submitData.password = config.password;
     }
     try {
       const response = await fetch(addTimestamp("/api/config"), {
@@ -28619,19 +28619,19 @@ const ConfigSetup = ({ onConfigComplete, isEditMode = false }) => {
         ] }, tool.name))
       ] }),
       /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
-        /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "nonlocal_password", className: "block text-sm font-medium text-foreground mb-1", children: "API Password (optional)" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx("label", { htmlFor: "password", className: "block text-sm font-medium text-foreground mb-1", children: "API Password (optional)" }),
         /* @__PURE__ */ jsxRuntimeExports.jsx(
           "input",
           {
             type: "password",
-            id: "nonlocal_password",
-            value: config.nonlocal_password || "",
-            onChange: (e) => handleInputChange("nonlocal_password", e.target.value),
+            id: "password",
+            value: config.password || "",
+            onChange: (e) => handleInputChange("password", e.target.value),
             placeholder: "Set or clear API password (leave blank to disable)",
             className: "w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
           }
         ),
-        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-muted-foreground mt-1", children: "If set, all non-local API requests require this password (via Basic Auth or cookie)." })
+        /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-xs text-muted-foreground mt-1", children: "If set, all API requests require this password (via Basic Auth or cookie)." })
       ] }),
       errors.length > 0 && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-destructive/10 border border-destructive/20 rounded-md p-3", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm text-destructive", children: /* @__PURE__ */ jsxRuntimeExports.jsx("ul", { className: "list-disc list-inside space-y-1", children: errors.map((error, index2) => /* @__PURE__ */ jsxRuntimeExports.jsx("li", { children: error }, index2)) }) }) }),
       successMessage && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "bg-accent/10 border border-accent/20 rounded-md p-3", children: /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "text-sm text-accent-foreground", children: successMessage }) }),

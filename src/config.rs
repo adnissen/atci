@@ -12,7 +12,7 @@ pub struct AtciConfig {
     pub ffprobe_path: String,
     #[serde(default)]
     pub model_name: String,
-    pub nonlocal_password: Option<String>,
+    pub password: Option<String>,
     #[serde(default)]
     pub watch_directories: Vec<String>,
     #[serde(default)]
@@ -31,7 +31,7 @@ impl Default for AtciConfig {
             ffmpeg_path: String::new(),
             ffprobe_path: String::new(),
             model_name: String::new(),
-            nonlocal_password: None,
+            password: None,
             watch_directories: Vec::new(),
             whispercli_path: String::new(),
         }
@@ -81,7 +81,7 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
         "ffprobe_path" => cfg.ffprobe_path = value.to_string(),
         "model_name" => cfg.model_name = value.to_string(),
         "whispercli_path" => cfg.whispercli_path = value.to_string(),
-        "nonlocal_password" => cfg.nonlocal_password = Some(value.to_string()),
+        "password" => cfg.password = Some(value.to_string()),
         "watch_directories" => {
             // For watch_directories, treat the value as a single directory to add
             if !cfg.watch_directories.contains(&value.to_string()) {

@@ -124,13 +124,13 @@ fn test_config_set_watch_directories() {
 }
 
 #[test]
-fn test_config_set_nonlocal_password() {
+fn test_config_set_password() {
     let (mut cmd, config_path) = setup_test_config();
-    cmd.args(&["config", "set", "nonlocal_password", "secret123"]);
+    cmd.args(&["config", "set", "password", "secret123"]);
     
     cmd.assert()
         .success()
-        .stdout("Set nonlocal_password = secret123\n");
+        .stdout("Set password = secret123\n");
     
     cleanup_test_config(&config_path);
 }
@@ -143,7 +143,7 @@ fn test_config_set_invalid_field() {
     cmd.assert()
         .failure()
         .stderr(str::contains("Unknown field 'invalid_field'"))
-        .stderr(str::contains("Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, nonlocal_password"));
+        .stderr(str::contains("Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password"));
     
     cleanup_test_config(&config_path);
 }
@@ -209,13 +209,13 @@ fn test_config_unset_watch_directories() {
 }
 
 #[test]
-fn test_config_unset_nonlocal_password() {
+fn test_config_unset_password() {
     let (mut cmd, config_path) = setup_test_config();
-    cmd.args(&["config", "unset", "nonlocal_password"]);
+    cmd.args(&["config", "unset", "password"]);
     
     cmd.assert()
         .success()
-        .stdout("Unset nonlocal_password\n");
+        .stdout("Unset password\n");
     
     cleanup_test_config(&config_path);
 }
@@ -228,7 +228,7 @@ fn test_config_unset_invalid_field() {
     cmd.assert()
         .failure()
         .stderr(str::contains("Unknown field 'invalid_field'"))
-        .stderr(str::contains("Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, nonlocal_password"));
+        .stderr(str::contains("Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password"));
     
     cleanup_test_config(&config_path);
 }
@@ -288,7 +288,7 @@ fn test_config_all_valid_fields_can_be_set() {
         ("model_name", "base.en"),
         ("whispercli_path", "/usr/bin/whisper-cli"),
         ("watch_directories", "/path/to/videos"),
-        ("nonlocal_password", "secret123"),
+        ("password", "secret123"),
     ];
     
     for (field, value) in &valid_fields {
@@ -307,7 +307,7 @@ fn test_config_all_valid_fields_can_be_unset() {
         "model_name",
         "whispercli_path",
         "watch_directories",
-        "nonlocal_password",
+        "password",
     ];
     
     for field in &valid_fields {
