@@ -43,7 +43,7 @@ pub fn get_video_extensions() -> Vec<&'static str> {
 
 pub fn get_cache_file_path() -> std::path::PathBuf {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    std::path::Path::new(&home_dir).join(".atci_video_info_cache.msgpack")
+    std::path::Path::new(&home_dir).join(".atci/.video_info_cache.msgpack")
 }
 
 pub fn save_video_info_to_cache(cache_data: &CacheData) -> Result<(), Box<dyn std::error::Error>> {

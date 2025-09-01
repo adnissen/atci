@@ -26,7 +26,7 @@ pub fn web_get_queue(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
 
 pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
     if !queue_path.exists() {
         return Ok(Vec::new());
     }
@@ -41,7 +41,7 @@ pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
 
 pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
     
     let mut file = std::fs::OpenOptions::new()
         .create(true)
@@ -58,11 +58,10 @@ pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
 
-    let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
+    let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
     if currently_processing_path.exists() && fs::read_to_string(&currently_processing_path)? == path {
         return Ok(());
     }
@@ -89,7 +88,7 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
 
 pub fn add_to_blocklist(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let blocklist_path = std::path::Path::new(&home_dir).join(".blocklist");
+    let blocklist_path = std::path::Path::new(&home_dir).join(".atci/.blocklist");
     
     let mut file = std::fs::OpenOptions::new()
         .create(true)
@@ -104,7 +103,7 @@ pub fn add_to_blocklist(path: &str) -> Result<(), Box<dyn std::error::Error>> {
 
 pub fn load_blocklist() -> Vec<String> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let blocklist_path = std::path::Path::new(&home_dir).join(".blocklist");
+    let blocklist_path = std::path::Path::new(&home_dir).join(".atci/.blocklist");
     if blocklist_path.exists() {
         if let Ok(content) = fs::read_to_string(&blocklist_path) {
             content.lines()
@@ -158,7 +157,7 @@ pub fn web_set_queue(_auth: AuthGuard, request: Json<SetRequest>) -> Json<ApiRes
 
 pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
+    let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
     
     if !currently_processing_path.exists() {
         return Ok((None, 0));
@@ -182,7 +181,7 @@ pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::E
 
 fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
     
     if !queue_path.exists() {
         return Ok(());
@@ -225,12 +224,12 @@ pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
 
 pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let currently_processing_path = std::path::Path::new(&home_dir).join(".currently_processing");
+    let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
     if currently_processing_path.exists() {
         let _ = fs::remove_file(&currently_processing_path);
     }
     
-    let queue_path = std::path::Path::new(&home_dir).join(".queue");
+    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
     if !queue_path.exists() {
         return Ok(false);
     }
@@ -305,58 +304,60 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
 
         let blocklist = load_blocklist();
 
-        let files_to_add: Vec<_> = cfg.watch_directories.iter().map(|wd| {
-            let mut files: Vec<_> = WalkDir::new(wd).into_iter().filter_map(|e| e.ok()).filter_map(|entry| {
-                let file_path = entry.path();
+        loop {
+            let files_to_add: Vec<_> = cfg.watch_directories.iter().map(|wd| {
+                let mut files: Vec<_> = WalkDir::new(wd).into_iter().filter_map(|e| e.ok()).filter_map(|entry| {
+                    let file_path = entry.path();
 
-                // skip directories
-                if !file_path.is_file() {
-                    return None;
-                }
-
-                // skip files that are in the blocklist
-                if blocklist.contains(&file_path.to_string_lossy().to_string()) {
-                    return None;
-                }
-
-                if let Some(extension) = file_path.extension() {
-                    let ext_str = extension.to_string_lossy().to_lowercase();
-
-                    // we're only interested in video files
-                    if !video_extensions.contains(&ext_str.as_str()) {
+                    // skip directories
+                    if !file_path.is_file() {
                         return None;
                     }
 
-                    // we want to make sure the file isn't in the process of currently being copied over to our watch directory
-                    // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
-                    if let Ok(metadata) = fs::metadata(&file_path) {
-                        if let Ok(modified) = metadata.modified() {
-                            let now = std::time::SystemTime::now();
-                            if let Ok(duration) = now.duration_since(modified) {
-                                if duration.as_secs() >= 3 {
-                                    let txt_path = file_path.with_extension("txt");
-                                    
-                                    if !txt_path.exists() {
-                                        return Some(file_path.to_string_lossy().to_string());
+                    // skip files that are in the blocklist
+                    if blocklist.contains(&file_path.to_string_lossy().to_string()) {
+                        return None;
+                    }
+
+                    if let Some(extension) = file_path.extension() {
+                        let ext_str = extension.to_string_lossy().to_lowercase();
+
+                        // we're only interested in video files
+                        if !video_extensions.contains(&ext_str.as_str()) {
+                            return None;
+                        }
+
+                        // we want to make sure the file isn't in the process of currently being copied over to our watch directory
+                        // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
+                        if let Ok(metadata) = fs::metadata(&file_path) {
+                            if let Ok(modified) = metadata.modified() {
+                                let now = std::time::SystemTime::now();
+                                if let Ok(duration) = now.duration_since(modified) {
+                                    if duration.as_secs() >= 3 {
+                                        let txt_path = file_path.with_extension("txt");
+                                        
+                                        if !txt_path.exists() {
+                                            return Some(file_path.to_string_lossy().to_string());
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                None
-            }).collect::<Vec<_>>();
-            files.sort_by(|a, b| a.cmp(b));
-            files
-        }).flatten().collect();
+                    None
+                }).collect::<Vec<_>>();
+                files.sort_by(|a, b| a.cmp(b));
+                files
+            }).flatten().collect();
 
-        for file_to_add in files_to_add {
-            if let Err(e) = add_to_queue(&file_to_add) {
-                eprintln!("Error adding to queue: {}", e);
+            for file_to_add in files_to_add {
+                if let Err(e) = add_to_queue(&file_to_add) {
+                    eprintln!("Error adding to queue: {}", e);
+                }
             }
+            
+            sleep(Duration::from_secs(2)).await;
         }
-        
-        sleep(Duration::from_secs(2)).await;
     });
     Ok(())
 }
