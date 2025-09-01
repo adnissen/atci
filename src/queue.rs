@@ -305,53 +305,58 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
 
         let blocklist = load_blocklist();
 
-        loop {
-            for watch_directory in &cfg.watch_directories {
-                for entry in WalkDir::new(watch_directory).into_iter().filter_map(|e| e.ok()) {
-                    let file_path = entry.path();
+        let files_to_add: Vec<_> = cfg.watch_directories.iter().map(|wd| {
+            let mut files: Vec<_> = WalkDir::new(wd).into_iter().filter_map(|e| e.ok()).filter_map(|entry| {
+                let file_path = entry.path();
 
-                    //skip directories
-                    if !file_path.is_file() {
-                        continue;
+                // skip directories
+                if !file_path.is_file() {
+                    return None;
+                }
+
+                // skip files that are in the blocklist
+                if blocklist.contains(&file_path.to_string_lossy().to_string()) {
+                    return None;
+                }
+
+                if let Some(extension) = file_path.extension() {
+                    let ext_str = extension.to_string_lossy().to_lowercase();
+
+                    // we're only interested in video files
+                    if !video_extensions.contains(&ext_str.as_str()) {
+                        return None;
                     }
 
-                    // skip files that are in the blocklist
-                    if blocklist.contains(&file_path.to_string_lossy().to_string()) {
-                        continue;
-                    }
-
-                    if let Some(extension) = file_path.extension() {
-                        let ext_str = extension.to_string_lossy().to_lowercase();
-
-                        // we're only interested in video files
-                        if !video_extensions.contains(&ext_str.as_str()) {
-                            continue;
-                        }
-
-                        // we want to make sure the file isn't in the process of currently being copied over to our watch directory
-                        // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
-                        if let Ok(metadata) = fs::metadata(&file_path) {
-                            if let Ok(modified) = metadata.modified() {
-                                let now = std::time::SystemTime::now();
-                                if let Ok(duration) = now.duration_since(modified) {
-                                    if duration.as_secs() >= 3 {
-                                        let txt_path = file_path.with_extension("txt");
-                                        
-                                        if !txt_path.exists() {
-                                            if let Err(e) = add_to_queue(&file_path.to_string_lossy()) {
-                                                eprintln!("Error adding to queue: {}", e);
-                                            }
-                                        }
+                    // we want to make sure the file isn't in the process of currently being copied over to our watch directory
+                    // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
+                    if let Ok(metadata) = fs::metadata(&file_path) {
+                        if let Ok(modified) = metadata.modified() {
+                            let now = std::time::SystemTime::now();
+                            if let Ok(duration) = now.duration_since(modified) {
+                                if duration.as_secs() >= 3 {
+                                    let txt_path = file_path.with_extension("txt");
+                                    
+                                    if !txt_path.exists() {
+                                        return Some(file_path.to_string_lossy().to_string());
                                     }
                                 }
                             }
                         }
                     }
                 }
+                None
+            }).collect::<Vec<_>>();
+            files.sort_by(|a, b| a.cmp(b));
+            files
+        }).flatten().collect();
+
+        for file_to_add in files_to_add {
+            if let Err(e) = add_to_queue(&file_to_add) {
+                eprintln!("Error adding to queue: {}", e);
             }
-            
-            sleep(Duration::from_secs(2)).await;
         }
+        
+        sleep(Duration::from_secs(2)).await;
     });
     Ok(())
 }
