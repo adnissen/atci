@@ -453,7 +453,6 @@ function HomePageContent() {
 
   // Clip management methods
   const handleSetClipStart = (time: number, transcript: string) => {
-    console.log('handleSetClipStart', time, transcript)
     if (clipTranscript && clipTranscript !== transcript) {
       // Different transcript - clear existing clip and set new start
       setClipStart(time)
@@ -467,7 +466,6 @@ function HomePageContent() {
   }
 
   const handleSetClipEnd = (time: number, transcript: string) => {
-    console.log('handleSetClipEnd', time, transcript)
     if (clipTranscript && clipTranscript !== transcript) {
       // Different transcript - clear existing clip and set new end
       setClipStart(null)

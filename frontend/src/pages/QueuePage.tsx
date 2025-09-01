@@ -49,7 +49,6 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
         if (data.success) {
           //if the previous state was processing something
           // and the incoming state is not equal to what we had
-          console.log(queueStatus.currently_processing + " " + data.data.currently_processing)
           if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
             // Refresh files using current filter settings
             refreshFiles()
