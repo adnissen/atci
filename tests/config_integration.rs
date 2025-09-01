@@ -20,7 +20,7 @@ fn setup_test_config() -> (Command, PathBuf) {
         fs::remove_file(&test_config_path).ok();
     }
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.env("ATCI_CONFIG_PATH", &test_config_path);
     
     (cmd, test_config_path)

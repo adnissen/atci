@@ -31,7 +31,7 @@ watch_directories = ["{}"]
     
     fs::write(&test_config_path, config_content).unwrap();
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.env("ATCI_CONFIG_PATH", &test_config_path);
     
     (cmd, test_config_path)
@@ -61,7 +61,7 @@ fn test_transcripts_get_success() {
     let content = "Line 1\nLine 2\nLine 3";
     let video_path = create_test_video_with_transcript(&temp_dir, "test_video", content);
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "get", &video_path]);
     
     cmd.assert()
@@ -74,7 +74,7 @@ fn test_transcripts_get_file_not_exists() {
     let temp_dir = TempDir::new().unwrap();
     let video_path = temp_dir.path().join("nonexistent.mp4").to_string_lossy().to_string();
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "get", &video_path]);
     
     cmd.assert()
@@ -88,7 +88,7 @@ fn test_transcripts_set_line_success() {
     let original_content = "Line 1\nLine 2\nLine 3";
     let video_path = create_test_video_with_transcript(&temp_dir, "test_video", original_content);
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "set-line", &video_path, "2", "Modified Line 2"]);
     
     cmd.assert()
@@ -107,7 +107,7 @@ fn test_transcripts_set_line_zero_line_number() {
     let content = "Line 1\nLine 2\nLine 3";
     let video_path = create_test_video_with_transcript(&temp_dir, "test_video", content);
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "set-line", &video_path, "0", "New content"]);
     
     cmd.assert()
@@ -121,7 +121,7 @@ fn test_transcripts_set_line_beyond_file_length() {
     let content = "Line 1\nLine 2\nLine 3";
     let video_path = create_test_video_with_transcript(&temp_dir, "test_video", content);
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "set-line", &video_path, "10", "New content"]);
     
     cmd.assert()
@@ -134,7 +134,7 @@ fn test_transcripts_set_line_file_not_exists() {
     let temp_dir = TempDir::new().unwrap();
     let video_path = temp_dir.path().join("nonexistent.mp4").to_string_lossy().to_string();
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "set-line", &video_path, "1", "New content"]);
     
     cmd.assert()
@@ -206,7 +206,7 @@ fn test_transcripts_regenerate_success_txt_only() {
     assert!(txt_path.exists());
     assert!(!meta_path.exists());
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "regenerate", &video_path]);
     
     cmd.assert()
@@ -222,7 +222,7 @@ fn test_transcripts_regenerate_no_files_to_delete() {
     let temp_dir = TempDir::new().unwrap();
     let video_path = temp_dir.path().join("nonexistent.mp4").to_string_lossy().to_string();
     
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "regenerate", &video_path]);
     
     cmd.assert()
@@ -232,17 +232,17 @@ fn test_transcripts_regenerate_no_files_to_delete() {
 
 #[test]
 fn test_transcripts_command_requires_subcommand() {
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts"]);
     
     cmd.assert()
         .failure()
-        .stderr(str::contains("Usage: atci-rust transcripts [COMMAND]"));
+        .stderr(str::contains("Usage: atci transcripts [COMMAND]"));
 }
 
 #[test]
 fn test_transcripts_get_requires_path() {
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "get"]);
     
     cmd.assert()
@@ -252,21 +252,21 @@ fn test_transcripts_get_requires_path() {
 
 #[test]
 fn test_transcripts_set_line_requires_all_args() {
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "set-line"]);
     
     cmd.assert()
         .failure()
         .stderr(str::contains("required"));
     
-    let mut cmd2 = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd2 = Command::cargo_bin("atci").unwrap();
     cmd2.args(&["transcripts", "set-line", "video.mp4"]);
     
     cmd2.assert()
         .failure()
         .stderr(str::contains("required"));
     
-    let mut cmd3 = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd3 = Command::cargo_bin("atci").unwrap();
     cmd3.args(&["transcripts", "set-line", "video.mp4", "1"]);
     
     cmd3.assert()
@@ -276,14 +276,14 @@ fn test_transcripts_set_line_requires_all_args() {
 
 #[test]
 fn test_transcripts_set_requires_all_args() {
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "set"]);
     
     cmd.assert()
         .failure()
         .stderr(str::contains("required"));
     
-    let mut cmd2 = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd2 = Command::cargo_bin("atci").unwrap();
     cmd2.args(&["transcripts", "set", "video.mp4"]);
     
     cmd2.assert()
@@ -293,7 +293,7 @@ fn test_transcripts_set_requires_all_args() {
 
 #[test]
 fn test_transcripts_regenerate_requires_path() {
-    let mut cmd = Command::cargo_bin("atci-rust").unwrap();
+    let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(&["transcripts", "regenerate"]);
     
     cmd.assert()

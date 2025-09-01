@@ -47,10 +47,10 @@ enum Commands {
     Clip {
         #[arg(help = "Path to the video file")]
         path: String,
-        #[arg(help = "Start time in seconds (e.g., 455.00)")]
-        start: f64,
-        #[arg(help = "End time in seconds (e.g., 520.50)")]
-        end: f64,
+        #[arg(help = "Start time (seconds: 455.5, frames: 300f, timestamp: 01:30:15.5)")]
+        start: String,
+        #[arg(help = "End time (seconds: 520.5, frames: 600f, timestamp: 01:35:20.0)")]
+        end: String,
         #[arg(help = "Optional text to overlay")]
         text: Option<String>,
         #[arg(long, help = "Display text overlay", default_value = "true")]
@@ -610,7 +610,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
             
-            clipper::clip(Path::new(&path), start, end, text.as_deref(), display_text, &format, font_size)?;
+            clipper::clip(Path::new(&path), &start, &end, text.as_deref(), display_text, &format, font_size)?;
         }
         Some(Commands::Tools { tools_command }) => {
             match tools_command {
