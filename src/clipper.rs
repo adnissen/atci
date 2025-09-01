@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 use rocket::serde::Deserialize;
-use rocket::{get, post, response::status};
+use rocket::{get, response::status};
 use std::fs;
 use crate::auth::AuthGuard;
 use crate::Asset;
