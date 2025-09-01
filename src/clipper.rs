@@ -1,12 +1,28 @@
 use std::path::Path;
 use std::process::Command;
 use rocket::serde::Deserialize;
-use rocket::{get, response::status};
+use rocket::{get, post, response::status};
 use std::fs;
 use crate::auth::AuthGuard;
+use crate::Asset;
 
 fn get_video_extensions() -> Vec<&'static str> {
     vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
+}
+
+fn get_font_path() -> Result<String, Box<dyn std::error::Error>> {
+    use uuid::Uuid;
+    
+    // Extract font file from embedded assets
+    if let Some(font_data) = Asset::get("MYRIADPRO-BOLDIT.OTF") {
+        let temp_font_name = format!("font_{}.otf", Uuid::new_v4());
+        let temp_font_path = std::env::temp_dir().join(&temp_font_name);
+        
+        std::fs::write(&temp_font_path, font_data.data.as_ref())?;
+        Ok(temp_font_path.to_string_lossy().to_string())
+    } else {
+        Err("Font file not found in embedded assets".into())
+    }
 }
 
 fn validate_video_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -32,6 +48,70 @@ fn validate_video_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     }
     
     Ok(())
+}
+
+pub fn grab_frame(
+    path: &Path,
+    time: &str,
+    text: Option<&str>,
+    font_size: Option<u32>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let cfg: crate::AtciConfig = crate::config::load_config()?;
+    let ffprobe_path = Path::new(&cfg.ffprobe_path);
+    
+    // Parse time format
+    let time_format = TimeFormat::parse(time)?;
+    
+    // Convert to seconds
+    let time_seconds = time_format.to_seconds(path, ffprobe_path)?;
+    
+    validate_video_file(path)?;
+
+    // Create a static filename with time and caption
+    let caption_part = match text {
+        Some(text_content) => {
+            // Sanitize text for filename - remove/replace problematic characters
+            let sanitized_text = text_content
+                .chars()
+                .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == '-')
+                .collect::<String>()
+                .split_whitespace()
+                .collect::<Vec<&str>>()
+                .join("_")
+                .chars()
+                .take(50)
+                .collect::<String>();
+            
+            format!("_{}", sanitized_text)
+        }
+        None => String::new(),
+    };
+
+    let time_str = format!("{:.3}", time_seconds);
+    let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
+    
+    let temp_frame_name = format!("frame_{}{}_{}.png", time_str, caption_part, font_size_part);
+    let temp_frame_path = std::env::temp_dir().join(&temp_frame_name);
+    
+    if temp_frame_path.exists() {
+        println!("{}", temp_frame_path.display());
+        return Ok(());
+    }
+
+    let frame_args = grab_frame_args(path, time_seconds, text, &temp_frame_path, font_size);
+    
+    let mut cmd = Command::new(&cfg.ffmpeg_path);
+    cmd.args(&frame_args);
+    
+    let output = cmd.output()?;
+    
+    if output.status.success() {
+        println!("{}", temp_frame_path.display());
+        Ok(())
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Error creating frame with ffmpeg: {}", error_msg).into())
+    }
 }
 
 pub fn clip(
@@ -256,6 +336,7 @@ fn gif_with_text_args(
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
             let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(text.len()));
+            let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
             
             vec![
                 "-ss",
@@ -265,8 +346,8 @@ fn gif_with_text_args(
                 "-i",
                 &input_path.to_string_lossy(),
                 "-vf",
-                &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='/Users/andrewnissen/MYRIADPRO-BOLDIT.OTF':x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", 
-                       temp_text_path.to_string_lossy(), font_size),
+                &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10,fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse", 
+                       temp_text_path.to_string_lossy(), font_size, font_path),
                 "-loop",
                 "0",
                 "-y",
@@ -341,6 +422,7 @@ fn video_with_text_args(
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
             let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(text.len()));
+            let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
             let frames_count = (duration * 30.0).trunc() as i32;
             
             let mut args = vec![
@@ -353,8 +435,8 @@ fn video_with_text_args(
                 "-t",
                 &format!("{}", duration),
                 "-vf",
-                &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='/Users/andrewnissen/MYRIADPRO-BOLDIT.OTF':x=(w-text_w)/2:y=h-th-10", 
-                       temp_text_path.to_string_lossy(), font_size),
+                &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10", 
+                       temp_text_path.to_string_lossy(), font_size, font_path),
                 "-frames:v",
                 &frames_count.to_string(),
                 "-c:v",
@@ -521,6 +603,62 @@ fn audio_file_args(
     .collect()
 }
 
+fn grab_frame_args(
+    input_path: &Path,
+    time: f64,
+    text: Option<&str>,
+    output_path: &Path,
+    font_size: Option<u32>,
+) -> Vec<String> {
+    let mut args = vec![
+        "-ss".to_string(),
+        format!("{}", time),
+        "-i".to_string(),
+        input_path.to_string_lossy().to_string(),
+        "-vframes".to_string(),
+        "1".to_string(),
+    ];
+
+    if let Some(text_content) = text {
+        use uuid::Uuid;
+        use std::fs;
+        
+        let temp_text_name = format!("text_{}.txt", Uuid::new_v4());
+        let temp_text_path = std::env::temp_dir().join(&temp_text_name);
+        
+        match fs::write(&temp_text_path, text_content) {
+            Ok(_) => {
+                let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(text_content.len()));
+                let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
+                
+                args.extend(vec![
+                    "-vf".to_string(),
+                    format!(
+                        "drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10",
+                        temp_text_path.to_string_lossy(),
+                        font_size,
+                        font_path
+                    ),
+                ]);
+            }
+            Err(_) => {
+                // If we can't write the text file, just grab the frame without text
+            }
+        }
+    }
+
+    args.extend(vec![
+        "-q:v".to_string(),
+        "1".to_string(),  // Highest quality for PNG
+        "-pix_fmt".to_string(),
+        "rgba".to_string(),  // Support transparency
+        "-y".to_string(),
+        output_path.to_string_lossy().to_string(),
+    ]);
+
+    args
+}
+
 fn calculate_font_size_for_video(text_length: usize) -> u32 {
     // Simple heuristic: base font size adjusted by text length
     let base_size = 24;
@@ -618,6 +756,14 @@ pub struct ClipQuery {
     format: Option<String>,
 }
 
+#[derive(Deserialize, rocket::FromForm)]
+pub struct FrameQuery {
+    filename: String,
+    time: String,
+    text: Option<String>,
+    font_size: Option<String>,
+}
+
 
 #[get("/api/clip?<query..>")]
 pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::BadRequest<&'static str>> {
@@ -686,6 +832,68 @@ pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::B
                 .map_err(|_| status::BadRequest("Error reading generated clip"))
         },
         Err(_) => Err(status::BadRequest("Error creating clip"))
+    }
+}
+
+#[get("/api/frame?<query..>")]
+pub fn web_frame(_auth: AuthGuard, query: FrameQuery) -> Result<(rocket::http::ContentType, Vec<u8>), status::BadRequest<&'static str>> {
+    // Check if the video file exists at the given path
+    let video_path = Path::new(&query.filename);
+    if !video_path.exists() {
+        return Err(status::BadRequest("Video file not found"));
+    }
+    
+    // Parse optional parameters
+    let text = query.text.as_deref();
+    let font_size = query.font_size.as_deref().and_then(|s| s.parse().ok());
+
+    // Call the grab_frame function that supports multiple time formats
+    match grab_frame(video_path, &query.time, text, font_size) {
+        Ok(()) => {
+            // We need to parse the time to get the actual seconds for filename generation
+            let cfg = match crate::config::load_config() {
+                Ok(cfg) => cfg,
+                Err(_) => return Err(status::BadRequest("Error loading config"))
+            };
+            let ffprobe_path = Path::new(&cfg.ffprobe_path);
+            
+            let time_seconds = match TimeFormat::parse(&query.time).and_then(|t| t.to_seconds(video_path, ffprobe_path)) {
+                Ok(seconds) => seconds,
+                Err(_) => return Err(status::BadRequest("Error parsing time format"))
+            };
+            
+            // The grab_frame function prints the output path, but we need to construct it ourselves
+            // to read the file and return its contents
+            let caption_part = match text {
+                Some(text_content) => {
+                    // Sanitize text for filename - remove/replace problematic characters
+                    let sanitized_text = text_content
+                        .chars()
+                        .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == '-')
+                        .collect::<String>()
+                        .split_whitespace()
+                        .collect::<Vec<&str>>()
+                        .join("_")
+                        .chars()
+                        .take(50)
+                        .collect::<String>();
+                    
+                    format!("_{}", sanitized_text)
+                }
+                None => String::new(),
+            };
+
+            let time_str = format!("{:.3}", time_seconds);
+            let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
+            
+            let temp_frame_name = format!("frame_{}{}_{}.png", time_str, caption_part, font_size_part);
+            let temp_frame_path = std::env::temp_dir().join(&temp_frame_name);
+            
+            fs::read(&temp_frame_path)
+                .map(|data| (rocket::http::ContentType::PNG, data))
+                .map_err(|_| status::BadRequest("Error reading generated frame"))
+        },
+        Err(_) => Err(status::BadRequest("Error creating frame"))
     }
 }
 

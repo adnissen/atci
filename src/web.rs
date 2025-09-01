@@ -156,6 +156,7 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
             files::web_get_files,
             files::web_get_sources,
             clipper::web_clip,
+            clipper::web_frame,
             queue::web_get_queue,
             queue::web_get_queue_status,
             queue::web_block_path,

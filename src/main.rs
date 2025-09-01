@@ -60,6 +60,17 @@ enum Commands {
         #[arg(long, help = "Font size for text overlay")]
         font_size: Option<u32>,
     },
+    #[command(about = "Extract a frame from a video with optional text overlay")]
+    Frame {
+        #[arg(help = "Path to the video file")]
+        path: String,
+        #[arg(help = "Time (seconds: 455.5, frames: 300f, timestamp: 01:30:15.5)")]
+        time: String,
+        #[arg(help = "Optional text to overlay")]
+        text: Option<String>,
+        #[arg(long, help = "Font size for text overlay")]
+        font_size: Option<u32>,
+    },
     #[command(about = "Manage external tools and dependencies")]
     Tools {
         #[command(subcommand)]
@@ -611,6 +622,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             validate_and_prompt_config(&mut cfg, &required_fields)?;
             
             clipper::clip(Path::new(&path), &start, &end, text.as_deref(), display_text, &format, font_size)?;
+        }
+        Some(Commands::Frame { path, time, text, font_size }) => {
+            let mut cfg: AtciConfig = config::load_config()?;
+            
+            // Define required fields for frame command
+            let mut required_fields = HashSet::new();
+            required_fields.insert("ffmpeg_path".to_string());
+            required_fields.insert("ffprobe_path".to_string());
+            
+            // Validate and prompt for missing configuration
+            validate_and_prompt_config(&mut cfg, &required_fields)?;
+            
+            clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size)?;
         }
         Some(Commands::Tools { tools_command }) => {
             match tools_command {

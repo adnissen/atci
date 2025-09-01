@@ -395,7 +395,7 @@ const TranscriptBlock: React.FC<TranscriptBlockProps> = React.memo(({
                     <DropdownMenuContent align="start" side="right" sideOffset={8}>
                       <DropdownMenuItem asChild>
                         <a 
-                          href={`/frame/${encodeURIComponent(name)}/${timestampToSeconds(startTime) + (timestampToSeconds(endTime) - timestampToSeconds(startTime)) / 2}?text=${encodeURIComponent(text)}`} 
+                          href={`/api/frame?filename=${encodeURIComponent(fullPath)}&time=${timestampToSeconds(startTime) + (timestampToSeconds(endTime) - timestampToSeconds(startTime)) / 2}&text=${encodeURIComponent(text)}`} 
                           target="_blank"
                           className="flex items-center gap-2 w-full"
                         >

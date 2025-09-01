@@ -23986,7 +23986,7 @@ const TranscriptBlock = React.memo(({
           /* @__PURE__ */ jsxRuntimeExports.jsx(DropdownMenuItem, { asChild: true, children: /* @__PURE__ */ jsxRuntimeExports.jsxs(
             "a",
             {
-              href: `/frame/${encodeURIComponent(name)}/${timestampToSeconds(startTime) + (timestampToSeconds(endTime) - timestampToSeconds(startTime)) / 2}?text=${encodeURIComponent(text)}`,
+              href: `/api/frame?filename=${encodeURIComponent(fullPath)}&time=${timestampToSeconds(startTime) + (timestampToSeconds(endTime) - timestampToSeconds(startTime)) / 2}&text=${encodeURIComponent(text)}`,
               target: "_blank",
               className: "flex items-center gap-2 w-full",
               children: [
@@ -27273,7 +27273,6 @@ function QueuePage({ onClose } = {}) {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          console.log(queueStatus.currently_processing + " " + data.data.currently_processing);
           if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
             refreshFiles();
           }
@@ -27801,7 +27800,6 @@ function HomePageContent() {
     }
   };
   const handleSetClipStart = (time, transcript) => {
-    console.log("handleSetClipStart", time, transcript);
     if (clipTranscript && clipTranscript !== transcript) {
       setClipStart(time);
       setClipEnd(null);
@@ -27812,7 +27810,6 @@ function HomePageContent() {
     }
   };
   const handleSetClipEnd = (time, transcript) => {
-    console.log("handleSetClipEnd", time, transcript);
     if (clipTranscript && clipTranscript !== transcript) {
       setClipStart(null);
       setClipEnd(time);
