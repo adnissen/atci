@@ -162,23 +162,7 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
         let output_path = binaries_dir.join(format!("{}{}", tool, extension));
         
         std::fs::write(&output_path, &bytes)?;
-        
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let metadata = std::fs::metadata(&output_path)?;
-            let mut permissions = metadata.permissions();
-            permissions.set_mode(0o755);
-            std::fs::set_permissions(&output_path, permissions)?;
-        }
-        
-        #[cfg(target_os = "macos")]
-        {
-            if let Err(e) = handle_macos_quarantine(&output_path.to_string_lossy(), &platform) {
-                eprintln!("Warning: Failed to handle macOS quarantine: {}", e);
-            }
-        }
-        
+
         // Verify SHA256 hash
         if let Some(expected_hash) = get_tool_sha256(tool, &platform) {
             match verify_sha256(&output_path.to_string_lossy(), expected_hash) {
@@ -195,10 +179,20 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
             eprintln!("Warning: No expected SHA256 hash found for {} on {}", tool, platform);
         }
         
-        // Create GPL license file for ffmpeg and ffprobe
-        if tool == "ffmpeg" || tool == "ffprobe" {
-            create_gpl_license_file(&binaries_dir)?;
-            create_compiling_file(&binaries_dir)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let metadata = std::fs::metadata(&output_path)?;
+            let mut permissions = metadata.permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(&output_path, permissions)?;
+        }
+        
+        #[cfg(target_os = "macos")]
+        {
+            if let Err(e) = handle_macos_quarantine(&output_path.to_string_lossy(), &platform) {
+                eprintln!("Warning: Failed to handle macOS quarantine: {}", e);
+            }
         }
         
         return Ok(output_path.to_string_lossy().to_string());
@@ -218,7 +212,23 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
             
             let mut output_file = std::fs::File::create(&output_path)?;
             std::io::copy(&mut file, &mut output_file)?;
-            
+
+            // Verify SHA256 hash
+            if let Some(expected_hash) = get_tool_sha256(tool, &platform) {
+                match verify_sha256(&output_path.to_string_lossy(), expected_hash) {
+                    Ok(true) => println!("SHA256 verification successful for {}", tool),
+                    Ok(false) => {
+                        std::fs::remove_file(&output_path)?;
+                        return Err(format!("SHA256 hash verification failed for {}", tool).into());
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: SHA256 verification error for {}: {}", tool, e);
+                    }
+                }
+            } else {
+                eprintln!("Warning: No expected SHA256 hash found for {} on {}", tool, platform);
+            }
+
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
@@ -235,26 +245,19 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
                 }
             }
             
-            // Verify SHA256 hash
-            if let Some(expected_hash) = get_tool_sha256(tool, &platform) {
-                match verify_sha256(&output_path.to_string_lossy(), expected_hash) {
-                    Ok(true) => println!("SHA256 verification successful for {}", tool),
-                    Ok(false) => {
-                        std::fs::remove_file(&output_path)?;
-                        return Err(format!("SHA256 hash verification failed for {}", tool).into());
-                    }
-                    Err(e) => {
-                        eprintln!("Warning: SHA256 verification error for {}: {}", tool, e);
-                    }
-                }
-            } else {
-                eprintln!("Warning: No expected SHA256 hash found for {} on {}", tool, platform);
-            }
-            
             // Create GPL license file for ffmpeg and ffprobe
             if tool == "ffmpeg" || tool == "ffprobe" {
                 create_gpl_license_file(&binaries_dir)?;
                 create_compiling_file(&binaries_dir)?;
+                
+                println!();
+                println!("FREE SOFTWARE NOTICE:");
+                println!("   {} is free software licensed under the GNU General Public License v2.", tool);
+                println!("   You are free to use, modify, and distribute this software under the");
+                println!("   terms of the GPL v2. See COPYING.GPLv2 in the install location for full license terms.");
+                println!("   Source code locations and build instructions are available in the COMPILING file.");
+                println!("Install location: {}", binaries_dir.display());
+                println!();
             }
             
             return Ok(output_path.to_string_lossy().to_string());
@@ -1379,7 +1382,9 @@ fn verify_sha256(file_path: &str, expected_hash: &str) -> Result<bool, Box<dyn s
     let mut hasher = Sha256::new();
     hasher.update(&file_contents);
     let computed_hash = format!("{:x}", hasher.finalize());
-    
+    println!("File path: {}", file_path);
+    println!("Computed hash: {}", computed_hash);
+    println!("Expected hash: {}", expected_hash);
     Ok(computed_hash == expected_hash)
 }
 
