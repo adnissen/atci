@@ -1,3 +1,6 @@
+// atci (andrew's transcript and clipping interface)
+// Copyright (C) 2025 Andrew Nissen
+
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;

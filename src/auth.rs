@@ -1,3 +1,6 @@
+// atci (andrew's transcript and clipping interface)
+// Copyright (C) 2025 Andrew Nissen
+
 use rocket::http::Status;
 use rocket::request::{self, FromRequest, Request};
 use rocket::outcome::Outcome;

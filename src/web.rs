@@ -1,3 +1,6 @@
+// atci (andrew's transcript and clipping interface)
+// Copyright (C) 2025 Andrew Nissen
+
 use rocket::serde::json::Json;
 use rocket::serde::Serialize;
 use rocket::{get, post, routes, response::content, catch, catchers, Request};

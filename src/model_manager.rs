@@ -1,3 +1,6 @@
+// atci (andrew's transcript and clipping interface)
+// Copyright (C) 2025 Andrew Nissen
+
 const MODEL_NAMES: &[&str] = &[
     "ggml-base-q5_1",
     "ggml-base-q8_0",

@@ -1,3 +1,6 @@
+// atci (andrew's transcript and clipping interface)
+// Copyright (C) 2025 Andrew Nissen
+
 use std::path::Path;
 use std::process::Command;
 use rocket::serde::Deserialize;

@@ -1,3 +1,6 @@
+// atci (andrew's transcript and clipping interface)
+// Copyright (C) 2025 Andrew Nissen
+
 pub fn get_ffmpeg_url(platform: &str) -> Option<&'static str> {
     match platform {
         "windows" => Some("https://example.com/ffmpeg-windows.exe"),

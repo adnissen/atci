@@ -1,3 +1,6 @@
+// atci (andrew's transcript and clipping interface)
+// Copyright (C) 2025 Andrew Nissen
+
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
