@@ -250,12 +250,10 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
     if let Some(video_path_str) = first_line {
         println!("Processing queue item: {}", video_path_str);
         let video_path_str = video_path_str.trim();
+        remove_first_line_from_queue()?;
         if video_path_str.is_empty() {
-            remove_first_line_from_queue()?;
             return Ok(false);
         }
-        
-        remove_first_line_from_queue()?;
         
         let video_path = Path::new(video_path_str);
         
