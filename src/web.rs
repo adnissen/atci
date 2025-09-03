@@ -164,6 +164,7 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
             queue::web_get_queue_status,
             queue::web_block_path,
             queue::web_set_queue,
+            queue::web_cancel_queue,
             search::web_search_transcripts,
             transcripts::web_get_transcript_by_path,
             transcripts::web_replace_transcript,

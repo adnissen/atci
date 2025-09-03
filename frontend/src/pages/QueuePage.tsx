@@ -116,25 +116,25 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
       return
     }
 
-    // try {
-    //   const response = await fetch('/api/queue/cancel-current', {
-    //     method: 'DELETE',
-    //     headers: {
-    //       'Content-Type': 'application/json',
-    //     }
-    //   })
+    try {
+      const response = await fetch('/api/queue/cancel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
 
-    //   if (response.ok) {
-    //     // Refresh queue status
-    //     await fetchQueueStatus()
-    //   } else {
-    //     const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
-    //     alert(`Failed to cancel job: ${errorData.message}`)
-    //   }
-    // } catch (err) {
-    //   console.error('Error cancelling job:', err)
-    //   alert('Failed to cancel processing job')
-    // }
+      if (response.ok) {
+        // Refresh queue status
+        await fetchQueueStatus()
+      } else {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }))
+        alert(`Failed to cancel job: ${errorData.message}`)
+      }
+    } catch (err) {
+      console.error('Error cancelling job:', err)
+      alert('Failed to cancel processing job')
+    }
   }
 
   // Move item up in queue

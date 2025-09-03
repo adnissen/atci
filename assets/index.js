@@ -27306,6 +27306,23 @@ function QueuePage({ onClose } = {}) {
     if (!confirm(`Cancel processing of "${item.split("/").pop()}"?`)) {
       return;
     }
+    try {
+      const response = await fetch("/api/queue/cancel", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        }
+      });
+      if (response.ok) {
+        await fetchQueueStatus();
+      } else {
+        const errorData = await response.json().catch(() => ({ message: "Unknown error" }));
+        alert(`Failed to cancel job: ${errorData.message}`);
+      }
+    } catch (err) {
+      console.error("Error cancelling job:", err);
+      alert("Failed to cancel processing job");
+    }
   };
   const handleMoveUp = async (index2) => {
     if (index2 === 0) return;

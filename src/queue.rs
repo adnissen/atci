@@ -158,6 +158,14 @@ pub fn web_set_queue(_auth: AuthGuard, request: Json<SetRequest>) -> Json<ApiRes
     }
 }
 
+#[post("/api/queue/cancel")]
+pub fn web_cancel_queue(_auth: AuthGuard) -> Json<ApiResponse<String>> {
+    match cancel_queue() {
+        Ok(message) => Json(ApiResponse::success(message)),
+        Err(e) => Json(ApiResponse::error(format!("Failed to cancel queue: {}", e))),
+    }
+}
+
 pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
@@ -293,6 +301,30 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
     }
     
     Ok(false)
+}
+
+pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let commands_dir = std::path::Path::new(&home_dir).join(".atci").join(".commands");
+    let cancel_file = commands_dir.join("CANCEL");
+    
+    if cancel_file.exists() {
+        let metadata = fs::metadata(&cancel_file)?;
+        let created = metadata.created()
+            .or_else(|_| metadata.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        
+        let duration = created.duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap_or(Duration::from_secs(0));
+        let datetime = chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0)
+            .unwrap_or_default();
+        
+        Ok(format!("CANCEL file already exists, created at: {}", datetime.format("%Y-%m-%d %H:%M:%S UTC")))
+    } else {
+        fs::create_dir_all(&commands_dir)?;
+        fs::write(&cancel_file, "")?;
+        Ok("Created CANCEL file".to_string())
+    }
 }
 
 pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Error>> {

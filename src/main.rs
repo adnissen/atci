@@ -162,6 +162,8 @@ enum QueueCommands {
         #[arg(help = "Paths in desired order", num_args = 1..)]
         paths: Vec<String>,
     },
+    #[command(about = "Cancel queue processing")]
+    Cancel,
 }
 
 #[derive(Subcommand, Debug)]
@@ -619,6 +621,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Err(e) => {
                             eprintln!("Error setting queue: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                Some(QueueCommands::Cancel) => {
+                    match queue::cancel_queue() {
+                        Ok(message) => {
+                            println!("{}", message);
+                        }
+                        Err(e) => {
+                            eprintln!("Error canceling queue: {}", e);
                             std::process::exit(1);
                         }
                     }
