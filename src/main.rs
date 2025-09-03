@@ -120,10 +120,8 @@ enum Commands {
     },
     #[command(about = "Launch the web server and watcher")]
     Web {
-        #[arg(long, help = "Port to run the web server on", default_value = "8000")]
-        port: u16,
-        #[arg(long, help = "Host to bind the web server to", default_value = "127.0.0.1")]
-        host: String,
+        #[command(subcommand)]
+        web_command: Option<WebCommands>,
     },
 }
 
@@ -213,6 +211,25 @@ enum ConfigCommands {
     Unset {
         #[arg(help = "Field name to unset")]
         field: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum WebCommands {
+    #[command(about = "Launch full web server with UI and API")]
+    Full {
+        #[arg(long, help = "Port to run the web server on", default_value = "8000")]
+        port: u16,
+        #[arg(long, help = "Host to bind the web server to", default_value = "127.0.0.1")]
+        host: String,
+    },
+    #[command(about = "Launch API-only server")]
+    Api {
+        #[arg(long, help = "Port to run the API server on", default_value = "8000")]
+        port: u16,
+        #[arg(long, help = "Host to bind the API server to", default_value = "127.0.0.1")]
+        host: String,
     },
 }
 
@@ -924,40 +941,56 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 None => {}
             }
         }
-        Some(Commands::Web { host, port }) => {
-            let mut cfg: AtciConfig = config::load_config()?;
-            let mut required_fields = HashSet::new();
-            required_fields.insert("ffmpeg_path".to_string());
-            required_fields.insert("ffprobe_path".to_string());
-            required_fields.insert("whispercli_path".to_string());
-            required_fields.insert("model_name".to_string());
-            required_fields.insert("watch_directories".to_string());
-            
-            // Validate and prompt for missing configuration
-            validate_and_prompt_config(&mut cfg, &required_fields)?;
+        Some(Commands::Web { web_command }) => {
+            match web_command {
+                Some(WebCommands::Full { host, port }) => {
+                    let mut cfg: AtciConfig = config::load_config()?;
+                    let mut required_fields = HashSet::new();
+                    required_fields.insert("ffmpeg_path".to_string());
+                    required_fields.insert("ffprobe_path".to_string());
+                    required_fields.insert("whispercli_path".to_string());
+                    required_fields.insert("model_name".to_string());
+                    required_fields.insert("watch_directories".to_string());
+                    
+                    // Validate and prompt for missing configuration
+                    validate_and_prompt_config(&mut cfg, &required_fields)?;
 
-            let cache_data = files::get_video_info_from_disk()?;
-            files::save_video_info_to_cache(&cache_data)?;
-            
-            println!("Starting web server on {}:{}", host, port);
-            
-            let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(async {
-                if let Err(e) = queue::watch_for_missing_metadata().await {
-                    eprintln!("Error starting metadata watcher: {}", e);
-                    std::process::exit(1);
-                }
-                
-                if let Err(e) = queue::process_queue().await {
-                    eprintln!("Error starting queue processor: {}", e);
-                    std::process::exit(1);
-                }
+                    let cache_data = files::get_video_info_from_disk()?;
+                    files::save_video_info_to_cache(&cache_data)?;
+                    
+                    println!("Starting full web server on {}:{}", host, port);
+                    
+                    let rt = tokio::runtime::Runtime::new()?;
+                    rt.block_on(async {
+                        if let Err(e) = queue::watch_for_missing_metadata().await {
+                            eprintln!("Error starting metadata watcher: {}", e);
+                            std::process::exit(1);
+                        }
+                        
+                        if let Err(e) = queue::process_queue().await {
+                            eprintln!("Error starting queue processor: {}", e);
+                            std::process::exit(1);
+                        }
 
-                if let Err(e) = web::launch_server(&host, port).await {
-                    eprintln!("Error starting web server: {}", e);
-                    std::process::exit(1);
+                        if let Err(e) = web::launch_server(&host, port).await {
+                            eprintln!("Error starting web server: {}", e);
+                            std::process::exit(1);
+                        }
+                    });
                 }
-            });
+                Some(WebCommands::Api { host, port }) => {
+                    println!("Starting API-only server on {}:{}", host, port);
+                    
+                    let rt = tokio::runtime::Runtime::new()?;
+                    rt.block_on(async {
+                        if let Err(e) = web::launch_api_server(&host, port).await {
+                            eprintln!("Error starting API server: {}", e);
+                            std::process::exit(1);
+                        }
+                    });
+                }
+                None => {}
+            }
         }
         None => {}
     }

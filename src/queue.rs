@@ -327,9 +327,6 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
     Ok(false)
 }
 
-
-
-
 pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let commands_dir = std::path::Path::new(&home_dir).join(".atci").join(".commands");
@@ -355,18 +352,18 @@ pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
 }
 
 pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Error>> {
-    let cfg: AtciConfig = config::load_config()?;
     tokio::spawn(async move {
-        let video_extensions = crate::files::get_video_extensions();
-        
-        if cfg.watch_directories.is_empty() {
-            eprintln!("No watch directories configured");
-            return;
-        }
-
-        let blocklist = load_blocklist();
-
         loop {
+            let cfg: AtciConfig = config::load_config().expect("Failed to load config");
+
+            let video_extensions = crate::files::get_video_extensions();
+            
+            if cfg.watch_directories.is_empty() {
+                eprintln!("No watch directories configured");
+                return;
+            }
+    
+            let blocklist = load_blocklist();
             let files_to_add: Vec<_> = cfg.watch_directories.iter().map(|wd| {
                 let mut files: Vec<_> = WalkDir::new(wd).into_iter().filter_map(|e| e.ok()).filter_map(|entry| {
                     let file_path = entry.path();
