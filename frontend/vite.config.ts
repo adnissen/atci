@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: '/assets/',
   build: {
-    minify: false,
+    minify: true,
     outDir: '../assets/',
     rollupOptions: {  
       output: {
