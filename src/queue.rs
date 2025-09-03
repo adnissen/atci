@@ -230,7 +230,9 @@ pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
 
            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
            let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
-           fs::remove_file(&currently_processing_path).unwrap();
+           if currently_processing_path.exists() {
+               fs::remove_file(&currently_processing_path).unwrap();
+           }
 
            sleep(Duration::from_secs(2)).await;
         }
