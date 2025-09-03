@@ -6,72 +6,43 @@ use std::path::Path;
 use tokio::process::Command;
 use std::env;
 use regex::Regex;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Write, Read};
+use std::io::{BufRead, BufReader};
 use crate::metadata;
+use tokio::time::sleep;
+use std::time::Duration;
 
+fn check_cancel_file() -> bool {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let cancel_file = std::path::Path::new(&home_dir).join(".atci").join(".commands").join("CANCEL");
+    cancel_file.exists()
+}
 
-pub async fn create_transcript(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Creating transcript for: {}", video_path.display());
-    let cfg: crate::AtciConfig = crate::config::load_config()?;
-    let txt_path = video_path.with_extension("txt");
+fn cleanup_cancel_and_processing_files(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+    let cancel_file = std::path::Path::new(&home_dir).join(".atci").join(".commands").join("CANCEL");
+    let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+    let mp3_path = video_path.with_extension("mp3");
     
-    if !txt_path.exists() {
-        // Check for subtitle streams first
-        match get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path)).await {
-            Ok(streams) => {
-                let mut successfully_extracted_subtitles = false;
-                if !streams.is_empty() {
-                    println!("Found subtitle streams: {:?}", streams);
-                    // Extract subtitles from the first stream
-                    match extract_subtitle_stream(video_path, streams[0], Path::new(&cfg.ffmpeg_path)).await {
-                        Ok(()) => {
-                            add_key_to_metadata_block(video_path, "source", "subtitles")?;
-                            println!("Created transcript file: {}", txt_path.display());
-                            successfully_extracted_subtitles = true;
-                        }
-                        Err(e) => {
-                            println!("Failed to extract subtitles: {}, trying whisper transcription", e);
-                        }
-                    }
-                } 
-                // No subtitle streams found, extract the audio and transcribe it with whisper
-                if !(has_audio_stream(video_path, Path::new(&cfg.ffprobe_path)).await?) {
-                    fs::write(&txt_path, "")?;
-                    println!("No audio streams found, created empty transcript file: {}", txt_path.display());
-                } else if !successfully_extracted_subtitles {
-                    // Extract the audio and transcribe it with whisper
-                    // TODO: if this fails we should write an empty text file so we don't infinitely retry to fix this file
-                    // maybe mark something in the meta file to indicate that we should try again?
-                    println!("Extracting audio");
-                    extract_audio(video_path, Path::new(&cfg.ffmpeg_path)).await?;
-                    let audio_path = video_path.with_extension("mp3");
-                    println!("Transcribing audio");
-                    transcribe_audio(&audio_path, Path::new(&cfg.whispercli_path), &cfg.model_name).await?;
-                    add_key_to_metadata_block(video_path, "source", &cfg.model_name)?;
-                } else {
-                    println!("Successfully extracted subtitles and audio, transcript file: {}", txt_path.display());
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to check for subtitle streams: {}, creating empty transcript file", e);
-                fs::write(&txt_path, "")?;
-                println!("Created empty transcript file: {}", txt_path.display());
-            }
-        }
+    // Remove cancel file
+    if cancel_file.exists() {
+        let _ = fs::remove_file(&cancel_file);
+    }
+    
+    // Remove currently processing file
+    if currently_processing_path.exists() {
+        let _ = fs::remove_file(&currently_processing_path);
+    }
+    
+    // Remove mp3 file if it exists
+    if mp3_path.exists() {
+        let _ = fs::remove_file(&mp3_path);
     }
     
     Ok(())
 }
 
-pub async fn add_length_to_metadata(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let meta_path = video_path.with_extension("meta");
-    let cfg: crate::AtciConfig = crate::config::load_config()?;
-    add_key_to_metadata_block(video_path, "length", &get_video_length(video_path, Path::new(&cfg.ffprobe_path)).await?)?;
-    println!("Created or updated meta file: {}", meta_path.display());
-    
-    Ok(())
-}
+
+
 
 pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
     let video_path = Path::new(video_path);
@@ -127,35 +98,6 @@ pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> R
     Ok(())
 }
 
-pub async fn get_video_length(video_path: &Path, ffprobe_path: &Path) -> Result<String, String> {
-    let output = Command::new(ffprobe_path)
-        .args(&[
-            "-v", "error",
-            "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1",
-            video_path.to_str().unwrap()
-        ])
-        .output().await.expect("Failed to execute ffprobe to get video length");
-
-
-    if output.status.success() {
-        let duration_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if let Ok(duration) = duration_str.parse::<f64>() {
-            let total_seconds = duration.round() as u64;
-            let hours = total_seconds / 3600;
-            let minutes = (total_seconds % 3600) / 60;
-            let seconds = total_seconds % 60;
-            let formatted = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
-            Ok(formatted)
-        } else {
-            Err(format!("Failed to parse duration: {}", duration_str))
-        }
-    } else {
-        let error_output = String::from_utf8_lossy(&output.stderr);
-        Err(format!("ffprobe failed: {}", error_output))
-    }
-
-}
 
 pub async fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Result<Vec<usize>, String> {
     let output = Command::new(ffprobe_path)
@@ -268,80 +210,7 @@ pub async fn has_audio_stream(video_path: &Path, ffprobe_path: &Path) -> Result<
     }
 }
 
-pub async fn extract_audio(video_path: &Path, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let audio_path = video_path.with_extension("mp3");
-    
-    let output = Command::new(ffmpeg_path)
-        .args(&[
-            "-i",
-                 video_path.to_str().unwrap(),
-                 // Map first audio stream only
-                 "-map",
-                 "0:a:0",
-                 "-q:a",
-                 "0",
-                 // Convert to mono to avoid channel issues
-                 "-ac",
-                 "1",
-                 // Set sample rate for consistency
-                 "-ar",
-                 "16000",
-                 // Override existing files
-                 "-y",
-                 audio_path.to_str().unwrap()
-        ])
-        .output().await;
 
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                Ok(())
-            } else {
-                let error_output = String::from_utf8_lossy(&output.stderr);
-                Err(format!("ffmpeg audio extraction failed: {}", error_output).into())
-            }
-        }
-        Err(e) => Err(format!("Failed to execute ffmpeg: {}", e).into()),
-    }
-}
-
-pub async fn transcribe_audio(audio_path: &Path, whisper_path: &Path, model_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let model_path = format!("{}/.atci/models/{}.bin", home_dir, model_name);
-    let args = vec![
-        "-m", &model_path, "-np", "--max-context", "0", "-ovtt", "-f", audio_path.to_str().unwrap()
-    ];
-    let output = Command::new(whisper_path)
-        .args(&args)
-        .output().await;
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                let vtt_path = audio_path.with_extension("mp3.vtt");  //whisper outputs a .vtt file which includes the filename of the input file
-
-                // remove the first line of the vtt file, because it just says "WEBVTT"
-                let buf = {
-                    let r = File::open(&vtt_path)?;
-                    let mut reader = BufReader::new(r);
-                    reader.read_until(b'\n', &mut Vec::new())?;
-                    let mut buf = Vec::new();
-                    reader.read_to_end(&mut buf)?;
-                    buf
-                };
-                File::create(&vtt_path)?.write_all(&buf)?;
-
-                let txt_path = audio_path.with_extension("txt");
-                fs::rename(vtt_path, txt_path)?;
-                fs::remove_file(audio_path)?;
-                Ok(())
-            } else {
-                let error_output = String::from_utf8_lossy(&output.stderr);
-                Err(format!("whisper transcription failed: {}", error_output).into())
-            }
-        }
-        Err(e) => Err(format!("Failed to execute whisper: {}", e).into()),
-    }
-}
 
 
 fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
@@ -395,4 +264,197 @@ fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
     
     //add a newline to the start of the file so our metadata block has space before the content starts
     Ok(format!("\n{}", processed_blocks.join("\n\n")))
+}
+
+pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    let cfg: crate::AtciConfig = crate::config::load_config()?;
+    let txt_path = video_path.with_extension("txt");
+    
+    if txt_path.exists() {
+        return Ok(true); // Already exists, no need to create
+    }
+    
+    println!("Creating transcript for: {}", video_path.display());
+    
+    // Check for subtitle streams first
+    match get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path)).await {
+        Ok(streams) => {
+            if !streams.is_empty() {
+                println!("Found subtitle streams: {:?}", streams);
+                match extract_subtitle_stream(video_path, streams[0], Path::new(&cfg.ffmpeg_path)).await {
+                    Ok(()) => {
+                        add_key_to_metadata_block(video_path, "source", "subtitles")?;
+                        println!("Created transcript file: {}", txt_path.display());
+                        return Ok(true);
+                    }
+                    Err(e) => {
+                        println!("Failed to extract subtitles: {}, trying whisper transcription", e);
+                    }
+                }
+            }
+            
+            // Check if we should cancel before proceeding with audio extraction
+            if check_cancel_file() {
+                cleanup_cancel_and_processing_files(video_path)?;
+                return Ok(false);
+            }
+            
+            // Check for audio streams
+            if !(has_audio_stream(video_path, Path::new(&cfg.ffprobe_path)).await?) {
+                fs::write(&txt_path, "")?;
+                println!("No audio streams found, created empty transcript file: {}", txt_path.display());
+                return Ok(true);
+            }
+            
+            // Extract audio with cancellation check
+            println!("Extracting audio");
+            let audio_path = video_path.with_extension("mp3");
+            
+            // Start audio extraction in background
+            let mut child = Command::new(&cfg.ffmpeg_path)
+                .args(&[
+                    "-i", video_path.to_str().unwrap(),
+                    "-map", "0:a:0",
+                    "-q:a", "0",
+                    "-ac", "1",
+                    "-ar", "16000",
+                    "-y", audio_path.to_str().unwrap()
+                ])
+                .spawn()?;
+            
+            // Wait for completion while checking for cancellation
+            loop {
+                tokio::select! {
+                    result = child.wait() => {
+                        match result {
+                            Ok(status) => {
+                                if !status.success() {
+                                    return Err("Audio extraction failed".into());
+                                }
+                                break;
+                            }
+                            Err(e) => return Err(format!("Failed to execute ffmpeg: {}", e).into()),
+                        }
+                    }
+                    _ = sleep(Duration::from_millis(500)) => {
+                        if check_cancel_file() {
+                            let _ = child.kill().await;
+                            cleanup_cancel_and_processing_files(video_path)?;
+                            return Ok(false);
+                        }
+                    }
+                }
+            }
+            
+            // Check for cancellation before transcription
+            if check_cancel_file() {
+                cleanup_cancel_and_processing_files(video_path)?;
+                return Ok(false);
+            }
+            
+            // Transcribe audio with cancellation check
+            println!("Transcribing audio");
+            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+            let model_path = format!("{}/.atci/models/{}.bin", home_dir, cfg.model_name);
+            
+            let mut child = Command::new(&cfg.whispercli_path)
+                .args(&[
+                    "-m", &model_path,
+                    "-np",
+                    "--max-context", "0",
+                    "-ovtt",
+                    "-f", audio_path.to_str().unwrap()
+                ])
+                .spawn()?;
+            
+            // Wait for completion while checking for cancellation
+            loop {
+                tokio::select! {
+                    result = child.wait() => {
+                        match result {
+                            Ok(status) => {
+                                if !status.success() {
+                                    return Err("Whisper transcription failed".into());
+                                }
+                                break;
+                            }
+                            Err(e) => return Err(format!("Failed to execute whisper: {}", e).into()),
+                        }
+                    }
+                    _ = sleep(Duration::from_millis(500)) => {
+                        if check_cancel_file() {
+                            let _ = child.kill().await;
+                            cleanup_cancel_and_processing_files(video_path)?;
+                            return Ok(false);
+                        }
+                    }
+                }
+            }
+            
+            // Post-process the whisper output
+            let vtt_path = audio_path.with_extension("mp3.vtt");
+            if vtt_path.exists() {
+                // Remove the first line of the vtt file
+                let content = fs::read_to_string(&vtt_path)?;
+                let lines: Vec<&str> = content.lines().collect();
+                if lines.len() > 1 {
+                    let new_content = lines[1..].join("\n");
+                    fs::write(&vtt_path, new_content)?;
+                }
+                
+                let txt_path = audio_path.with_extension("txt");
+                fs::rename(&vtt_path, &txt_path)?;
+                let _ = fs::remove_file(&audio_path);
+                
+                add_key_to_metadata_block(video_path, "source", &cfg.model_name)?;
+                println!("Successfully created transcript: {}", txt_path.display());
+            }
+            
+            Ok(true)
+        }
+        Err(e) => {
+            eprintln!("Failed to check for subtitle streams: {}, creating empty transcript file", e);
+            fs::write(&txt_path, "")?;
+            println!("Created empty transcript file: {}", txt_path.display());
+            Ok(true)
+        }
+    }
+}
+
+pub async fn cancellable_add_length_to_metadata(video_path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+    if check_cancel_file() {
+        cleanup_cancel_and_processing_files(video_path)?;
+        return Ok(false);
+    }
+    
+    let cfg: crate::AtciConfig = crate::config::load_config()?;
+    
+    let output = Command::new(&cfg.ffprobe_path)
+        .args(&[
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            video_path.to_str().unwrap()
+        ])
+        .output().await?;
+
+    if !output.status.success() {
+        let error_output = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("ffprobe failed: {}", error_output).into());
+    }
+
+    let duration_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if let Ok(duration) = duration_str.parse::<f64>() {
+        let total_seconds = duration.round() as u64;
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        let seconds = total_seconds % 60;
+        let formatted = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
+        
+        add_key_to_metadata_block(video_path, "length", &formatted)?;
+        println!("Created or updated meta file: {}", video_path.with_extension("meta").display());
+        Ok(true)
+    } else {
+        Err(format!("Failed to parse duration: {}", duration_str).into())
+    }
 }

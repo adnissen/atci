@@ -280,15 +280,39 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
         
         fs::write(&currently_processing_path, video_path_str)?;
         
+        // Create transcript with cancellation support
         if !txt_path.exists() {
-            video_processor::create_transcript(video_path).await?;
-            if currently_processing_path.exists() {
-                let _ = fs::remove_file(&currently_processing_path);
+            match video_processor::cancellable_create_transcript(video_path).await {
+                Ok(true) => {
+                    // Successfully created transcript, continue
+                }
+                Ok(false) => {
+                    // Cancelled, exit early
+                    println!("Processing cancelled for: {}", video_path_str);
+                    return Ok(true);
+                }
+                Err(e) => {
+                    eprintln!("Error creating transcript for {}: {}", video_path_str, e);
+                    return Ok(true);
+                }
             }
         }
         
-        // we always update the meta file with the latest length
-        video_processor::add_length_to_metadata(video_path).await?;
+        // Update metadata with length and cancellation support
+        match video_processor::cancellable_add_length_to_metadata(video_path).await {
+            Ok(true) => {
+                // Successfully added metadata, continue
+            }
+            Ok(false) => {
+                // Cancelled, exit early
+                println!("Processing cancelled for: {}", video_path_str);
+                return Ok(true);
+            }
+            Err(e) => {
+                eprintln!("Error adding length metadata for {}: {}", video_path_str, e);
+                return Ok(true);
+            }
+        }
 
         if currently_processing_path.exists() {
             let _ = fs::remove_file(&currently_processing_path);
@@ -302,6 +326,9 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
     
     Ok(false)
 }
+
+
+
 
 pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
