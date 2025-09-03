@@ -214,14 +214,14 @@ enum ConfigCommands {
 enum WebCommands {
     #[command(about = "Launch web server with UI and API")]
     All {
-        #[arg(long, help = "Port to run the web server on", default_value = "8000")]
+        #[arg(long, help = "Port to run the web server on", default_value = "4620")]
         port: u16,
         #[arg(long, help = "Host to bind the web server to", default_value = "127.0.0.1")]
         host: String,
     },
     #[command(about = "Launch API-only server")]
     Api {
-        #[arg(long, help = "Port to run the API server on", default_value = "8000")]
+        #[arg(long, help = "Port to run the API server on", default_value = "4620")]
         port: u16,
         #[arg(long, help = "Host to bind the API server to", default_value = "127.0.0.1")]
         host: String,

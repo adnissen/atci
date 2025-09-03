@@ -13,18 +13,7 @@ The different parts of the application can be run separately. For instance:
 
 All of the data that backs the `/api` routes is also available via the command line interface as json output. Run `atci` with no arguments to display the help dialog which lists subcommands, many of which have subcommands themselves.
 
-## 🎯 Why atci?
-
-- **Automatic Processing**: Drop video files in a folder and atci handles the rest
-- **Smart Transcription**: Uses Whisper AI for accurate speech-to-text conversion
-- **Existing Subtitles**: Automatically extracts and uses existing subtitles when available
-- **Beautiful Web UI**: Modern React interface for browsing and searching transcripts
-- **Video Playback**: Built-in video player with timestamp synchronization
-- **Full-Text Search**: Quickly find content across all your transcripts
-- **Edit Capabilities**: Fix transcription errors directly in the web interface
-- **Batch Processing**: Handles multiple videos with queue management
-
-## 🚀 Quick Start for Users
+## Quick Start for Users
 
 ### Prerequisites
 
@@ -37,6 +26,7 @@ All of the data that backs the `/api` routes is also available via the command l
 3. **Whisper.cpp** - For AI transcription [Install whisper.cpp](https://github.com/ggerganov/whisper.cpp)
 
 ### Installation
+#### From a pre-built release
 
 1. **Download a prebuilt release**
    Download the latest release from the GitHub releases page for your platform.
@@ -44,20 +34,33 @@ All of the data that backs the `/api` routes is also available via the command l
 2. **Run the application**
    ```bash
    ./atci web
+   
+#### From source
+1.  **Check out the latest source**
+   `git clone git@github.com:adnissen/atci.git`
 
-3. **Follow the guided setup**
+2. **Start the rust server**
+   `cargo run -- web all`
+
+3. **(Optional, for frontend development)**
+   ```
+   cd frontend
+   npm install
+   npx vite build --watch # watch for changes to the frontend files and build
+   ```
+
+**Follow the guided setup**
    - The application will guide you through configuration
    - Configure paths to required tools (or let the app download them automatically on M-series Macs)
    - Set your watch directories (where your videos are stored)
    - Choose and download an AI model for transcription
 
-4. **Open your browser**
+**Open your browser**
    Navigate to [http://localhost:4620](http://localhost:4620)
-
 
 That's it! Drop video files (MP4, MOV, MKV) into your watch directories and atci will automatically process them.
 
-## ⚙️ Configuration File
+## Configuration File
 
 The application stores its configuration in a JSON file containing the following properties:
 
@@ -83,13 +86,6 @@ Or output the configuration file with:
 atci config
 ```
 
-You can also manually set the path to the config file by running any command with the `ATCI_CONFIG_PATH` var set, for example:
-```
-ATCI_CONFIG_PATH=~/.mycustomconfig.json atci web
-```
-
-You can use this to have multiple instances of `atci` running at the same time with different configurations.
-
 **Configuration Properties:**
 
 - **`watch_directories`** (array): List of directories to monitor for new video files
@@ -105,23 +101,6 @@ You can use this to have multiple instances of `atci` running at the same time w
 - Watch directories cannot be subdirectories of each other
 - All paths are validated for existence when the configuration is loaded
 - The configuration can be edited through the web interface or by directly editing the file
-
-## 💻 Developer Guide
-
-### Development Setup
-
-1. **Install all dependencies**
-   ```bash
-   # Backend dependencies
-   cargo check
-   
-   # Frontend dependencies
-   cd frontend
-   npm install
-   cd ..
-   ```
-
-2. **Start development servers**
    ```bash
    # In one terminal
    cargo run -- web
@@ -129,9 +108,4 @@ You can use this to have multiple instances of `atci` running at the same time w
    # In another terminal - Vite build with watch (constantly builds static files on change)
    cd frontend
    npx vite build --watch
-   ```
-
-3. **Run tests**
-   ```bash
-   cargo test
    ```
