@@ -320,6 +320,7 @@ pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Bo
                     "-ar", "16000",
                     "-y", audio_path.to_str().unwrap()
                 ])
+                .stdout(std::process::Stdio::null())
                 .spawn()?;
             
             // Wait for completion while checking for cancellation
@@ -365,6 +366,7 @@ pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Bo
                     "-ovtt",
                     "-f", audio_path.to_str().unwrap()
                 ])
+                .stdout(std::process::Stdio::null())
                 .spawn()?;
             
             // Wait for completion while checking for cancellation

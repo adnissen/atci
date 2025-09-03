@@ -37,9 +37,11 @@ All of the data that backs the `/api` routes is also available via the command l
    
 #### From source
 1.  **Check out the latest source**
+
    `git clone git@github.com:adnissen/atci.git`
 
 2. **Start the rust server**
+
    `cargo run -- web all`
 
 3. **(Optional, for frontend development)**
@@ -52,8 +54,8 @@ All of the data that backs the `/api` routes is also available via the command l
 **Follow the guided setup**
    - The application will guide you through configuration
    - Configure paths to required tools (or let the app download them automatically on M-series Macs)
-   - Set your watch directories (where your videos are stored)
    - Choose and download an AI model for transcription
+   - Set your watch directories (where your videos are stored)
 
 **Open your browser**
    Navigate to [http://localhost:4620](http://localhost:4620)
@@ -81,10 +83,17 @@ Get the path to the current configuration file with:
 atci config path
 ```
 
-Or output the configuration file with:
+Output the configuration file with:
 ```
 atci config
 ```
+
+Make changes with:
+```
+atci config set/unset
+```
+
+Changes to the config are reflected immediately in the watch behavior (no server restart required), but will require a browser refresh to reflect in the web ui.
 
 **Configuration Properties:**
 
@@ -99,13 +108,3 @@ atci config
 **Notes:**
 - Either `model_path` or `model_name` must be specified
 - Watch directories cannot be subdirectories of each other
-- All paths are validated for existence when the configuration is loaded
-- The configuration can be edited through the web interface or by directly editing the file
-   ```bash
-   # In one terminal
-   cargo run -- web
-   
-   # In another terminal - Vite build with watch (constantly builds static files on change)
-   cd frontend
-   npx vite build --watch
-   ```

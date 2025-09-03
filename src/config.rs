@@ -6,6 +6,7 @@ use rocket::serde::json::Json;
 use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::auth::AuthGuard;
+use crate::files;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AtciConfig {
@@ -54,11 +55,18 @@ pub fn load_config_or_default() -> AtciConfig {
 }
 
 pub fn store_config(config: &AtciConfig) -> Result<(), confy::ConfyError> {
+    let result;
     if let Ok(config_path) = std::env::var("ATCI_CONFIG_PATH") {
-        confy::store_path(&config_path, config)
+        result = confy::store_path(&config_path, config)
     } else {
-        confy::store("atci", "config", config)
+        result = confy::store("atci", "config", config)
     }
+
+    if let Ok(new_cache) = files::get_video_info_from_disk() {
+        let _ = files::save_video_info_to_cache(&new_cache);
+    }
+
+    result
 }
 
 #[get("/api/config")]
