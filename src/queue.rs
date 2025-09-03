@@ -227,6 +227,11 @@ pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async {
         loop {
            let _ = process_queue_iteration().await;
+
+           let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+           let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+           fs::remove_file(&currently_processing_path).unwrap();
+
            sleep(Duration::from_secs(2)).await;
         }
     });
@@ -236,21 +241,15 @@ pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
-    if currently_processing_path.exists() {
-        let _ = fs::remove_file(&currently_processing_path);
-    }
-    
-    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
-    if !queue_path.exists() {
+    if !currently_processing_path.exists() {
         return Ok(false);
     }
-    
-    let content = fs::read_to_string(&queue_path)?;
+        
+    let content = fs::read_to_string(&currently_processing_path)?;
     let first_line = content.lines().next();
     if let Some(video_path_str) = first_line {
         println!("Processing queue item: {}", video_path_str);
         let video_path_str = video_path_str.trim();
-        remove_first_line_from_queue()?;
         if video_path_str.is_empty() {
             return Ok(false);
         }
@@ -275,8 +274,6 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
         }
         
         let txt_path = video_path.with_extension("txt");
-        
-        fs::write(&currently_processing_path, video_path_str)?;
         
         // Create transcript with cancellation support
         if !txt_path.exists() {
@@ -312,10 +309,6 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
             }
         }
 
-        if currently_processing_path.exists() {
-            let _ = fs::remove_file(&currently_processing_path);
-        }
-        
         println!("Processed queue item: {}", video_path_str);
         let new_cache = files::get_video_info_from_disk()?;
         files::save_video_info_to_cache(&new_cache)?;
@@ -412,7 +405,17 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                     eprintln!("Error adding to queue: {}", e);
                 }
             }
-            
+
+            // after we've added all the files to the queue, take the first line and remove it from the queue, writing it to the currently processing file
+            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+            let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+            if !currently_processing_path.exists() {
+                let queue = get_queue().unwrap_or_else(|_| Vec::new());
+                if !queue.is_empty() {
+                    fs::write(&currently_processing_path, &queue[0]).unwrap();
+                    remove_first_line_from_queue().unwrap();
+                }
+            }
             sleep(Duration::from_secs(2)).await;
         }
     });

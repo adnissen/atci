@@ -143,11 +143,6 @@ enum FilesCommands {
 enum QueueCommands {
     #[command(about = "Get all items in the processing queue")]
     Get,
-    #[command(about = "Add a video path to the processing queue")]
-    Add {
-        #[arg(help = "Path to add to the queue")]
-        path: String,
-    },
     #[command(about = "Get current queue processing status")]
     Status,
     #[command(about = "Add a path to the blocklist")]
@@ -590,17 +585,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         Err(e) => {
                             eprintln!("Error reading queue: {}", e);
-                            std::process::exit(1);
-                        }
-                    }
-                }
-                Some(QueueCommands::Add { path }) => {
-                    match queue::add_to_queue(&path) {
-                        Ok(()) => {
-                            println!("Added to queue: {}", path);
-                        }
-                        Err(e) => {
-                            eprintln!("Error adding to queue: {}", e);
                             std::process::exit(1);
                         }
                     }
