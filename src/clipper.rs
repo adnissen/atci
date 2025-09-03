@@ -17,8 +17,8 @@ fn get_font_path() -> Result<String, Box<dyn std::error::Error>> {
     use uuid::Uuid;
     
     // Extract font file from embedded assets
-    if let Some(font_data) = Asset::get("MYRIADPRO-BOLDIT.OTF") {
-        let temp_font_name = format!("font_{}.otf", Uuid::new_v4());
+    if let Some(font_data) = Asset::get("SourceSans3-BoldItalic.ttf") {
+        let temp_font_name = format!("font_{}.ttf", Uuid::new_v4());
         let temp_font_path = std::env::temp_dir().join(&temp_font_name);
         
         std::fs::write(&temp_font_path, font_data.data.as_ref())?;
