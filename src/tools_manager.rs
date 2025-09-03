@@ -3,10 +3,10 @@
 
 pub fn get_ffmpeg_url(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some("https://example.com/ffmpeg-windows.exe"),
-        "macos-arm" => Some("https://www.osxexperts.net/ffmpeg80arm.zip"),
-        "macos-x86" => Some("https://www.osxexperts.net/ffmpeg71intel.zip"),
-        "linux" => Some("https://example.com/ffmpeg-linux"),
+        "windows" => Some(""),
+        "macos-arm" => Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/ffmpeg80arm.zip"),
+        "macos-x86" => Some(""),
+        "linux" => Some(""),
         _ => None,
     }
 }
@@ -23,10 +23,10 @@ pub fn get_ffmpeg_sha256(platform: &str) -> Option<&'static str> {
 
 pub fn get_ffprobe_url(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some("https://example.com/ffprobe-windows.exe"),
-        "macos-arm" => Some("https://www.osxexperts.net/ffprobe80arm.zip"),
-        "macos-x86" => Some("https://www.osxexperts.net/ffprobe71intel.zip"),
-        "linux" => Some("https://example.com/ffprobe-linux"),
+        "windows" => Some(""),
+        "macos-arm" => Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/ffprobe80arm.zip"),
+        "macos-x86" => Some(""),
+        "linux" => Some(""),
         _ => None,
     }
 }
@@ -43,10 +43,10 @@ pub fn get_ffprobe_sha256(platform: &str) -> Option<&'static str> {
 
 pub fn get_whisper_cli_url(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some("https://example.com/ffprobe-windows.exe"),
+        "windows" => Some(""),
         "macos-arm" => Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/whisper-cli"),
-        "macos-x86" => Some("https://www.osxexperts.net/ffprobe71intel.zip"),
-        "linux" => Some("https://example.com/ffprobe-linux"),
+        "macos-x86" => Some(""),
+        "linux" => Some(""),
         _ => None,
     }
 }
