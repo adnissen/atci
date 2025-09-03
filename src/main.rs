@@ -217,8 +217,8 @@ enum ConfigCommands {
 #[derive(Subcommand, Debug)]
 #[command(arg_required_else_help = true)]
 enum WebCommands {
-    #[command(about = "Launch full web server with UI and API")]
-    Full {
+    #[command(about = "Launch web server with UI and API")]
+    All {
         #[arg(long, help = "Port to run the web server on", default_value = "8000")]
         port: u16,
         #[arg(long, help = "Host to bind the web server to", default_value = "127.0.0.1")]
@@ -943,7 +943,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         Some(Commands::Web { web_command }) => {
             match web_command {
-                Some(WebCommands::Full { host, port }) => {
+                Some(WebCommands::All { host, port }) => {
                     let mut cfg: AtciConfig = config::load_config()?;
                     let mut required_fields = HashSet::new();
                     required_fields.insert("ffmpeg_path".to_string());

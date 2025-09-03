@@ -9,7 +9,7 @@ The different parts of the application can be run separately. For instance:
 * To host only the `/api` endpoints (i.e. not the react app, if you want to build your own interface):
 * * `atci web api`
 * To launch everything, including the directory watcher and the web interface:
-* * `atci web full`
+* * `atci web all`
 
 All of the data that backs the `/api` routes is also available via the command line interface as json output. Run `atci` with no arguments to display the help dialog which lists subcommands, many of which have subcommands themselves.
 
