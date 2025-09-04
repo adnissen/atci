@@ -6,7 +6,6 @@ use std::io::Write;
 use std::path::Path;
 use std::time::Duration;
 use walkdir::WalkDir;
-use fs2::FileExt;
 use crate::config::AtciConfig;
 use crate::video_processor;
 use tokio::time::sleep;
@@ -52,11 +51,9 @@ pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
         .truncate(true)
         .open(queue_path)?;
     
-    file.lock_exclusive()?;
     for path in paths {
         writeln!(file, "{}", path)?;
     }
-    file.unlock()?;
     Ok(())
 }
 
@@ -77,15 +74,13 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
         .append(true)
         .open(queue_path)?;
     
-    file.lock_exclusive()?;
 
     if existing_queue.contains(&path.to_string()) {
-        file.unlock()?;
         return Ok(());
     }
     
     writeln!(file, "{}", path)?;
-    file.unlock()?;
+
     Ok(())
 }
 
@@ -98,9 +93,7 @@ pub fn add_to_blocklist(path: &str) -> Result<(), Box<dyn std::error::Error>> {
         .append(true)
         .open(blocklist_path)?;
     
-    file.lock_exclusive()?;
     writeln!(file, "{}", path)?;
-    file.unlock()?;
     Ok(())
 }
 
@@ -198,13 +191,6 @@ fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     
-    let file = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .open(&queue_path)?;
-    
-    file.lock_exclusive()?;
-    
     let content = fs::read_to_string(&queue_path)?;
     let lines: Vec<&str> = content.lines().collect();
     
@@ -219,7 +205,6 @@ fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
     
-    file.unlock()?;
     Ok(())
 }
 

@@ -3,8 +3,6 @@
 
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::io::Write;
-use fs2::FileExt;
 use globset::{Glob, GlobSetBuilder};
 use walkdir::WalkDir;
 use chrono::{DateTime, Local};
@@ -50,21 +48,12 @@ pub fn get_cache_file_path() -> std::path::PathBuf {
 }
 
 pub fn save_video_info_to_cache(cache_data: &CacheData) -> Result<(), Box<dyn std::error::Error>> {
-    use std::fs::OpenOptions;
+    
     
     let cache_path = get_cache_file_path();
     let msgpack_data = rmp_serde::to_vec(cache_data)?;
     
-    let mut file = OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(&cache_path)?;
-        
-    file.lock_exclusive()?;
-    file.write_all(&msgpack_data)?;
-    file.unlock()?;
-    
+    fs::write(&cache_path, &msgpack_data)?;  
     Ok(())
 }
 
