@@ -17,10 +17,26 @@ All of the data that backs the `/api` routes is also available via the command l
 
 To search (with formatted output):
 ```
-atci search "wow" --pretty
+atci search "Special Agent Codebreaker, Jonathan Kingdon" --pretty
+File: /Users/andrewnissen/Movies/Decker vs Dracula: Episode 02.mp4
+126: 00:05:25.920 --> 00:05:46.060
+127:	 Hello? Guys? Is anybody home? Dracula, Dracula, come out wherever you are. It's me, Special Agent Codebreaker, Jonathan Kingdon
 ```
 
+To search with a path filter, for example if you only want to return files with `Decker` in the path:
+```
+atci search kington -f "Episode 01" --pretty
 
+File: /Users/andrewnissen/f1/Decker vs Dracula: Episode 01.mp4
+174: 00:04:31.060 --> 00:04:36.660
+175:	 We already have Jonathan Kington on the site.
+
+180: 00:04:41.500 --> 00:04:43.380
+181:	 Kington is a good man.
+
+195: 00:05:06.200 --> 00:05:12.280
+196:	 It's the only thing you care about, but luckily, Kington is a good man, and he will find a way to defeat Dracula.
+```
 
 Generate a clip (outputs to the `/tmp` directory):
 ```
