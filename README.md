@@ -13,6 +13,21 @@ The different parts of the application can be run separately. For instance:
 
 All of the data that backs the `/api` routes is also available via the command line interface as json output. Run `atci` with no arguments to display the help dialog which lists subcommands, many of which have subcommands themselves.
 
+For example, to search (with nice output):
+```
+atci search "wow" --pretty
+```
+
+Generate a clip (outputs to the `/tmp` directory):
+```
+atci clip "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 04:23 04:30
+```
+
+Generate a frame with some text (outputs to the `/tmp` directory):
+```
+atci frame "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 00:01:30.720 "What do you want, Mr President\?" --font-size=36`
+```
+
 ## Quick Start for Users
 
 ### Prerequisites
@@ -33,9 +48,9 @@ All of the data that backs the `/api` routes is also available via the command l
 1. **Download a prebuilt release**
    Download the latest release from the GitHub releases page for your platform.
 
-2. **Run the application**
+2. **Run the file watcher and web ui**
    ```bash
-   ./atci web
+   ./atci web all
    
 #### From source
 1.  **Check out the latest source**
