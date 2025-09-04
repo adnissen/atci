@@ -71,7 +71,7 @@ atci frame "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 00:01
 #### From a pre-built release
 
 1. **Download a prebuilt release**
-   Download the latest release from the GitHub releases page for your platform.
+   Download the latest release from the GitHub releases page for your platform (currently the binary is only built for arm-based Macs).
 
 2. **Run the file watcher and web ui**
    ```bash
