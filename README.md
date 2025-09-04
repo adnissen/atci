@@ -24,6 +24,8 @@ All of the data that backs the `/api` routes is also available via the command l
 1. **FFprobe** - Required for video analysis [Install FFmpeg](https://ffmpeg.org/download.html) (includes ffprobe)
 2. **FFmpeg** - Required for video processing [Install FFmpeg](https://ffmpeg.org/download.html)
 3. **Whisper.cpp** - For AI transcription [Install whisper.cpp](https://github.com/ggerganov/whisper.cpp)
+4. **(if building from source) Rust** 
+5. **(if doing development) npm around (10.9.3) and node around (22.19.0)**
 
 ### Installation
 #### From a pre-built release
@@ -108,3 +110,27 @@ Changes to the config are reflected immediately in the watch behavior (no server
 **Notes:**
 - Either `model_path` or `model_name` must be specified
 - Watch directories cannot be subdirectories of each other
+
+## How it works
+
+atci maintains state across runs with various files stored in the `.atci/` directory in the users home folder.
+* `.queue` - the queue of files to be processed
+* `.currently_processing` - the video file currently being processed
+* `.video_info_cache.msgpack` - a cache of video files in the watch directory and metadata about them 
+
+There are a few key components:
+
+* The **file watcher** thread (`watch_for_missing_metadata` in `/src/queue.rs`) runs in a loop every two seconds (started with `atci watch` or `atci web`).
+* * This traverses each watch directory and finds video files which don't have an associated .txt file.
+* * It organizes these so each directory is added to the queue together in alphabetical order.
+* * It adds these to the end of the `.queue` file 
+* * * **Note:** This is the only thread to **write** to the `.queue` file.
+* * Then, if there is no `.currently_processing` file, we create one with the topmost line from `.queue`.
+* * * **Note:** This is the only thread to **write to or create** the `.currently_processing` file.
+* * * Clear the top line of `.queue`.
+* The **video_processor** thread (`process_queue` in `/src/queue.rs` and the methods in `video_processor.rs`) also runs in a loop every two seconds (started along with `atci watch` or `atci web`).
+* * It looks for the presense of a `.currently_processing` file, and, if present, reads it.
+* * Go through the subtitle extraction / transcription process.
+* * No matter what, **delete** the `.currently_processing` file at the end of each iteration.
+* * * By doing this, the next time the **file watcher** runs, it will take the top line from the queue and create a new `.currently_processing` file, and so on and so forth.
+* The **Rocket server** thread handles the web requests. See `web.rs` for a list of routes, the functions for which are located in their respective modules.
