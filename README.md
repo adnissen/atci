@@ -28,7 +28,7 @@ File: /Users/andrewnissen/Movies/Decker vs Dracula: Episode 02.mp4
 127:	 Hello? Guys? Is anybody home? Dracula, Dracula, come out wherever you are. It's me, Special Agent Codebreaker, Jonathan Kingdon
 ```
 
-To search with a path filter, for example if you only want to return files with `Decker` in the path:
+To search with a path filter, for example if you only want to return files with `Episode 01` in the path:
 ```
 atci search kington -f "Episode 01" --pretty
 
