@@ -43,7 +43,7 @@ pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
 
 pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
+    let queue_path = std::path::Path::new(&home_dir).join(".atci/.commands/").join("SET_QUEUE");
     
     let mut file = std::fs::OpenOptions::new()
         .create(true)
@@ -342,6 +342,36 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
             }
     
             let blocklist = load_blocklist();
+            
+            // Check for SET_QUEUE file and copy it to queue, overwriting it
+            let set_queue_path = std::path::Path::new(&std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
+                .join(".atci/.commands/SET_QUEUE");
+            
+            if set_queue_path.exists() {
+                if let Ok(content) = fs::read_to_string(&set_queue_path) {
+                    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+                    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
+                    
+                    // Get existing queue items
+                    let existing_queue = get_queue().unwrap_or_else(|_| Vec::new());
+                    
+                    // Filter SET_QUEUE lines to only include items that exist in current queue
+                    let filtered_lines: Vec<String> = content.lines()
+                        .map(|line| line.trim().to_string())
+                        .filter(|line| !line.is_empty() && existing_queue.contains(line))
+                        .collect();
+                    
+                    // Write filtered content back to queue
+                    if !filtered_lines.is_empty() {
+                        let filtered_content = filtered_lines.join("\n") + "\n";
+                        let _ = fs::write(&queue_path, filtered_content);
+                    }
+                }
+                // Delete the SET_QUEUE file after loading
+                let _ = fs::remove_file(&set_queue_path);
+            }
+            
+            // Scan watch directories and add files to queue
             let files_to_add: Vec<_> = cfg.watch_directories.iter().map(|wd| {
                 let mut files: Vec<_> = WalkDir::new(wd).into_iter().filter_map(|e| e.ok()).filter_map(|entry| {
                     let file_path = entry.path();
@@ -403,7 +433,7 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                     remove_first_line_from_queue().unwrap();
                 }
             }
-            sleep(Duration::from_secs(2)).await;
+            sleep(Duration::from_millis(500)).await;
         }
     });
     Ok(())
