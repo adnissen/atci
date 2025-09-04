@@ -27,7 +27,7 @@ To search with a path filter, for example if you only want to return files with 
 ```
 atci search kington -f "Episode 01" --pretty
 
-File: /Users/andrewnissen/f1/Decker vs Dracula: Episode 01.mp4
+File: /Users/andrewnissen/Movies/Decker vs Dracula: Episode 01.mp4
 174: 00:04:31.060 --> 00:04:36.660
 175:	 We already have Jonathan Kington on the site.
 
