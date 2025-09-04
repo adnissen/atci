@@ -8,6 +8,7 @@ use rocket::{get, response::status};
 use std::fs;
 use crate::auth::AuthGuard;
 use crate::Asset;
+use sha2::{Sha256, Digest};
 
 fn get_video_extensions() -> Vec<&'static str> {
     vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
@@ -143,27 +144,12 @@ pub fn clip(
         return Err("End time must be greater than start time".into());
     }
 
-    // Create a static filename with start/end times and caption
+    // Create a static filename using SHA256 hash of all attributes
     let caption_part = match display_text || text.is_some() {
         false => String::new(),
         true => {
             if let Some(text_content) = text {
-                // Sanitize text for filename - remove/replace problematic characters
-                let sanitized_text = text_content
-                    // Remove special chars except word chars, spaces, hyphens
-                    .chars()
-                    .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == '-')
-                    .collect::<String>()
-                    // Replace spaces with underscores
-                    .split_whitespace()
-                    .collect::<Vec<&str>>()
-                    .join("_")
-                    // Limit length
-                    .chars()
-                    .take(50)
-                    .collect::<String>();
-                
-                format!("_{}", sanitized_text)
+                text_content.to_string()
             } else {
                 String::new()
             }
@@ -173,9 +159,17 @@ pub fn clip(
     let start_time_str = format!("{:.1}", start_seconds);
     let end_time_str = format!("{:.1}", end_seconds);
     let format_param = format;
-    let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
+    let font_size_part = font_size.map(|fs| format!("fs{}", fs)).unwrap_or_default();
     
-    let temp_clip_name = format!("clip_{}_{}{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format_param);
+    // Combine all attributes into a single string for hashing
+    let combined_attributes = format!("clip_{}_{}_{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format_param);
+    
+    // Generate SHA256 hash
+    let mut hasher = Sha256::new();
+    hasher.update(combined_attributes.as_bytes());
+    let hash = format!("{:x}", hasher.finalize());
+    
+    let temp_clip_name = format!("clip_{}.{}", hash, format_param);
     let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
     
     if temp_clip_path.exists() {
@@ -806,18 +800,7 @@ pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::B
                 false => String::new(),
                 true => {
                     if let Some(text_content) = text {
-                        let sanitized_text = text_content
-                            .chars()
-                            .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == '-')
-                            .collect::<String>()
-                            .split_whitespace()
-                            .collect::<Vec<&str>>()
-                            .join("_")
-                            .chars()
-                            .take(50)
-                            .collect::<String>();
-                        
-                        format!("_{}", sanitized_text)
+                        text_content.to_string()
                     } else {
                         String::new()
                     }
@@ -826,9 +809,17 @@ pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::B
 
             let start_time_str = format!("{:.1}", start_seconds);
             let end_time_str = format!("{:.1}", end_seconds);
-            let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
+            let font_size_part = font_size.map(|fs| format!("fs{}", fs)).unwrap_or_default();
             
-            let temp_clip_name = format!("clip_{}_{}{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format);
+            // Combine all attributes into a single string for hashing (same as in clip function)
+            let combined_attributes = format!("clip_{}_{}_{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format);
+            
+            // Generate SHA256 hash
+            let mut hasher = Sha256::new();
+            hasher.update(combined_attributes.as_bytes());
+            let hash = format!("{:x}", hasher.finalize());
+            
+            let temp_clip_name = format!("clip_{}.{}", hash, format);
             let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
             
             fs::read(&temp_clip_path)
