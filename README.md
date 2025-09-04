@@ -77,16 +77,9 @@ atci frame "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 00:01
 
    `git clone git@github.com:adnissen/atci.git`
 
-2. **Start the rust server**
+2. **Build the executable**
 
-   `cargo run -- web all`
-
-3. **(Optional, for frontend development)**
-   ```
-   cd frontend
-   npm install
-   npx vite build --watch # watch for changes to the frontend files and build
-   ```
+   `cargo build -r # outputs the atci program to /target/release/`
 
 **Follow the guided setup**
    - The application will guide you through configuration
