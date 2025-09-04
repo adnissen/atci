@@ -72,6 +72,15 @@ atci frame "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 00:01
 
 1. **Download a prebuilt release**
    Download the latest release from the GitHub releases page for your platform (currently the binary is only built for arm-based Macs).
+   
+   *  For macOS 10.15 or higher you need to remove the file from quarantine.
+      You can do this in the Terminal:
+      `xattr -dr com.apple.quarantine atci`
+
+   *  Apple Silicon (arm) devices can only run signed files.
+      If needed you can ad-hoc sign the downloaded file in the Terminal:
+      `xattr -cr atci`
+      `codesign -s - atci`
 
 2. **Run the file watcher and web ui**
    ```bash
