@@ -2,6 +2,9 @@
 
 atci is an application which provides both a simple command line interface and a responsive web interface for automatically creating video transcripts for all videos in a given set of folders (with whisper) as well as searching through them to easily make gifs, audio, and video clips (via ffmpeg).
 
+The web interface is centered around searching and clipping, especially allowing for quick time adjustments even on mobile. The clip editor is a major area that could use improvement (the regenerate button exists because the state management there has gotten out of hand), but it's still already very functional.
+<img width="720" alt="Screenshot 2025-09-03 at 9 08 19 PM" src="https://github.com/user-attachments/assets/e526e1d8-d883-4416-bced-19cd57e72eec" />
+
 The different parts of the application can be run separately. For instance:
 
 * To just watch the set of configured directories for new videos to transcribe:
