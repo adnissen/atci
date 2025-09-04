@@ -13,10 +13,14 @@ The different parts of the application can be run separately. For instance:
 
 All of the data that backs the `/api` routes is also available via the command line interface as json output. Run `atci` with no arguments to display the help dialog which lists subcommands, many of which have subcommands themselves.
 
-For example, to search (with nice output):
+## Command line examples
+
+To search (with formatted output):
 ```
 atci search "wow" --pretty
 ```
+
+
 
 Generate a clip (outputs to the `/tmp` directory):
 ```
@@ -28,11 +32,11 @@ Generate a frame with some text (outputs to the `/tmp` directory):
 atci frame "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 00:01:30.720 "What do you want, Mr President\?" --font-size=36
 ```
 
-## Quick Start for Users
+## Quick Start
 
 ### Prerequisites
 
-**For M-series (ARM) Mac users**: The software can automatically download and configure ffprobe, ffmpeg, whisper.cpp, and the AI model for you! Just run the application and follow the guided setup.
+**For M-series (ARM) Mac users**: The software can automatically download and configure ffprobe, ffmpeg, whisper.cpp, and a selected whisper model for you. Just run the application and follow the guided setup in the console.
 
 **For other users, you'll need:**
 
@@ -71,7 +75,7 @@ atci frame "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 00:01
 **Follow the guided setup**
    - The application will guide you through configuration
    - Configure paths to required tools (or let the app download them automatically on M-series Macs)
-   - Choose and download an AI model for transcription
+   - Choose and download a whisper model for transcription
    - Set your watch directories (where your videos are stored)
 
 **Open your browser**

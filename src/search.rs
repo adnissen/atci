@@ -28,22 +28,7 @@ pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchRes
     let cfg: AtciConfig = config::load_config()?;
     let video_extensions = crate::files::get_video_extensions();
     
-    let filtered_directories = if let Some(filters) = filter {
-        if !filters.is_empty() {
-            cfg.watch_directories
-                .iter()
-                .filter(|dir| {
-                    let dir_lower = dir.to_lowercase();
-                    filters.iter().any(|f| dir_lower.contains(&f.to_lowercase()))
-                })
-                .cloned()
-                .collect::<Vec<_>>()
-        } else {
-            cfg.watch_directories.clone()
-        }
-    } else {
-        cfg.watch_directories.clone()
-    };
+    let filtered_directories = cfg.watch_directories.clone();
     
     let all_entries: Vec<_> = filtered_directories
         .iter()
@@ -75,7 +60,7 @@ pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchRes
             if let Some(filters) = filter {
                 if !filters.is_empty() {
                     let file_path_str = file_path.to_string_lossy().to_lowercase();
-                    if !filters.iter().any(|f| file_path_str.contains(&f.to_lowercase())) {
+                    if !filters.iter().any(|f| file_path_str.contains(&f.trim().to_lowercase())) {
                         return None;
                     }
                 }
