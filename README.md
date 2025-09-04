@@ -1,6 +1,6 @@
 # atci (Andrew's Transcript and Clipping Interface)
 
-atci is an application which provides both a simple command line interface and a responsive web interface for automatically creating video transcripts for all videos in a given set of folders (with whisper) as well as searching through them to easily make gifs, audio, and video clips (via ffmpeg).
+atci is an application which provides both a simple command line interface and a responsive web interface for automatically creating video transcripts for all videos in a given set of folders (with whisper) as well as searching through them to easily make gifs, audio, and video clips (via ffmpeg). Transcripts are generated as human readable `.txt` files placed next to the video they correspond to.
 
 The web interface is centered around searching and clipping, especially allowing for quick time adjustments even on mobile. The clip editor is a major area that could use improvement (the regenerate button exists because the state management there has gotten out of hand), but it's still already very functional.
 
