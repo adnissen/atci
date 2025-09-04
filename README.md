@@ -130,7 +130,8 @@ There are a few key components:
 * * * Clear the top line of `.queue`.
 * The **video_processor** thread (`process_queue` in `/src/queue.rs` and the methods in `video_processor.rs`) also runs in a loop every two seconds (started along with `atci watch` or `atci web`).
 * * It looks for the presense of a `.currently_processing` file, and, if present, reads it.
-* * Go through the subtitle extraction / transcription process.
+* * Go through the subtitle extraction / transcription process. 
+* * Update `.video_info_cache.msgpack` with the latest file information for fast retrieval.
 * * No matter what, **delete** the `.currently_processing` file at the end of each iteration.
 * * * By doing this, the next time the **file watcher** runs, it will take the top line from the queue and create a new `.currently_processing` file, and so on and so forth.
 * The **Rocket server** thread handles the web requests. See `web.rs` for a list of routes, the functions for which are located in their respective modules.
