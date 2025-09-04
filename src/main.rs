@@ -60,6 +60,7 @@ enum Commands {
         queue_command: Option<QueueCommands>,
     },
     #[command(about = "Create video clips with optional text overlay")]
+    #[command(arg_required_else_help = true)]
     Clip {
         #[arg(help = "Path to the video file")]
         path: String,
@@ -77,6 +78,7 @@ enum Commands {
         font_size: Option<u32>,
     },
     #[command(about = "Extract a frame from a video with optional text overlay")]
+    #[command(arg_required_else_help = true)]
     Frame {
         #[arg(help = "Path to the video file")]
         path: String,
@@ -105,6 +107,7 @@ enum Commands {
         config_command: Option<ConfigCommands>,
     },
     #[command(about = "Search for content in video transcripts")]
+    #[command(arg_required_else_help = true)]
     Search {
         #[arg(help = "Search query", num_args = 1.., value_delimiter = ' ')]
         query: Vec<String>,
