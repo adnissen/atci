@@ -162,7 +162,7 @@ There are a few key components:
 * * * **Note:** This is the only thread to **write to or create** the `.currently_processing` file.
 * * * Clear the top line of `.queue`.
 * The **video_processor** thread (`process_queue` in `/src/queue.rs` and the methods in `video_processor.rs`) also runs in a loop every two seconds (started along with `atci watch` or `atci web`).
-* * It looks for the presense of a `.currently_processing` file, and, if present, reads it.
+* * It looks for the presence of a `.currently_processing` file, and, if present, reads it.
 * * Go through the subtitle extraction / transcription process. 
 * * Update `.video_info_cache.msgpack` with the latest file information for fast retrieval.
 * * No matter what, **delete** the `.currently_processing` file at the end of each iteration.
