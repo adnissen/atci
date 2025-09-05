@@ -26,6 +26,8 @@ tokio = { version = "1", features = ["full"] }
 base64 = "0.22.1"
 urlencoding = "2.1"
 sha2 = "0.10.9"
+dirs = "5.0"
+ctrlc = "3.4"
 
 [dev-dependencies]
 tempfile = "3.0"

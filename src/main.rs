@@ -500,6 +500,251 @@ fn validate_directory_path(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn get_atci_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let atci_dir = home_dir.join(".atci");
+    
+    if !atci_dir.exists() {
+        fs::create_dir_all(&atci_dir)?;
+    }
+    
+    Ok(atci_dir)
+}
+
+fn get_pid_file_path(pid: u32) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+    let atci_dir = get_atci_dir()?;
+    Ok(atci_dir.join(format!("atci.{}.pid", pid)))
+}
+
+fn find_existing_pid_files() -> Result<Vec<u32>, Box<dyn std::error::Error>> {
+    let atci_dir = get_atci_dir()?;
+    let mut pids = Vec::new();
+    
+    if atci_dir.exists() {
+        for entry in fs::read_dir(atci_dir)? {
+            let entry = entry?;
+            let file_name = entry.file_name();
+            let file_name_str = file_name.to_string_lossy();
+            
+            if file_name_str.starts_with("atci.") && file_name_str.ends_with(".pid") {
+                let pid_str = &file_name_str[5..file_name_str.len()-4]; // Remove "atci." prefix and ".pid" suffix
+                if let Ok(pid) = pid_str.parse::<u32>() {
+                    pids.push(pid);
+                }
+            }
+        }
+    }
+    
+    Ok(pids)
+}
+
+fn is_process_running(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        use std::process::Command;
+        let output = Command::new("ps")
+            .arg("-p")
+            .arg(pid.to_string())
+            .output();
+        
+        match output {
+            Ok(output) => output.status.success(),
+            Err(_) => false,
+        }
+    }
+    
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        let output = Command::new("tasklist")
+            .arg("/FI")
+            .arg(format!("PID eq {}", pid))
+            .output();
+        
+        match output {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                stdout.contains(&pid.to_string())
+            },
+            Err(_) => false,
+        }
+    }
+}
+
+fn handle_existing_pid_files() -> Result<(), Box<dyn std::error::Error>> {
+    let existing_pids = find_existing_pid_files()?;
+    
+    if existing_pids.is_empty() {
+        return Ok(());
+    }
+    
+    let (running_pids, stale_pids): (Vec<&u32>, Vec<&u32>) = existing_pids
+        .iter()
+        .partition(|&&pid| is_process_running(pid));
+    
+    if !running_pids.is_empty() {
+        if running_pids.len() == 1 {
+            println!("Another atci process is already running (PID: {})", running_pids[0]);
+        } else {
+            println!("Multiple atci processes are already running (PIDs: {:?})", running_pids);
+        }
+        println!();
+        
+        let options = vec![
+            if running_pids.len() == 1 { "Kill the existing process and continue" } else { "Kill all existing processes and continue" },
+            "Start anyway (WARNING: may cause undefined behavior)",
+            "Quit",
+        ];
+        
+        let selection = Select::new()
+            .with_prompt("What would you like to do?")
+            .items(&options)
+            .default(2)
+            .interact()?;
+            
+        match selection {
+            0 => {
+                let mut all_killed = true;
+                for &pid in &running_pids {
+                    #[cfg(unix)]
+                    {
+                        use std::process::Command;
+                        let result = Command::new("kill")
+                            .arg(pid.to_string())
+                            .output();
+                        
+                        match result {
+                            Ok(output) if output.status.success() => {
+                                println!("Successfully killed process {}", pid);
+                                if let Ok(pid_file_path) = get_pid_file_path(*pid) {
+                                    let _ = fs::remove_file(&pid_file_path);
+                                }
+                            },
+                            _ => {
+                                eprintln!("Failed to kill process {}", pid);
+                                all_killed = false;
+                            }
+                        }
+                    }
+                    
+                    #[cfg(windows)]
+                    {
+                        use std::process::Command;
+                        let result = Command::new("taskkill")
+                            .arg("/F")
+                            .arg("/PID")
+                            .arg(pid.to_string())
+                            .output();
+                        
+                        match result {
+                            Ok(output) if output.status.success() => {
+                                println!("Successfully killed process {}", pid);
+                                if let Ok(pid_file_path) = get_pid_file_path(*pid) {
+                                    let _ = fs::remove_file(&pid_file_path);
+                                }
+                            },
+                            _ => {
+                                eprintln!("Failed to kill process {}", pid);
+                                all_killed = false;
+                            }
+                        }
+                    }
+                }
+                
+                if !all_killed {
+                    std::process::exit(1);
+                }
+            },
+            1 => {
+                println!("   WARNING: Starting with existing PID files may cause undefined behavior!");
+                println!("   Multiple instances may conflict with each other.");
+                println!();
+            },
+            _ => {
+                println!("Exiting...");
+                std::process::exit(0);
+            }
+        }
+    }
+    
+    if !stale_pids.is_empty() {
+        if stale_pids.len() == 1 {
+            println!("Found stale PID file (process {} is not running)", stale_pids[0]);
+        } else {
+            println!("Found {} stale PID files (processes not running: {:?})", stale_pids.len(), stale_pids);
+        }
+        println!();
+        
+        let options = vec![
+            if stale_pids.len() == 1 { "Delete the stale PID file and continue" } else { "Delete all stale PID files and continue" },
+            "Start anyway with our own PID file",
+            "Quit",
+        ];
+        
+        let selection = Select::new()
+            .with_prompt("What would you like to do?")
+            .items(&options)
+            .default(0)
+            .interact()?;
+            
+        match selection {
+            0 => {
+                for &pid in &stale_pids {
+                    if let Ok(pid_file_path) = get_pid_file_path(*pid) {
+                        let _ = fs::remove_file(&pid_file_path);
+                    }
+                }
+                println!("Deleted stale PID file{}", if stale_pids.len() == 1 { "" } else { "s" });
+            },
+            1 => {
+                println!("Continuing with existing PID file{} present", if stale_pids.len() == 1 { "" } else { "s" });
+            },
+            _ => {
+                println!("Exiting...");
+                std::process::exit(0);
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+fn create_pid_file() -> Result<(), Box<dyn std::error::Error>> {
+    let current_pid = std::process::id();
+    let pid_file_path = get_pid_file_path(current_pid)?;
+    
+    // Create empty file (PID is in filename)
+    fs::File::create(&pid_file_path)?;
+    
+    println!("Created PID file: {} (PID: {})", pid_file_path.display(), current_pid);
+    Ok(())
+}
+
+fn cleanup_pid_file() {
+    let current_pid = std::process::id();
+    if let Ok(pid_file_path) = get_pid_file_path(current_pid) {
+        if pid_file_path.exists() {
+            if let Err(e) = fs::remove_file(&pid_file_path) {
+                eprintln!("Warning: Failed to remove PID file: {}", e);
+            }
+        }
+    }
+}
+
+fn setup_pid_file_management() -> Result<(), Box<dyn std::error::Error>> {
+    handle_existing_pid_files()?;
+    create_pid_file()?;
+    
+    // Set up cleanup handler
+    ctrlc::set_handler(move || {
+        println!("\nReceived interrupt signal, cleaning up pid file");
+        cleanup_pid_file();
+        std::process::exit(0);
+    })?;
+    
+    Ok(())
+}
+
 fn validate_and_prompt_config(cfg: &mut AtciConfig, fields_to_verify: &HashSet<String>) -> Result<(), Box<dyn std::error::Error>> {
     let mut config_changed = false;
 
@@ -770,6 +1015,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
             
+            // Setup PID file management
+            setup_pid_file_management()?;
+            
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
                 if let Err(e) = queue::watch_for_missing_metadata().await {
@@ -941,6 +1189,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     
                     // Validate and prompt for missing configuration
                     validate_and_prompt_config(&mut cfg, &required_fields)?;
+                    
+                    // Setup PID file management
+                    setup_pid_file_management()?;
 
                     let cache_data = files::get_video_info_from_disk()?;
                     files::save_video_info_to_cache(&cache_data)?;
@@ -966,6 +1217,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     });
                 }
                 Some(WebCommands::Api { host, port }) => {
+                    // Setup PID file management
+                    setup_pid_file_management()?;
+                    
                     println!("Starting API-only server on {}:{}", host, port);
                     
                     let rt = tokio::runtime::Runtime::new()?;
@@ -981,6 +1235,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         None => {}
     }
+    
+    // Clean up PID file on normal exit
+    cleanup_pid_file();
     
     Ok(())
 }
