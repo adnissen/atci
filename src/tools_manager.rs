@@ -154,7 +154,34 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
     std::fs::create_dir_all(&binaries_dir)?;
     
     let response = reqwest::blocking::get(url)?;
-    let bytes = response.bytes()?;
+    let total_size = response.content_length().unwrap_or(0);
+    
+    // Create progress bar
+    let pb = ProgressBar::new(total_size);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")?
+            .progress_chars("#>-")
+    );
+    pb.set_message(format!("Downloading {}", tool));
+    
+    // Download with progress tracking
+    let mut bytes = Vec::new();
+    let mut response = response;
+    let mut buffer = [0; 8192]; // 8KB buffer
+    
+    loop {
+        match response.read(&mut buffer) {
+            Ok(0) => break, // EOF
+            Ok(n) => {
+                bytes.extend_from_slice(&buffer[..n]);
+                pb.inc(n as u64);
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+    
+    pb.finish_with_message(format!("Downloaded {} successfully!", tool));
     
     // Handle whisper-cli separately as it's a direct binary download
     if tool == "whisper-cli" && platform == "macos-arm" {
@@ -1376,6 +1403,8 @@ use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::auth::AuthGuard;
 use sha2::{Sha256, Digest};
+use indicatif::{ProgressBar, ProgressStyle};
+use std::io::Read;
 
 fn verify_sha256(file_path: &str, expected_hash: &str) -> Result<bool, Box<dyn std::error::Error>> {
     let file_contents = std::fs::read(file_path)?;

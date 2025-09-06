@@ -88,14 +88,41 @@ pub fn download_model(model_name: &str) -> Result<String, Box<dyn std::error::Er
         .timeout(std::time::Duration::from_secs(300))
         .build()?;
 
-    let response = client.get(&url)
+    let mut response = client.get(&url)
         .send()?;
 
     if !response.status().is_success() {
         return Err(format!("HTTP error: {}", response.status()).into());
     }
 
-    let bytes = response.bytes()?;
+    let total_size = response.content_length().unwrap_or(0);
+    
+    // Create progress bar
+    let pb = ProgressBar::new(total_size);
+    pb.set_style(
+        ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")?
+            .progress_chars("#>-")
+    );
+    pb.set_message(format!("Downloading model {}", model_name));
+    
+    // Download with progress tracking
+    let mut bytes = Vec::new();
+    let mut buffer = [0; 8192]; // 8KB buffer
+    
+    loop {
+        match response.read(&mut buffer) {
+            Ok(0) => break, // EOF
+            Ok(n) => {
+                bytes.extend_from_slice(&buffer[..n]);
+                pb.inc(n as u64);
+            }
+            Err(e) => return Err(e.into()),
+        }
+    }
+    
+    pb.finish_with_message(format!("Downloaded model {} successfully!", model_name));
+    
     std::fs::write(&model_path, bytes)?;
 
     Ok(model_path.to_string_lossy().to_string())
@@ -105,6 +132,8 @@ use rocket::serde::json::Json;
 use rocket::{get, post};
 use crate::web::ApiResponse;
 use crate::auth::AuthGuard;
+use indicatif::{ProgressBar, ProgressStyle};
+use std::io::Read;
 
 #[derive(serde::Deserialize)]
 pub struct DownloadModelRequest {
