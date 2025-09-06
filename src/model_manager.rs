@@ -48,8 +48,8 @@ pub struct ModelInfo {
 }
 
 pub fn models_directory() -> std::path::PathBuf {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    std::path::Path::new(&home_dir).join(".atci").join("models")
+    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    home_dir.join(".atci").join("models")
 }
 
 pub fn list_models() -> Vec<ModelInfo> {

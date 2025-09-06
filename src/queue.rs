@@ -27,8 +27,8 @@ pub fn web_get_queue(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
 }
 
 pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let queue_path = home_dir.join(".atci/.queue");
     if !queue_path.exists() {
         return Ok(Vec::new());
     }
@@ -42,8 +42,8 @@ pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
 }
 
 pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".atci/.commands/").join("SET_QUEUE");
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let queue_path = home_dir.join(".atci/.commands/").join("SET_QUEUE");
     
     let mut file = std::fs::OpenOptions::new()
         .create(true)
@@ -58,10 +58,10 @@ pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let queue_path = home_dir.join(".atci/.queue");
 
-    let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+    let currently_processing_path = home_dir.join(".atci/.currently_processing");
     if currently_processing_path.exists() && fs::read_to_string(&currently_processing_path)? == path {
         return Ok(());
     }
@@ -85,8 +85,8 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn add_to_blocklist(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let blocklist_path = std::path::Path::new(&home_dir).join(".atci/.blocklist");
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let blocklist_path = home_dir.join(".atci/.blocklist");
     
     let mut file = std::fs::OpenOptions::new()
         .create(true)
@@ -98,8 +98,11 @@ pub fn add_to_blocklist(path: &str) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn load_blocklist() -> Vec<String> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let blocklist_path = std::path::Path::new(&home_dir).join(".atci/.blocklist");
+    let home_dir = match dirs::home_dir() {
+        Some(dir) => dir,
+        None => return Vec::new(),
+    };
+    let blocklist_path = home_dir.join(".atci/.blocklist");
     if blocklist_path.exists() {
         if let Ok(content) = fs::read_to_string(&blocklist_path) {
             content.lines()
@@ -160,8 +163,8 @@ pub fn web_cancel_queue(_auth: AuthGuard) -> Json<ApiResponse<String>> {
 }
 
 pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let currently_processing_path = home_dir.join(".atci/.currently_processing");
     
     if !currently_processing_path.exists() {
         return Ok((None, 0));
@@ -184,8 +187,8 @@ pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::E
 }
 
 fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let queue_path = home_dir.join(".atci/.queue");
     
     if !queue_path.exists() {
         return Ok(());
@@ -213,8 +216,11 @@ pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
         loop {
            let _ = process_queue_iteration().await;
 
-           let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-           let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+           let home_dir = match dirs::home_dir() {
+               Some(dir) => dir,
+               None => continue,
+           };
+           let currently_processing_path = home_dir.join(".atci/.currently_processing");
            if currently_processing_path.exists() {
                fs::remove_file(&currently_processing_path).unwrap();
            }
@@ -226,8 +232,8 @@ pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let currently_processing_path = home_dir.join(".atci/.currently_processing");
     if !currently_processing_path.exists() {
         return Ok(false);
     }
@@ -306,8 +312,8 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
 }
 
 pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let commands_dir = std::path::Path::new(&home_dir).join(".atci").join(".commands");
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let commands_dir = home_dir.join(".atci").join(".commands");
     let cancel_file = commands_dir.join("CANCEL");
     
     if cancel_file.exists() {
@@ -344,13 +350,15 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
             let blocklist = load_blocklist();
             
             // Check for SET_QUEUE file and copy it to queue, overwriting it
-            let set_queue_path = std::path::Path::new(&std::env::var("HOME").unwrap_or_else(|_| ".".to_string()))
-                .join(".atci/.commands/SET_QUEUE");
+            let home_dir = match dirs::home_dir() {
+                Some(dir) => dir,
+                None => continue,
+            };
+            let set_queue_path = home_dir.join(".atci/.commands/SET_QUEUE");
             
             if set_queue_path.exists() {
                 if let Ok(content) = fs::read_to_string(&set_queue_path) {
-                    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-                    let queue_path = std::path::Path::new(&home_dir).join(".atci/.queue");
+                    let queue_path = home_dir.join(".atci/.queue");
                     
                     // Get existing queue items
                     let existing_queue = get_queue().unwrap_or_else(|_| Vec::new());
@@ -424,8 +432,7 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
             }
 
             // after we've added all the files to the queue, take the first line and remove it from the queue, writing it to the currently processing file
-            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+            let currently_processing_path = home_dir.join(".atci/.currently_processing");
             if !currently_processing_path.exists() {
                 let queue = get_queue().unwrap_or_else(|_| Vec::new());
                 if !queue.is_empty() {
