@@ -62,8 +62,8 @@ pub fn get_whisper_cli_sha256(platform: &str) -> Option<&'static str> {
 }
 
 pub fn binaries_directory(tool: &str) -> std::path::PathBuf {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    std::path::Path::new(&home_dir).join(".atci").join(tool)
+    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    home_dir.join(".atci").join(tool)
 }
 
 #[derive(Debug, serde::Serialize)]

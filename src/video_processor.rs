@@ -12,15 +12,15 @@ use tokio::time::sleep;
 use std::time::Duration;
 
 fn check_cancel_file() -> bool {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let cancel_file = std::path::Path::new(&home_dir).join(".atci").join(".commands").join("CANCEL");
+    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    let cancel_file = home_dir.join(".atci").join(".commands").join("CANCEL");
     cancel_file.exists()
 }
 
 fn cleanup_cancel_and_processing_files(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let cancel_file = std::path::Path::new(&home_dir).join(".atci").join(".commands").join("CANCEL");
-    let currently_processing_path = std::path::Path::new(&home_dir).join(".atci/.currently_processing");
+    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    let cancel_file = home_dir.join(".atci").join(".commands").join("CANCEL");
+    let currently_processing_path = home_dir.join(".atci/.currently_processing");
     let mp3_path = video_path.with_extension("mp3");
     
     // Remove cancel file
@@ -355,12 +355,12 @@ pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Bo
             
             // Transcribe audio with cancellation check
             println!("Transcribing audio");
-            let home_dir = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-            let model_path = format!("{}/.atci/models/{}.bin", home_dir, cfg.model_name);
+            let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+            let model_path = home_dir.join(".atci/models").join(format!("{}.bin", cfg.model_name));
             
             let mut child = Command::new(&cfg.whispercli_path)
                 .args(&[
-                    "-m", &model_path,
+                    "-m", model_path.to_str().unwrap(),
                     "-np",
                     "--max-context", "0",
                     "-ovtt",
