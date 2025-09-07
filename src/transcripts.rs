@@ -228,7 +228,7 @@ pub async fn regenerate_interactive(video_path: &str) -> Result<(), Box<dyn std:
     if !downloaded_models.is_empty() && cfg.allow_whisper {
         for model in &downloaded_models {
             let status = if model.configured { " (currently configured)" } else { "" };
-            options.push(format!("Use Whisper model: {}{}", model.name, status));
+            options.push(format!("Whisper Model: {}{}", model.name, status));
             option_types.push(format!("whisper_{}", model.name));
         }
     } else if !cfg.allow_whisper {
