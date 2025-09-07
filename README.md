@@ -5,8 +5,8 @@ atci is an application which provides both a simple command line interface and a
 The web interface is centered around searching and clipping, especially allowing for quick time adjustments even on mobile. The clip editor is a major area that could use improvement (the regenerate button exists because the state management there has gotten out of hand), but it's still already very functional.
 
 <img width="1512" height="786" alt="Screenshot 2025-09-07 at 2 35 01 PM" src="https://github.com/user-attachments/assets/c8f883e3-3894-4ae8-acdb-484c67ce145a" />
-<img width="499" height="784" alt="Screenshot 2025-09-07 at 2 36 25 PM" src="https://github.com/user-attachments/assets/9e8819d4-3a7e-41f2-8964-524fafe01e36" />
-<img width="500" height="784" alt="Screenshot 2025-09-07 at 2 36 11 PM" src="https://github.com/user-attachments/assets/15cd0b9a-f253-4db9-8039-6796815e45c4" />
+<img width="250" height="784" alt="Screenshot 2025-09-07 at 2 36 25 PM" src="https://github.com/user-attachments/assets/9e8819d4-3a7e-41f2-8964-524fafe01e36" />
+<img width="250" height="784" alt="Screenshot 2025-09-07 at 2 36 11 PM" src="https://github.com/user-attachments/assets/15cd0b9a-f253-4db9-8039-6796815e45c4" />
 
 
 The different parts of the application can be run separately. For instance:
