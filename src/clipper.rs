@@ -259,6 +259,34 @@ impl TimeFormat {
     }
 }
 
+fn get_video_dimensions(video_path: &Path, ffprobe_path: &Path) -> Result<(u32, u32), Box<dyn std::error::Error>> {
+    let output = Command::new(ffprobe_path)
+        .args([
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=width,height",
+            "-of", "csv=p=0",
+        ])
+        .arg(video_path)
+        .output()?;
+
+    if output.status.success() {
+        let dimensions_str = String::from_utf8(output.stdout)?
+            .trim()
+            .to_string();
+        
+        let parts: Vec<&str> = dimensions_str.split(',').collect();
+        if parts.len() == 2 {
+            let width: u32 = parts[0].parse()?;
+            let height: u32 = parts[1].parse()?;
+            return Ok((width, height));
+        }
+    }
+    
+    // Default to 1920x1080 if detection fails
+    Ok((1920, 1080))
+}
+
 fn get_video_fps(video_path: &Path, ffprobe_path: &Path) -> Result<f64, Box<dyn std::error::Error>> {
     let output = Command::new(ffprobe_path)
         .args([
@@ -332,9 +360,11 @@ fn gif_with_text_args(
     
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
-            let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(text.len()));
+            let cfg = crate::config::load_config().unwrap_or_default();
+            let ffprobe_path = Path::new(&cfg.ffprobe_path);
+            let (width, _) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
+            let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
             let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
-            
             vec![
                 "-ss",
                 &format!("{}", start),
@@ -418,7 +448,10 @@ fn video_with_text_args(
     
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
-            let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(text.len()));
+            let cfg = crate::config::load_config().unwrap_or_default();
+            let ffprobe_path = Path::new(&cfg.ffprobe_path);
+            let (width, _) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
+            let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
             let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
             let frames_count = (duration * 30.0).trunc() as i32;
             
@@ -625,7 +658,10 @@ fn grab_frame_args(
         
         match fs::write(&temp_text_path, text_content) {
             Ok(_) => {
-                let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(text_content.len()));
+                let cfg = crate::config::load_config().unwrap_or_default();
+                let ffprobe_path = Path::new(&cfg.ffprobe_path);
+                let (width, _) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
+                let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text_content.len()));
                 let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
                 
                 args.extend(vec![
@@ -656,13 +692,14 @@ fn grab_frame_args(
     args
 }
 
-fn calculate_font_size_for_video(text_length: usize) -> u32 {
-    // Simple heuristic: base font size adjusted by text length
-    let base_size = 72;
+fn calculate_font_size_for_video(horizontal_size: u32, text_length: usize) -> u32 {
+    // Base font size proportional to video width (roughly 5% of width)
+    let base_size = (horizontal_size as f32 * 0.05) as u32;
+    // Reduce font size based on text length
     if text_length > 100 {
-        base_size - 4
+        base_size.saturating_sub(base_size / 4) // Reduce by 25%
     } else if text_length > 50 {
-        base_size - 2
+        base_size.saturating_sub(base_size / 6) // Reduce by ~17%
     } else {
         base_size
     }
