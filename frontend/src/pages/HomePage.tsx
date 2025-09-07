@@ -9,6 +9,13 @@ import { useLSState } from '../hooks/useLSState'
 import { useIsSmallScreen } from '../hooks/useMediaQuery'
 import { addTimestamp } from '../lib/utils'
 import { FileProvider, useFileContext } from '../contexts/FileContext'
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerClose,
+} from '../components/ui/drawer'
 
 // Type definitions
 type FileRow = {
@@ -61,12 +68,10 @@ function HomePageContent() {
   const [showConfigInRightPane, setShowConfigInRightPane] = useState<boolean>(false)
   const [showQueueInRightPane, setShowQueueInRightPane] = useState<boolean>(true)
 
-  // Mobile clip player state
-  const [mobileClipPlayerComponent, setMobileClipPlayerComponent] = useState<React.ReactNode | null>(null)
-
-  // Mobile config and queue state
-  const [mobileConfigComponent, setMobileConfigComponent] = useState<React.ReactNode | null>(null)
-  const [mobileQueueComponent, setMobileQueueComponent] = useState<React.ReactNode | null>(null)
+  // Mobile drawer state
+  const [isClipDrawerOpen, setIsClipDrawerOpen] = useState(false)
+  const [isConfigDrawerOpen, setIsConfigDrawerOpen] = useState(false)
+  const [isQueueDrawerOpen, setIsQueueDrawerOpen] = useState(false)
 
   // Clip state variables
   const [clipStart, setClipStart] = useState<number | null>(null)
@@ -78,8 +83,8 @@ function HomePageContent() {
   const mobileTranscriptRowRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const leftPaneRef = useRef<HTMLDivElement | null>(null)
 
-  // Determine if we're showing the transcript list (not showing other mobile components)
-  const showingTranscriptList = !isSmallScreen || !(mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent)
+  // Always show transcript list - drawers overlay on top
+  const showingTranscriptList = true
 
   // Track scroll position of left pane to show/hide scroll to top button
   useEffect(() => {
@@ -304,21 +309,14 @@ function HomePageContent() {
   const handleSetRightPaneComponent = useCallback((component: React.ReactNode | null, _fallbackUrl?: string) => {
     if (isSmallScreen) {
       if (component) {
-        // On mobile, show component inline instead of opening new window
-        setMobileClipPlayerComponent(component)
-        // Clear other mobile components
-        setMobileConfigComponent(null)
-        setMobileQueueComponent(null)
+        // On mobile, open clip drawer
+        setIsClipDrawerOpen(true)
+        // Close other drawers
+        setIsConfigDrawerOpen(false)
+        setIsQueueDrawerOpen(false)
       } else {
-        // Clear mobile clip player
-        setMobileClipPlayerComponent(null)
-        setIsAtTop(true)
-        // Restore scroll position after component unmounts
-        setTimeout(() => {
-          if (leftPaneRef.current) {
-            leftPaneRef.current.scrollTop = leftPaneScrollOffset
-          }
-        }, 0)
+        // Close clip drawer
+        setIsClipDrawerOpen(false)
       }
     } else {
       // On desktop, set the component directly
@@ -330,25 +328,11 @@ function HomePageContent() {
 
   const handleConfigClick = () => {
     if (isSmallScreen) {
-      // On mobile, show config component
-      const configComponent = (
-        <div className="w-full">
-          <ConfigPage onClose={() => {
-            setMobileConfigComponent(null)
-            setIsAtTop(true)
-            // Restore scroll position after component unmounts
-            setTimeout(() => {
-              if (leftPaneRef.current) {
-                leftPaneRef.current.scrollTop = leftPaneScrollOffset
-              }
-            }, 0)
-          }} />
-        </div>
-      )
-      setMobileConfigComponent(configComponent)
-      // Clear other mobile components
-      setMobileClipPlayerComponent(null)
-      setMobileQueueComponent(null)
+      // On mobile, open config drawer
+      setIsConfigDrawerOpen(true)
+      // Close other drawers
+      setIsClipDrawerOpen(false)
+      setIsQueueDrawerOpen(false)
     } else {
       // On desktop, show config in right pane
       setShowConfigInRightPane(true)
@@ -359,25 +343,11 @@ function HomePageContent() {
 
   const handleQueueClick = () => {
     if (isSmallScreen) {
-      // On mobile, show queue component
-      const queueComponent = (
-        <div className="w-full">
-          <QueuePage onClose={() => {
-            setMobileQueueComponent(null)
-            setIsAtTop(true)
-            // Restore scroll position after component unmounts
-            setTimeout(() => {
-              if (leftPaneRef.current) {
-                leftPaneRef.current.scrollTop = leftPaneScrollOffset
-              }
-            }, 0)
-          }} />
-        </div>
-      )
-      setMobileQueueComponent(queueComponent)
-      // Clear other mobile components
-      setMobileClipPlayerComponent(null)
-      setMobileConfigComponent(null)
+      // On mobile, open queue drawer
+      setIsQueueDrawerOpen(true)
+      // Close other drawers
+      setIsClipDrawerOpen(false)
+      setIsConfigDrawerOpen(false)
     } else {
       // On desktop, show queue in right pane
       setShowQueueInRightPane(true)
@@ -406,15 +376,8 @@ function HomePageContent() {
             onEndTimeChange={handleEndTimeChange}
             onBack={() => {
               if (isSmallScreen) {
-                // On mobile, just hide the clip player but keep clip times
-                setMobileClipPlayerComponent(null)
-                setIsAtTop(true)
-                // Restore scroll position after component unmounts
-                setTimeout(() => {
-                  if (leftPaneRef.current) {
-                    leftPaneRef.current.scrollTop = leftPaneScrollOffset
-                  }
-                }, 0)
+                // On mobile, just close the clip drawer but keep clip times
+                setIsClipDrawerOpen(false)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
@@ -448,15 +411,8 @@ function HomePageContent() {
             onEndTimeChange={handleEndTimeChange}
             onBack={() => {
               if (isSmallScreen) {
-                // On mobile, just hide the clip player but keep clip times
-                setMobileClipPlayerComponent(null)
-                setIsAtTop(true)
-                // Restore scroll position after component unmounts
-                setTimeout(() => {
-                  if (leftPaneRef.current) {
-                    leftPaneRef.current.scrollTop = leftPaneScrollOffset
-                  }
-                }, 0)
+                // On mobile, just close the clip drawer but keep clip times
+                setIsClipDrawerOpen(false)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
@@ -504,21 +460,11 @@ function HomePageContent() {
     setClipText('')
     // Clear panes to show placeholder
     setRightPaneComponent(null)
-    setMobileClipPlayerComponent(null)
-    setMobileConfigComponent(null)
-    setMobileQueueComponent(null)
+    setIsClipDrawerOpen(false)
+    setIsConfigDrawerOpen(false)
+    setIsQueueDrawerOpen(false)
     setShowConfigInRightPane(false)
     setShowQueueInRightPane(false)
-    // Reset scroll position state when clearing on mobile
-    if (isSmallScreen) {
-      setIsAtTop(true)
-      // Restore scroll position after component unmounts
-      setTimeout(() => {
-        if (leftPaneRef.current) {
-          leftPaneRef.current.scrollTop = leftPaneScrollOffset
-        }
-      }, 0)
-    }
   }
 
   const handleClipBlock = (startTime: number, endTime: number, text: string, transcript: string) => {
@@ -581,15 +527,8 @@ function HomePageContent() {
             onEndTimeChange={handleEndTimeChange}
             onBack={() => {
               if (isSmallScreen) {
-                // On mobile, just hide the clip player but keep clip times
-                setMobileClipPlayerComponent(null)
-                setIsAtTop(true)
-                // Restore scroll position after component unmounts
-                setTimeout(() => {
-                  if (leftPaneRef.current) {
-                    leftPaneRef.current.scrollTop = leftPaneScrollOffset
-                  }
-                }, 0)
+                // On mobile, just close the clip drawer but keep clip times
+                setIsClipDrawerOpen(false)
               } else {
                 // On desktop, clear everything as before
                 setRightPaneComponent(null)
@@ -604,7 +543,7 @@ function HomePageContent() {
     } else if (clipStart !== null || clipEnd !== null) {
       // If we have partial clip data, clear the right pane to show placeholder
       if (isSmallScreen) {
-        setMobileClipPlayerComponent(null)
+        setIsClipDrawerOpen(false)
       } else {
         setRightPaneComponent(null)
       }
@@ -652,56 +591,47 @@ function HomePageContent() {
         clipStart={clipStart}
         clipEnd={clipEnd}
         clipTranscript={clipTranscript}
-        mobileClipPlayerComponent={mobileClipPlayerComponent}
+        mobileClipPlayerComponent={null}
         onPlayClip={handlePlayClip}
       />
 
       {/* Main content with top padding to account for fixed header */}
       <div className={`flex h-screen`}>
-        {/* Conditional rendering for mobile */}
-        {isSmallScreen && (mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent) ? (
-          // Show active mobile component - double height on mobile
-          <div className={`w-full ${isSmallScreen ? 'pt-24' : 'pt-16'}`}>
-            {mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent}
-          </div>
-        ) : (
-          // Show transcript list (default view)
-          <TranscriptList
-            watchDirectory={watchDirectory}
-            isSmallScreen={isSmallScreen}
-            activeSearchTerm={activeSearchTerm}
-            searchLineNumbers={searchLineNumbers}
-            setSearchLineNumbers={setSearchLineNumbers}
-            expandedFiles={expandedFiles}
-            setExpandedFiles={setExpandedFiles}
-            regeneratingFiles={regeneratingFiles}
-            setRegeneratingFiles={setRegeneratingFiles}
-            replacingFiles={replacingFiles}
-            setReplacingFiles={setReplacingFiles}
-            transcriptData={transcriptData}
-            setTranscriptData={setTranscriptData}
-            currentProcessingFile={currentProcessingFile}
+        {/* Always show transcript list */}
+        <TranscriptList
+          watchDirectory={watchDirectory}
+          isSmallScreen={isSmallScreen}
+          activeSearchTerm={activeSearchTerm}
+          searchLineNumbers={searchLineNumbers}
+          setSearchLineNumbers={setSearchLineNumbers}
+          expandedFiles={expandedFiles}
+          setExpandedFiles={setExpandedFiles}
+          regeneratingFiles={regeneratingFiles}
+          setRegeneratingFiles={setRegeneratingFiles}
+          replacingFiles={replacingFiles}
+          setReplacingFiles={setReplacingFiles}
+          transcriptData={transcriptData}
+          setTranscriptData={setTranscriptData}
+          currentProcessingFile={currentProcessingFile}
 
-
-            leftPaneWidth={leftPaneWidth}
-            setLeftPaneWidth={setLeftPaneWidth}
-            isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}
-            setIsLeftPaneWidthMeasured={setIsLeftPaneWidthMeasured}
-            clipStart={clipStart}
-            clipEnd={clipEnd}
-            clipTranscript={clipTranscript}
-            fileRowRefs={fileRowRefs}
-            transcriptRowRefs={transcriptRowRefs}
-            mobileTranscriptRowRefs={mobileTranscriptRowRefs}
-            leftPaneRef={leftPaneRef}
-            onSetRightPaneUrl={handleSetRightPaneComponent}
-            onSetClipStart={handleSetClipStart}
-            onSetClipEnd={handleSetClipEnd}
-            onClearClip={handleClearClip}
-            onClipBlock={handleClipBlock}
-            showAllFiles={showAllFiles}
-          />
-        )}
+          leftPaneWidth={leftPaneWidth}
+          setLeftPaneWidth={setLeftPaneWidth}
+          isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}
+          setIsLeftPaneWidthMeasured={setIsLeftPaneWidthMeasured}
+          clipStart={clipStart}
+          clipEnd={clipEnd}
+          clipTranscript={clipTranscript}
+          fileRowRefs={fileRowRefs}
+          transcriptRowRefs={transcriptRowRefs}
+          mobileTranscriptRowRefs={mobileTranscriptRowRefs}
+          leftPaneRef={leftPaneRef}
+          onSetRightPaneUrl={handleSetRightPaneComponent}
+          onSetClipStart={handleSetClipStart}
+          onSetClipEnd={handleSetClipEnd}
+          onClearClip={handleClearClip}
+          onClipBlock={handleClipBlock}
+          showAllFiles={showAllFiles}
+        />
         
         {/* Right Pane - Always visible on desktop */}
         {!isSmallScreen && (
@@ -718,6 +648,57 @@ function HomePageContent() {
           </div>
         )}
       </div>
+
+      {/* Mobile Drawers */}
+      {isSmallScreen && (
+        <>
+          {/* Clip Player Drawer */}
+          <Drawer open={isClipDrawerOpen} onOpenChange={setIsClipDrawerOpen}>
+            <DrawerContent>
+              <div className="flex-1 overflow-y-auto p-4">
+                {clipStart !== null && clipEnd !== null && clipTranscript && (
+                  <ClipPlayer
+                    key={clipTranscript}
+                    filename={clipTranscript}
+                    start_time_formatted={secondsToTimestamp(clipStart)}
+                    end_time_formatted={secondsToTimestamp(clipEnd)}
+                    font_size=""
+                    text={clipText}
+                    display_text={false}
+                    onStartTimeChange={handleStartTimeChange}
+                    onEndTimeChange={handleEndTimeChange}
+                    onBack={() => setIsClipDrawerOpen(false)}
+                  />
+                )}
+              </div>
+            </DrawerContent>
+          </Drawer>
+
+          {/* Config Drawer */}
+          <Drawer open={isConfigDrawerOpen} onOpenChange={setIsConfigDrawerOpen}>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>Configuration</DrawerTitle>
+              </DrawerHeader>
+              <div className="flex-1 overflow-y-auto">
+                <ConfigPage onClose={() => setIsConfigDrawerOpen(false)} />
+              </div>
+            </DrawerContent>
+          </Drawer>
+
+          {/* Queue Drawer */}
+          <Drawer open={isQueueDrawerOpen} onOpenChange={setIsQueueDrawerOpen}>
+            <DrawerContent>
+              <DrawerHeader>
+                <DrawerTitle>Processing Queue</DrawerTitle>
+              </DrawerHeader>
+              <div className="flex-1 overflow-y-auto">
+                <QueuePage onClose={() => setIsQueueDrawerOpen(false)} />
+              </div>
+            </DrawerContent>
+          </Drawer>
+        </>
+      )}
     </>
   )
 }
