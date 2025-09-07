@@ -123,7 +123,7 @@ export default function SearchPopup({
                         {selectedWatchDirs.length === availableWatchDirs.length 
                           ? "All Directories" 
                           : selectedWatchDirs.length === 0 
-                          ? "No Directories" 
+                          ? "All Directories" 
                           : `${selectedWatchDirs.length} Director${selectedWatchDirs.length === 1 ? 'y' : 'ies'}`}
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />

@@ -812,7 +812,7 @@ export default function TranscriptList({
                     {selectedWatchDirs.length === availableWatchDirs.length 
                       ? "All Directories" 
                       : selectedWatchDirs.length === 0 
-                      ? "No Directories" 
+                      ? "All Directories" 
                       : `${selectedWatchDirs.length} Director${selectedWatchDirs.length === 1 ? 'y' : 'ies'}`}
                     <svg className="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -866,7 +866,7 @@ export default function TranscriptList({
                     {selectedSources.length === availableSources.length 
                       ? "All Transcript Sources" 
                       : selectedSources.length === 0 
-                      ? "No Transcript Sources" 
+                      ? "All Transcript Sources" 
                       : `${selectedSources.length} Source${selectedSources.length === 1 ? '' : 's'}`}
                     <svg className="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
