@@ -65,7 +65,7 @@ Disable whisper processing:
 atci config set allow_whisper false
 ```
 
-By default, the first subtitle track is used if subtitles are enabeld. Sometimes, you might want to use a different one, or use a different whisper model than the standard one. You can perform an interactive regeneration, which allows you to select how to process it:
+By default, the first subtitle track is used if subtitles are enabeld. Sometimes, you might want to use a different one, or use a different whisper model than the currently configured one. You can perform an interactive regeneration, which allows you to select how to process it:
 ```
 atci transcripts regenerate -i /path/to/file.mp4
 
