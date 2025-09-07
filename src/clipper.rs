@@ -853,7 +853,7 @@ pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::B
             let font_size_part = font_size.map(|fs| format!("fs{}", fs)).unwrap_or_default();
             
             // Combine all attributes into a single string for hashing (same as in clip function)
-            let combined_attributes = format!("clip_{}_{}_{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format, display_text);
+            let combined_attributes = format!("clip_{}_{}_{}_{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format, display_text);
             
             // Generate SHA256 hash
             let mut hasher = Sha256::new();
