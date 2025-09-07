@@ -695,11 +695,15 @@ fn grab_frame_args(
 fn calculate_font_size_for_video(horizontal_size: u32, text_length: usize) -> u32 {
     // Base font size proportional to video width (roughly 5% of width)
     let base_size = (horizontal_size as f32 * 0.05) as u32;
-    // Reduce font size based on text length
-    if text_length > 100 {
-        base_size.saturating_sub(base_size / 4) // Reduce by 25%
-    } else if text_length > 50 {
-        base_size.saturating_sub(base_size / 6) // Reduce by ~17%
+    
+    // Reduce font size progressively per character after a threshold
+    let threshold = 40; // Start reducing after 20 characters
+    if text_length > threshold {
+        let excess_chars = text_length - threshold;
+        // Reduce by 1% per excess character, with a minimum size of 25% of base
+        let reduction_percentage = (excess_chars as f32 * 0.01).min(0.75);
+        let reduced_size = base_size as f32 * (1.0 - reduction_percentage);
+        (reduced_size as u32).max(base_size / 4)
     } else {
         base_size
     }
