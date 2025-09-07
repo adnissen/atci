@@ -8,6 +8,10 @@ use crate::web::ApiResponse;
 use crate::auth::AuthGuard;
 use crate::files;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AtciConfig {
     #[serde(default)]
@@ -21,6 +25,10 @@ pub struct AtciConfig {
     pub watch_directories: Vec<String>,
     #[serde(default)]
     pub whispercli_path: String,
+    #[serde(default = "default_true")]
+    pub allow_whisper: bool,
+    #[serde(default = "default_true")]
+    pub allow_subtitles: bool,
 }
 
 #[derive(Serialize)]
@@ -38,6 +46,8 @@ impl Default for AtciConfig {
             password: None,
             watch_directories: Vec::new(),
             whispercli_path: String::new(),
+            allow_whisper: true,
+            allow_subtitles: true,
         }
     }
 }
@@ -98,6 +108,14 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
             if !cfg.watch_directories.contains(&value.to_string()) {
                 cfg.watch_directories.push(value.to_string());
             }
+        },
+        "allow_whisper" => {
+            cfg.allow_whisper = value.parse::<bool>()
+                .map_err(|_| format!("Invalid boolean value for allow_whisper: {}", value))?;
+        },
+        "allow_subtitles" => {
+            cfg.allow_subtitles = value.parse::<bool>()
+                .map_err(|_| format!("Invalid boolean value for allow_subtitles: {}", value))?;
         },
         _ => return Err(format!("Unknown field: {}", field)),
     }

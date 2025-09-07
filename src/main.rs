@@ -272,7 +272,7 @@ enum TranscriptsCommands {
 
 
 fn is_valid_config_field(field: &str) -> bool {
-    matches!(field, "ffmpeg_path" | "ffprobe_path" | "model_name" | "whispercli_path" | "watch_directories" | "password")
+    matches!(field, "ffmpeg_path" | "ffprobe_path" | "model_name" | "whispercli_path" | "watch_directories" | "password" | "allow_whisper" | "allow_subtitles")
 }
 
 fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Result<(), String> {
@@ -288,6 +288,14 @@ fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Result<()
                 cfg.watch_directories.push(value.to_string());
             }
         },
+        "allow_whisper" => {
+            cfg.allow_whisper = value.parse::<bool>()
+                .map_err(|_| format!("Invalid boolean value for allow_whisper: {}", value))?;
+        },
+        "allow_subtitles" => {
+            cfg.allow_subtitles = value.parse::<bool>()
+                .map_err(|_| format!("Invalid boolean value for allow_subtitles: {}", value))?;
+        },
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())
@@ -301,6 +309,8 @@ fn unset_config_field(cfg: &mut AtciConfig, field: &str) -> Result<(), String> {
         "whispercli_path" => cfg.whispercli_path = String::new(),
         "password" => cfg.password = None,
         "watch_directories" => cfg.watch_directories.clear(),
+        "allow_whisper" => cfg.allow_whisper = true,
+        "allow_subtitles" => cfg.allow_subtitles = true,
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())
@@ -1049,7 +1059,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Some(ConfigCommands::Set { field, value }) => {
                     if !is_valid_config_field(&field) {
-                        eprintln!("Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password", field);
+                        eprintln!("Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password, allow_whisper, allow_subtitles", field);
                         std::process::exit(1);
                     }
                     
@@ -1065,7 +1075,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 Some(ConfigCommands::Unset { field }) => {
                     if !is_valid_config_field(&field) {
-                        eprintln!("Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password", field);
+                        eprintln!("Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password, allow_whisper, allow_subtitles", field);
                         std::process::exit(1);
                     }
                     
