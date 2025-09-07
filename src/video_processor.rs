@@ -101,12 +101,78 @@ pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> R
 }
 
 
-pub async fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Result<Vec<usize>, String> {
+#[derive(Debug, Clone)]
+pub struct SubtitleStream {
+    pub index: usize,
+    pub language: Option<String>,
+}
+
+fn expand_language_code(code: &str) -> String {
+    match code.to_lowercase().as_str() {
+        "eng" => "English".to_string(),
+        "fre" | "fra" => "French".to_string(),
+        "ger" | "deu" => "German".to_string(),
+        "spa" | "es" => "Spanish".to_string(),
+        "ita" | "it" => "Italian".to_string(),
+        "por" | "pt" => "Portuguese".to_string(),
+        "rus" | "ru" => "Russian".to_string(),
+        "jpn" | "ja" => "Japanese".to_string(),
+        "chi" | "zho" | "zh" => "Chinese".to_string(),
+        "kor" | "ko" => "Korean".to_string(),
+        "ara" | "ar" => "Arabic".to_string(),
+        "hin" | "hi" => "Hindi".to_string(),
+        "dut" | "nld" | "nl" => "Dutch".to_string(),
+        "swe" | "sv" => "Swedish".to_string(),
+        "nor" | "no" => "Norwegian".to_string(),
+        "dan" | "da" => "Danish".to_string(),
+        "fin" | "fi" => "Finnish".to_string(),
+        "pol" | "pl" => "Polish".to_string(),
+        "cze" | "ces" | "cs" => "Czech".to_string(),
+        "hun" | "hu" => "Hungarian".to_string(),
+        "tur" | "tr" => "Turkish".to_string(),
+        "gre" | "ell" | "el" => "Greek".to_string(),
+        "heb" | "he" => "Hebrew".to_string(),
+        "tha" | "th" => "Thai".to_string(),
+        "vie" | "vi" => "Vietnamese".to_string(),
+        "ukr" | "uk" => "Ukrainian".to_string(),
+        "bul" | "bg" => "Bulgarian".to_string(),
+        "hrv" | "hr" => "Croatian".to_string(),
+        "srp" | "sr" => "Serbian".to_string(),
+        "slv" | "sl" => "Slovenian".to_string(),
+        "slk" | "sk" => "Slovak".to_string(),
+        "ron" | "ro" => "Romanian".to_string(),
+        "lit" | "lt" => "Lithuanian".to_string(),
+        "lav" | "lv" => "Latvian".to_string(),
+        "est" | "et" => "Estonian".to_string(),
+        "cat" | "ca" => "Catalan".to_string(),
+        "baq" | "eus" | "eu" => "Basque".to_string(),
+        "glg" | "gl" => "Galician".to_string(),
+        "ice" | "isl" | "is" => "Icelandic".to_string(),
+        "iri" | "gle" | "ga" => "Irish".to_string(),
+        "wel" | "cym" | "cy" => "Welsh".to_string(),
+        "sco" | "gd" => "Scottish Gaelic".to_string(),
+        "mal" | "ms" => "Malay".to_string(),
+        "ind" | "id" => "Indonesian".to_string(),
+        "tgl" | "tl" => "Tagalog".to_string(),
+        _ => code.to_uppercase(),
+    }
+}
+
+impl SubtitleStream {
+    pub fn language_display(&self) -> String {
+        match &self.language {
+            Some(code) => expand_language_code(code),
+            None => "Unknown".to_string(),
+        }
+    }
+}
+
+pub async fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Result<Vec<SubtitleStream>, String> {
     let output = Command::new(ffprobe_path)
         .args(&[
             "-v", "error",
             "-select_streams", "s",
-            "-show_entries", "stream=index,codec_name,codec_type",
+            "-show_entries", "stream=index,codec_name,codec_type,tags:stream_tags=language",
             "-of", "csv=p=0",
             video_path.to_str().unwrap()
         ])
@@ -116,14 +182,23 @@ pub async fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Res
         Ok(output) => {
             if output.status.success() {
                 let output_str = String::from_utf8_lossy(&output.stdout);
-                let streams: Vec<usize> = output_str
+                let streams: Vec<SubtitleStream> = output_str
                     .trim()
                     .split('\n')
                     .filter(|line| !line.trim().is_empty())
                     .filter_map(|line| {
                         let parts: Vec<&str> = line.split(',').collect();
                         if parts.len() >= 3 && parts[2] == "subtitle" {
-                            parts[0].parse::<usize>().ok()
+                            if let Ok(index) = parts[0].parse::<usize>() {
+                                let language = if parts.len() > 3 && !parts[3].is_empty() && parts[3] != "N/A" {
+                                    Some(parts[3].to_string())
+                                } else {
+                                    None
+                                };
+                                Some(SubtitleStream { index, language })
+                            } else {
+                                None
+                            }
                         } else {
                             None
                         }
@@ -176,6 +251,38 @@ pub async fn extract_subtitle_stream(video_path: &Path, stream_index: usize, ffm
             }
         }
         Err(e) => Err(format!("Failed to execute ffmpeg: {}", e).into()),
+    }
+}
+
+pub async fn get_video_duration(video_path: &Path, ffprobe_path: &Path) -> Result<String, String> {
+    let output = Command::new(ffprobe_path)
+        .args(&[
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            video_path.to_str().unwrap()
+        ])
+        .output().await;
+
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                let duration_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if let Ok(duration) = duration_str.parse::<f64>() {
+                    let total_seconds = duration.round() as u64;
+                    let hours = total_seconds / 3600;
+                    let minutes = (total_seconds % 3600) / 60;
+                    let seconds = total_seconds % 60;
+                    Ok(format!("{:02}:{:02}:{:02}", hours, minutes, seconds))
+                } else {
+                    Err(format!("Failed to parse duration: {}", duration_str))
+                }
+            } else {
+                let error_output = String::from_utf8_lossy(&output.stderr);
+                Err(format!("ffprobe failed: {}", error_output))
+            }
+        }
+        Err(e) => Err(format!("Failed to execute ffprobe: {}", e)),
     }
 }
 
@@ -268,11 +375,11 @@ fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
     Ok(format!("\n{}", processed_blocks.join("\n\n")))
 }
 
-pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+pub async fn cancellable_create_transcript(video_path: &Path, overwrite: bool) -> Result<bool, Box<dyn std::error::Error>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let txt_path = video_path.with_extension("txt");
     
-    if txt_path.exists() {
+    if txt_path.exists() && !overwrite {
         return Ok(true); // Already exists, no need to create
     }
     
@@ -287,7 +394,7 @@ pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Bo
         
         if !streams.is_empty() {
             println!("Found subtitle streams: {:?}", streams);
-            if let Ok(()) = extract_subtitle_stream(video_path, streams[0], Path::new(&cfg.ffmpeg_path)).await {
+            if let Ok(()) = extract_subtitle_stream(video_path, streams[0].index, Path::new(&cfg.ffmpeg_path)).await {
                 add_key_to_metadata_block(video_path, "source", "subtitles")?;
                 println!("Created transcript file: {}", txt_path.display());
                 return Ok(true);

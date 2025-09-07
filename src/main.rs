@@ -259,6 +259,8 @@ enum TranscriptsCommands {
     Regenerate {
         #[arg(help = "Path to the video file")]
         video_path: String,
+        #[arg(short = 'i', long, help = "Interactive mode with processing options")]
+        interactive: bool,
     },
     #[command(about = "Rename both video file and its corresponding transcript file")]
     Rename {
@@ -1161,14 +1163,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 }
-                Some(TranscriptsCommands::Regenerate { video_path }) => {
-                    match transcripts::regenerate(&video_path) {
-                        Ok(()) => {
-                            println!("Successfully deleted transcript files for {}", video_path);
-                        }
-                        Err(e) => {
-                            eprintln!("Error deleting files: {}", e);
-                            std::process::exit(1);
+                Some(TranscriptsCommands::Regenerate { video_path, interactive }) => {
+                    if interactive {
+                        let rt = tokio::runtime::Runtime::new()?;
+                        rt.block_on(async {
+                            match transcripts::regenerate_interactive(&video_path).await {
+                                Ok(()) => {
+                                    println!("Successfully processed {}", video_path);
+                                }
+                                Err(e) => {
+                                    eprintln!("Error processing file: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
+                        });
+                    } else {
+                        match transcripts::regenerate(&video_path) {
+                            Ok(()) => {
+                                println!("Successfully deleted transcript files for {}", video_path);
+                            }
+                            Err(e) => {
+                                eprintln!("Error deleting files: {}", e);
+                                std::process::exit(1);
+                            }
                         }
                     }
                 }
