@@ -660,8 +660,8 @@ function HomePageContent() {
       <div className={`flex h-screen`}>
         {/* Conditional rendering for mobile */}
         {isSmallScreen && (mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent) ? (
-          // Show active mobile component
-          <div className={`w-full ${watchDirectory ? 'pt-20' : ''}`}>
+          // Show active mobile component - double height on mobile
+          <div className={`w-full ${isSmallScreen ? 'pt-24' : 'pt-16'}`}>
             {mobileClipPlayerComponent || mobileConfigComponent || mobileQueueComponent}
           </div>
         ) : (
@@ -705,7 +705,7 @@ function HomePageContent() {
         
         {/* Right Pane - Always visible on desktop */}
         {!isSmallScreen && (
-          <div className={`w-1/2 border-l border-border flex flex-col scrollbar-hide ${watchDirectory ? 'pt-20' : ''}`}>
+          <div className={`w-1/2 border-l border-border flex flex-col scrollbar-hide pt-16`}>
             {showConfigInRightPane ? (
               <ConfigPage onClose={handleCloseConfig} />
             ) : showQueueInRightPane ? (

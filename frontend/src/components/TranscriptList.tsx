@@ -799,7 +799,7 @@ export default function TranscriptList({
       {/* Main content with top padding to account for fixed header */}
       <div 
         ref={leftPaneRef}
-        className={`${`w-full overflow-y-auto scrollbar-hide px-2 sm:px-4 ${watchDirectory ? 'pt-20 pb-4' : 'py-10'}`}`}
+        className={`${`w-full overflow-y-auto scrollbar-hide px-2 sm:px-4 ${watchDirectory ? (isSmallScreen ? 'pt-24 pb-4' : 'pt-16 pb-4') : 'py-10'}`}`}
       >  
         {/* Filters */}
         {(availableWatchDirs.length > 1 || availableSources.length > 1) && (

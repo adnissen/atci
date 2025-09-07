@@ -101,66 +101,139 @@ export default function TopBar({
 
   return (
     <>
-      {/* Watch Directory Bar - Fixed to top */}
+      {/* Top Bar - Fixed to top */}
       {show && (
-        <div className="fixed top-0 left-0 right-0 bg-muted/50 border-b border-border px-2 sm:px-4 py-2 z-10 backdrop-blur-sm">
+        <div className={`fixed top-0 left-0 right-0 bg-background/95 border-b border-border px-2 sm:px-4 z-10 backdrop-blur-sm ${isSmallScreen ? 'py-1' : 'py-2'}`}>
           <div className="w-full">
-            <div className="flex gap-2 sm:gap-6 justify-between items-center">
-              <div className="flex gap-2 sm:gap-6 items-center flex-1 min-w-0">
-                <div className="flex gap-2 items-center flex-shrink-0">
-                  <button
-                    onClick={onConfigClick}
-                    className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors group"
-                    title="Edit configuration"
-                  >
-                    <svg className="w-4 h-4 group-hover:animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11a2 2 0 100-4 2 2 0 000 4z" />
-                    </svg>
-                  </button>
-                  <div className="relative">
-                    <button
-                      onClick={onQueueClick}
-                      className="p-1 text-muted-foreground hover:text-primary hover:bg-accent rounded transition-colors"
-                      title="View processing queue"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                      </svg>
-                    </button>
-                    {queue.length > 0 && (
-                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                        {queue.length}
-                      </div>
-                    )}
+            {/* Mobile: Two-row layout */}
+            {isSmallScreen ? (
+              <div className="flex flex-col gap-2">
+                {/* Top row - App title and Action buttons */}
+                <div className="flex justify-between items-center gap-1">
+                  {/* App title */}
+                  <div className="flex items-center flex-shrink-0">
+                    <span className="text-primary font-bold text-lg">atci</span>
                   </div>
-                  <button
-                    onClick={onToggleShowAllFiles}
-                    className={`p-1 rounded transition-colors ${
-                      showAllFiles 
-                        ? 'text-primary bg-accent' 
-                        : 'text-muted-foreground hover:text-primary hover:bg-accent'
-                    }`}
-                    title={showAllFiles ? "Hide files (show only when searching)" : "Show all files"}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10" />
-                    </svg>
-                  </button>
-                  
-                  {/* Search Bar in Top Bar - Left justified with nav buttons */}
-                  <div className="flex gap-1 items-center">
-                    {/* Desktop search input - hidden on mobile */}
-                    <div className="relative hidden sm:block">
+
+                  <div className="flex items-center gap-1">
+                    {/* Queue button */}
+                    <div className="relative">
+                      <Button
+                        onClick={onQueueClick}
+                        variant="ghost"
+                        size="sm"
+                        className="px-2 py-1 rounded hover:bg-accent text-xs gap-1"
+                        title="View processing queue"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                        <span>Queue</span>
+                      </Button>
+                      {queue.length > 0 && (
+                        <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                          {queue.length}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Collapse button */}
+                    <DropdownMenu modal={false}>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={expandedFiles.size === 0}
+                          title="Collapse options"
+                          className="px-2 py-1 rounded hover:bg-accent disabled:opacity-50 text-xs gap-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                          <span>Collapse</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" sideOffset={4} collisionPadding={8}>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (expandedFiles.size > 0) {
+                              onCollapseExpanded()
+                            }
+                          }}
+                          disabled={expandedFiles.size === 0}
+                          className="gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                          Collapse Current
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            if (expandedFiles.size > 0) {
+                              onCollapseAll()
+                            }
+                          }}
+                          disabled={expandedFiles.size === 0}
+                          className="gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14l5-5 5 5" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5-5 5 5" />
+                          </svg>
+                          Collapse All
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    {/* Config button */}
+                    <Button
+                      onClick={onConfigClick}
+                      variant="ghost"
+                      size="sm"
+                      className="px-2 py-1 rounded hover:bg-accent group text-xs gap-1"
+                      title="Edit configuration"
+                    >
+                      <svg className="w-4 h-4 group-hover:animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11a2 2 0 100-4 2 2 0 000 4z" />
+                      </svg>
+                      <span>Config</span>
+                    </Button>
+
+                    {/* Clip editor button */}
+                    <Button
+                      onClick={onPlayClip}
+                      disabled={clipStart === null || clipStart === undefined || clipEnd === null || clipEnd === undefined || !onPlayClip || mobileClipPlayerComponent !== null}
+                      variant="ghost"
+                      size="sm"
+                      className="px-2 py-1 rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed text-xs gap-1"
+                      title={
+                        mobileClipPlayerComponent !== null 
+                          ? "Clip player is already open" 
+                          : (clipStart !== null && clipStart !== undefined && clipEnd !== null && clipEnd !== undefined ? "Play Clip" : "No clip selected")
+                      }
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z"/>
+                      </svg>
+                      <span>Clip</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Bottom row - Search input, Search & All buttons */}
+                <div className="flex gap-2 items-center">
+                  {/* Search input */}
+                  <div className="flex-1">
+                    <div className="relative">
                       <input
                         type="text"
-                        placeholder="Search"
+                        placeholder="what is happening"
                         value={searchTerm}
                         onChange={(e) => {
                           const newValue = e.target.value
                           setSearchTerm(newValue)
-                          // If user deletes all text, clear the filtering
                           if (newValue.trim() === '') {
                             setActiveSearchTerm('')
                             setSearchLineNumbers({})
@@ -168,79 +241,178 @@ export default function TopBar({
                           }
                         }}
                         onKeyDown={(e) => e.key === 'Enter' && onSearch()}
-                        className="px-2 py-1 pr-8 text-sm border border-input bg-background text-foreground rounded focus:outline-none focus:ring-1 focus:ring-ring focus:border-transparent w-24 sm:w-48 min-w-0"
+                        className="w-full px-3 py-1.5 bg-muted text-foreground text-sm rounded-full border border-border focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
                       {(searchTerm || activeSearchTerm) && (
                         <button
                           onClick={handleClearSearch}
-                          className="absolute right-2 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                          className="absolute right-2 top-1/2 transform -translate-y-1/2 p-0.5 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-accent"
                           title="Clear search"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                           </svg>
                         </button>
                       )}
                     </div>
-                    <button
-                      onClick={handleMobileSearch}
-                      disabled={isSearching}
-                      className="px-2 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                      title="Search"
-                    >
-                      <svg
-                        className={`w-4 h-4 ${isSearching ? "animate-spin" : ""}`}
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
+                  </div>
+
+                  {/* Search button */}
+                  <Button
+                    onClick={() => {
+                      if (showAllFiles) {
+                        onToggleShowAllFiles()
+                      }
+                      onSearch()
+                    }}
+                    disabled={isSearching}
+                    variant={(showAllFiles && !activeSearchTerm) ? "secondary" : "default"}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium disabled:opacity-50 ${
+                      (showAllFiles && !activeSearchTerm)
+                        ? "" 
+                        : "bg-primary hover:bg-primary/90 text-primary-foreground"
+                    }`}
+                  >
+                    {isSearching ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <circle cx="11" cy="11" r="7" strokeWidth={2} />
                         <line x1="16.5" y1="16.5" x2="21" y2="21" strokeWidth={2} strokeLinecap="round" />
                       </svg>
-                    </button>
-                    
-                    {/* Play Clip Button - Always visible on mobile, disabled when no clip times or already playing */}
-                    {isSmallScreen && (
-                      <button
-                        onClick={onPlayClip}
-                        disabled={clipStart === null || clipStart === undefined || clipEnd === null || clipEnd === undefined || !onPlayClip || mobileClipPlayerComponent !== null}
-                        className="px-2 py-1 text-sm bg-purple-600 text-white rounded hover:bg-purple-700 focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                        title={
-                          mobileClipPlayerComponent !== null 
-                            ? "Clip player is already open" 
-                            : (clipStart !== null && clipStart !== undefined && clipEnd !== null && clipEnd !== undefined ? "Play Clip" : "No clip selected")
+                    ) : (
+                      "Search"
+                    )}
+                  </Button>
+
+                  {/* All button */}
+                  <Button
+                    onClick={() => {
+                      handleClearSearch()
+                      if (!showAllFiles) {
+                        onToggleShowAllFiles()
+                      }
+                    }}
+                    variant={(showAllFiles && !activeSearchTerm) ? "default" : "secondary"}
+                    className="px-3 py-1.5 rounded-full text-sm font-medium"
+                  >
+                    All
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* Desktop: Single row layout */
+              <div className="flex gap-2 items-center">
+                {/* App title */}
+                <div className="flex items-center flex-shrink-0">
+                  <span className="text-primary font-bold text-lg">atci</span>
+                </div>
+                
+                {/* Search input (desktop) */}
+                <div className="flex-1 max-w-md mx-4">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="what is happening"
+                      value={searchTerm}
+                      onChange={(e) => {
+                        const newValue = e.target.value
+                        setSearchTerm(newValue)
+                        if (newValue.trim() === '') {
+                          setActiveSearchTerm('')
+                          setSearchLineNumbers({})
+                          setExpandedFiles(new Set())
                         }
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && onSearch()}
+                      className="w-full px-4 py-2 bg-muted text-foreground rounded-full border border-border focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                    {(searchTerm || activeSearchTerm) && (
+                      <button
+                        onClick={handleClearSearch}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-accent"
+                        title="Clear search"
                       >
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M8 5v14l11-7z"/>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
                     )}
                   </div>
                 </div>
-                
-                {/* Spacer to push right content to the right */}
-                <div className="flex-1"></div>
-              </div>
-              
-              {/* Collapse Menu and Scroll Button - Hide on mobile when not showing transcript list */}
-              {(!isSmallScreen || showingTranscriptList) && (
-                <div className="flex gap-2 items-center flex-shrink-0">
+
+                {/* Action buttons */}
+                <div className="flex gap-1 items-center flex-shrink-0">
+                  {/* Search button */}
+                  <Button
+                    onClick={() => {
+                      if (showAllFiles) {
+                        onToggleShowAllFiles()
+                      }
+                      onSearch()
+                    }}
+                    disabled={isSearching}
+                    variant={(showAllFiles && !activeSearchTerm) ? "secondary" : "default"}
+                    className={`px-4 py-2 rounded-full text-sm font-medium disabled:opacity-50 ${
+                      (showAllFiles && !activeSearchTerm)
+                        ? "" 
+                        : "bg-primary hover:bg-primary/90 text-primary-foreground"
+                    }`}
+                  >
+                    {isSearching ? (
+                      <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="7" strokeWidth={2} />
+                        <line x1="16.5" y1="16.5" x2="21" y2="21" strokeWidth={2} strokeLinecap="round" />
+                      </svg>
+                    ) : (
+                      "Search"
+                    )}
+                  </Button>
+
+                  {/* All button */}
+                  <Button
+                    onClick={() => {
+                      handleClearSearch()
+                      if (!showAllFiles) {
+                        onToggleShowAllFiles()
+                      }
+                    }}
+                    variant={(showAllFiles && !activeSearchTerm) ? "default" : "secondary"}
+                    className="px-4 py-2 rounded-full text-sm font-medium"
+                  >
+                    All
+                  </Button>
+
+                  {/* Queue button */}
+                  <div className="relative">
+                    <Button
+                      onClick={onQueueClick}
+                      variant="ghost"
+                      size="sm"
+                      className="p-2 rounded-full hover:bg-accent"
+                      title="View processing queue"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      </svg>
+                    </Button>
+                    {queue.length > 0 && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                        {queue.length}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Collapse button */}
                   <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         disabled={expandedFiles.size === 0}
                         title="Collapse options"
-                        className="gap-1 px-2 py-1 h-7 text-xs"
+                        className="p-2 rounded-full hover:bg-accent disabled:opacity-50"
                       >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        </svg>
-                        <span className="hidden sm:inline">Collapse</span>
-                        <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </Button>
                     </DropdownMenuTrigger>
@@ -276,8 +448,10 @@ export default function TopBar({
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+
+                  {/* Scroll to top button */}
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => {
                       if (!isAtTop) {
@@ -286,17 +460,29 @@ export default function TopBar({
                     }}
                     disabled={isAtTop}
                     title={!isAtTop ? "Scroll to top" : "Already at top"}
-                    className="gap-1 px-2 py-1 h-7 text-xs"
+                    className="p-2 rounded-full hover:bg-accent disabled:opacity-50"
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
                     </svg>
-                    <span className="hidden sm:inline">Scroll to Top</span>
-                    <span className="sm:hidden">Top</span>
+                  </Button>
+
+                  {/* Config button */}
+                  <Button
+                    onClick={onConfigClick}
+                    variant="ghost"
+                    size="sm"
+                    className="p-2 rounded-full hover:bg-accent group"
+                    title="Edit configuration"
+                  >
+                    <svg className="w-5 h-5 group-hover:animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11a2 2 0 100-4 2 2 0 000 4z" />
+                    </svg>
                   </Button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

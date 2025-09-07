@@ -819,7 +819,7 @@ const ConfigSetup: React.FC<ConfigSetupProps> = ({ onConfigComplete, isEditMode 
       <div className="max-w-md w-full bg-card border border-border rounded-lg shadow-md p-6">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-foreground mb-2">
-            {isEditMode ? 'Edit Configuration' : 'ATCI Setup'}
+            {isEditMode ? 'Edit Configuration' : 'atci Setup'}
           </h1>
           <p className="text-muted-foreground">
             {isEditMode ? 'Update your configuration settings' : 'Configure the required paths to get started'}
