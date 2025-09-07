@@ -151,54 +151,6 @@ export default function TopBar({
                       )}
                     </div>
 
-                    {/* Collapse button */}
-                    <DropdownMenu modal={false}>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={expandedFiles.size === 0}
-                          title="Collapse options"
-                          className="px-2 py-1 rounded hover:bg-accent disabled:opacity-50 text-xs gap-1"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                          <span>Collapse</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" sideOffset={4} collisionPadding={8}>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            if (expandedFiles.size > 0) {
-                              onCollapseExpanded()
-                            }
-                          }}
-                          disabled={expandedFiles.size === 0}
-                          className="gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                          </svg>
-                          Collapse Current
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            if (expandedFiles.size > 0) {
-                              onCollapseAll()
-                            }
-                          }}
-                          disabled={expandedFiles.size === 0}
-                          className="gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14l5-5 5 5" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5-5 5 5" />
-                          </svg>
-                          Collapse All
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
 
 
                     {/* Clip editor button */}
@@ -403,53 +355,6 @@ export default function TopBar({
                     )}
                   </div>
 
-                  {/* Collapse button */}
-                  <DropdownMenu modal={false}>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={expandedFiles.size === 0}
-                        title="Collapse options"
-                        className="p-2 rounded-full hover:bg-accent disabled:opacity-50"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        </svg>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" sideOffset={4} collisionPadding={8}>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          if (expandedFiles.size > 0) {
-                            onCollapseExpanded()
-                          }
-                        }}
-                        disabled={expandedFiles.size === 0}
-                        className="gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-                        </svg>
-                        Collapse Current
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => {
-                          if (expandedFiles.size > 0) {
-                            onCollapseAll()
-                          }
-                        }}
-                        disabled={expandedFiles.size === 0}
-                        className="gap-2"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 14l5-5 5 5" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 10l5-5 5 5" />
-                        </svg>
-                        Collapse All
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
 
                   {/* Scroll to top button */}
                   <Button
