@@ -10,7 +10,7 @@ pub const META_FIELDS: &[&str] = &[
     "source",
 ];
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Metadata {
     pub length: Option<String>,
     pub source: Option<String>,

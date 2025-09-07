@@ -36,7 +36,7 @@ type QueueItem = {
 
 function HomePageContent() {
   const isSmallScreen = useIsSmallScreen()
-  const { selectedWatchDirs, selectedSources } = useFileContext()
+  const { selectedWatchDirs, selectedSources, setFiles, refreshFiles, showAllFiles, setShowAllFiles } = useFileContext()
   
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
@@ -49,7 +49,6 @@ function HomePageContent() {
   const [watchDirectory, setWatchDirectory] = useState<string>('TODO delete')
   const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
-  const [showAllFiles, setShowAllFiles] = useLSState<boolean>('showAllFiles', false)
 
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
   const [leftPaneScrollOffset, setLeftPaneScrollOffset] = useState<number>(0)
@@ -237,6 +236,23 @@ function HomePageContent() {
           }).reduce((acc: any, curr: any) => {
             return { ...acc, ...curr }
           }, {}))
+          
+          // Collect video info from search results
+          const videoInfos: FileRow[] = data.data.map((result: any) => {
+            // Get video info from the first match (all matches have the same video info)
+            const firstMatch = result.matches[0]
+            if (firstMatch && firstMatch.video_info) {
+              return firstMatch.video_info as FileRow
+            }
+            return null
+          }).filter((info: FileRow | null) => info !== null)
+          
+          // Remove duplicates based on full_path
+          const uniqueVideoInfos = videoInfos.filter((info, index, self) => 
+            index === self.findIndex(v => v.full_path === info.full_path)
+          )
+          
+          setFiles(uniqueVideoInfos)
         }
         setActiveSearchTerm(searchTerm)
         
@@ -258,6 +274,9 @@ function HomePageContent() {
     setActiveSearchTerm('')
     setSearchLineNumbers({})
     setExpandedFiles(new Set()) // Collapse all expanded files
+    if (showAllFiles) {
+      refreshFiles()
+    }
   }
 
   // Helper functions for ClipPlayer

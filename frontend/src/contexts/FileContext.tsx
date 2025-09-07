@@ -26,6 +26,8 @@ interface FileContextType {
   setSelectedSources: (sources: string[] | ((prev: string[]) => string[])) => void
   availableSources: string[]
   setAvailableSources: (sources: string[]) => void
+  showAllFiles: boolean
+  setShowAllFiles: (show: boolean | ((prev: boolean) => boolean)) => void
 }
 
 const FileContext = createContext<FileContextType | undefined>(undefined)
@@ -48,6 +50,7 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
   const [availableWatchDirs, setAvailableWatchDirs] = useState<string[]>([])
   const [selectedSources, setSelectedSources] = useLSState<string[]>('selectedSources', [])
   const [availableSources, setAvailableSources] = useState<string[]>([])
+  const [showAllFiles, setShowAllFiles] = useLSState<boolean>('showAllFiles', false)
 
   const refreshFiles = async (watchDirs?: string[], sources?: string[]) => {
     // Use provided parameters or fall back to context state
@@ -112,10 +115,12 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     fetchSources()
   }, [])
 
-  // Refresh files when filters change
+  // Refresh files when filters change, but only if showAllFiles is enabled
   useEffect(() => {
-    refreshFiles()
-  }, [selectedWatchDirs, selectedSources])
+    if (showAllFiles) {
+      refreshFiles()
+    }
+  }, [selectedWatchDirs, selectedSources, showAllFiles])
 
   const value: FileContextType = {
     files,
@@ -129,6 +134,8 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     setSelectedSources,
     availableSources,
     setAvailableSources,
+    showAllFiles,
+    setShowAllFiles,
   }
 
   return <FileContext.Provider value={value}>{children}</FileContext.Provider>

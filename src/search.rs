@@ -10,18 +10,27 @@ use rocket::serde::json::Json;
 use rocket::get;
 use crate::web::ApiResponse;
 use crate::auth::AuthGuard;
+use crate::files::VideoInfo;
+use crate::metadata;
+use chrono::{DateTime, Local};
 
 #[derive(Debug, Serialize)]
 pub struct SearchMatch {
     pub line_number: usize,
     pub line_text: String,
     pub timestamp: Option<String>,
+    pub video_info: VideoInfo,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SearchResult {
     pub file_path: String,
     pub matches: Vec<SearchMatch>,
+}
+
+fn format_datetime(timestamp: std::time::SystemTime) -> String {
+    let datetime: DateTime<Local> = timestamp.into();
+    datetime.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
@@ -74,6 +83,47 @@ pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchRes
             
             let content = fs::read_to_string(&txt_path).ok()?;
             let lines: Vec<&str> = content.lines().collect();
+            
+            // Create VideoInfo for this file
+            let metadata = fs::metadata(&file_path).ok()?;
+            let filename = file_path.file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+            
+            let line_count = lines.len();
+            let transcript_exists = true; // We know it exists since we're reading it
+            
+            let last_generated = fs::metadata(&txt_path)
+                .ok()
+                .and_then(|meta| meta.modified().ok())
+                .map(format_datetime);
+            
+            let (length, model) = {
+                let metadata_fields = metadata::get_metadata_fields(file_path).unwrap_or_default();
+                (metadata_fields.length, metadata_fields.source)
+            };
+            
+            let created_at = metadata.created()
+                .or_else(|_| metadata.modified())
+                .map(format_datetime)
+                .unwrap_or_else(|_| "Unknown".to_string());
+            
+            let video_info = VideoInfo {
+                name: file_path.file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string(),
+                base_name: filename,
+                created_at,
+                line_count,
+                full_path: file_path.to_string_lossy().to_string(),
+                transcript: transcript_exists,
+                last_generated,
+                length,
+                model,
+            };
+            
             let matches: Vec<SearchMatch> = lines
                 .iter()
                 .enumerate()
@@ -96,6 +146,7 @@ pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchRes
                             line_number: line_num + 1,
                             line_text: line.to_string(),
                             timestamp,
+                            video_info: video_info.clone(),
                         })
                     } else {
                         None
