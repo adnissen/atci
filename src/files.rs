@@ -13,6 +13,7 @@ use crate::config;
 use rayon::prelude::*;
 use crate::metadata;
 use crate::auth::AuthGuard;
+use rusqlite::{Connection, Result as SqliteResult};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VideoInfo {
@@ -42,40 +43,74 @@ pub fn get_video_extensions() -> Vec<&'static str> {
     vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
 }
 
-pub fn get_cache_file_path() -> std::path::PathBuf {
+pub fn get_db_path() -> std::path::PathBuf {
     let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    home_dir.join(".atci/.video_info_cache.msgpack")
+    home_dir.join(".atci/video_info.db")
 }
 
-pub fn save_video_info_to_cache(cache_data: &CacheData) -> Result<(), Box<dyn std::error::Error>> {
-    
-    
-    let cache_path = get_cache_file_path();
-    let msgpack_data = rmp_serde::to_vec(cache_data)?;
-    
-    fs::write(&cache_path, &msgpack_data)?;  
+fn init_database(conn: &Connection) -> SqliteResult<()> {
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS video_info (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            base_name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            line_count INTEGER NOT NULL,
+            full_path TEXT NOT NULL UNIQUE,
+            transcript BOOLEAN NOT NULL,
+            last_generated TEXT,
+            length TEXT,
+            model TEXT
+        )",
+        [],
+    )?;
     Ok(())
 }
 
+fn get_connection() -> SqliteResult<Connection> {
+    let db_path = get_db_path();
+    if let Some(parent) = db_path.parent() {
+        std::fs::create_dir_all(parent).ok();
+    }
+    let conn = Connection::open(db_path)?;
+    init_database(&conn)?;
+    Ok(conn)
+}
+
 pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
-    let cache_path = get_cache_file_path();
+    let conn = get_connection()?;
     
-    let msgpack_data = match fs::read(&cache_path) {
-        Ok(data) => data,
-        Err(_) => {
-            // File doesn't exist, create it with empty cache data
-            let empty_cache = CacheData {
-                files: Vec::new(),
-                sources: Vec::new(),
-            };
-            let empty_data = rmp_serde::to_vec(&empty_cache)?;
-            fs::write(&cache_path, &empty_data)?;
-            empty_data
-        }
-    };
+    let mut stmt = conn.prepare("SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, model FROM video_info ORDER BY created_at DESC")?;
+    let video_iter = stmt.query_map([], |row| {
+        Ok(VideoInfo {
+            name: row.get(0)?,
+            base_name: row.get(1)?,
+            created_at: row.get(2)?,
+            line_count: row.get(3)?,
+            full_path: row.get(4)?,
+            transcript: row.get(5)?,
+            last_generated: row.get(6)?,
+            length: row.get(7)?,
+            model: row.get(8)?,
+        })
+    })?;
     
-    let cache_data: CacheData = rmp_serde::from_slice(&msgpack_data)?;
-    Ok(cache_data)
+    let mut files = Vec::new();
+    for video in video_iter {
+        files.push(video?);
+    }
+    
+    let mut sources_stmt = conn.prepare("SELECT DISTINCT model FROM video_info WHERE model IS NOT NULL AND model != '' ORDER BY model")?;
+    let sources_iter = sources_stmt.query_map([], |row| {
+        Ok(row.get::<_, String>(0)?)
+    })?;
+    
+    let mut sources = Vec::new();
+    for source in sources_iter {
+        sources.push(source?);
+    }
+    
+    Ok(CacheData { files, sources })
 }
 
 pub fn load_video_info_from_cache(filter: Option<&Vec<String>>) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {
@@ -94,7 +129,7 @@ pub fn load_video_info_from_cache(filter: Option<&Vec<String>>) -> Result<Vec<Vi
     Ok(video_infos)
 }
 
-pub fn get_video_info_from_disk() -> Result<CacheData, Box<dyn std::error::Error>> {
+pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = config::load_config_or_default();
     let mut builder = GlobSetBuilder::new();
     let video_extensions = get_video_extensions();
@@ -117,7 +152,7 @@ pub fn get_video_info_from_disk() -> Result<CacheData, Box<dyn std::error::Error
         })
         .collect();
 
-    let mut video_infos: Vec<VideoInfo> = all_entries
+    let video_infos: Vec<VideoInfo> = all_entries
         .par_iter()
         .filter_map(|(entry, watch_directory)| {
             let file_path = entry.path();
@@ -186,26 +221,34 @@ pub fn get_video_info_from_disk() -> Result<CacheData, Box<dyn std::error::Error
         })
         .collect();
     
-    video_infos.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    // Save to database in a transaction
+    let conn = get_connection()?;
+    let tx = conn.unchecked_transaction()?;
     
-    // Calculate unique sources
-    let sources: std::collections::HashSet<String> = video_infos
-        .par_iter()
-        .filter_map(|info| {
-            info.model.as_ref().filter(|m| !m.is_empty()).cloned()
-        })
-        .collect();
+    // Clear existing data
+    tx.execute("DELETE FROM video_info", [])?;
     
-    let mut unique_sources: Vec<String> = sources.into_iter().collect();
-    unique_sources.sort();
+    // Insert new data
+    {
+        let mut stmt = tx.prepare("INSERT INTO video_info (name, base_name, created_at, line_count, full_path, transcript, last_generated, length, model) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")?;
+        
+        for video in &video_infos {
+            stmt.execute((
+                &video.name,
+                &video.base_name,
+                &video.created_at,
+                &video.line_count,
+                &video.full_path,
+                &video.transcript,
+                &video.last_generated,
+                &video.length,
+                &video.model,
+            ))?;
+        }
+    }
     
-    // Save to cache with sources
-    let cache_data = CacheData {
-        files: video_infos.clone(),
-        sources: unique_sources,
-    };
-    
-    Ok(cache_data)
+    tx.commit()?;
+    Ok(())
 }
 
 #[get("/api/files?<filter>")]

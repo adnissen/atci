@@ -113,8 +113,7 @@ pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         return Err("No transcript files found to delete".into());
     }
 
-    let cache_data = files::get_video_info_from_disk()?;
-    files::save_video_info_to_cache(&cache_data)?;
+    files::get_and_save_video_info_from_disk()?;
     
     Ok(())
 }
@@ -167,8 +166,7 @@ pub fn rename(video_path: &str, new_path: &str) -> Result<(), Box<dyn std::error
     fs::rename(&txt_path, &new_txt_path)?;
     
     // Update cache
-    let cache_data = files::get_video_info_from_disk()?;
-    files::save_video_info_to_cache(&cache_data)?;
+    files::get_and_save_video_info_from_disk()?;
     
     Ok(())
 }

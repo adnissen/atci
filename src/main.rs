@@ -827,8 +827,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Some(FilesCommands::Update) => {
-                    let cache_data = files::get_video_info_from_disk()?;
-                    files::save_video_info_to_cache(&cache_data)?;
+                    files::get_and_save_video_info_from_disk()?;
+                    let cache_data = files::load_cache_data()?;
                     let json_output = serde_json::to_string_pretty(&cache_data.files)?;
                     println!("{}", json_output);
                 }
@@ -1220,8 +1220,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Setup PID file management
                     setup_pid_file_management()?;
 
-                    let cache_data = files::get_video_info_from_disk()?;
-                    files::save_video_info_to_cache(&cache_data)?;
+                    files::get_and_save_video_info_from_disk()?;
                     
                     println!("Starting full web server on {}:{}", host, port);
                     

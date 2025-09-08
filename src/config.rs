@@ -72,9 +72,7 @@ pub fn store_config(config: &AtciConfig) -> Result<(), confy::ConfyError> {
         result = confy::store("atci", "config", config)
     }
 
-    if let Ok(new_cache) = files::get_video_info_from_disk() {
-        let _ = files::save_video_info_to_cache(&new_cache);
-    }
+    let _ = files::get_and_save_video_info_from_disk();
 
     result
 }

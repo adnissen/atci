@@ -303,8 +303,7 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
         }
 
         println!("Processed queue item: {}", video_path_str);
-        let new_cache = files::get_video_info_from_disk()?;
-        files::save_video_info_to_cache(&new_cache)?;
+        files::get_and_save_video_info_from_disk()?;
         return Ok(true);
     }
     
