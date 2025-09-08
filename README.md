@@ -190,7 +190,7 @@ Changes to the config are reflected immediately in the watch behavior (no server
 atci maintains state across runs with various files stored in the `.atci/` directory in the users home folder.
 * `.queue` - the queue of files to be processed
 * `.currently_processing` - the video file currently being processed
-* `.video_info.db` - a cache of video files in the watch directory and metadata about them. Nothing is stored here that isn't stored in the transcript itself or available via system apis. This is purely for fast access, not actual storage.
+* `.video_info.db` - a sqlite db of video files in the watch directory and metadata about them. Nothing is stored here that isn't stored in the transcript itself or available via system apis. This is purely for fast access, not actual storage.
 
 There are a few key components:
 
