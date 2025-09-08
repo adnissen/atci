@@ -268,9 +268,9 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
         
         let txt_path = video_path.with_extension("txt");
         
-        // Create transcript with cancellation support
+        // Create transcript with cancellation support. do not overwrite existing text files if they exist
         if !txt_path.exists() {
-            match video_processor::cancellable_create_transcript(video_path).await {
+            match video_processor::cancellable_create_transcript(video_path, false).await {
                 Ok(true) => {
                     // Successfully created transcript, continue
                 }

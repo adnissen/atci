@@ -55,6 +55,36 @@ Generate a frame with some text (outputs to the `/tmp` directory):
 atci frame "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 00:01:30.720 "What do you want, Mr President\?" --font-size=36
 ```
 
+Disable extracting subtitles:
+```
+atci config set allow_subtitles false
+```
+
+Disable whisper processing:
+```
+atci config set allow_whisper false
+```
+
+By default, the first subtitle track is used if subtitles are enabeld. Sometimes, you might want to use a different one, or use a different whisper model than the currently configured one. You can perform an interactive regeneration, which allows you to select how to process it:
+```
+atci transcripts regenerate -i /path/to/file.mp4
+
+=== File Information ===
+File: /path/to/file.mp4
+Size: 1591.80 MB
+Duration: 01:26:21
+
+=== Processing Options ===
+Choose a processing method:
+> Subtitles: English (2)
+  Subtitles: English (3)
+  Subtitles: English (4)
+  Subtitles: French (5)
+  Whisper Model: ggml-large-v3-turbo-q5_0
+  Whisper Model: ggml-large-v3-turbo-q8_0 (currently configured)
+  Cancel
+```
+
 ## Quick Start
 
 ### Prerequisites

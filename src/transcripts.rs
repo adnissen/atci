@@ -9,6 +9,9 @@ use crate::web::ApiResponse;
 use crate::config::load_config_or_default;
 use crate::files;
 use crate::auth::AuthGuard;
+use dialoguer::Select;
+use crate::video_processor;
+use crate::model_manager;
 
 pub fn get_transcript(video_path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
@@ -166,6 +169,155 @@ pub fn rename(video_path: &str, new_path: &str) -> Result<(), Box<dyn std::error
     // Update cache
     let cache_data = files::get_video_info_from_disk()?;
     files::save_video_info_to_cache(&cache_data)?;
+    
+    Ok(())
+}
+
+pub async fn regenerate_interactive(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let video_path_obj = Path::new(video_path);
+    
+    // Validate that the video path exists
+    if !video_path_obj.exists() {
+        return Err(format!("Video file does not exist: {}", video_path_obj.display()).into());
+    }
+    
+    let cfg = crate::config::load_config()?;
+    
+    // Display file information
+    println!("\n=== File Information ===");
+    println!("File: {}", video_path_obj.display());
+    
+    // Get file size
+    let metadata = fs::metadata(video_path_obj)?;
+    let file_size = metadata.len();
+    let size_mb = file_size as f64 / (1024.0 * 1024.0);
+    println!("Size: {:.2} MB", size_mb);
+    
+    // Get file duration if possible
+    match video_processor::get_video_duration(video_path_obj, Path::new(&cfg.ffprobe_path)).await {
+        Ok(duration) => println!("Duration: {}", duration),
+        Err(e) => println!("Duration: Unable to determine ({})", e),
+    }
+    
+    println!("\n=== Processing Options ===");
+    
+    let mut options = Vec::new();
+    let mut option_types = Vec::new();
+    
+    // Check for subtitle streams
+    match video_processor::get_subtitle_streams(video_path_obj, Path::new(&cfg.ffprobe_path)).await {
+        Ok(streams) if !streams.is_empty() => {
+            for (_, stream) in streams.iter().enumerate() {
+                let lang_display = stream.language_display();
+                options.push(format!("Subtitles: {} ({})", lang_display, stream.index));
+                option_types.push(format!("subtitle_{}", stream.index));
+            }
+        }
+        Ok(_) => {
+            println!("No subtitle streams available");
+        }
+        Err(e) => {
+            println!("Could not check for subtitle streams: {}", e);
+        }
+    }
+    
+    // Check for available Whisper models
+    let models = model_manager::list_models();
+    let downloaded_models: Vec<_> = models.iter().filter(|m| m.downloaded).collect();
+    
+    if !downloaded_models.is_empty() && cfg.allow_whisper {
+        for model in &downloaded_models {
+            let status = if model.configured { " (currently configured)" } else { "" };
+            options.push(format!("Whisper Model: {}{}", model.name, status));
+            option_types.push(format!("whisper_{}", model.name));
+        }
+    } else if !cfg.allow_whisper {
+        println!("Whisper transcription is disabled in configuration");
+    } else {
+        println!("No Whisper models are downloaded");
+    }
+    
+    options.push("Cancel".to_string());
+    option_types.push("cancel".to_string());
+    
+    if options.len() == 1 {
+        return Err("No processing options available".into());
+    }
+    
+    // Prompt user to select an option
+    let selection = Select::new()
+        .with_prompt("Choose a processing method")
+        .items(&options)
+        .default(0)
+        .interact()?;
+    
+    match option_types[selection].as_str() {
+        "cancel" => {
+            println!("Cancelled.");
+            return Ok(());
+        }
+        option if option.starts_with("subtitle_") => {
+            let stream_index = option.strip_prefix("subtitle_").unwrap().parse::<usize>()?;
+            println!("Processing with subtitle stream {}...", stream_index);
+            
+            // Process subtitle stream
+            println!("🚀 Processing subtitles for: {}", video_path);
+            match video_processor::extract_subtitle_stream(&video_path_obj, stream_index, Path::new(&cfg.ffmpeg_path)).await {
+                Ok(()) => {
+                    if let Err(e) = video_processor::add_key_to_metadata_block(&video_path_obj, "source", "subtitles") {
+                        eprintln!("Warning: Failed to add metadata: {}", e);
+                    }
+                    // Add length metadata
+                    match video_processor::cancellable_add_length_to_metadata(&video_path_obj).await {
+                        Ok(true) => {},
+                        Ok(false) => {
+                            println!("⚠️ Length metadata addition was cancelled");
+                        },
+                        Err(e) => {
+                            eprintln!("Warning: Failed to add length metadata: {}", e);
+                        }
+                    }
+                    println!("Successfully extracted subtitles for: {}", video_path_obj.display());
+                }
+                Err(e) => {
+                    eprintln!("Failed to extract subtitles: {}", e);
+                    return Err(e);
+                }
+            }
+        }
+        option if option.starts_with("whisper_") => {
+            let model_name = option.strip_prefix("whisper_").unwrap();
+            println!("Processing with Whisper model: {}...", model_name);
+            
+            // Process with Whisper
+            println!("🚀 Processing transcript for: {}", video_path);
+            match video_processor::cancellable_create_transcript(&video_path_obj, true).await {
+                Ok(true) => {
+                    // Add length metadata after successful transcript creation
+                    match video_processor::cancellable_add_length_to_metadata(&video_path_obj).await {
+                        Ok(true) => {},
+                        Ok(false) => {
+                            println!("⚠️ Length metadata addition was cancelled");
+                        },
+                        Err(e) => {
+                            eprintln!("Warning: Failed to add length metadata: {}", e);
+                        }
+                    }
+                    println!("Successfully created transcript for: {}", video_path_obj.display());
+                }
+                Ok(false) => {
+                    println!("Processing was cancelled for: {}", video_path_obj.display());
+                }
+                Err(e) => {
+                    eprintln!("Failed to create transcript: {}", e);
+                    return Err(e);
+                }
+            }
+        }
+        _ => {
+            return Err("Invalid selection".into());
+        }
+    }
     
     Ok(())
 }
