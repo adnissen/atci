@@ -322,6 +322,11 @@ pub async fn has_audio_stream(video_path: &Path, ffprobe_path: &Path) -> Result<
 
 
 
+fn strip_html_tags(text: &str) -> String {
+    let tag_regex = Regex::new(r"<[^>]*>").unwrap();
+    tag_regex.replace_all(text, "").to_string()
+}
+
 fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
     let content = fs::read_to_string(srt_path)
         .map_err(|e| format!("Failed to read SRT file: {}", e))?;
@@ -357,8 +362,9 @@ fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
                         let start_timestamp = format!("{}.{}", start_time, start_millis);
                         let end_timestamp = format!("{}.{}", end_time, end_millis);
                         let text = text_lines.join(" ");
+                        let cleaned_text = strip_html_tags(&text);
                         
-                        Some(format!("{} --> {}\n{}", start_timestamp, end_timestamp, text))
+                        Some(format!("{} --> {}\n{}", start_timestamp, end_timestamp, cleaned_text))
                     } else {
                         None
                     }
