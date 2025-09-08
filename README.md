@@ -190,7 +190,7 @@ Changes to the config are reflected immediately in the watch behavior (no server
 atci maintains state across runs with various files stored in the `.atci/` directory in the users home folder.
 * `.queue` - the queue of files to be processed
 * `.currently_processing` - the video file currently being processed
-* `.video_info_cache.msgpack` - a cache of video files in the watch directory and metadata about them 
+* `.video_info.db` - a cache of video files in the watch directory and metadata about them. Nothing is stored here that isn't stored in the transcript itself or available via system apis. This is purely for fast access, not actual storage.
 
 There are a few key components:
 
@@ -205,7 +205,7 @@ There are a few key components:
 * The **video_processor** thread (`process_queue` in `/src/queue.rs` and the methods in `video_processor.rs`) also runs in a loop every two seconds (started along with `atci watch` or `atci web`).
 * * It looks for the presence of a `.currently_processing` file, and, if present, reads it.
 * * Go through the subtitle extraction / transcription process. 
-* * Update `.video_info_cache.msgpack` with the latest file information for fast retrieval.
+* * Update `.video_info.db` with the latest file information for fast retrieval.
 * * No matter what, **delete** the `.currently_processing` file at the end of each iteration.
 * * * By doing this, the next time the **file watcher** runs, it will take the top line from the queue and create a new `.currently_processing` file, and so on and so forth.
 * The **Rocket server** thread handles the web requests. See `web.rs` for a list of routes, the functions for which are located in their respective modules.
