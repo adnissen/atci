@@ -420,7 +420,7 @@ fn gif_no_text_args(
         "-i",
         &input_path.to_string_lossy(),
         "-vf",
-        "fps=8,scale=320:-1:flags=fast_bilinear,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=single[p];[s1][p]paletteuse=dither=bayer:bayer_scale=2",
+        "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
         "-loop",
         "0",
         "-y",
