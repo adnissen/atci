@@ -17,6 +17,7 @@ use crate::web::ApiResponse;
 use crate::config;
 use crate::files;
 use crate::auth::AuthGuard;
+use crate::db;
 
 #[get("/api/queue")]
 pub fn web_get_queue(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
@@ -27,39 +28,75 @@ pub fn web_get_queue(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
 }
 
 pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let queue_path = home_dir.join(".atci/.queue");
-    if !queue_path.exists() {
-        return Ok(Vec::new());
+    let conn = db::get_connection()?;
+    
+    let mut stmt = conn.prepare("SELECT path FROM queue ORDER BY position")?;
+    let queue_iter = stmt.query_map([], |row| {
+        Ok(row.get::<_, String>(0)?)
+    })?;
+    
+    let mut queue = Vec::new();
+    for path in queue_iter {
+        queue.push(path?);
     }
     
-    let content = fs::read_to_string(queue_path)?;
-    let queue: Vec<String> = content.lines()
-        .map(|line| line.trim().to_string())
-        .filter(|line| !line.is_empty())
-        .collect();
     Ok(queue)
 }
 
 pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let queue_path = home_dir.join(".atci/.commands/").join("SET_QUEUE");
+    let conn = db::get_connection()?;
+    let tx = conn.unchecked_transaction()?;
     
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open(queue_path)?;
+    // Get all existing paths from the queue table
+    let mut existing_paths = std::collections::HashMap::new();
+    {
+        let mut stmt = tx.prepare("SELECT path, model, subtitle_stream_index FROM queue")?;
+        let existing_iter = stmt.query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, Option<String>>(1)?,
+                row.get::<_, Option<i64>>(2)?
+            ))
+        })?;
+        
+        for item in existing_iter {
+            let (path, model, subtitle_stream_index) = item?;
+            existing_paths.insert(path, (model, subtitle_stream_index));
+        }
+    } // stmt is dropped here
     
-    for path in paths {
-        writeln!(file, "{}", path)?;
+    // Clear the queue table
+    tx.execute("DELETE FROM queue", [])?;
+    
+    let mut position = 0i64;
+    
+    // Add paths in the specified order
+    for path in &paths {
+        let (model, subtitle_stream_index) = existing_paths.remove(path)
+            .unwrap_or((None, None));
+        
+        tx.execute(
+            "INSERT INTO queue (position, path, model, subtitle_stream_index) VALUES (?1, ?2, ?3, ?4)",
+            (position, path, model, subtitle_stream_index),
+        )?;
+        position += 1;
     }
+    
+    // Add any remaining paths that weren't in the input at the end
+    for (path, (model, subtitle_stream_index)) in existing_paths {
+        tx.execute(
+            "INSERT INTO queue (position, path, model, subtitle_stream_index) VALUES (?1, ?2, ?3, ?4)",
+            (position, path, model, subtitle_stream_index),
+        )?;
+        position += 1;
+    }
+    
+    tx.commit()?;
     Ok(())
 }
 
 pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let queue_path = home_dir.join(".atci/.queue");
 
     let currently_processing_path = home_dir.join(".atci/.currently_processing");
     if currently_processing_path.exists() && fs::read_to_string(&currently_processing_path)? == path {
@@ -67,19 +104,25 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let existing_queue = get_queue()?;
-    // we need to lock the file before we perform out duplication check so that someone doesn't write 
-    // to it after we check but before we lock
-    let mut file = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(queue_path)?;
-    
 
     if existing_queue.contains(&path.to_string()) {
         return Ok(());
     }
+
+    // Add to database queue table
+    let conn = db::get_connection()?;
     
-    writeln!(file, "{}", path)?;
+    // Get the next position (max position + 1, or 0 if empty)
+    let next_position: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(position), -1) + 1 FROM queue",
+        [],
+        |row| row.get(0)
+    )?;
+    
+    conn.execute(
+        "INSERT INTO queue (position, path, model, subtitle_stream_index) VALUES (?1, ?2, ?3, ?4)",
+        (next_position, path, None::<String>, None::<i64>),
+    )?;
 
     Ok(())
 }
@@ -188,25 +231,22 @@ pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::E
 
 fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let queue_path = home_dir.join(".atci/.queue");
+
+    // Remove the first item from the database queue table and reposition remaining items
+    let conn = db::get_connection()?;
+    let tx = conn.unchecked_transaction()?;
     
-    if !queue_path.exists() {
-        return Ok(());
-    }
+    tx.execute(
+        "DELETE FROM queue WHERE position = (SELECT MIN(position) FROM queue)",
+        [],
+    )?;
     
-    let content = fs::read_to_string(&queue_path)?;
-    let lines: Vec<&str> = content.lines().collect();
+    tx.execute(
+        "UPDATE queue SET position = position - 1",
+        [],
+    )?;
     
-    if lines.len() <= 1 {
-        fs::write(&queue_path, "")?;
-    } else {
-        let remaining_lines = lines[1..].join("\n");
-        if !remaining_lines.is_empty() {
-            fs::write(&queue_path, format!("{}\n", remaining_lines))?;
-        } else {
-            fs::write(&queue_path, "")?;
-        }
-    }
+    tx.commit()?;
     
     Ok(())
 }
@@ -348,35 +388,10 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
     
             let blocklist = load_blocklist();
             
-            // Check for SET_QUEUE file and copy it to queue, overwriting it
             let home_dir = match dirs::home_dir() {
                 Some(dir) => dir,
                 None => continue,
             };
-            let set_queue_path = home_dir.join(".atci/.commands/SET_QUEUE");
-            
-            if set_queue_path.exists() {
-                if let Ok(content) = fs::read_to_string(&set_queue_path) {
-                    let queue_path = home_dir.join(".atci/.queue");
-                    
-                    // Get existing queue items
-                    let existing_queue = get_queue().unwrap_or_else(|_| Vec::new());
-                    
-                    // Filter SET_QUEUE lines to only include items that exist in current queue
-                    let filtered_lines: Vec<String> = content.lines()
-                        .map(|line| line.trim().to_string())
-                        .filter(|line| !line.is_empty() && existing_queue.contains(line))
-                        .collect();
-                    
-                    // Write filtered content back to queue
-                    if !filtered_lines.is_empty() {
-                        let filtered_content = filtered_lines.join("\n") + "\n";
-                        let _ = fs::write(&queue_path, filtered_content);
-                    }
-                }
-                // Delete the SET_QUEUE file after loading
-                let _ = fs::remove_file(&set_queue_path);
-            }
             
             // Scan watch directories and add files to queue
             let files_to_add: Vec<_> = cfg.watch_directories.iter().map(|wd| {
