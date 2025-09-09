@@ -230,8 +230,6 @@ pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::E
 }
 
 fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-
     // Remove the first item from the database queue table and reposition remaining items
     let conn = db::get_connection()?;
     let tx = conn.unchecked_transaction()?;
