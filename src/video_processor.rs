@@ -22,7 +22,6 @@ fn check_cancel_file() -> bool {
 fn cleanup_cancel_and_processing_files(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
     let cancel_file = home_dir.join(".atci").join(".commands").join("CANCEL");
-    let currently_processing_path = home_dir.join(".atci/.currently_processing");
     let mp3_path = video_path.with_extension("mp3");
     
     // Remove cancel file
@@ -30,9 +29,13 @@ fn cleanup_cancel_and_processing_files(video_path: &Path) -> Result<(), Box<dyn 
         let _ = fs::remove_file(&cancel_file);
     }
     
-    // Remove currently processing file
-    if currently_processing_path.exists() {
-        let _ = fs::remove_file(&currently_processing_path);
+    // Remove currently processing entry from database
+    if let Ok(conn) = crate::db::get_connection() {
+        let video_path_str = video_path.to_string_lossy();
+        let _ = conn.execute(
+            "DELETE FROM currently_processing WHERE path = ?1",
+            [video_path_str.as_ref()],
+        );
     }
     
     // Remove mp3 file if it exists

@@ -839,7 +839,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Some(Commands::Queue { queue_command }) => {
             match queue_command {
                 Some(QueueCommands::Get) => {
-                    match queue::get_queue() {
+                    match queue::get_queue(None) {
                         Ok(queue) => {
                             let json_output = serde_json::to_string_pretty(&queue)?;
                             println!("{}", json_output);
@@ -851,7 +851,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 Some(QueueCommands::Status) => {
-                    match queue::get_queue_status() {
+                    match queue::get_queue_status(None) {
                         Ok((path, age)) => {
                             let result = serde_json::json!({
                                 "currently_processing": path.unwrap_or_else(|| "".to_string()),

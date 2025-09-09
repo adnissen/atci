@@ -9,7 +9,7 @@ pub fn get_db_path() -> std::path::PathBuf {
 }
 
 fn init_database(conn: &Connection) -> SqliteResult<()> {
-    const SCHEMA_VERSION: &str = "20250909-2";
+    const SCHEMA_VERSION: &str = "20250909-3";
     
     // Create schema_version table if it doesn't exist
     conn.execute(
@@ -31,6 +31,7 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
         // Drop existing tables
         conn.execute("DROP TABLE IF EXISTS video_info", [])?;
         conn.execute("DROP TABLE IF EXISTS queue", [])?;
+        conn.execute("DROP TABLE IF EXISTS currently_processing", [])?;
         conn.execute("DROP TABLE IF EXISTS schema_version", [])?;
         
         // Recreate schema_version table
@@ -68,6 +69,18 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
         conn.execute(
             "CREATE TABLE queue (
                 position INTEGER PRIMARY KEY,
+                path TEXT NOT NULL,
+                model TEXT,
+                subtitle_stream_index INTEGER
+            )",
+            [],
+        )?;
+        
+        // Create currently_processing table
+        conn.execute(
+            "CREATE TABLE currently_processing (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                starting_time TEXT,
                 path TEXT NOT NULL,
                 model TEXT,
                 subtitle_stream_index INTEGER

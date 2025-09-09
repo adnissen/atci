@@ -18,17 +18,25 @@ use crate::config;
 use crate::files;
 use crate::auth::AuthGuard;
 use crate::db;
+use rusqlite::Connection;
 
 #[get("/api/queue")]
 pub fn web_get_queue(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
-    match get_queue() {
+    match get_queue(None) {
         Ok(queue_data) => Json(ApiResponse::success(queue_data.into())),
         Err(e) => Json(ApiResponse::error(format!("Failed to get queue: {}", e))),
     }
 }
 
-pub fn get_queue() -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let conn = db::get_connection()?;
+pub fn get_queue(conn: Option<&Connection>) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let owned_conn;
+    let conn = match conn {
+        Some(c) => c,
+        None => {
+            owned_conn = db::get_connection()?;
+            &owned_conn
+        }
+    };
     
     let mut stmt = conn.prepare("SELECT path FROM queue ORDER BY position")?;
     let queue_iter = stmt.query_map([], |row| {
@@ -96,22 +104,25 @@ pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let conn = db::get_connection()?;
 
-    let currently_processing_path = home_dir.join(".atci/.currently_processing");
-    if currently_processing_path.exists() && fs::read_to_string(&currently_processing_path)? == path {
+    // Check if this path is currently being processed
+    let is_currently_processing: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM currently_processing WHERE path = ?1",
+        [path],
+        |row| row.get(0)
+    ).unwrap_or(false);
+    
+    if is_currently_processing {
         return Ok(());
     }
 
-    let existing_queue = get_queue()?;
+    let existing_queue = get_queue(Some(&conn))?;
 
     if existing_queue.contains(&path.to_string()) {
         return Ok(());
     }
 
-    // Add to database queue table
-    let conn = db::get_connection()?;
-    
     // Get the next position (max position + 1, or 0 if empty)
     let next_position: i64 = conn.query_row(
         "SELECT COALESCE(MAX(position), -1) + 1 FROM queue",
@@ -140,31 +151,15 @@ pub fn add_to_blocklist(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn load_blocklist() -> Vec<String> {
-    let home_dir = match dirs::home_dir() {
-        Some(dir) => dir,
-        None => return Vec::new(),
-    };
-    let blocklist_path = home_dir.join(".atci/.blocklist");
-    if blocklist_path.exists() {
-        if let Ok(content) = fs::read_to_string(&blocklist_path) {
-            content.lines()
-                .map(|line| line.trim().to_string())
-                .filter(|line| !line.is_empty())
-                .collect()
-        } else {
-            Vec::new()
-        }
-    } else {
-        Vec::new()
-    }
-}
-
 #[get("/api/queue/status")]
 pub fn web_get_queue_status(_auth: AuthGuard) -> Json<ApiResponse<serde_json::Value>> {
-    match get_queue_status() {
+    let conn = match db::get_connection() {
+        Ok(conn) => conn,
+        Err(e) => return Json(ApiResponse::error(format!("Database connection failed: {}", e))),
+    };
+    match get_queue_status(Some(&conn)) {
         Ok((path, age)) => {
-            let queue = get_queue().unwrap_or_else(|_| Vec::new());
+            let queue = get_queue(Some(&conn)).unwrap_or_else(|_| Vec::new());
             let result = serde_json::json!({
                 "currently_processing": path.unwrap_or_else(|| "".to_string()),
                 "age_in_seconds": age,
@@ -205,33 +200,54 @@ pub fn web_cancel_queue(_auth: AuthGuard) -> Json<ApiResponse<String>> {
     }
 }
 
-pub fn get_queue_status() -> Result<(Option<String>, u64), Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let currently_processing_path = home_dir.join(".atci/.currently_processing");
+pub fn get_queue_status(conn: Option<&Connection>) -> Result<(Option<String>, u64), Box<dyn std::error::Error>> {
+    let owned_conn;
+    let conn = match conn {
+        Some(c) => c,
+        None => {
+            owned_conn = db::get_connection()?;
+            &owned_conn
+        }
+    };
     
-    if !currently_processing_path.exists() {
-        return Ok((None, 0));
+    // Get the currently processing item with its starting time
+    let result: Option<(String, Option<String>)> = conn.query_row(
+        "SELECT path, starting_time FROM currently_processing LIMIT 1",
+        [],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+    ).ok();
+    
+    match result {
+        Some((path, starting_time_str)) => {
+            let age = if let Some(starting_time_str) = starting_time_str {
+                // Parse the RFC3339 timestamp and calculate age
+                if let Ok(starting_time) = chrono::DateTime::parse_from_rfc3339(&starting_time_str) {
+                    let now = chrono::Utc::now();
+                    let duration = now.signed_duration_since(starting_time.with_timezone(&chrono::Utc));
+                    duration.num_seconds().max(0) as u64
+                } else {
+                    0
+                }
+            } else {
+                0
+            };
+            
+            Ok((Some(path), age))
+        },
+        None => Ok((None, 0))
     }
-    
-    let content = fs::read_to_string(&currently_processing_path)?;
-    let path = content.trim();
-    
-    if path.is_empty() {
-        return Ok((None, 0));
-    }
-    
-    // Get the modification time of the .currently_processing file
-    let metadata = fs::metadata(&currently_processing_path)?;
-    let modified = metadata.modified()?;
-    let now = std::time::SystemTime::now();
-    let age = now.duration_since(modified)?.as_secs();
-    
-    Ok((Some(path.to_string()), age))
 }
 
-fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
+fn remove_first_line_from_queue(conn: Option<&Connection>) -> Result<(), Box<dyn std::error::Error>> {
     // Remove the first item from the database queue table and reposition remaining items
-    let conn = db::get_connection()?;
+    let owned_conn;
+    let conn = match conn {
+        Some(c) => c,
+        None => {
+            owned_conn = db::get_connection()?;
+            &owned_conn
+        }
+    };
     let tx = conn.unchecked_transaction()?;
     
     tx.execute(
@@ -252,16 +268,12 @@ fn remove_first_line_from_queue() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async {
         loop {
-           let _ = process_queue_iteration().await;
+            let _ = process_queue_iteration().await;
 
-           let home_dir = match dirs::home_dir() {
-               Some(dir) => dir,
-               None => continue,
-           };
-           let currently_processing_path = home_dir.join(".atci/.currently_processing");
-           if currently_processing_path.exists() {
-               fs::remove_file(&currently_processing_path).unwrap();
-           }
+            // Clear the currently_processing table after each iteration
+            if let Ok(conn) = db::get_connection() {
+                let _ = conn.execute("DELETE FROM currently_processing", []);
+            }
 
            sleep(Duration::from_secs(2)).await;
         }
@@ -270,15 +282,16 @@ pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let currently_processing_path = home_dir.join(".atci/.currently_processing");
-    if !currently_processing_path.exists() {
-        return Ok(false);
-    }
-        
-    let content = fs::read_to_string(&currently_processing_path)?;
-    let first_line = content.lines().next();
-    if let Some(video_path_str) = first_line {
+    let conn = db::get_connection()?;
+    
+    // Get the currently processing item
+    let current_item: Option<String> = conn.query_row(
+        "SELECT path FROM currently_processing LIMIT 1",
+        [],
+        |row| row.get(0)
+    ).ok();
+    
+    if let Some(video_path_str) = current_item {
         println!("Processing queue item: {}", video_path_str);
         let video_path_str = video_path_str.trim();
         if video_path_str.is_empty() {
@@ -383,13 +396,6 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                 eprintln!("No watch directories configured");
                 return;
             }
-    
-            let blocklist = load_blocklist();
-            
-            let home_dir = match dirs::home_dir() {
-                Some(dir) => dir,
-                None => continue,
-            };
             
             // Scan watch directories and add files to queue
             let files_to_add: Vec<_> = cfg.watch_directories.iter().map(|wd| {
@@ -398,11 +404,6 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
 
                     // skip directories
                     if !file_path.is_file() {
-                        return None;
-                    }
-
-                    // skip files that are in the blocklist
-                    if blocklist.contains(&file_path.to_string_lossy().to_string()) {
                         return None;
                     }
 
@@ -443,13 +444,38 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                 }
             }
 
-            // after we've added all the files to the queue, take the first line and remove it from the queue, writing it to the currently processing file
-            let currently_processing_path = home_dir.join(".atci/.currently_processing");
-            if !currently_processing_path.exists() {
-                let queue = get_queue().unwrap_or_else(|_| Vec::new());
-                if !queue.is_empty() {
-                    fs::write(&currently_processing_path, &queue[0]).unwrap();
-                    remove_first_line_from_queue().unwrap();
+            // after we've added all the files to the queue, check if there's anything currently processing
+            // if not, take the first item from the queue and add it to currently_processing table
+            if let Ok(conn) = db::get_connection() {
+                let has_current_processing: bool = conn.query_row(
+                    "SELECT COUNT(*) > 0 FROM currently_processing",
+                    [],
+                    |row| row.get(0)
+                ).unwrap_or(false);
+                
+                if !has_current_processing {
+                    // Get the first item from queue with all its data
+                    if let Ok(mut stmt) = conn.prepare("SELECT path, model, subtitle_stream_index FROM queue ORDER BY position LIMIT 1") {
+                        if let Ok(mut rows) = stmt.query_map([], |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, Option<String>>(1)?,
+                                row.get::<_, Option<i64>>(2)?
+                            ))
+                        }) {
+                            if let Some(Ok((path, model, subtitle_stream_index))) = rows.next() {
+                                // Add to currently_processing table with current timestamp
+                                let now = chrono::Utc::now().to_rfc3339();
+                                let _ = conn.execute(
+                                    "INSERT INTO currently_processing (starting_time, path, model, subtitle_stream_index) VALUES (?1, ?2, ?3, ?4)",
+                                    (now, path, model, subtitle_stream_index),
+                                );
+                                
+                                // Remove from queue
+                                let _ = remove_first_line_from_queue(Some(&conn));
+                            }
+                        }
+                    }
                 }
             }
             sleep(Duration::from_millis(500)).await;
