@@ -187,25 +187,24 @@ Changes to the config are reflected immediately in the watch behavior (no server
 
 ## How it works
 
-atci maintains state across runs with various files stored in the `.atci/` directory in the users home folder.
-* `.queue` - the queue of files to be processed
-* `.currently_processing` - the video file currently being processed
-* `.video_info.db` - a sqlite db of video files in the watch directory and metadata about them. Nothing is stored here that isn't stored in the transcript itself or available via system apis. This is purely for fast access, not actual storage.
+atci maintains state across runs with a SQLite database stored in the `.atci/` directory in the users home folder.
+* `queue` table - stores the queue of files to be processed
+* `currently_processing` table - tracks the video file currently being processed
+* `video_info` table - contains video files in the watch directory and metadata about them. Nothing is stored here that isn't stored in the transcript itself or available via system apis. This is purely for fast access, not actual storage.
 
 There are a few key components:
 
 * The **file watcher** thread (`watch_for_missing_metadata` in `/src/queue.rs`) runs in a loop every two seconds (started with `atci watch` or `atci web`).
 * * This traverses each watch directory and finds video files which don't have an associated .txt file.
 * * It organizes these so each directory is added to the queue together in alphabetical order.
-* * It adds these to the end of the `.queue` file 
-* * * **Note:** This is the only thread to **write** to the `.queue` file.
-* * Then, if there is no `.currently_processing` file, we create one with the topmost line from `.queue`.
-* * * **Note:** This is the only thread to **write to or create** the `.currently_processing` file.
-* * * Clear the top line of `.queue`.
+* * It adds these to the end of the `queue` table 
+* * Then, if there is no entry in the `currently_processing` table, we create one with the topmost entry from the `queue` table.
+* * * **Note:** This is the only thread to **write to or create** entries in the `currently_processing` table.
+* * * Clear the top entry from the `queue` table.
 * The **video_processor** thread (`process_queue` in `/src/queue.rs` and the methods in `video_processor.rs`) also runs in a loop every two seconds (started along with `atci watch` or `atci web`).
-* * It looks for the presence of a `.currently_processing` file, and, if present, reads it.
+* * It looks for entries in the `currently_processing` table, and, if present, reads the file path.
 * * Go through the subtitle extraction / transcription process. 
-* * Update `.video_info.db` with the latest file information for fast retrieval.
-* * No matter what, **delete** the `.currently_processing` file at the end of each iteration.
-* * * By doing this, the next time the **file watcher** runs, it will take the top line from the queue and create a new `.currently_processing` file, and so on and so forth.
+* * Update the `video_info` table with the latest file information for fast retrieval.
+* * No matter what, **delete** the entry from the `currently_processing` table at the end of each iteration.
+* * * By doing this, the next time the **file watcher** runs, it will take the top entry from the queue table and create a new entry in the `currently_processing` table, and so on and so forth.
 * The **Rocket server** thread handles the web requests. See `web.rs` for a list of routes, the functions for which are located in their respective modules.
