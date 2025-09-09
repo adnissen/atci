@@ -59,7 +59,7 @@ pub fn grab_frame(
     time: &str,
     text: Option<&str>,
     font_size: Option<u32>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let ffprobe_path = Path::new(&cfg.ffprobe_path);
     
@@ -98,8 +98,7 @@ pub fn grab_frame(
     let temp_frame_path = std::env::temp_dir().join(&temp_frame_name);
     
     if temp_frame_path.exists() {
-        println!("{}", temp_frame_path.display());
-        return Ok(());
+        return Ok(temp_frame_path);
     }
 
     let frame_args = grab_frame_args(path, time_seconds, text, &temp_frame_path, font_size);
@@ -110,8 +109,7 @@ pub fn grab_frame(
     let output = cmd.output()?;
     
     if output.status.success() {
-        println!("{}", temp_frame_path.display());
-        Ok(())
+        Ok(temp_frame_path)
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
         Err(format!("Error creating frame with ffmpeg: {}", error_msg).into())
@@ -126,7 +124,7 @@ pub fn clip(
     display_text: bool,
     format: &str,
     font_size: Option<u32>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let ffprobe_path = Path::new(&cfg.ffprobe_path);
     
@@ -173,8 +171,7 @@ pub fn clip(
     let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
     
     if temp_clip_path.exists() {
-        println!("{}", temp_clip_path.display());
-        return Ok(());
+        return Ok(temp_clip_path);
     }
 
     let duration = (end_seconds - start_seconds) + 0.1;
@@ -209,8 +206,7 @@ pub fn clip(
     let output = cmd.output()?;
     
     if output.status.success() {
-        println!("{}", temp_clip_path.display());
-        Ok(())
+        Ok(temp_clip_path)
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
         Err(format!("Error creating {} clip with ffmpeg: {}", format, error_msg).into())
@@ -817,53 +813,10 @@ pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::B
     let format = query.format.as_deref().unwrap_or("mp4");
     let font_size = query.font_size.as_deref().and_then(|s| s.parse().ok());
 
-    // Call the clip function that supports multiple time formats
+    // Call the clip function and get the output path
     match clip(video_path, &query.start_time, &query.end_time, text, display_text, format, font_size) {
-        Ok(()) => {
-            // We need to parse the times to get the actual seconds for filename generation
-            let cfg = match crate::config::load_config() {
-                Ok(cfg) => cfg,
-                Err(_) => return Err(status::BadRequest("Error loading config"))
-            };
-            let ffprobe_path = Path::new(&cfg.ffprobe_path);
-            
-            let (start_seconds, end_seconds) = match (
-                TimeFormat::parse(&query.start_time).and_then(|t| t.to_seconds(video_path, ffprobe_path)),
-                TimeFormat::parse(&query.end_time).and_then(|t| t.to_seconds(video_path, ffprobe_path))
-            ) {
-                (Ok(start), Ok(end)) => (start, end),
-                _ => return Err(status::BadRequest("Error parsing time formats"))
-            };
-            
-            // The clip function prints the output path, but we need to construct it ourselves
-            // to read the file and return its contents
-            let caption_part = match display_text || text.is_some() {
-                false => String::new(),
-                true => {
-                    if let Some(text_content) = text {
-                        text_content.to_string()
-                    } else {
-                        String::new()
-                    }
-                }
-            };
-
-            let start_time_str = format!("{:.1}", start_seconds);
-            let end_time_str = format!("{:.1}", end_seconds);
-            let font_size_part = font_size.map(|fs| format!("fs{}", fs)).unwrap_or_default();
-            
-            // Combine all attributes into a single string for hashing (same as in clip function)
-            let combined_attributes = format!("clip_{}_{}_{}_{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format, display_text);
-            
-            // Generate SHA256 hash
-            let mut hasher = Sha256::new();
-            hasher.update(combined_attributes.as_bytes());
-            let hash = format!("{:x}", hasher.finalize());
-            
-            let temp_clip_name = format!("clip_{}.{}", hash, format);
-            let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
-            
-            fs::read(&temp_clip_path)
+        Ok(output_path) => {
+            fs::read(&output_path)
                 .map_err(|e| {
                     eprintln!("Error reading generated clip: {}", e);
                     status::BadRequest("Error reading generated clip")
@@ -885,49 +838,10 @@ pub fn web_frame(_auth: AuthGuard, query: FrameQuery) -> Result<(rocket::http::C
     let text = query.text.as_deref();
     let font_size = query.font_size.as_deref().and_then(|s| s.parse().ok());
 
-    // Call the grab_frame function that supports multiple time formats
+    // Call the grab_frame function and get the output path
     match grab_frame(video_path, &query.time, text, font_size) {
-        Ok(()) => {
-            // We need to parse the time to get the actual seconds for filename generation
-            let cfg = match crate::config::load_config() {
-                Ok(cfg) => cfg,
-                Err(_) => return Err(status::BadRequest("Error loading config"))
-            };
-            let ffprobe_path = Path::new(&cfg.ffprobe_path);
-            
-            let time_seconds = match TimeFormat::parse(&query.time).and_then(|t| t.to_seconds(video_path, ffprobe_path)) {
-                Ok(seconds) => seconds,
-                Err(_) => return Err(status::BadRequest("Error parsing time format"))
-            };
-            
-            // The grab_frame function prints the output path, but we need to construct it ourselves
-            // to read the file and return its contents
-            let caption_part = match text {
-                Some(text_content) => {
-                    // Sanitize text for filename - remove/replace problematic characters
-                    let sanitized_text = text_content
-                        .chars()
-                        .filter(|c| c.is_alphanumeric() || c.is_whitespace() || *c == '-')
-                        .collect::<String>()
-                        .split_whitespace()
-                        .collect::<Vec<&str>>()
-                        .join("_")
-                        .chars()
-                        .take(50)
-                        .collect::<String>();
-                    
-                    format!("_{}", sanitized_text)
-                }
-                None => String::new(),
-            };
-
-            let time_str = format!("{:.3}", time_seconds);
-            let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
-            
-            let temp_frame_name = format!("frame_{}{}_{}.png", time_str, caption_part, font_size_part);
-            let temp_frame_path = std::env::temp_dir().join(&temp_frame_name);
-            
-            fs::read(&temp_frame_path)
+        Ok(output_path) => {
+            fs::read(&output_path)
                 .map(|data| (rocket::http::ContentType::PNG, data))
                 .map_err(|_| status::BadRequest("Error reading generated frame"))
         },

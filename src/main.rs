@@ -911,7 +911,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
             
-            clipper::clip(Path::new(&path), &start, &end, text.as_deref(), display_text, &format, font_size)?;
+            let output_path = clipper::clip(Path::new(&path), &start, &end, text.as_deref(), display_text, &format, font_size)?;
+            println!("{}", output_path.display());
         }
         Some(Commands::Frame { path, time, text, font_size }) => {
             let mut cfg: AtciConfig = config::load_config()?;
@@ -924,7 +925,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
             
-            clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size)?;
+            let output_path = clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size)?;
+            println!("{}", output_path.display());
         }
         Some(Commands::Tools { tools_command }) => {
             match tools_command {
