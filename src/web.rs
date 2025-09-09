@@ -148,7 +148,8 @@ fn api_routes() -> Vec<rocket::Route> {
         tools_manager::web_download_tool,
         tools_manager::web_use_downloaded_tool,
         model_manager::web_list_models,
-        model_manager::web_download_model
+        model_manager::web_download_model,
+        crate::video_processor::web_get_subtitle_streams
     ]
 }
 

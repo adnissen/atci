@@ -8,6 +8,8 @@ use std::env;
 use regex::Regex;
 use std::io::{BufRead, BufReader};
 use crate::metadata;
+use rocket::serde::json::Json;
+use rocket::{get, response::status::BadRequest};
 use tokio::time::sleep;
 use std::time::Duration;
 
@@ -101,7 +103,7 @@ pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> R
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, rocket::serde::Serialize)]
 pub struct SubtitleStream {
     pub index: usize,
     pub language: Option<String>,
@@ -538,6 +540,33 @@ pub async fn cancellable_create_transcript(video_path: &Path, overwrite: bool) -
     }
     
     Ok(true)
+}
+
+#[get("/api/video/subtitle-streams?<path>")]
+pub async fn web_get_subtitle_streams(path: &str) -> Result<Json<crate::web::ApiResponse<Vec<SubtitleStream>>>, BadRequest<Json<crate::web::ApiResponse<Vec<SubtitleStream>>>>> {
+    let video_path = std::path::Path::new(path);
+    
+    if !video_path.exists() {
+        return Err(BadRequest(Json(crate::web::ApiResponse::error(
+            format!("Video file not found: {}", path)
+        ))));
+    }
+    
+    let cfg = match crate::config::load_config() {
+        Ok(config) => config,
+        Err(e) => {
+            return Err(BadRequest(Json(crate::web::ApiResponse::error(
+                format!("Failed to load config: {}", e)
+            ))));
+        }
+    };
+    
+    match get_subtitle_streams(video_path, std::path::Path::new(&cfg.ffprobe_path)).await {
+        Ok(streams) => Ok(Json(crate::web::ApiResponse::success(streams))),
+        Err(e) => Err(BadRequest(Json(crate::web::ApiResponse::error(
+            format!("Failed to get subtitle streams: {}", e)
+        ))))
+    }
 }
 
 pub async fn cancellable_add_length_to_metadata(video_path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
