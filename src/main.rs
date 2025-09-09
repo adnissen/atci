@@ -25,6 +25,7 @@ use rust_embed::Embed;
 
 mod clipper;
 mod config;
+mod db;
 mod files;
 mod queue;
 mod video_processor;

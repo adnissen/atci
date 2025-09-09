@@ -13,7 +13,7 @@ use crate::config;
 use rayon::prelude::*;
 use crate::metadata;
 use crate::auth::AuthGuard;
-use rusqlite::{Connection, Result as SqliteResult};
+use crate::db;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct VideoInfo {
@@ -43,42 +43,9 @@ pub fn get_video_extensions() -> Vec<&'static str> {
     vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
 }
 
-pub fn get_db_path() -> std::path::PathBuf {
-    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    home_dir.join(".atci/video_info.db")
-}
-
-fn init_database(conn: &Connection) -> SqliteResult<()> {
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS video_info (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            base_name TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            line_count INTEGER NOT NULL,
-            full_path TEXT NOT NULL UNIQUE,
-            transcript BOOLEAN NOT NULL,
-            last_generated TEXT,
-            length TEXT,
-            model TEXT
-        )",
-        [],
-    )?;
-    Ok(())
-}
-
-fn get_connection() -> SqliteResult<Connection> {
-    let db_path = get_db_path();
-    if let Some(parent) = db_path.parent() {
-        std::fs::create_dir_all(parent).ok();
-    }
-    let conn = Connection::open(db_path)?;
-    init_database(&conn)?;
-    Ok(conn)
-}
 
 pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
-    let conn = get_connection()?;
+    let conn = db::get_connection()?;
     
     let mut stmt = conn.prepare("SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, model FROM video_info ORDER BY created_at DESC")?;
     let video_iter = stmt.query_map([], |row| {
@@ -222,7 +189,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
         .collect();
     
     // Save to database in a transaction
-    let conn = get_connection()?;
+    let conn = db::get_connection()?;
     let tx = conn.unchecked_transaction()?;
     
     // Clear existing data
