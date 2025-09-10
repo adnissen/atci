@@ -625,7 +625,7 @@ function HomePageContent() {
       {/* Main content with top padding to account for fixed header */}
       <div className={`flex h-screen`}>
         {/* Left pane with transcript list and pagination */}
-        <div className="w-1/2 flex flex-col">
+        <div className="flex-1 flex flex-col">
           {/* Top pagination - only show when viewing all files */}
           <PaginationControls className="border-b" />
           
@@ -669,7 +669,7 @@ function HomePageContent() {
         
         {/* Right Pane - Always visible on desktop */}
         {!isSmallScreen && (
-          <div className={`w-1/2 border-l border-border flex flex-col scrollbar-hide pt-16`}>
+          <div className={`w-1/3 border-l border-border flex flex-col scrollbar-hide pt-16`}>
             {showConfigInRightPane ? (
               <ConfigPage onClose={handleCloseConfig} />
             ) : showQueueInRightPane ? (
