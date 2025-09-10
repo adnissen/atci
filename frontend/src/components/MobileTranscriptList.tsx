@@ -10,7 +10,7 @@ type FileRow = {
   length?: string
   full_path: string
   last_generated?: string
-  model?: string
+  source?: string
 }
 
 type TranscriptData = {
@@ -29,13 +29,13 @@ interface MobileTranscriptListProps {
   searchLineNumbers: Record<string, number[]>
 
   onExpandFile: (filename: string) => void
-  onRegenerate: (filename: string, e: React.MouseEvent) => void
+  onRegenerate: (filename: string, source: string | undefined, e: React.MouseEvent) => void
   onReplace: (filename: string, e: React.MouseEvent) => void
   onRename: (filename: string, e: React.MouseEvent) => void
   onFetchTranscript: (filename: string) => void
   onSetRightPaneUrl: (component: React.ReactNode | null, fallbackUrl?: string) => void
   formatDate: (dateString: string) => string
-  getModelChipColor: (model: string | undefined) => string
+  getSourceChipColor: (source: string | undefined) => string
   clipStart: number | null
   clipEnd: number | null
   clipTranscript: string | null
@@ -63,7 +63,7 @@ export default function MobileTranscriptList({
   onFetchTranscript,
   onSetRightPaneUrl,
   formatDate,
-  getModelChipColor,
+  getSourceChipColor,
   expandContext,
   clipStart,
   clipEnd,
@@ -100,12 +100,12 @@ export default function MobileTranscriptList({
               isReplacing={!file.transcript}
               isProcessing={false}
 
-              onRegenerate={(e) => onRegenerate(file.full_path, e)}
+              onRegenerate={(e) => onRegenerate(file.full_path, file.source, e)}
               onReplace={(e) => onReplace(file.full_path, e)}
               onRename={(e) => onRename(file.full_path, e)}
-              onRegenerateMeta={(e) => onRegenerate(file.full_path, e)}
+              onRegenerateMeta={(e) => onRegenerate(file.full_path, file.source, e)}
               formatDate={formatDate}
-              getModelChipColor={getModelChipColor}
+              getSourceChipColor={getSourceChipColor}
               isSmallScreen={true}
               mobileTranscriptRowRefs={mobileTranscriptRowRefs}
             />

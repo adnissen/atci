@@ -31,6 +31,7 @@ interface RegenerateOption {
 interface RegenerateModalProps {
   isOpen: boolean
   videoPath: string
+  source?: string
   onClose: () => void
   onRegenerate: (model?: string, subtitleStreamIndex?: number) => Promise<void>
 }
@@ -38,6 +39,7 @@ interface RegenerateModalProps {
 export default function RegenerateModal({
   isOpen,
   videoPath,
+  source,
   onClose,
   onRegenerate
 }: RegenerateModalProps) {
@@ -48,6 +50,22 @@ export default function RegenerateModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isRegenerating, setIsRegenerating] = useState(false)
+
+  // Helper function to check if a source matches an option
+  const isCurrentSource = (option: RegenerateOption): boolean => {
+    if (!source) return false
+    
+    if (option.type === 'subtitle') {
+      // Check if source contains subtitle info with matching index
+      const match = source.match(/subtitles.*\((\d+)\)/)
+      return !!(match && parseInt(match[1]) === option.subtitle_stream_index)
+    } else if (option.type === 'whisper') {
+      // Check if source matches the model name
+      return source === option.model
+    }
+    
+    return false
+  }
 
   // Fetch subtitle streams and models when modal opens
   useEffect(() => {
@@ -95,23 +113,36 @@ export default function RegenerateModal({
       // Add subtitle options
       streams.forEach((stream) => {
         const language = stream.language || 'Unknown'
-        newOptions.push({
+        const option = {
           id: `subtitle_${stream.index}`,
-          type: 'subtitle',
+          type: 'subtitle' as const,
           label: `Subtitles: ${language} (${stream.index})`,
           subtitle_stream_index: stream.index
-        })
+        }
+        
+        // Add (current) if this matches the source
+        if (isCurrentSource(option)) {
+          option.label += ' (last used)'
+        }
+        
+        newOptions.push(option)
       })
 
       // Add whisper model options
       modelsList.forEach((model) => {
-        const status = model.configured ? ' (currently configured)' : ''
-        newOptions.push({
+        const option = {
           id: `whisper_${model.name}`,
-          type: 'whisper',
-          label: `Whisper Model: ${model.name}${status}`,
+          type: 'whisper' as const,
+          label: `Whisper Model: ${model.name}`,
           model: model.name
-        })
+        }
+        
+        // Add status indicators
+        if (isCurrentSource(option)) {
+          option.label += ' (last used)'
+        }
+        
+        newOptions.push(option)
       })
 
       setOptions(newOptions)

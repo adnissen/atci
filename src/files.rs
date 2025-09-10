@@ -25,7 +25,7 @@ pub struct VideoInfo {
     pub transcript: bool,
     pub last_generated: Option<String>,
     pub length: Option<String>,
-    pub model: Option<String>,
+    pub source: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -47,7 +47,7 @@ pub fn get_video_extensions() -> Vec<&'static str> {
 pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
     let conn = db::get_connection()?;
     
-    let mut stmt = conn.prepare("SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, model FROM video_info ORDER BY created_at DESC")?;
+    let mut stmt = conn.prepare("SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source FROM video_info ORDER BY created_at DESC")?;
     let video_iter = stmt.query_map([], |row| {
         Ok(VideoInfo {
             name: row.get(0)?,
@@ -58,7 +58,7 @@ pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
             transcript: row.get(5)?,
             last_generated: row.get(6)?,
             length: row.get(7)?,
-            model: row.get(8)?,
+            source: row.get(8)?,
         })
     })?;
     
@@ -67,7 +67,7 @@ pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
         files.push(video?);
     }
     
-    let mut sources_stmt = conn.prepare("SELECT DISTINCT model FROM video_info WHERE model IS NOT NULL AND model != '' ORDER BY model")?;
+    let mut sources_stmt = conn.prepare("SELECT DISTINCT source FROM video_info WHERE source IS NOT NULL AND source != '' ORDER BY source")?;
     let sources_iter = sources_stmt.query_map([], |row| {
         Ok(row.get::<_, String>(0)?)
     })?;
@@ -162,7 +162,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
                 (0, None)
             };
             
-            let (length, model) = if transcript_exists {
+            let (length, source) = if transcript_exists {
                 let metadata = metadata::get_metadata_fields(file_path);
                 (metadata.clone().unwrap().length.clone(), metadata.clone().unwrap().source.clone())
             } else {
@@ -183,7 +183,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
                 transcript: transcript_exists,
                 last_generated,
                 length,
-                model,
+                source,
             })
         })
         .collect();
@@ -197,7 +197,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
     
     // Insert new data
     {
-        let mut stmt = tx.prepare("INSERT INTO video_info (name, base_name, created_at, line_count, full_path, transcript, last_generated, length, model) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")?;
+        let mut stmt = tx.prepare("INSERT INTO video_info (name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")?;
         
         for video in &video_infos {
             stmt.execute((
@@ -209,7 +209,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
                 &video.transcript,
                 &video.last_generated,
                 &video.length,
-                &video.model,
+                &video.source,
             ))?;
         }
     }

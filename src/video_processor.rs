@@ -19,7 +19,7 @@ fn check_cancel_file() -> bool {
     cancel_file.exists()
 }
 
-fn cleanup_cancel_and_processing_files(video_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn cleanup_cancel_and_processing_files(video_path: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
     let cancel_file = home_dir.join(".atci").join(".commands").join("CANCEL");
     let mp3_path = video_path.with_extension("mp3");
@@ -49,7 +49,7 @@ fn cleanup_cancel_and_processing_files(video_path: &Path) -> Result<(), Box<dyn 
 
 
 
-pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn add_key_to_metadata_block(video_path: &Path, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let video_path = Path::new(video_path);
     let txt_path = video_path.with_extension("txt");
     
@@ -220,7 +220,7 @@ pub async fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Res
     }
 }
 
-pub async fn extract_subtitle_stream(video_path: &Path, stream_index: usize, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn extract_subtitle_stream(video_path: &Path, stream_index: usize, ffmpeg_path: &Path) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let video_path_obj = Path::new(video_path);
     let txt_path = video_path_obj.with_extension("txt");
     
@@ -386,7 +386,7 @@ fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
     Ok(format!("\n{}", processed_blocks.join("\n\n")))
 }
 
-pub async fn cancellable_create_transcript(video_path: &Path, model: Option<String>, subtitle_stream_index: Option<i32>) -> Result<bool, Box<dyn std::error::Error>> {
+pub async fn cancellable_create_transcript(video_path: &Path, model: Option<String>, subtitle_stream_index: Option<i32>) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let txt_path = video_path.with_extension("txt");
     
@@ -398,7 +398,14 @@ pub async fn cancellable_create_transcript(video_path: &Path, model: Option<Stri
             // Use the specified subtitle stream index
             println!("Using specified subtitle stream index: {}", stream_index);
             if let Ok(()) = extract_subtitle_stream(video_path, stream_index as usize, Path::new(&cfg.ffmpeg_path)).await {
-                add_key_to_metadata_block(video_path, "source", "subtitles")?;
+                // Get stream info for metadata
+                let streams = get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path)).await.unwrap_or_else(|_| Vec::new());
+                let stream_info = streams.iter().find(|s| s.index == stream_index as usize);
+                let source_info = match stream_info {
+                    Some(stream) => format!("subtitles: {} ({})", stream.language_display(), stream_index),
+                    None => format!("subtitles: Unknown ({})", stream_index),
+                };
+                add_key_to_metadata_block(video_path, "source", &source_info)?;
                 println!("Created transcript file: {}", txt_path.display());
                 return Ok(true);
             } else {
@@ -414,7 +421,8 @@ pub async fn cancellable_create_transcript(video_path: &Path, model: Option<Stri
             if !streams.is_empty() {
                 println!("Found subtitle streams: {:?}", streams);
                 if let Ok(()) = extract_subtitle_stream(video_path, streams[0].index, Path::new(&cfg.ffmpeg_path)).await {
-                    add_key_to_metadata_block(video_path, "source", "subtitles")?;
+                    let source_info = format!("subtitles: {} ({})", streams[0].language_display(), streams[0].index);
+                    add_key_to_metadata_block(video_path, "source", &source_info)?;
                     println!("Created transcript file: {}", txt_path.display());
                     return Ok(true);
                 } else {
@@ -582,7 +590,7 @@ pub async fn web_get_subtitle_streams(path: &str) -> Result<Json<crate::web::Api
     }
 }
 
-pub async fn cancellable_add_length_to_metadata(video_path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+pub async fn cancellable_add_length_to_metadata(video_path: &Path) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     if check_cancel_file() {
         cleanup_cancel_and_processing_files(video_path)?;
         return Ok(false);

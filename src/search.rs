@@ -121,7 +121,7 @@ pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchRes
                 transcript: transcript_exists,
                 last_generated,
                 length,
-                model,
+                source: model,
             };
             
             let matches: Vec<SearchMatch> = lines

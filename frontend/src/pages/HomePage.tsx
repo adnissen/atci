@@ -25,7 +25,7 @@ type FileRow = {
   length?: string
   full_path: string
   last_generated?: string
-  model?: string
+  source?: string
 }
 
 type TranscriptData = {

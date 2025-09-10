@@ -17,7 +17,7 @@ interface FileRow {
   length?: string
   full_path?: string
   last_generated?: string
-  model?: string
+  source?: string
 }
 
 interface FileCardProps {
@@ -33,7 +33,7 @@ interface FileCardProps {
   onRename: (e: React.MouseEvent) => void
   onRegenerateMeta: (e: React.MouseEvent) => void
   formatDate: (date: string) => string
-  getModelChipColor: (model: string | undefined) => string
+  getSourceChipColor: (source: string | undefined) => string
   isSmallScreen?: boolean
   mobileTranscriptRowRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>
 }
@@ -51,7 +51,7 @@ export default function FileCard({
   onRename,
   onRegenerateMeta,
   formatDate,
-  getModelChipColor,
+  getSourceChipColor,
   isSmallScreen = false,
   mobileTranscriptRowRefs,
 }: FileCardProps) {
@@ -77,10 +77,10 @@ export default function FileCard({
               {filename}
 
             </h3>
-            {file.model && (
+            {file.source && (
               <div className="text-left">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${getModelChipColor(file.model)}`}>
-                  {file.model}
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${getSourceChipColor(file.source)}`}>
+                  {file.source}
                 </span>
               </div>
             )}
@@ -230,6 +230,7 @@ export default function FileCard({
         <RegenerateModal
           isOpen={isRegenerateModalOpen}
           videoPath={file.full_path || file.name}
+          source={file.source}
           onClose={() => setIsRegenerateModalOpen(false)}
           onRegenerate={handleRegenerateModalSubmit}
         />
@@ -246,9 +247,9 @@ export default function FileCard({
               {filename}
 
             </h3>
-            {file.model && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${getModelChipColor(file.model)}`}>
-                {file.model}
+            {file.source && (
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-2 ${getSourceChipColor(file.source)}`}>
+                {file.source}
               </span>
             )}
           </div>
@@ -400,6 +401,7 @@ export default function FileCard({
       <RegenerateModal
         isOpen={isRegenerateModalOpen}
         videoPath={file.full_path || file.name}
+        source={file.source}
         onClose={() => setIsRegenerateModalOpen(false)}
         onRegenerate={handleRegenerateModalSubmit}
       />

@@ -30,7 +30,7 @@ type TranscriptData = {
   error: string | null
 }
 
-type SortColumn = 'created_at' | 'last_generated' | 'name' | 'line_count' | 'length' | 'model'
+type SortColumn = 'created_at' | 'last_generated' | 'name' | 'line_count' | 'length' | 'source'
 type SortDirection = 'asc' | 'desc'
 
 type QueueItem = {
@@ -129,6 +129,7 @@ export default function TranscriptList({
   // Regenerate modal state
   const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false)
   const [regenerateFilename, setRegenerateFilename] = useState('')
+  const [regenerateSource, setRegenerateSource] = useState<string | undefined>(undefined)
 
   // Helper function to check if a file is currently being processed
   const isFileBeingProcessed = (filename: string): boolean => {
@@ -195,9 +196,9 @@ export default function TranscriptList({
         aValue = a.length || '0:00'
         bValue = b.length || '0:00'
         break
-      case 'model':
-        aValue = a.model || ''
-        bValue = b.model || ''
+      case 'source':
+        aValue = a.source || ''
+        bValue = b.source || ''
         break
       default:
         return 0
@@ -304,12 +305,12 @@ export default function TranscriptList({
     }
   }
 
-  // Get color for model chip based on model name
-  const getModelChipColor = (model: string | undefined) => {
-    if (!model) return 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+  // Get color for source chip based on source name
+  const getSourceChipColor = (source: string | undefined) => {
+    if (!source) return 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
     
-    // Color palette for different model types
-    const modelColors: Record<string, string> = {
+    // Color palette for different source types
+    const sourceColors: Record<string, string> = {
       'tiny': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
       'base': 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
       'small': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -319,9 +320,9 @@ export default function TranscriptList({
       'manual': 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200',
     }
     
-    // Determine model type from name
-    for (const [key, color] of Object.entries(modelColors)) {
-      if (model.includes(key)) {
+    // Determine source type from name
+    for (const [key, color] of Object.entries(sourceColors)) {
+      if (source.includes(key)) {
         return color
       }
     }
@@ -409,9 +410,10 @@ export default function TranscriptList({
     await Promise.all(filesToFetch.map(filename => fetchTranscript(filename)))
   }
 
-  const handleRegenerateClick = (filename: string, e: React.MouseEvent) => {
+  const handleRegenerateClick = (filename: string, source: string | undefined, e: React.MouseEvent) => {
     e.stopPropagation()
     setRegenerateFilename(filename)
+    setRegenerateSource(source)
     setIsRegenerateModalOpen(true)
   }
 
@@ -841,7 +843,7 @@ export default function TranscriptList({
                         onCheckedChange={() => handleSourceToggle(source)}
                       >
                         <div className="flex items-center">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getModelChipColor(source)}`}>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getSourceChipColor(source)}`}>
                             {source}
                           </span>
                         </div>
@@ -943,7 +945,7 @@ export default function TranscriptList({
               onFetchTranscript={fetchTranscript}
               onSetRightPaneUrl={onSetRightPaneUrl}
               formatDate={(dateString: string) => formatDate(dateString, leftPaneWidth >= 1129)}
-              getModelChipColor={getModelChipColor}
+              getSourceChipColor={getSourceChipColor}
               expandContext={expandContext}
               clipStart={clipStart}
               clipEnd={clipEnd}
@@ -1009,11 +1011,11 @@ export default function TranscriptList({
                 </TableHead>
                 <TableHead 
                   className="text-center w-[8%] cursor-pointer hover:bg-accent transition-colors"
-                  onClick={() => handleSort('model')}
+                  onClick={() => handleSort('source')}
                 >
                   <div className="flex items-center justify-center gap-1">
                     Source
-                    {getSortIndicator('model')}
+                    {getSortIndicator('source')}
                   </div>
                 </TableHead>
                 <TableHead className="text-center w-[10%]">Actions</TableHead>
@@ -1099,22 +1101,22 @@ export default function TranscriptList({
                     )}
                   </TableCell>
                   <TableCell className="w-[8%] text-center">
-                    {file.model ? (
+                    {file.source ? (
                       leftPaneWidth >= 1129 ? (
                         <div className="flex justify-center">
-                          <span className={`inline-flex items-center rounded-full font-medium ${getModelChipColor(file.model)} ${
-                            file.model.length > 10 
+                          <span className={`inline-flex items-center rounded-full font-medium ${getSourceChipColor(file.source)} ${
+                            file.source.length > 10 
                               ? 'px-1.5 py-0.5 text-xs scale-75' 
                               : 'px-2.5 py-0.5 text-xs'
                           }`}>
-                            {file.model}
+                            {file.source}
                           </span>
                         </div>
                       ) : (
                         <div className="flex justify-center">
                           <div 
-                            className={`w-3 h-3 rounded-full ${getModelChipColor(file.model).split(' ').find(cls => cls.startsWith('bg-')) || 'bg-gray-200'} ${getModelChipColor(file.model).split(' ').find(cls => cls.startsWith('dark:bg-')) || ''}`}
-                            title={file.model}
+                            className={`w-3 h-3 rounded-full ${getSourceChipColor(file.source).split(' ').find(cls => cls.startsWith('bg-')) || 'bg-gray-200'} ${getSourceChipColor(file.source).split(' ').find(cls => cls.startsWith('dark:bg-')) || ''}`}
+                            title={file.source}
                           />
                         </div>
                       )
@@ -1166,7 +1168,7 @@ export default function TranscriptList({
                         {/* Only show regenerate option if transcript exists */}
                         {file.transcript && (
                           <DropdownMenuItem
-                            onClick={(e) => handleRegenerateClick(file.full_path, e)}
+                            onClick={(e) => handleRegenerateClick(file.full_path, file.source, e)}
                             disabled={!file.transcript}
                             className="text-green-600 hover:text-green-700"
                           >
@@ -1307,6 +1309,7 @@ export default function TranscriptList({
       <RegenerateModal
         isOpen={isRegenerateModalOpen}
         videoPath={regenerateFilename}
+        source={regenerateSource}
         onClose={() => setIsRegenerateModalOpen(false)}
         onRegenerate={handleRegenerateModalSubmit}
       />
