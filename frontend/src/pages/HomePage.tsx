@@ -135,7 +135,7 @@ function HomePageContent() {
 
       // Add watch directory filters if any are selected
       if (selectedWatchDirs.length > 0) {
-        params.append('watch_directories', selectedWatchDirs.join(','))
+        params.append('filter', selectedWatchDirs.join(','))
       }
       
       // Add source filters if any are selected
