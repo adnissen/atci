@@ -284,14 +284,18 @@ pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
 pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error>> {
     let conn = db::get_connection()?;
     
-    // Get the currently processing item
-    let current_item: Option<String> = conn.query_row(
-        "SELECT path FROM currently_processing LIMIT 1",
+    // Get the currently processing item with model and subtitle stream info
+    let current_item: Option<(String, Option<String>, Option<i64>)> = conn.query_row(
+        "SELECT path, model, subtitle_stream_index FROM currently_processing LIMIT 1",
         [],
-        |row| row.get(0)
+        |row| Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<i64>>(2)?
+        ))
     ).ok();
     
-    if let Some(video_path_str) = current_item {
+    if let Some((video_path_str, model, subtitle_stream_index)) = current_item {
         println!("Processing queue item: {}", video_path_str);
         let video_path_str = video_path_str.trim();
         if video_path_str.is_empty() {
@@ -318,7 +322,8 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
         }
         
         // Create transcript with cancellation support
-        match video_processor::cancellable_create_transcript(video_path).await {
+        let subtitle_index_i32 = subtitle_stream_index.map(|i| i as i32);
+        match video_processor::cancellable_create_transcript(video_path, model, subtitle_index_i32).await {
             Ok(true) => {
                 // Successfully created transcript, continue
             }

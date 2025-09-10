@@ -243,44 +243,21 @@ pub async fn regenerate_interactive(video_path: &str) -> Result<(), Box<dyn std:
             println!("Cancelled.");
             return Ok(());
         }
-        option if option.starts_with("subtitle_") => {
-            let stream_index = option.strip_prefix("subtitle_").unwrap().parse::<usize>()?;
-            println!("Processing with subtitle stream {}...", stream_index);
+        option if option.starts_with("subtitle_") || option.starts_with("whisper_") => {
+            let (model, subtitle_stream_index, process_type) = if option.starts_with("subtitle_") {
+                let stream_index = option.strip_prefix("subtitle_").unwrap().parse::<i32>()?;
+                println!("Processing with subtitle stream {}...", stream_index);
+                (None, Some(stream_index), "subtitles")
+            } else {
+                let model_name = option.strip_prefix("whisper_").unwrap();
+                println!("Processing with Whisper model: {}...", model_name);
+                (Some(model_name.to_string()), None, "transcript")
+            };
             
-            // Process subtitle stream
-            println!("🚀 Processing subtitles for: {}", video_path);
-            match video_processor::extract_subtitle_stream(&video_path_obj, stream_index, Path::new(&cfg.ffmpeg_path)).await {
-                Ok(()) => {
-                    if let Err(e) = video_processor::add_key_to_metadata_block(&video_path_obj, "source", "subtitles") {
-                        eprintln!("Warning: Failed to add metadata: {}", e);
-                    }
-                    // Add length metadata
-                    match video_processor::cancellable_add_length_to_metadata(&video_path_obj).await {
-                        Ok(true) => {},
-                        Ok(false) => {
-                            println!("⚠️ Length metadata addition was cancelled");
-                        },
-                        Err(e) => {
-                            eprintln!("Warning: Failed to add length metadata: {}", e);
-                        }
-                    }
-                    println!("Successfully extracted subtitles for: {}", video_path_obj.display());
-                }
-                Err(e) => {
-                    eprintln!("Failed to extract subtitles: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-        option if option.starts_with("whisper_") => {
-            let model_name = option.strip_prefix("whisper_").unwrap();
-            println!("Processing with Whisper model: {}...", model_name);
-            
-            // Process with Whisper
-            println!("🚀 Processing transcript for: {}", video_path);
-            match video_processor::cancellable_create_transcript(&video_path_obj).await {
+            println!("🚀 Processing {} for: {}", process_type, video_path);
+            match video_processor::cancellable_create_transcript(&video_path_obj, model, subtitle_stream_index).await {
                 Ok(true) => {
-                    // Add length metadata after successful transcript creation
+                    // Add length metadata after successful processing
                     match video_processor::cancellable_add_length_to_metadata(&video_path_obj).await {
                         Ok(true) => {},
                         Ok(false) => {
@@ -290,13 +267,13 @@ pub async fn regenerate_interactive(video_path: &str) -> Result<(), Box<dyn std:
                             eprintln!("Warning: Failed to add length metadata: {}", e);
                         }
                     }
-                    println!("Successfully created transcript for: {}", video_path_obj.display());
+                    println!("Successfully created {} for: {}", process_type, video_path_obj.display());
                 }
                 Ok(false) => {
                     println!("Processing was cancelled for: {}", video_path_obj.display());
                 }
                 Err(e) => {
-                    eprintln!("Failed to create transcript: {}", e);
+                    eprintln!("Failed to create {}: {}", process_type, e);
                     return Err(e);
                 }
             }

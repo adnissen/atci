@@ -386,7 +386,7 @@ fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
     Ok(format!("\n{}", processed_blocks.join("\n\n")))
 }
 
-pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+pub async fn cancellable_create_transcript(video_path: &Path, model: Option<String>, subtitle_stream_index: Option<i32>) -> Result<bool, Box<dyn std::error::Error>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let txt_path = video_path.with_extension("txt");
     
@@ -394,19 +394,32 @@ pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Bo
     
     // Check for subtitle streams first (if allowed)
     if cfg.allow_subtitles {
-        let streams = get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path)).await.unwrap_or_else(|e| {
-            eprintln!("Failed to check for subtitle streams: {}", e);
-            Vec::new()
-        });
-        
-        if !streams.is_empty() {
-            println!("Found subtitle streams: {:?}", streams);
-            if let Ok(()) = extract_subtitle_stream(video_path, streams[0].index, Path::new(&cfg.ffmpeg_path)).await {
+        if let Some(stream_index) = subtitle_stream_index {
+            // Use the specified subtitle stream index
+            println!("Using specified subtitle stream index: {}", stream_index);
+            if let Ok(()) = extract_subtitle_stream(video_path, stream_index as usize, Path::new(&cfg.ffmpeg_path)).await {
                 add_key_to_metadata_block(video_path, "source", "subtitles")?;
                 println!("Created transcript file: {}", txt_path.display());
                 return Ok(true);
             } else {
-                println!("Failed to extract subtitles, trying whisper transcription");
+                println!("Failed to extract specified subtitle stream, trying whisper transcription");
+            }
+        } else {
+            // Auto-detect subtitle streams
+            let streams = get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path)).await.unwrap_or_else(|e| {
+                eprintln!("Failed to check for subtitle streams: {}", e);
+                Vec::new()
+            });
+            
+            if !streams.is_empty() {
+                println!("Found subtitle streams: {:?}", streams);
+                if let Ok(()) = extract_subtitle_stream(video_path, streams[0].index, Path::new(&cfg.ffmpeg_path)).await {
+                    add_key_to_metadata_block(video_path, "source", "subtitles")?;
+                    println!("Created transcript file: {}", txt_path.display());
+                    return Ok(true);
+                } else {
+                    println!("Failed to extract subtitles, trying whisper transcription");
+                }
             }
         }
     }
@@ -482,7 +495,8 @@ pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Bo
     // Transcribe audio with cancellation check
     println!("Transcribing audio");
     let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    let model_path = home_dir.join(".atci/models").join(format!("{}.bin", cfg.model_name));
+    let model_name = model.as_ref().unwrap_or(&cfg.model_name);
+    let model_path = home_dir.join(".atci/models").join(format!("{}.bin", model_name));
     
     let mut child = Command::new(&cfg.whispercli_path)
         .args(&[
@@ -534,7 +548,7 @@ pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Bo
         fs::rename(&vtt_path, &txt_path)?;
         let _ = fs::remove_file(&audio_path);
         
-        add_key_to_metadata_block(video_path, "source", &cfg.model_name)?;
+        add_key_to_metadata_block(video_path, "source", model_name)?;
         println!("Successfully created transcript: {}", txt_path.display());
     }
     
