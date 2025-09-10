@@ -5,16 +5,14 @@ import ClipPlayer from '../components/ClipPlayer'
 import ConfigPage from './ConfigPage'
 import QueuePage from './QueuePage'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useLSState } from '../hooks/useLSState'
 import { useIsSmallScreen } from '../hooks/useMediaQuery'
 import { addTimestamp } from '../lib/utils'
-import { FileProvider, useFileContext } from '../contexts/FileContext'
+import { useFileContext } from '../contexts/FileContext'
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-  DrawerClose,
 } from '../components/ui/drawer'
 
 // Type definitions
@@ -50,11 +48,9 @@ function HomePageContent() {
   const [activeSearchTerm, setActiveSearchTerm] = useState('')
   const [searchLineNumbers, setSearchLineNumbers] = useState<Record<string, number[]>>({})
   const [isSearching, setIsSearching] = useState(false)
-  const [regeneratingFiles, setRegeneratingFiles] = useState<Set<string>>(new Set())
   const [queue] = useState<QueueItem[]>([])
   const [currentProcessingFile] = useState<QueueItem | null>(null)
-  const [watchDirectory, setWatchDirectory] = useState<string>('TODO delete')
-  const [replacingFiles, setReplacingFiles] = useState<Set<string>>(new Set())
+  const [watchDirectory] = useState<string>('TODO delete')
   const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
 
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
@@ -122,89 +118,6 @@ function HomePageContent() {
     }
   }
 
-  // Handle collapse all expanded files
-  const handleCollapseAll = () => {
-    // Scroll to the top of the left pane container
-    const leftPaneContainer = leftPaneRef.current
-    if (leftPaneContainer) {
-      leftPaneContainer.scrollTo({ 
-        top: 0, 
-        behavior: 'smooth' 
-      })
-    }
-    
-    setExpandedFiles(new Set())
-  }
-
-  // Handle collapse - find the transcript row closest to the top of the screen and collapse it
-  const handleCollapseExpanded = () => {
-    const leftPaneContainer = leftPaneRef.current
-    if (!leftPaneContainer || expandedFiles.size === 0) {
-      return
-    }
-    
-    const containerRect = leftPaneContainer.getBoundingClientRect()
-    const topBarHeight = watchDirectory ? 64 : 0
-    const viewportTop = containerRect.top + topBarHeight // Account for top bar
-    
-    let closestFile = null
-    let closestDistance = Infinity
-    
-    // Check all expanded files to find the one with a transcript row closest to the top
-    expandedFiles.forEach(filename => {
-      const transcriptRow = transcriptRowRefs.current[filename]
-      const mobileTranscriptRow = mobileTranscriptRowRefs.current[filename]
-      if (transcriptRow) {
-
-        const transcriptRect = transcriptRow.getBoundingClientRect()
-        // Use the top edge of the transcript row
-        const distanceFromTop = Math.abs(transcriptRect.top - viewportTop)
-        
-        if (distanceFromTop < closestDistance) {
-          closestDistance = distanceFromTop
-          closestFile = filename
-        }
-      } else if (mobileTranscriptRow) {
-        const mobileTranscriptRect = mobileTranscriptRow.getBoundingClientRect()
-        const distanceFromTop = Math.abs(mobileTranscriptRect.top - viewportTop)
-
-        if (distanceFromTop < closestDistance) {
-          closestDistance = distanceFromTop
-          closestFile = filename
-        }
-      }
-    })
-    
-    if (closestFile) {
-      const targetFile = closestFile
-      
-      // First scroll to the file row in the left pane container
-      const rowElement = fileRowRefs.current[targetFile] || mobileTranscriptRowRefs.current[targetFile]
-      
-      if (rowElement && leftPaneContainer) {
-        // Calculate the position relative to the scrollable container
-        const rowRect = rowElement.getBoundingClientRect()
-        const currentScrollTop = leftPaneContainer.scrollTop
-        
-        // Calculate where to scroll to position the row with top bar offset
-        const targetScrollTop = currentScrollTop + (rowRect.top - containerRect.top) - topBarHeight
-
-        leftPaneContainer.scrollTo({ 
-          top: targetScrollTop, 
-          behavior: 'smooth' 
-        })
-      }
-      
-      // Wait for scroll to complete, then collapse the row
-      setTimeout(() => {
-        setExpandedFiles(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(targetFile)
-          return newSet
-        })
-      }, 500) // Wait for smooth scroll to complete (typically 300-500ms)
-    }
-  }
 
   const handleSearch = async () => {
     if (!searchTerm.trim()) {
@@ -491,7 +404,7 @@ function HomePageContent() {
             onEndTimeChange={handleEndTimeChange}
             onBack={() => {
               if (isSmallScreen) {
-                setMobileClipPlayerComponent(null)
+                handleSetRightPaneComponent(null)
                 setIsAtTop(true)
                 setTimeout(() => {
                   if (leftPaneRef.current) {
@@ -567,12 +480,12 @@ function HomePageContent() {
         setActiveSearchTerm={setActiveSearchTerm}
         setSearchLineNumbers={setSearchLineNumbers}
         setExpandedFiles={setExpandedFiles}
-        expandedFiles={expandedFiles}
         isSearching={isSearching}
         queue={queue}
         currentProcessingFile={currentProcessingFile}
         isAtTop={isAtTop}
-        showingTranscriptList={showingTranscriptList}
+        clipStart={clipStart}
+        clipEnd={clipEnd}
         selectedWatchDirs={selectedWatchDirs}
         setSelectedWatchDirs={() => {}}
         availableWatchDirs={[]}
@@ -584,13 +497,8 @@ function HomePageContent() {
         onSearch={handleSearch}
         onClearSearch={handleClearSearch}
         onScrollToTop={handleScrollToTop}
-        onCollapseExpanded={handleCollapseExpanded}
-        onCollapseAll={handleCollapseAll}
         onConfigClick={handleConfigClick}
         onQueueClick={handleQueueClick}
-        clipStart={clipStart}
-        clipEnd={clipEnd}
-        clipTranscript={clipTranscript}
         mobileClipPlayerComponent={null}
         onPlayClip={handlePlayClip}
       />
@@ -606,10 +514,6 @@ function HomePageContent() {
           setSearchLineNumbers={setSearchLineNumbers}
           expandedFiles={expandedFiles}
           setExpandedFiles={setExpandedFiles}
-          regeneratingFiles={regeneratingFiles}
-          setRegeneratingFiles={setRegeneratingFiles}
-          replacingFiles={replacingFiles}
-          setReplacingFiles={setReplacingFiles}
           transcriptData={transcriptData}
           setTranscriptData={setTranscriptData}
           currentProcessingFile={currentProcessingFile}

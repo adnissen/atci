@@ -18,6 +18,7 @@ import {
 import TranscriptView from './TranscriptView'
 import DualEditDialog from './DualEditDialog'
 import MobileTranscriptList from './MobileTranscriptList'
+import RegenerateModal from './RegenerateModal'
 import { useEffect, useState } from 'react'
 import { useLSState } from '../hooks/useLSState'
 import { addTimestamp } from '../lib/utils'
@@ -45,10 +46,6 @@ interface TranscriptListProps {
   setSearchLineNumbers: (lineNumbers: Record<string, number[]> | ((prev: Record<string, number[]>) => Record<string, number[]>)) => void
   expandedFiles: Set<string>
   setExpandedFiles: (files: Set<string> | ((prev: Set<string>) => Set<string>)) => void
-  regeneratingFiles: Set<string>
-  setRegeneratingFiles: (files: Set<string> | ((prev: Set<string>) => Set<string>)) => void
-  replacingFiles: Set<string>
-  setReplacingFiles: (files: Set<string> | ((prev: Set<string>) => Set<string>)) => void
   transcriptData: Record<string, TranscriptData>
   setTranscriptData: (data: Record<string, TranscriptData> | ((prev: Record<string, TranscriptData>) => Record<string, TranscriptData>)) => void
   currentProcessingFile: QueueItem | null
@@ -80,10 +77,6 @@ export default function TranscriptList({
   setSearchLineNumbers,
   expandedFiles,
   setExpandedFiles,
-  regeneratingFiles,
-  setRegeneratingFiles,
-  replacingFiles,
-  setReplacingFiles,
   transcriptData,
   setTranscriptData,
   currentProcessingFile,
@@ -111,12 +104,10 @@ export default function TranscriptList({
     refreshFiles, 
     selectedWatchDirs, 
     setSelectedWatchDirs, 
-    availableWatchDirs, 
-    setAvailableWatchDirs,
+    availableWatchDirs,
     selectedSources, 
     setSelectedSources, 
-    availableSources, 
-    setAvailableSources 
+    availableSources
   } = useFileContext()
   const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
   const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
@@ -134,6 +125,10 @@ export default function TranscriptList({
   const [newFilename, setNewFilename] = useState('')
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameError, setRenameError] = useState('')
+
+  // Regenerate modal state
+  const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false)
+  const [regenerateFilename, setRegenerateFilename] = useState('')
 
   // Helper function to check if a file is currently being processed
   const isFileBeingProcessed = (filename: string): boolean => {
@@ -271,15 +266,6 @@ export default function TranscriptList({
     }))
   }
 
-  const expandAll = (filename: string) => {
-    // [-1] and [] are slightly different:
-    // [] + a search term means there were no results at all in the file, so don't display the transcript at all
-    // [-1] + a search term means there were results, and now we want to show the whole file
-    setSearchLineNumbers((prev: Record<string, number[]>) => ({
-      ...prev,
-      [filename]: [-1]
-    }))
-  }
 
   // Handle sort column click
   const handleSort = (column: SortColumn) => {
@@ -423,30 +409,37 @@ export default function TranscriptList({
     await Promise.all(filesToFetch.map(filename => fetchTranscript(filename)))
   }
 
-  const handleRegenerate = async (filename: string, e: React.MouseEvent) => {
+  const handleRegenerateClick = (filename: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setRegenerateFilename(filename)
+    setIsRegenerateModalOpen(true)
+  }
+
+  const handleRegenerateModalSubmit = async (model?: string, subtitleStreamIndex?: number) => {
+    const mockEvent = { stopPropagation: () => {} } as React.MouseEvent
+    await handleRegenerate(regenerateFilename, mockEvent, model, subtitleStreamIndex)
+  }
+
+  const handleRegenerate = async (filename: string, e: React.MouseEvent, model?: string, subtitleStreamIndex?: number) => {
     e.stopPropagation()
     
-    // Add to regenerating set immediately for UI feedback
-    setRegeneratingFiles(prev => new Set(prev).add(filename))
     const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
 
     try {
+      const requestBody: any = { video_path: filename }
+      if (model) requestBody.model = model
+      if (subtitleStreamIndex !== undefined) requestBody.subtitle_stream_index = subtitleStreamIndex
+
       const response = await fetch(addTimestamp(`/api/transcripts/regenerate`), {
         method: 'POST',
         headers: {
           'X-CSRF-Token': csrfToken || '',
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ video_path: filename })
+        body: JSON.stringify(requestBody)
       })
       
       if (!response.ok) {
-        // Remove from regenerating set if request failed
-        setRegeneratingFiles(prev => {
-          const newSet = new Set(prev)
-          newSet.delete(filename)
-          return newSet
-        })
         
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         console.error('Failed to regenerate transcript:', errorData.error)
@@ -456,12 +449,6 @@ export default function TranscriptList({
         await refreshFiles()
       }
     } catch (error) {
-      // Remove from regenerating set if request failed
-      setRegeneratingFiles(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(filename)
-        return newSet
-      })
       console.error('Regeneration error:', error)
       alert('Error regenerating transcript. Please try again.')
     }
@@ -470,8 +457,6 @@ export default function TranscriptList({
   const handleReplace = async (filename: string, e: React.MouseEvent) => {
     e.stopPropagation()
     
-    // Add to replacing set immediately for UI feedback
-    setReplacingFiles(prev => new Set(prev).add(filename))
     
     try {
       // Fetch the current transcript
@@ -493,12 +478,6 @@ export default function TranscriptList({
       console.error('Error fetching transcript for replacement:', error)
       alert('Error loading transcript. Please try again.')
     } finally {
-      // Remove from replacing set
-      setReplacingFiles(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(filename)
-        return newSet
-      })
     }
   }
 
@@ -635,42 +614,6 @@ export default function TranscriptList({
     setRenameError('')
   }
 
-  const handleRegenerateMeta = async (filename: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    
-    // Add to regenerating set for UI feedback
-    setRegeneratingFiles(prev => new Set(prev).add(filename))
-    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-
-    try {
-      const response = await fetch(addTimestamp(`/regenerate-meta/${encodeURIComponent(filename)}`), {
-        method: 'POST',
-        headers: {
-          'X-CSRF-Token': csrfToken || '',
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      if (response.ok) {
-        // Refresh files to show updated meta
-        await refreshFiles()
-      } else {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-        console.error('Failed to regenerate meta file:', errorData.error)
-        alert(`Failed to regenerate meta file: ${errorData.error}`)
-      }
-    } catch (error) {
-      console.error('Meta regeneration error:', error)
-      alert('Error regenerating meta file. Please try again.')
-    } finally {
-      // Remove from regenerating set
-      setRegeneratingFiles(prev => {
-        const newSet = new Set(prev)
-        newSet.delete(filename)
-        return newSet
-      })
-    }
-  }
 
   const handleWatchDirToggle = (dir: string) => {
     setSelectedWatchDirs((prev: string[]) => {
@@ -986,8 +929,6 @@ export default function TranscriptList({
               showAllFiles={showAllFiles}
               transcriptData={transcriptData}
               expandedFiles={expandedFiles}
-              regeneratingFiles={regeneratingFiles}
-              replacingFiles={replacingFiles}
               searchLineNumbers={searchLineNumbers}
 
               onExpandFile={(filename) => {
@@ -996,17 +937,14 @@ export default function TranscriptList({
                   handleExpandFile(filename)
                 }
               }}
-              onRegenerate={handleRegenerate}
+              onRegenerate={handleRegenerateClick}
               onReplace={handleReplace}
               onRename={handleRename}
-              onRegenerateMeta={handleRegenerateMeta}
               onFetchTranscript={fetchTranscript}
               onSetRightPaneUrl={onSetRightPaneUrl}
-              isFileBeingProcessed={isFileBeingProcessed}
               formatDate={(dateString: string) => formatDate(dateString, leftPaneWidth >= 1129)}
               getModelChipColor={getModelChipColor}
               expandContext={expandContext}
-              expandAll={expandAll}
               clipStart={clipStart}
               clipEnd={clipEnd}
               clipTranscript={clipTranscript}
@@ -1228,7 +1166,7 @@ export default function TranscriptList({
                         {/* Only show regenerate option if transcript exists */}
                         {file.transcript && (
                           <DropdownMenuItem
-                            onClick={(e) => handleRegenerate(file.full_path, e)}
+                            onClick={(e) => handleRegenerateClick(file.full_path, e)}
                             disabled={!file.transcript}
                             className="text-green-600 hover:text-green-700"
                           >
@@ -1275,8 +1213,7 @@ export default function TranscriptList({
                     error={transcriptInfo.error}
                     visibleLines={searchLineNumbers[file.full_path] || []}
                     expandContext={expandContext}
-                    expandAll={expandAll}
-                    onEditSuccess={() => { fetchTranscript(file.full_path) }}
+                          onEditSuccess={() => { fetchTranscript(file.full_path) }}
                     onSetRightPaneUrl={onSetRightPaneUrl}
                     clipStart={clipStart}
                     clipEnd={clipEnd}
@@ -1365,6 +1302,14 @@ export default function TranscriptList({
           </div>
         </div>
       )}
+
+      {/* Regenerate Modal */}
+      <RegenerateModal
+        isOpen={isRegenerateModalOpen}
+        videoPath={regenerateFilename}
+        onClose={() => setIsRegenerateModalOpen(false)}
+        onRegenerate={handleRegenerateModalSubmit}
+      />
     </>
   )
 }

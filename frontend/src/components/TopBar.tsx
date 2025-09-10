@@ -3,12 +3,6 @@ import { Button } from "./ui/button"
 import { useState } from "react"
 import { useIsSmallScreen } from "../hooks/useMediaQuery"
 import SearchPopup from "./SearchPopup"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "./ui/dropdown-menu"
 
 interface TopBarProps {
   show: boolean
@@ -18,15 +12,12 @@ interface TopBarProps {
   setActiveSearchTerm: (term: string) => void
   setSearchLineNumbers: (lineNumbers: Record<string, number[]>) => void
   setExpandedFiles: (files: Set<string>) => void
-  expandedFiles: Set<string>
   isSearching: boolean
   queue: Array<{ video_path: string; process_type: string }>
   currentProcessingFile: { video_path: string; process_type: string } | null
   isAtTop: boolean
-  showingTranscriptList: boolean
   clipStart?: number | null
   clipEnd?: number | null
-  clipTranscript?: string | null
   mobileClipPlayerComponent?: React.ReactNode | null
   selectedWatchDirs: string[]
   setSelectedWatchDirs: (dirs: string[]) => void
@@ -39,8 +30,6 @@ interface TopBarProps {
   onSearch: () => void
   onClearSearch: () => void
   onScrollToTop: () => void
-  onCollapseExpanded: () => void
-  onCollapseAll: () => void
   onConfigClick: () => void
   onQueueClick: () => void
   onPlayClip?: () => void
@@ -54,14 +43,11 @@ export default function TopBar({
   setActiveSearchTerm,
   setSearchLineNumbers,
   setExpandedFiles,
-  expandedFiles,
   isSearching,
   queue,
   isAtTop,
-  showingTranscriptList,
   clipStart,
   clipEnd,
-  clipTranscript,
   mobileClipPlayerComponent,
   selectedWatchDirs,
   setSelectedWatchDirs,
@@ -74,8 +60,6 @@ export default function TopBar({
   onSearch,
   onClearSearch,
   onScrollToTop,
-  onCollapseExpanded,
-  onCollapseAll,
   onConfigClick,
   onQueueClick,
   onPlayClip
@@ -91,13 +75,6 @@ export default function TopBar({
     onClearSearch()
   }
 
-  const handleMobileSearch = () => {
-    if (window.innerWidth < 640) { // sm breakpoint
-      setShowSearchPopup(true)
-    } else {
-      onSearch()
-    }
-  }
 
   return (
     <>

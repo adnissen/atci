@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Card, CardHeader, CardContent, CardFooter } from './ui/card'
 import {
   DropdownMenu,
@@ -6,6 +6,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem,
 } from './ui/dropdown-menu'
+import RegenerateModal from './RegenerateModal'
 
 interface FileRow {
   name: string
@@ -27,7 +28,7 @@ interface FileCardProps {
   isReplacing: boolean
   isProcessing: boolean
 
-  onRegenerate: (e: React.MouseEvent) => void
+  onRegenerate: (e: React.MouseEvent, model?: string, subtitleStreamIndex?: number) => void
   onReplace: (e: React.MouseEvent) => void
   onRename: (e: React.MouseEvent) => void
   onRegenerateMeta: (e: React.MouseEvent) => void
@@ -54,10 +55,21 @@ export default function FileCard({
   isSmallScreen = false,
   mobileTranscriptRowRefs,
 }: FileCardProps) {
+  const [isRegenerateModalOpen, setIsRegenerateModalOpen] = useState(false)
   const filename = file.name.split('/').pop()?.split('\\').pop() || file.name
 
+  const handleRegenerateClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setIsRegenerateModalOpen(true)
+  }
+
+  const handleRegenerateModalSubmit = async (model?: string, subtitleStreamIndex?: number) => {
+    const mockEvent = { stopPropagation: () => {} } as React.MouseEvent
+    await onRegenerate(mockEvent, model, subtitleStreamIndex)
+  }
+
   if (isSmallScreen) {
-    return (
+    const mobileCard = (
       <div className="w-full bg-background py-4 px-4">
         <div className="flex justify-between items-start mb-3">
           <div className="flex-1 mr-2 min-w-0 text-left" id="ref" ref={(el) => { mobileTranscriptRowRefs.current[file.base_name] = el }}>
@@ -113,7 +125,7 @@ export default function FileCard({
               
               {file.transcript && (
                 <DropdownMenuItem
-                  onClick={(e) => onRegenerate(e)}
+                  onClick={handleRegenerateClick}
                   disabled={isRegenerating}
                   className="text-green-600 hover:text-green-700"
                 >
@@ -211,9 +223,21 @@ export default function FileCard({
         )}
       </div>
     )
+
+    return (
+      <>
+        {mobileCard}
+        <RegenerateModal
+          isOpen={isRegenerateModalOpen}
+          videoPath={file.full_path || file.name}
+          onClose={() => setIsRegenerateModalOpen(false)}
+          onRegenerate={handleRegenerateModalSubmit}
+        />
+      </>
+    )
   }
 
-  return (
+  const desktopCard = (
     <Card className="w-full">
       <CardHeader className="pb-3">
         <div className="flex justify-between items-start">
@@ -268,7 +292,7 @@ export default function FileCard({
               
               {file.transcript && (
                 <DropdownMenuItem
-                  onClick={(e) => onRegenerate(e)}
+                  onClick={handleRegenerateClick}
                   disabled={isRegenerating}
                   className="text-green-600 hover:text-green-700"
                 >
@@ -368,5 +392,17 @@ export default function FileCard({
         </CardFooter>
       )}
     </Card>
+  )
+
+  return (
+    <>
+      {desktopCard}
+      <RegenerateModal
+        isOpen={isRegenerateModalOpen}
+        videoPath={file.full_path || file.name}
+        onClose={() => setIsRegenerateModalOpen(false)}
+        onRegenerate={handleRegenerateModalSubmit}
+      />
+    </>
   )
 }

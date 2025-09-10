@@ -12,7 +12,6 @@ interface TranscriptViewProps {
   error?: string | null;
   visibleLines?: number[];
   expandContext: (filename: string, direction: "up" | "down", line: number) => void;
-  expandAll?: ((filename: string) => void) | undefined;
   onEditSuccess?: () => void;
   isSmallScreen?: boolean;
   onSetRightPaneUrl?: (component: React.ReactNode | null, fallbackUrl?: string) => void;
@@ -54,7 +53,6 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   error = null,
   visibleLines = [],
   expandContext,
-  expandAll = undefined,
   onEditSuccess,
   isSmallScreen = false,
   onSetRightPaneUrl,
@@ -164,9 +162,6 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     const result: Array<{ type: 'block' | 'message'; data: TranscriptBlockData | { count: number, line: number, direction: "up" | "down" } }> = [];
     let hiddenCount = 0;
 
-    // Pre-compute visible blocks for faster lookup
-    const visibleBlocks = transcriptBlocks.filter(block => block.visible);
-    const visibleBlockIndices = new Set(visibleBlocks.map(block => block.originalIndex));
 
     for (let i = 0; i < transcriptBlocks.length; i++) {
       const block = transcriptBlocks[i];
@@ -219,11 +214,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     expandContext(fullPath, direction, line);
   }
 
-  const handleExpandAll = () => {
-    if (expandAll) {
-      expandAll(name);
-    }
-  }
+
 
   if (!visible) {
     return null;
@@ -255,7 +246,7 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
                 scrollBehavior: 'smooth' // Smooth scrolling on other browsers
               }}
             >
-              {allBlocks.map((item, index) => (
+              {allBlocks.map((item) => (
                 <div key={item.type === 'block' ? `${(item.data as TranscriptBlockData).originalIndex}-${item.virtualIndex}` : `message-${item.virtualIndex}`}>
                   {item.type === 'block' ? (
                     <TranscriptBlock

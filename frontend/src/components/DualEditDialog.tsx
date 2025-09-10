@@ -1,5 +1,4 @@
 import React from 'react';
-import { addTimestamp } from '../lib/utils';
 
 interface DualEditDialogProps {
   isOpen: boolean;
