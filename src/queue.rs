@@ -103,7 +103,7 @@ pub fn set_queue(paths: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn add_to_queue(path: &str, model: Option<String>, subtitle_stream_index: Option<i32>) -> Result<(), Box<dyn std::error::Error>> {
     let conn = db::get_connection()?;
 
     // Check if this path is currently being processed
@@ -132,7 +132,7 @@ pub fn add_to_queue(path: &str) -> Result<(), Box<dyn std::error::Error>> {
     
     conn.execute(
         "INSERT INTO queue (position, path, model, subtitle_stream_index) VALUES (?1, ?2, ?3, ?4)",
-        (next_position, path, None::<String>, None::<i64>),
+        (next_position, path, model, subtitle_stream_index.map(|i| i as i64)),
     )?;
 
     Ok(())
@@ -317,23 +317,19 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
             return Ok(true);
         }
         
-        let txt_path = video_path.with_extension("txt");
-        
-        // Create transcript with cancellation support. do not overwrite existing text files if they exist
-        if !txt_path.exists() {
-            match video_processor::cancellable_create_transcript(video_path, false).await {
-                Ok(true) => {
-                    // Successfully created transcript, continue
-                }
-                Ok(false) => {
-                    // Cancelled, exit early
-                    println!("Processing cancelled for: {}", video_path_str);
-                    return Ok(true);
-                }
-                Err(e) => {
-                    eprintln!("Error creating transcript for {}: {}", video_path_str, e);
-                    return Ok(true);
-                }
+        // Create transcript with cancellation support
+        match video_processor::cancellable_create_transcript(video_path).await {
+            Ok(true) => {
+                // Successfully created transcript, continue
+            }
+            Ok(false) => {
+                // Cancelled, exit early
+                println!("Processing cancelled for: {}", video_path_str);
+                return Ok(true);
+            }
+            Err(e) => {
+                eprintln!("Error creating transcript for {}: {}", video_path_str, e);
+                return Ok(true);
             }
         }
         
@@ -439,7 +435,7 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
             }).flatten().collect();
 
             for file_to_add in files_to_add {
-                if let Err(e) = add_to_queue(&file_to_add) {
+                if let Err(e) = add_to_queue(&file_to_add, None, None) {
                     eprintln!("Error adding to queue: {}", e);
                 }
             }

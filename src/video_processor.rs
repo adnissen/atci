@@ -386,13 +386,9 @@ fn parse_srt_content(srt_path: &Path) -> Result<String, String> {
     Ok(format!("\n{}", processed_blocks.join("\n\n")))
 }
 
-pub async fn cancellable_create_transcript(video_path: &Path, overwrite: bool) -> Result<bool, Box<dyn std::error::Error>> {
+pub async fn cancellable_create_transcript(video_path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let txt_path = video_path.with_extension("txt");
-    
-    if txt_path.exists() && !overwrite {
-        return Ok(true); // Already exists, no need to create
-    }
     
     println!("Creating transcript for: {}", video_path.display());
     

@@ -12,6 +12,7 @@ use crate::auth::AuthGuard;
 use dialoguer::Select;
 use crate::video_processor;
 use crate::model_manager;
+use crate::queue;
 
 pub fn get_transcript(video_path: &str) -> Result<String, Box<dyn std::error::Error>> {
     let video_path_obj = Path::new(video_path);
@@ -98,20 +99,8 @@ pub fn set(video_path: &str, new_content: &str) -> Result<(), Box<dyn std::error
     set_with_config(video_path, new_content, &config)
 }
 
-pub fn regenerate(video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let video_path_obj = Path::new(video_path);
-    let txt_path = video_path_obj.with_extension("txt");
-    
-    let mut deleted_files = Vec::new();
-    
-    if txt_path.exists() {
-        fs::remove_file(&txt_path)?;
-        deleted_files.push("transcript");
-    }
-    
-    if deleted_files.is_empty() {
-        return Err("No transcript files found to delete".into());
-    }
+pub fn regenerate(video_path: &str, model: Option<String>, subtitle_stream_index: Option<i32>) -> Result<(), Box<dyn std::error::Error>> {
+    queue::add_to_queue(video_path, model, subtitle_stream_index)?;
 
     files::get_and_save_video_info_from_disk()?;
     
@@ -289,7 +278,7 @@ pub async fn regenerate_interactive(video_path: &str) -> Result<(), Box<dyn std:
             
             // Process with Whisper
             println!("🚀 Processing transcript for: {}", video_path);
-            match video_processor::cancellable_create_transcript(&video_path_obj, true).await {
+            match video_processor::cancellable_create_transcript(&video_path_obj).await {
                 Ok(true) => {
                     // Add length metadata after successful transcript creation
                     match video_processor::cancellable_add_length_to_metadata(&video_path_obj).await {
@@ -329,6 +318,8 @@ pub struct ReplaceTranscriptRequest {
 #[derive(Deserialize)]
 pub struct RegenerateTranscriptRequest {
     pub video_path: String,
+    pub model: Option<String>,
+    pub subtitle_stream_index: Option<i32>,
 }
 
 #[derive(Deserialize)]
@@ -355,7 +346,7 @@ pub fn web_replace_transcript(_auth: AuthGuard, request: Json<ReplaceTranscriptR
 
 #[post("/api/transcripts/regenerate", data = "<request>")]
 pub fn web_regenerate_transcript(_auth: AuthGuard, request: Json<RegenerateTranscriptRequest>) -> Json<ApiResponse<String>> {
-    match regenerate(&request.video_path) {
+    match regenerate(&request.video_path, request.model.clone(), request.subtitle_stream_index) {
         Ok(_) => Json(ApiResponse::success("Transcript regenerated successfully".to_string())),
         Err(e) => Json(ApiResponse::error(format!("Failed to regenerate transcript: {}", e))),
     }

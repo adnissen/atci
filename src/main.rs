@@ -1181,7 +1181,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                         });
                     } else {
-                        match transcripts::regenerate(&video_path) {
+                        match transcripts::regenerate(&video_path, None, None) {
                             Ok(()) => {
                                 println!("Successfully deleted transcript files for {}", video_path);
                             }
