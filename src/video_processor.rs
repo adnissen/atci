@@ -196,7 +196,7 @@ pub async fn get_subtitle_streams(video_path: &Path, ffprobe_path: &Path) -> Res
                         if parts.len() >= 3 && parts[2] == "subtitle" {
                             if let Ok(index) = parts[0].parse::<usize>() {
                                 let language = if parts.len() > 3 && !parts[3].is_empty() && parts[3] != "N/A" {
-                                    Some(parts[3].to_string())
+                                    Some(expand_language_code(parts[3]))
                                 } else {
                                     None
                                 };
