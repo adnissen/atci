@@ -171,8 +171,15 @@ pub fn search(query: &str, filter: Option<&Vec<String>>) -> Result<Vec<SearchRes
 }
 
 #[get("/api/search?<query>&<filter>")]
-pub fn web_search_transcripts(_auth: AuthGuard, query: String, filter: Option<Vec<String>>) -> Json<ApiResponse<serde_json::Value>> {
-    match search(&query, filter.as_ref()) {
+pub fn web_search_transcripts(_auth: AuthGuard, query: String, filter: Option<String>) -> Json<ApiResponse<serde_json::Value>> {
+    let parsed_filter = filter.map(|f| {
+        f.split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<String>>()
+    });
+    
+    match search(&query, parsed_filter.as_ref()) {
         Ok(results) => Json(ApiResponse::success(serde_json::to_value(results).unwrap_or_default())),
         Err(e) => Json(ApiResponse::error(format!("Search failed: {}", e))),
     }

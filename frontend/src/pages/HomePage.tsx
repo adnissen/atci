@@ -41,7 +41,24 @@ type QueueItem = {
 
 function HomePageContent() {
   const isSmallScreen = useIsSmallScreen()
-  const { selectedWatchDirs, selectedSources, setFiles, refreshFiles, showAllFiles, setShowAllFiles } = useFileContext()
+  const { 
+    selectedWatchDirs, 
+    selectedSources, 
+    setFiles, 
+    refreshFiles, 
+    showAllFiles, 
+    setShowAllFiles,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    sortColumn,
+    setSortColumn,
+    sortDirection,
+    setSortDirection,
+    totalPages,
+    totalRecords
+  } = useFileContext()
   
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
@@ -387,6 +404,113 @@ function HomePageContent() {
     setClipText(text)
   }
 
+  // Pagination handlers
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize)
+    setPage(0) // Reset to first page when changing page size
+  }
+
+  // Pagination component
+  const PaginationControls = ({ className = "" }: { className?: string }) => {
+    if (!showAllFiles || totalPages <= 1) return null
+
+    const startRecord = page * pageSize + 1
+    const endRecord = Math.min((page + 1) * pageSize, totalRecords)
+
+    return (
+      <div className={`flex flex-col sm:flex-row items-center gap-2 sm:gap-4 p-4 border-t border-border bg-background ${className}`}>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="hidden sm:inline">Show</span>
+          <select 
+            value={pageSize} 
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            className="border border-border rounded px-2 py-1 bg-background text-xs sm:text-sm"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span className="hidden sm:inline">per page</span>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+          <span>
+            {startRecord}-{endRecord} of {totalRecords}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handlePageChange(0)}
+            disabled={page === 0}
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">First</span>
+            <span className="sm:hidden">«</span>
+          </button>
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 0}
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">Previous</span>
+            <span className="sm:hidden">‹</span>
+          </button>
+          
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(isSmallScreen ? 3 : 5, totalPages) }, (_, i) => {
+              let pageNum
+              const maxPages = isSmallScreen ? 3 : 5
+              if (totalPages <= maxPages) {
+                pageNum = i
+              } else if (page < Math.floor(maxPages / 2)) {
+                pageNum = i
+              } else if (page >= totalPages - Math.floor(maxPages / 2)) {
+                pageNum = totalPages - maxPages + i
+              } else {
+                pageNum = page - Math.floor(maxPages / 2) + i
+              }
+              
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => handlePageChange(pageNum)}
+                  className={`px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent min-w-0 ${ 
+                    pageNum === page ? 'bg-primary text-primary-foreground' : ''
+                  }`}
+                >
+                  {pageNum + 1}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= totalPages - 1}
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <span className="sm:hidden">›</span>
+          </button>
+          <button
+            onClick={() => handlePageChange(totalPages - 1)}
+            disabled={page >= totalPages - 1}
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">Last</span>
+            <span className="sm:hidden">»</span>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   const handlePlayClip = () => {
     if (clipStart !== null && clipEnd !== null && clipTranscript) {
       const fallbackUrl = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
@@ -505,41 +629,49 @@ function HomePageContent() {
 
       {/* Main content with top padding to account for fixed header */}
       <div className={`flex h-screen`}>
-        {/* Always show transcript list */}
-        <TranscriptList
-          watchDirectory={watchDirectory}
-          isSmallScreen={isSmallScreen}
-          activeSearchTerm={activeSearchTerm}
-          searchLineNumbers={searchLineNumbers}
-          setSearchLineNumbers={setSearchLineNumbers}
-          expandedFiles={expandedFiles}
-          setExpandedFiles={setExpandedFiles}
-          transcriptData={transcriptData}
-          setTranscriptData={setTranscriptData}
-          currentProcessingFile={currentProcessingFile}
+        {/* Left pane with transcript list and pagination */}
+        <div className="flex-1 flex flex-col">
+          {/* Always show transcript list */}
+          <div className="flex-1 overflow-y-auto">
+            <TranscriptList
+              watchDirectory={watchDirectory}
+              isSmallScreen={isSmallScreen}
+              activeSearchTerm={activeSearchTerm}
+              searchLineNumbers={searchLineNumbers}
+              setSearchLineNumbers={setSearchLineNumbers}
+              expandedFiles={expandedFiles}
+              setExpandedFiles={setExpandedFiles}
+              transcriptData={transcriptData}
+              setTranscriptData={setTranscriptData}
+              currentProcessingFile={currentProcessingFile}
 
-          leftPaneWidth={leftPaneWidth}
-          setLeftPaneWidth={setLeftPaneWidth}
-          isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}
-          setIsLeftPaneWidthMeasured={setIsLeftPaneWidthMeasured}
-          clipStart={clipStart}
-          clipEnd={clipEnd}
-          clipTranscript={clipTranscript}
-          fileRowRefs={fileRowRefs}
-          transcriptRowRefs={transcriptRowRefs}
-          mobileTranscriptRowRefs={mobileTranscriptRowRefs}
-          leftPaneRef={leftPaneRef}
-          onSetRightPaneUrl={handleSetRightPaneComponent}
-          onSetClipStart={handleSetClipStart}
-          onSetClipEnd={handleSetClipEnd}
-          onClearClip={handleClearClip}
-          onClipBlock={handleClipBlock}
-          showAllFiles={showAllFiles}
-        />
+              leftPaneWidth={leftPaneWidth}
+              setLeftPaneWidth={setLeftPaneWidth}
+              isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}
+              setIsLeftPaneWidthMeasured={setIsLeftPaneWidthMeasured}
+              clipStart={clipStart}
+              clipEnd={clipEnd}
+              clipTranscript={clipTranscript}
+              fileRowRefs={fileRowRefs}
+              transcriptRowRefs={transcriptRowRefs}
+              mobileTranscriptRowRefs={mobileTranscriptRowRefs}
+              leftPaneRef={leftPaneRef}
+              onSetRightPaneUrl={handleSetRightPaneComponent}
+              onSetClipStart={handleSetClipStart}
+              onSetClipEnd={handleSetClipEnd}
+              onClearClip={handleClearClip}
+              onClipBlock={handleClipBlock}
+              showAllFiles={showAllFiles}
+            />
+          </div>
+          
+          {/* Bottom pagination - only show when viewing all files */}
+          <PaginationControls />
+        </div>
         
         {/* Right Pane - Always visible on desktop */}
         {!isSmallScreen && (
-          <div className={`w-1/2 border-l border-border flex flex-col scrollbar-hide pt-16`}>
+          <div className={`w-1/3 border-l border-border flex flex-col scrollbar-hide pt-16`}>
             {showConfigInRightPane ? (
               <ConfigPage onClose={handleCloseConfig} />
             ) : showQueueInRightPane ? (

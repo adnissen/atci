@@ -107,10 +107,16 @@ export default function TranscriptList({
     availableWatchDirs,
     selectedSources, 
     setSelectedSources, 
-    availableSources
+    availableSources,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    sortColumn,
+    setSortColumn,
+    sortDirection,
+    setSortDirection,
   } = useFileContext()
-  const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
-  const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
   const [isBulkRegenerating, setIsBulkRegenerating] = useState(false)
 
   // Replace transcript dialog state
