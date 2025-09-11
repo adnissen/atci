@@ -630,7 +630,7 @@ function HomePageContent() {
           <PaginationControls className="border-b" />
           
           {/* Always show transcript list */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-y-auto">
             <TranscriptList
               watchDirectory={watchDirectory}
               isSmallScreen={isSmallScreen}
