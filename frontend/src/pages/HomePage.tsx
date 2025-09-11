@@ -422,25 +422,25 @@ function HomePageContent() {
     const endRecord = Math.min((page + 1) * pageSize, totalRecords)
 
     return (
-      <div className={`flex items-center justify-between gap-4 p-4 border-t border-border bg-background ${className}`}>
+      <div className={`flex flex-col sm:flex-row items-center gap-2 sm:gap-4 p-4 border-t border-border bg-background ${className}`}>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>Show</span>
+          <span className="hidden sm:inline">Show</span>
           <select 
             value={pageSize} 
             onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-            className="border border-border rounded px-2 py-1 bg-background"
+            className="border border-border rounded px-2 py-1 bg-background text-xs sm:text-sm"
           >
             <option value={10}>10</option>
             <option value={25}>25</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
           </select>
-          <span>per page</span>
+          <span className="hidden sm:inline">per page</span>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
           <span>
-            {startRecord}-{endRecord} of {totalRecords} files
+            {startRecord}-{endRecord} of {totalRecords}
           </span>
         </div>
 
@@ -448,36 +448,39 @@ function HomePageContent() {
           <button
             onClick={() => handlePageChange(0)}
             disabled={page === 0}
-            className="px-3 py-1 text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            First
+            <span className="hidden sm:inline">First</span>
+            <span className="sm:hidden">«</span>
           </button>
           <button
             onClick={() => handlePageChange(page - 1)}
             disabled={page === 0}
-            className="px-3 py-1 text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Previous
+            <span className="hidden sm:inline">Previous</span>
+            <span className="sm:hidden">‹</span>
           </button>
           
           <div className="flex items-center gap-1">
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+            {Array.from({ length: Math.min(isSmallScreen ? 3 : 5, totalPages) }, (_, i) => {
               let pageNum
-              if (totalPages <= 5) {
+              const maxPages = isSmallScreen ? 3 : 5
+              if (totalPages <= maxPages) {
                 pageNum = i
-              } else if (page < 3) {
+              } else if (page < Math.floor(maxPages / 2)) {
                 pageNum = i
-              } else if (page >= totalPages - 3) {
-                pageNum = totalPages - 5 + i
+              } else if (page >= totalPages - Math.floor(maxPages / 2)) {
+                pageNum = totalPages - maxPages + i
               } else {
-                pageNum = page - 2 + i
+                pageNum = page - Math.floor(maxPages / 2) + i
               }
               
               return (
                 <button
                   key={pageNum}
                   onClick={() => handlePageChange(pageNum)}
-                  className={`px-3 py-1 text-sm border border-border rounded hover:bg-accent ${ 
+                  className={`px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent min-w-0 ${ 
                     pageNum === page ? 'bg-primary text-primary-foreground' : ''
                   }`}
                 >
@@ -490,16 +493,18 @@ function HomePageContent() {
           <button
             onClick={() => handlePageChange(page + 1)}
             disabled={page >= totalPages - 1}
-            className="px-3 py-1 text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Next
+            <span className="hidden sm:inline">Next</span>
+            <span className="sm:hidden">›</span>
           </button>
           <button
             onClick={() => handlePageChange(totalPages - 1)}
             disabled={page >= totalPages - 1}
-            className="px-3 py-1 text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Last
+            <span className="hidden sm:inline">Last</span>
+            <span className="sm:hidden">»</span>
           </button>
         </div>
       </div>
