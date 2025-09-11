@@ -626,9 +626,6 @@ function HomePageContent() {
       <div className={`flex h-screen`}>
         {/* Left pane with transcript list and pagination */}
         <div className="flex-1 flex flex-col">
-          {/* Top pagination - only show when viewing all files */}
-          <PaginationControls className="border-b" />
-          
           {/* Always show transcript list */}
           <div className="flex-1 overflow-y-auto">
             <TranscriptList
