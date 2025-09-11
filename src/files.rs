@@ -101,7 +101,7 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
     };
     
     // Determine sort direction (0 = ASC, 1 = DESC)
-    let sort_direction = if sort_order == 0 { "ASC" } else { "DESC" };
+    let sort_direction = if sort_order == 1 { "ASC" } else { "DESC" };
     
     // Calculate offset for pagination
     let offset = page * limit;
