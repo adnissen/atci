@@ -135,6 +135,8 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
     );
     
     let mut stmt = conn.prepare(&query)?;
+
+    println!("query: {}", query);
     
     // Helper closure for creating VideoInfo
     let create_video_info = |row: &rusqlite::Row| -> rusqlite::Result<VideoInfo> {
@@ -150,6 +152,8 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
             source: row.get(8)?,
         })
     };
+
+    println!("trying files query");
     
     let mut files = Vec::new();
     if params.is_empty() {
@@ -164,11 +168,15 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
             files.push(video?);
         }
     }
+
+    println!("trying sources query");
     
     let mut sources_stmt = conn.prepare("SELECT DISTINCT source FROM video_info WHERE source IS NOT NULL AND source != '' ORDER BY source")?;
     let sources_iter = sources_stmt.query_map([], |row| {
         Ok(row.get::<_, String>(0)?)
     })?;
+
+    println!("sources query done");
     
     let mut sources = Vec::new();
     for source in sources_iter {
@@ -181,6 +189,8 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
     } else {
         format!("SELECT COUNT(*) FROM video_info {}", where_clause)
     };
+
+    println!("count_query: {}", count_query);
     
     let mut count_stmt = conn.prepare(&count_query)?;
     let total_records: u32 = if params.is_empty() {
@@ -189,6 +199,8 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
         let params_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
         count_stmt.query_row(&params_refs[..], |row| row.get(0))?
     };
+
+    println!("total_records: {}", total_records);
     
     // Calculate total pages
     let total_pages = if limit > 0 {
