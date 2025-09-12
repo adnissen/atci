@@ -18,63 +18,24 @@ import { useNavigate } from 'react-router-dom'
 import { addTimestamp } from '../lib/utils'
 import { useFileContext } from '../contexts/FileContext'
 
-
-type QueueStatus = {
-  queue: string[]
-  currently_processing?: string | null
-  processing_state: string
-  age_in_seconds?: number
-}
-
 interface QueuePageProps {
   onClose?: () => void;
 }
 
 export default function QueuePage({ onClose }: QueuePageProps = {}) {
   const navigate = useNavigate()
-  const { refreshFiles } = useFileContext()
-  const [queueStatus, setQueueStatus] = useState<QueueStatus>({
-    queue: [],
-    currently_processing: null,
-    processing_state: 'idle',
-    age_in_seconds: 0
-  })
+  const { queueStatus, fetchQueueStatus } = useFileContext()
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const fetchQueueStatus = async () => {
-    try {
-      const response = await fetch(addTimestamp('/api/queue/status'))
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          //if the previous state was processing something
-          // and the incoming state is not equal to what we had
-          if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
-            // Refresh files using current filter settings
-            refreshFiles()
-          }
-          setQueueStatus(data.data)
-        } else {
-          setError(data.error)
-        }
-        setError(null)
-      } else {
-        throw new Error(`Failed to fetch queue status: ${response.status}`)
-      }
-    } catch (err) {
-      console.error('Error fetching queue status:', err)
-      setError(err instanceof Error ? err.message : 'Failed to fetch queue status')
-    } finally {
+  
+  // Initial load
+  useEffect(() => {
+    const loadInitialData = async () => {
+      await fetchQueueStatus()
       setIsLoading(false)
     }
-  }
-  // Poll for updates every two seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchQueueStatus()
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [queueStatus.currently_processing])
+    loadInitialData()
+  }, [])
 
   // Remove item from queue
   const handleRemoveItem = async (item: string) => {

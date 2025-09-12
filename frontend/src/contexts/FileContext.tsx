@@ -14,6 +14,13 @@ type FileRow = {
   source?: string
 }
 
+type QueueStatus = {
+  queue: string[]
+  currently_processing?: string | null
+  processing_state: string
+  age_in_seconds?: number
+}
+
 interface FileContextType {
   files: FileRow[]
   setFiles: (files: FileRow[]) => void
@@ -41,6 +48,10 @@ interface FileContextType {
   // Pagination metadata from API
   totalPages: number
   totalRecords: number
+  // Queue status
+  queueStatus: QueueStatus
+  setQueueStatus: (status: QueueStatus | ((prev: QueueStatus) => QueueStatus)) => void
+  fetchQueueStatus: () => Promise<void>
 }
 
 const FileContext = createContext<FileContextType | undefined>(undefined)
@@ -76,6 +87,14 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
   // Pagination metadata from API
   const [totalPages, setTotalPages] = useState<number>(0)
   const [totalRecords, setTotalRecords] = useState<number>(0)
+  
+  // Queue status
+  const [queueStatus, setQueueStatus] = useState<QueueStatus>({
+    queue: [],
+    currently_processing: null,
+    processing_state: 'idle',
+    age_in_seconds: 0
+  })
 
   const refreshFiles = async (watchDirs?: string[], sources?: string[]) => {
     // Use provided parameters or fall back to context state
@@ -119,6 +138,30 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('Error refreshing files:', error)
+    }
+  }
+
+  const fetchQueueStatus = async () => {
+    try {
+      const response = await fetch(addTimestamp('/api/queue/status'))
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          // if the previous state was processing something
+          // and the incoming state is not equal to what we had
+          if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
+            // Refresh files using current filter settings
+            refreshFiles()
+          }
+          setQueueStatus(data.data)
+        } else {
+          console.error('Queue status error:', data.error)
+        }
+      } else {
+        throw new Error(`Failed to fetch queue status: ${response.status}`)
+      }
+    } catch (err) {
+      console.error('Error fetching queue status:', err)
     }
   }
 
@@ -167,6 +210,14 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     }
   }, [selectedWatchDirs, selectedSources, showAllFiles, page, pageSize, sortColumn, sortDirection])
 
+  // Poll for queue updates every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchQueueStatus()
+    }, 1000)
+    return () => clearInterval(interval)
+  }, [queueStatus.currently_processing])
+
   const value: FileContextType = {
     files,
     setFiles,
@@ -194,6 +245,10 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     // Pagination metadata
     totalPages,
     totalRecords,
+    // Queue status
+    queueStatus,
+    setQueueStatus,
+    fetchQueueStatus,
   }
 
   return <FileContext.Provider value={value}>{children}</FileContext.Provider>
