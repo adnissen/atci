@@ -18,19 +18,21 @@ impl<'r> FromRequest<'r> for AuthGuard {
 
         // Check cookie first
         if let Some(cookie) = request.cookies().get("auth_token")
-            && cookie.value() == password {
-                return Outcome::Success(AuthGuard);
-            }
+            && cookie.value() == password
+        {
+            return Outcome::Success(AuthGuard);
+        }
 
         // Check basic auth
         if let Some(auth_header) = request.headers().get_one("Authorization")
             && let Some(basic_auth) = auth_header.strip_prefix("Basic ")
-                && let Ok(decoded) = general_purpose::STANDARD.decode(basic_auth)
-                    && let Ok(credentials) = String::from_utf8(decoded)
-                        && let Some((_username, auth_password)) = credentials.split_once(':')
-                            && auth_password == password {
-                                return Outcome::Success(AuthGuard);
-                            }
+            && let Ok(decoded) = general_purpose::STANDARD.decode(basic_auth)
+            && let Ok(credentials) = String::from_utf8(decoded)
+            && let Some((_username, auth_password)) = credentials.split_once(':')
+            && auth_password == password
+        {
+            return Outcome::Success(AuthGuard);
+        }
 
         Outcome::Error((Status::Unauthorized, ()))
     }

@@ -466,19 +466,19 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                                 // we want to make sure the file isn't in the process of currently being copied over to our watch directory
                                 // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
                                 if let Ok(metadata) = fs::metadata(file_path)
-                                    && let Ok(modified) = metadata.modified() {
-                                        let now = std::time::SystemTime::now();
-                                        if let Ok(duration) = now.duration_since(modified)
-                                            && duration.as_secs() >= 3 {
-                                                let txt_path = file_path.with_extension("txt");
+                                    && let Ok(modified) = metadata.modified()
+                                {
+                                    let now = std::time::SystemTime::now();
+                                    if let Ok(duration) = now.duration_since(modified)
+                                        && duration.as_secs() >= 3
+                                    {
+                                        let txt_path = file_path.with_extension("txt");
 
-                                                if !txt_path.exists() {
-                                                    return Some(
-                                                        file_path.to_string_lossy().to_string(),
-                                                    );
-                                                }
-                                            }
+                                        if !txt_path.exists() {
+                                            return Some(file_path.to_string_lossy().to_string());
+                                        }
                                     }
+                                }
                             }
                             None
                         })

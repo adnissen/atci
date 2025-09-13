@@ -95,10 +95,11 @@ fn set_with_config(
     let mut is_in_watch_dir = false;
     for watch_dir in &config.watch_directories {
         if let Ok(watch_canonical) = Path::new(watch_dir).canonicalize()
-            && video_canonical.starts_with(&watch_canonical) {
-                is_in_watch_dir = true;
-                break;
-            }
+            && video_canonical.starts_with(&watch_canonical)
+        {
+            is_in_watch_dir = true;
+            break;
+        }
     }
 
     if !is_in_watch_dir {

@@ -381,10 +381,11 @@ fn prompt_for_executable_path(
 
         // Option 2: Use system version (if available)
         if info.system_available
-            && let Some(system_path) = &info.system_path {
-                options.push(format!("Use system {} ({})", tool, system_path));
-                paths.push(system_path.clone());
-            }
+            && let Some(system_path) = &info.system_path
+        {
+            options.push(format!("Use system {} ({})", tool, system_path));
+            paths.push(system_path.clone());
+        }
 
         // Option 3: Download and use
         options.push(format!("Download and use {} (macOS arm only)", tool));
@@ -819,9 +820,10 @@ fn cleanup_pid_file() {
     let current_pid = std::process::id();
     if let Ok(pid_file_path) = get_pid_file_path(current_pid)
         && pid_file_path.exists()
-            && let Err(e) = fs::remove_file(&pid_file_path) {
-                eprintln!("Warning: Failed to remove PID file: {}", e);
-            }
+        && let Err(e) = fs::remove_file(&pid_file_path)
+    {
+        eprintln!("Warning: Failed to remove PID file: {}", e);
+    }
 }
 
 fn setup_pid_file_management() -> Result<(), Box<dyn std::error::Error>> {

@@ -84,14 +84,15 @@ pub fn load_video_info_from_cache(
     let mut video_infos = cache_data.files;
 
     if let Some(filters) = filter
-        && !filters.is_empty() {
-            video_infos.retain(|info| {
-                let full_path_lower = info.full_path.to_lowercase();
-                filters
-                    .iter()
-                    .any(|f| full_path_lower.contains(&f.to_lowercase()))
-            });
-        }
+        && !filters.is_empty()
+    {
+        video_infos.retain(|info| {
+            let full_path_lower = info.full_path.to_lowercase();
+            filters
+                .iter()
+                .any(|f| full_path_lower.contains(&f.to_lowercase()))
+        });
+    }
 
     Ok(video_infos)
 }

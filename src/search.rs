@@ -70,15 +70,16 @@ pub fn search(
 
             // Apply file path filter if provided
             if let Some(filters) = filter
-                && !filters.is_empty() {
-                    let file_path_str = file_path.to_string_lossy().to_lowercase();
-                    if !filters
-                        .iter()
-                        .any(|f| file_path_str.contains(&f.trim().to_lowercase()))
-                    {
-                        return None;
-                    }
+                && !filters.is_empty()
+            {
+                let file_path_str = file_path.to_string_lossy().to_lowercase();
+                if !filters
+                    .iter()
+                    .any(|f| file_path_str.contains(&f.trim().to_lowercase()))
+                {
+                    return None;
                 }
+            }
 
             let txt_path = file_path.with_extension("txt");
 
