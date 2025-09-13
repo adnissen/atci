@@ -185,6 +185,7 @@ fn unauthorized(req: &Request) -> Result<Redirect, Status> {
 
 pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
     let figment = rocket::Config::figment()
+        .merge(("template_dir", "templates/"))
         .merge(("address", host))
         .merge(("port", port));
 
@@ -203,6 +204,7 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
 
 pub async fn launch_api_server(host: &str, port: u16) -> Result<(), rocket::Error> {
     let figment = rocket::Config::figment()
+        .merge(("template_dir", "templates/"))
         .merge(("address", host))
         .merge(("port", port));
 

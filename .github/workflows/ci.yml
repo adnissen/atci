@@ -98,23 +98,3 @@ jobs:
           name: ${{ matrix.asset_name }}
           path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}
           retention-days: 30
-
-  build-summary:
-    name: Build Summary
-    needs: [format, lint, test, build]
-    runs-on: ubuntu-latest
-    if: always()
-    steps:
-      - name: Check all jobs status
-        run: |
-          echo "Format: ${{ needs.format.result }}"
-          echo "Lint: ${{ needs.lint.result }}"
-          echo "Test: ${{ needs.test.result }}"
-          echo "Build: ${{ needs.build.result }}"
-
-          if [[ "${{ needs.format.result }}" == "failure" || "${{ needs.lint.result }}" == "failure" || "${{ needs.test.result }}" == "failure" || "${{ needs.build.result }}" == "failure" ]]; then
-            echo "❌ One or more jobs failed"
-            exit 1
-          else
-            echo "✅ All jobs passed successfully"
-          fi
