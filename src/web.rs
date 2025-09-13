@@ -13,6 +13,11 @@ use rocket::serde::Serialize;
 use rocket::serde::json::Json;
 use rocket::{Request, catch, catchers, get, post, response::content, routes};
 use rocket_dyn_templates::{Template, context};
+use rust_embed::RustEmbed;
+
+#[derive(RustEmbed)]
+#[folder = "templates/"]
+struct TemplateAssets;
 
 #[derive(Serialize)]
 pub struct ApiResponse<T> {
@@ -184,8 +189,22 @@ fn unauthorized(req: &Request) -> Result<Redirect, Status> {
 }
 
 pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
+    let temp_dir = std::env::temp_dir().join("atci_templates");
+    std::fs::create_dir_all(&temp_dir).expect("Failed to create temp templates directory");
+
+    // Extract embedded templates to temp directory
+    for file_path in TemplateAssets::iter() {
+        if let Some(content) = TemplateAssets::get(&file_path) {
+            let target_path = temp_dir.join(file_path.as_ref());
+            if let Some(parent) = target_path.parent() {
+                std::fs::create_dir_all(parent).expect("Failed to create template subdirectory");
+            }
+            std::fs::write(target_path, content.data.as_ref()).expect("Failed to write template file");
+        }
+    }
+
     let figment = rocket::Config::figment()
-        .merge(("template_dir", "templates/"))
+        .merge(("template_dir", temp_dir.to_string_lossy().to_string()))
         .merge(("address", host))
         .merge(("port", port));
 
@@ -203,14 +222,29 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
 }
 
 pub async fn launch_api_server(host: &str, port: u16) -> Result<(), rocket::Error> {
+    let temp_dir = std::env::temp_dir().join("atci_templates");
+    std::fs::create_dir_all(&temp_dir).expect("Failed to create temp templates directory");
+
+    // Extract embedded templates to temp directory
+    for file_path in TemplateAssets::iter() {
+        if let Some(content) = TemplateAssets::get(&file_path) {
+            let target_path = temp_dir.join(file_path.as_ref());
+            if let Some(parent) = target_path.parent() {
+                std::fs::create_dir_all(parent).expect("Failed to create template subdirectory");
+            }
+            std::fs::write(target_path, content.data.as_ref()).expect("Failed to write template file");
+        }
+    }
+
     let figment = rocket::Config::figment()
-        .merge(("template_dir", "templates/"))
+        .merge(("template_dir", temp_dir.to_string_lossy().to_string()))
         .merge(("address", host))
         .merge(("port", port));
 
     rocket::custom(figment)
         .mount("/", api_routes())
         .register("/", catchers![unauthorized])
+        .attach(Template::fairing())
         .launch()
         .await?;
 
