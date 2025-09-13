@@ -89,7 +89,7 @@ Choose a processing method:
 
 ### Prerequisites
 
-**For M-series (ARM) Mac users**: The software can automatically download and configure ffprobe, ffmpeg, whisper.cpp, and a selected whisper model for you. Just run the application and follow the guided setup in the console.
+**For Mac and Windows users**: The software can automatically download and configure ffprobe, ffmpeg, whisper.cpp, and a selected whisper model for you. Just run the application and follow the guided setup in the console.
 
 **For other users, you'll need:**
 
@@ -103,7 +103,7 @@ Choose a processing method:
 #### From a pre-built release
 
 1. **Download a prebuilt release**
-   Download the latest release from the GitHub releases page for your platform (currently the binary is only built for arm-based Macs).
+   Download the latest release from the GitHub releases page for your platform.
    
    *  For macOS 10.15 or higher you need to remove the file from quarantine.
       You can do this in the Terminal:

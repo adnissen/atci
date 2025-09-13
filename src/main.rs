@@ -388,7 +388,7 @@ fn prompt_for_executable_path(
         }
 
         // Option 3: Download and use
-        options.push(format!("Download and use {} (macOS arm only)", tool));
+        options.push(format!("Download and use {}", tool));
         paths.push("__download__".to_string());
 
         // Option 4: Enter custom path
