@@ -380,12 +380,11 @@ fn prompt_for_executable_path(
         }
 
         // Option 2: Use system version (if available)
-        if info.system_available {
-            if let Some(system_path) = &info.system_path {
+        if info.system_available
+            && let Some(system_path) = &info.system_path {
                 options.push(format!("Use system {} ({})", tool, system_path));
                 paths.push(system_path.clone());
             }
-        }
 
         // Option 3: Download and use
         options.push(format!("Download and use {} (macOS arm only)", tool));
@@ -400,7 +399,7 @@ fn prompt_for_executable_path(
         }
 
         let selection = Select::new()
-            .with_prompt(&format!("Select {} configuration", tool))
+            .with_prompt(format!("Select {} configuration", tool))
             .items(&options)
             .default(0)
             .interact()?;
@@ -414,7 +413,7 @@ fn prompt_for_executable_path(
             }
             "__custom__" => {
                 let custom_path: String = Input::new()
-                    .with_prompt(&format!("Enter path to {}", tool))
+                    .with_prompt(format!("Enter path to {}", tool))
                     .default(current_path.to_string())
                     .validate_with(|input: &String| validate_executable_path(input))
                     .interact()?;
@@ -425,7 +424,7 @@ fn prompt_for_executable_path(
     } else {
         // Fallback to simple input if tool info not found
         let custom_path: String = Input::new()
-            .with_prompt(&format!("Enter path to {}", tool))
+            .with_prompt(format!("Enter path to {}", tool))
             .default(current_path.to_string())
             .validate_with(|input: &String| validate_executable_path(input))
             .interact()?;
@@ -818,13 +817,11 @@ fn create_pid_file() -> Result<(), Box<dyn std::error::Error>> {
 
 fn cleanup_pid_file() {
     let current_pid = std::process::id();
-    if let Ok(pid_file_path) = get_pid_file_path(current_pid) {
-        if pid_file_path.exists() {
-            if let Err(e) = fs::remove_file(&pid_file_path) {
+    if let Ok(pid_file_path) = get_pid_file_path(current_pid)
+        && pid_file_path.exists()
+            && let Err(e) = fs::remove_file(&pid_file_path) {
                 eprintln!("Warning: Failed to remove PID file: {}", e);
             }
-        }
-    }
 }
 
 fn setup_pid_file_management() -> Result<(), Box<dyn std::error::Error>> {

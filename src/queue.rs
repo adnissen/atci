@@ -39,7 +39,7 @@ pub fn get_queue(conn: Option<&Connection>) -> Result<Vec<String>, Box<dyn std::
     };
 
     let mut stmt = conn.prepare("SELECT path FROM queue ORDER BY position")?;
-    let queue_iter = stmt.query_map([], |row| Ok(row.get::<_, String>(0)?))?;
+    let queue_iter = stmt.query_map([], |row| row.get::<_, String>(0))?;
 
     let mut queue = Vec::new();
     for path in queue_iter {
@@ -465,11 +465,11 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
 
                                 // we want to make sure the file isn't in the process of currently being copied over to our watch directory
                                 // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
-                                if let Ok(metadata) = fs::metadata(&file_path) {
-                                    if let Ok(modified) = metadata.modified() {
+                                if let Ok(metadata) = fs::metadata(file_path)
+                                    && let Ok(modified) = metadata.modified() {
                                         let now = std::time::SystemTime::now();
-                                        if let Ok(duration) = now.duration_since(modified) {
-                                            if duration.as_secs() >= 3 {
+                                        if let Ok(duration) = now.duration_since(modified)
+                                            && duration.as_secs() >= 3 {
                                                 let txt_path = file_path.with_extension("txt");
 
                                                 if !txt_path.exists() {
@@ -478,14 +478,12 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                                                     );
                                                 }
                                             }
-                                        }
                                     }
-                                }
                             }
                             None
                         })
                         .collect::<Vec<_>>();
-                    files.sort_by(|a, b| a.cmp(b));
+                    files.sort();
                     files
                 })
                 .flatten()
@@ -508,15 +506,15 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
 
                 if !has_current_processing {
                     // Get the first item from queue with all its data
-                    if let Ok(mut stmt) = conn.prepare("SELECT path, model, subtitle_stream_index FROM queue ORDER BY position LIMIT 1") {
-                        if let Ok(mut rows) = stmt.query_map([], |row| {
+                    if let Ok(mut stmt) = conn.prepare("SELECT path, model, subtitle_stream_index FROM queue ORDER BY position LIMIT 1")
+                        && let Ok(mut rows) = stmt.query_map([], |row| {
                             Ok((
                                 row.get::<_, String>(0)?,
                                 row.get::<_, Option<String>>(1)?,
                                 row.get::<_, Option<i64>>(2)?
                             ))
-                        }) {
-                            if let Some(Ok((path, model, subtitle_stream_index))) = rows.next() {
+                        })
+                            && let Some(Ok((path, model, subtitle_stream_index))) = rows.next() {
                                 // Add to currently_processing table with current timestamp
                                 let now = chrono::Utc::now().to_rfc3339();
                                 let _ = conn.execute(
@@ -527,8 +525,6 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                                 // Remove from queue
                                 let _ = remove_first_line_from_queue(Some(&conn));
                             }
-                        }
-                    }
                 }
             }
             sleep(Duration::from_millis(500)).await;

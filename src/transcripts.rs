@@ -94,12 +94,11 @@ fn set_with_config(
 
     let mut is_in_watch_dir = false;
     for watch_dir in &config.watch_directories {
-        if let Ok(watch_canonical) = Path::new(watch_dir).canonicalize() {
-            if video_canonical.starts_with(&watch_canonical) {
+        if let Ok(watch_canonical) = Path::new(watch_dir).canonicalize()
+            && video_canonical.starts_with(&watch_canonical) {
                 is_in_watch_dir = true;
                 break;
             }
-        }
     }
 
     if !is_in_watch_dir {
@@ -188,7 +187,7 @@ pub fn rename(video_path: &str, new_path: &str) -> Result<(), Box<dyn std::error
     }
 
     // Rename both files
-    fs::rename(&video_path_obj, &new_path_obj)?;
+    fs::rename(video_path_obj, new_path_obj)?;
     fs::rename(&txt_path, &new_txt_path)?;
 
     // Update cache
@@ -232,7 +231,7 @@ pub async fn regenerate_interactive(video_path: &str) -> Result<(), Box<dyn std:
     match video_processor::get_subtitle_streams(video_path_obj, Path::new(&cfg.ffprobe_path)).await
     {
         Ok(streams) if !streams.is_empty() => {
-            for (_, stream) in streams.iter().enumerate() {
+            for stream in streams.iter() {
                 let lang_display = stream.language_display();
                 options.push(format!("Subtitles: {} ({})", lang_display, stream.index));
                 option_types.push(format!("subtitle_{}", stream.index));
@@ -293,7 +292,7 @@ pub async fn regenerate_interactive(video_path: &str) -> Result<(), Box<dyn std:
 
             println!("🚀 Processing {} for: {}", process_type, video_path);
             match video_processor::cancellable_create_transcript(
-                &video_path_obj,
+                video_path_obj,
                 model,
                 subtitle_stream_index,
             )
@@ -301,7 +300,7 @@ pub async fn regenerate_interactive(video_path: &str) -> Result<(), Box<dyn std:
             {
                 Ok(true) => {
                     // Add length metadata after successful processing
-                    match video_processor::cancellable_add_length_to_metadata(&video_path_obj).await
+                    match video_processor::cancellable_add_length_to_metadata(video_path_obj).await
                     {
                         Ok(true) => {}
                         Ok(false) => {

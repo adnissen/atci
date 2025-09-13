@@ -251,8 +251,7 @@ impl TimeFormat {
         }
 
         // Try to parse as frame number (ends with 'f')
-        if input.ends_with('f') {
-            let frame_str = &input[..input.len() - 1];
+        if let Some(frame_str) = input.strip_suffix('f') {
             let frames = frame_str
                 .parse::<u32>()
                 .map_err(|_| "Invalid frame number format")?;

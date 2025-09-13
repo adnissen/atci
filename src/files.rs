@@ -67,7 +67,7 @@ pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
     }
 
     let mut sources_stmt = conn.prepare("SELECT DISTINCT source FROM video_info WHERE source IS NOT NULL AND source != '' ORDER BY source")?;
-    let sources_iter = sources_stmt.query_map([], |row| Ok(row.get::<_, String>(0)?))?;
+    let sources_iter = sources_stmt.query_map([], |row| row.get::<_, String>(0))?;
 
     let mut sources = Vec::new();
     for source in sources_iter {
@@ -83,8 +83,8 @@ pub fn load_video_info_from_cache(
     let cache_data = load_cache_data()?;
     let mut video_infos = cache_data.files;
 
-    if let Some(filters) = filter {
-        if !filters.is_empty() {
+    if let Some(filters) = filter
+        && !filters.is_empty() {
             video_infos.retain(|info| {
                 let full_path_lower = info.full_path.to_lowercase();
                 filters
@@ -92,7 +92,6 @@ pub fn load_video_info_from_cache(
                     .any(|f| full_path_lower.contains(&f.to_lowercase()))
             });
         }
-    }
 
     Ok(video_infos)
 }
@@ -140,7 +139,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
                 return None;
             }
 
-            let metadata = fs::metadata(&file_path).ok()?;
+            let metadata = fs::metadata(file_path).ok()?;
             let filename = file_path
                 .file_stem()
                 .unwrap_or_default()

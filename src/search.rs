@@ -69,8 +69,8 @@ pub fn search(
             }
 
             // Apply file path filter if provided
-            if let Some(filters) = filter {
-                if !filters.is_empty() {
+            if let Some(filters) = filter
+                && !filters.is_empty() {
                     let file_path_str = file_path.to_string_lossy().to_lowercase();
                     if !filters
                         .iter()
@@ -79,7 +79,6 @@ pub fn search(
                         return None;
                     }
                 }
-            }
 
             let txt_path = file_path.with_extension("txt");
 
@@ -91,7 +90,7 @@ pub fn search(
             let lines: Vec<&str> = content.lines().collect();
 
             // Create VideoInfo for this file
-            let metadata = fs::metadata(&file_path).ok()?;
+            let metadata = fs::metadata(file_path).ok()?;
             let filename = file_path
                 .file_stem()
                 .unwrap_or_default()

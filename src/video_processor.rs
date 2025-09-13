@@ -179,7 +179,7 @@ pub async fn get_subtitle_streams(
     ffprobe_path: &Path,
 ) -> Result<Vec<SubtitleStream>, String> {
     let output = Command::new(ffprobe_path)
-        .args(&[
+        .args([
             "-v",
             "error",
             "-select_streams",
@@ -244,7 +244,7 @@ pub async fn extract_subtitle_stream(
     let temp_srt_path = temp_dir.join("temp_subtitle.srt");
 
     let output = Command::new(ffmpeg_path)
-        .args(&[
+        .args([
             "-i",
             video_path.to_str().unwrap(),
             "-map",
@@ -282,7 +282,7 @@ pub async fn extract_subtitle_stream(
 
 pub async fn get_video_duration(video_path: &Path, ffprobe_path: &Path) -> Result<String, String> {
     let output = Command::new(ffprobe_path)
-        .args(&[
+        .args([
             "-v",
             "error",
             "-show_entries",
@@ -318,7 +318,7 @@ pub async fn get_video_duration(video_path: &Path, ffprobe_path: &Path) -> Resul
 
 pub async fn has_audio_stream(video_path: &Path, ffprobe_path: &Path) -> Result<bool, String> {
     let output = Command::new(ffprobe_path)
-        .args(&[
+        .args([
             "-v",
             "error",
             "-select_streams",
@@ -522,7 +522,7 @@ pub async fn cancellable_create_transcript(
 
     // Start audio extraction in background
     let mut child = Command::new(&cfg.ffmpeg_path)
-        .args(&[
+        .args([
             "-i",
             video_path.to_str().unwrap(),
             "-map",
@@ -578,7 +578,7 @@ pub async fn cancellable_create_transcript(
         .join(format!("{}.bin", model_name));
 
     let mut child = Command::new(&cfg.whispercli_path)
-        .args(&[
+        .args([
             "-m",
             model_path.to_str().unwrap(),
             "-np",
@@ -683,7 +683,7 @@ pub async fn cancellable_add_length_to_metadata(
     let cfg: crate::AtciConfig = crate::config::load_config()?;
 
     let output = Command::new(&cfg.ffprobe_path)
-        .args(&[
+        .args([
             "-v",
             "error",
             "-show_entries",
