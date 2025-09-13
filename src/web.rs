@@ -110,7 +110,15 @@ fn auth_page(redirect: Option<String>) -> Template {
 #[post("/auth", data = "<form>")]
 fn auth_submit(form: Form<AuthForm>, cookies: &CookieJar<'_>) -> Result<Redirect, Template> {
     let config = config::load_config_or_default();
-    let expected_password = config.password.as_deref().unwrap_or("default-password");
+
+    // If password is null/None, redirect without authentication
+    let expected_password = match config.password.as_deref() {
+        Some(p) => p,
+        None => {
+            let redirect_url = form.redirect.as_deref().unwrap_or("/app");
+            return Ok(Redirect::to(redirect_url.to_string()));
+        }
+    };
 
     if form.password == expected_password {
         // Set authentication cookie

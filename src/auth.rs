@@ -14,7 +14,12 @@ impl<'r> FromRequest<'r> for AuthGuard {
 
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         let config = crate::config::load_config_or_default();
-        let password = config.password.as_deref().unwrap_or("default-password");
+
+        // If password is null/None, allow all requests through
+        let password = match config.password.as_deref() {
+            Some(p) => p,
+            None => return Outcome::Success(AuthGuard),
+        };
 
         // Check cookie first
         if let Some(cookie) = request.cookies().get("auth_token")
