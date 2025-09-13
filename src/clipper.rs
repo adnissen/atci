@@ -1,14 +1,14 @@
 // atci (andrew's transcript and clipping interface)
 // Copyright (C) 2025 Andrew Nissen
 
-use std::path::Path;
-use std::process::Command;
+use crate::Asset;
+use crate::auth::AuthGuard;
 use rocket::serde::Deserialize;
 use rocket::{get, response::status};
+use sha2::{Digest, Sha256};
 use std::fs;
-use crate::auth::AuthGuard;
-use crate::Asset;
-use sha2::{Sha256, Digest};
+use std::path::Path;
+use std::process::Command;
 
 fn get_video_extensions() -> Vec<&'static str> {
     vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
@@ -16,12 +16,12 @@ fn get_video_extensions() -> Vec<&'static str> {
 
 fn get_font_path() -> Result<String, Box<dyn std::error::Error>> {
     use uuid::Uuid;
-    
+
     // Extract font file from embedded assets
     if let Some(font_data) = Asset::get("SourceSans3-BoldItalic.ttf") {
         let temp_font_name = format!("font_{}.ttf", Uuid::new_v4());
         let temp_font_path = std::env::temp_dir().join(&temp_font_name);
-        
+
         std::fs::write(&temp_font_path, font_data.data.as_ref())?;
         Ok(temp_font_path.to_string_lossy().to_string())
     } else {
@@ -33,15 +33,16 @@ fn validate_video_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     if !path.exists() {
         return Err(format!("File does not exist: {}", path.display()).into());
     }
-    
+
     if !path.is_file() {
         return Err(format!("Path is not a file: {}", path.display()).into());
     }
-    
-    let extension = path.extension()
+
+    let extension = path
+        .extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| ext.to_lowercase());
-    
+
     if let Some(ext) = extension {
         let video_extensions = get_video_extensions();
         if !video_extensions.contains(&ext.as_str()) {
@@ -50,7 +51,7 @@ fn validate_video_file(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     } else {
         return Err("File has no extension or invalid extension".into());
     }
-    
+
     Ok(())
 }
 
@@ -62,13 +63,13 @@ pub fn grab_frame(
 ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let ffprobe_path = Path::new(&cfg.ffprobe_path);
-    
+
     // Parse time format
     let time_format = TimeFormat::parse(time)?;
-    
+
     // Convert to seconds
     let time_seconds = time_format.to_seconds(path, ffprobe_path)?;
-    
+
     validate_video_file(path)?;
 
     // Create a static filename with time and caption
@@ -85,7 +86,7 @@ pub fn grab_frame(
                 .chars()
                 .take(50)
                 .collect::<String>();
-            
+
             format!("_{}", sanitized_text)
         }
         None => String::new(),
@@ -93,21 +94,21 @@ pub fn grab_frame(
 
     let time_str = format!("{:.3}", time_seconds);
     let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
-    
+
     let temp_frame_name = format!("frame_{}{}_{}.png", time_str, caption_part, font_size_part);
     let temp_frame_path = std::env::temp_dir().join(&temp_frame_name);
-    
+
     if temp_frame_path.exists() {
         return Ok(temp_frame_path);
     }
 
     let frame_args = grab_frame_args(path, time_seconds, text, &temp_frame_path, font_size);
-    
+
     let mut cmd = Command::new(&cfg.ffmpeg_path);
     cmd.args(&frame_args);
-    
+
     let output = cmd.output()?;
-    
+
     if output.status.success() {
         Ok(temp_frame_path)
     } else {
@@ -127,15 +128,15 @@ pub fn clip(
 ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let ffprobe_path = Path::new(&cfg.ffprobe_path);
-    
+
     // Parse time formats
     let start_time = TimeFormat::parse(start)?;
     let end_time = TimeFormat::parse(end)?;
-    
+
     // Convert to seconds
     let start_seconds = start_time.to_seconds(path, ffprobe_path)?;
     let end_seconds = end_time.to_seconds(path, ffprobe_path)?;
-    
+
     validate_video_file(path)?;
 
     if end_seconds <= start_seconds {
@@ -158,18 +159,21 @@ pub fn clip(
     let end_time_str = format!("{:.1}", end_seconds);
     let format_param = format;
     let font_size_part = font_size.map(|fs| format!("fs{}", fs)).unwrap_or_default();
-    
+
     // Combine all attributes into a single string for hashing
-    let combined_attributes = format!("clip_{}_{}_{}_{}_{}.{}", start_time_str, end_time_str, caption_part, font_size_part, format_param, display_text);
-    
+    let combined_attributes = format!(
+        "clip_{}_{}_{}_{}_{}.{}",
+        start_time_str, end_time_str, caption_part, font_size_part, format_param, display_text
+    );
+
     // Generate SHA256 hash
     let mut hasher = Sha256::new();
     hasher.update(combined_attributes.as_bytes());
     let hash = format!("{:x}", hasher.finalize());
-    
+
     let temp_clip_name = format!("clip_{}.{}", hash, format_param);
     let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
-    
+
     if temp_clip_path.exists() {
         return Ok(temp_clip_path);
     }
@@ -180,31 +184,50 @@ pub fn clip(
         "mp4" => {
             let audio_codec_args = get_audio_codec_args(path, Path::new(&cfg.ffprobe_path))?;
             if display_text && text.is_some() {
-                video_with_text_args(path, start_seconds, duration, text.expect("text was missing"), &temp_clip_path, &audio_codec_args, font_size)
+                video_with_text_args(
+                    path,
+                    start_seconds,
+                    duration,
+                    text.expect("text was missing"),
+                    &temp_clip_path,
+                    &audio_codec_args,
+                    font_size,
+                )
             } else {
-                video_no_text_args(path, start_seconds, duration, &temp_clip_path, &audio_codec_args)
+                video_no_text_args(
+                    path,
+                    start_seconds,
+                    duration,
+                    &temp_clip_path,
+                    &audio_codec_args,
+                )
             }
-        },
+        }
         "gif" => {
             if display_text && text.is_some() {
-                gif_with_text_args(path, start_seconds, duration, text.expect("text was missing"), &temp_clip_path, font_size)
+                gif_with_text_args(
+                    path,
+                    start_seconds,
+                    duration,
+                    text.expect("text was missing"),
+                    &temp_clip_path,
+                    font_size,
+                )
             } else {
                 gif_no_text_args(path, start_seconds, duration, &temp_clip_path)
             }
-        },
-        "mp3" => {
-            audio_file_args(path, start_seconds, duration, &temp_clip_path)
-        },
+        }
+        "mp3" => audio_file_args(path, start_seconds, duration, &temp_clip_path),
         _ => {
             return Err(format!("Unsupported format: {}", format).into());
         }
     };
-    
+
     let mut cmd = Command::new(&cfg.ffmpeg_path);
     cmd.args(&video_args);
-    
+
     let output = cmd.output()?;
-    
+
     if output.status.success() {
         Ok(temp_clip_path)
     } else {
@@ -226,51 +249,58 @@ impl TimeFormat {
         if input.contains(':') {
             return Ok(TimeFormat::Timestamp(input.to_string()));
         }
-        
+
         // Try to parse as frame number (ends with 'f')
         if input.ends_with('f') {
-            let frame_str = &input[..input.len()-1];
-            let frames = frame_str.parse::<u32>()
+            let frame_str = &input[..input.len() - 1];
+            let frames = frame_str
+                .parse::<u32>()
                 .map_err(|_| "Invalid frame number format")?;
             return Ok(TimeFormat::Frames(frames));
         }
-        
+
         // Try to parse as seconds (default)
-        let seconds = input.parse::<f64>()
-            .map_err(|_| "Invalid time format")?;
+        let seconds = input.parse::<f64>().map_err(|_| "Invalid time format")?;
         Ok(TimeFormat::Seconds(seconds))
     }
-    
-    pub fn to_seconds(&self, video_path: &Path, ffprobe_path: &Path) -> Result<f64, Box<dyn std::error::Error>> {
+
+    pub fn to_seconds(
+        &self,
+        video_path: &Path,
+        ffprobe_path: &Path,
+    ) -> Result<f64, Box<dyn std::error::Error>> {
         match self {
             TimeFormat::Seconds(s) => Ok(*s),
             TimeFormat::Frames(f) => {
                 let fps = get_video_fps(video_path, ffprobe_path)?;
                 Ok(*f as f64 / fps)
-            },
-            TimeFormat::Timestamp(ts) => {
-                parse_timestamp_to_seconds(ts)
             }
+            TimeFormat::Timestamp(ts) => parse_timestamp_to_seconds(ts),
         }
     }
 }
 
-fn get_video_dimensions(video_path: &Path, ffprobe_path: &Path) -> Result<(u32, u32), Box<dyn std::error::Error>> {
+fn get_video_dimensions(
+    video_path: &Path,
+    ffprobe_path: &Path,
+) -> Result<(u32, u32), Box<dyn std::error::Error>> {
     let output = Command::new(ffprobe_path)
         .args([
-            "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=width,height",
-            "-of", "csv=p=0",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=width,height",
+            "-of",
+            "csv=p=0",
         ])
         .arg(video_path)
         .output()?;
 
     if output.status.success() {
-        let dimensions_str = String::from_utf8(output.stdout)?
-            .trim()
-            .to_string();
-        
+        let dimensions_str = String::from_utf8(output.stdout)?.trim().to_string();
+
         let parts: Vec<&str> = dimensions_str.split(',').collect();
         if parts.len() == 2 {
             let width: u32 = parts[0].parse()?;
@@ -278,27 +308,32 @@ fn get_video_dimensions(video_path: &Path, ffprobe_path: &Path) -> Result<(u32, 
             return Ok((width, height));
         }
     }
-    
+
     // Default to 1920x1080 if detection fails
     Ok((1920, 1080))
 }
 
-fn get_video_fps(video_path: &Path, ffprobe_path: &Path) -> Result<f64, Box<dyn std::error::Error>> {
+fn get_video_fps(
+    video_path: &Path,
+    ffprobe_path: &Path,
+) -> Result<f64, Box<dyn std::error::Error>> {
     let output = Command::new(ffprobe_path)
         .args([
-            "-v", "error",
-            "-select_streams", "v:0",
-            "-show_entries", "stream=r_frame_rate",
-            "-of", "csv=p=0",
+            "-v",
+            "error",
+            "-select_streams",
+            "v:0",
+            "-show_entries",
+            "stream=r_frame_rate",
+            "-of",
+            "csv=p=0",
         ])
         .arg(video_path)
         .output()?;
 
     if output.status.success() {
-        let fps_str = String::from_utf8(output.stdout)?
-            .trim()
-            .to_string();
-        
+        let fps_str = String::from_utf8(output.stdout)?.trim().to_string();
+
         // Parse fraction format like "30/1" or "2997/100"
         if fps_str.contains('/') {
             let parts: Vec<&str> = fps_str.split('/').collect();
@@ -308,9 +343,10 @@ fn get_video_fps(video_path: &Path, ffprobe_path: &Path) -> Result<f64, Box<dyn 
                 return Ok(numerator / denominator);
             }
         }
-        
+
         // Fallback to direct parsing
-        fps_str.parse::<f64>()
+        fps_str
+            .parse::<f64>()
             .map_err(|_| format!("Invalid frame rate format: {}", fps_str).into())
     } else {
         // Default to 30fps if detection fails
@@ -320,25 +356,24 @@ fn get_video_fps(video_path: &Path, ffprobe_path: &Path) -> Result<f64, Box<dyn 
 
 fn parse_timestamp_to_seconds(timestamp: &str) -> Result<f64, Box<dyn std::error::Error>> {
     let parts: Vec<&str> = timestamp.split(':').collect();
-    
+
     match parts.len() {
         2 => {
             // MM:SS.sss format
             let minutes: f64 = parts[0].parse()?;
             let seconds: f64 = parts[1].parse()?;
             Ok(minutes * 60.0 + seconds)
-        },
+        }
         3 => {
             // HH:MM:SS.sss format
             let hours: f64 = parts[0].parse()?;
             let minutes: f64 = parts[1].parse()?;
             let seconds: f64 = parts[2].parse()?;
             Ok(hours * 3600.0 + minutes * 60.0 + seconds)
-        },
-        _ => Err("Invalid timestamp format. Use MM:SS.sss or HH:MM:SS.sss".into())
+        }
+        _ => Err("Invalid timestamp format. Use MM:SS.sss or HH:MM:SS.sss".into()),
     }
 }
-
 
 fn gif_with_text_args(
     input_path: &Path,
@@ -348,19 +383,21 @@ fn gif_with_text_args(
     output_path: &Path,
     font_size: Option<u32>,
 ) -> Vec<String> {
-    use uuid::Uuid;
     use std::fs;
-    
+    use uuid::Uuid;
+
     let temp_text_name = format!("text_{}.txt", Uuid::new_v4());
     let temp_text_path = std::env::temp_dir().join(&temp_text_name);
-    
+
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
             let cfg = crate::config::load_config().unwrap_or_default();
             let ffprobe_path = Path::new(&cfg.ffprobe_path);
             let (width, _) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
-            let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
-            let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
+            let font_size =
+                font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
+            let font_path =
+                get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
             vec![
                 "-ss",
                 &format!("{}", start),
@@ -380,25 +417,23 @@ fn gif_with_text_args(
             .map(|s| s.to_string())
             .collect()
         }
-        Err(_) => {
-            vec![
-                "-ss",
-                &format!("{}", start),
-                "-t",
-                &format!("{}", duration),
-                "-i",
-                &input_path.to_string_lossy(),
-                "-vf",
-                "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-                "-loop",
-                "0",
-                "-y",
-                &output_path.to_string_lossy(),
-            ]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect()
-        }
+        Err(_) => vec![
+            "-ss",
+            &format!("{}", start),
+            "-t",
+            &format!("{}", duration),
+            "-i",
+            &input_path.to_string_lossy(),
+            "-vf",
+            "fps=10,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+            "-loop",
+            "0",
+            "-y",
+            &output_path.to_string_lossy(),
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect(),
     }
 }
 
@@ -436,21 +471,23 @@ fn video_with_text_args(
     audio_codec_args: &[&str],
     font_size: Option<u32>,
 ) -> Vec<String> {
-    use uuid::Uuid;
     use std::fs;
-    
+    use uuid::Uuid;
+
     let temp_text_name = format!("text_{}.txt", Uuid::new_v4());
     let temp_text_path = std::env::temp_dir().join(&temp_text_name);
-    
+
     match fs::write(&temp_text_path, text) {
         Ok(_) => {
             let cfg = crate::config::load_config().unwrap_or_default();
             let ffprobe_path = Path::new(&cfg.ffprobe_path);
             let (width, _) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
-            let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
-            let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
+            let font_size =
+                font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
+            let font_path =
+                get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
             let frames_count = (duration * 30.0).trunc() as i32;
-            
+
             let mut args = vec![
                 "-ss",
                 &format!("{}", start),
@@ -480,22 +517,24 @@ fn video_with_text_args(
 
             args.extend(audio_codec_args.iter().map(|s| (*s).to_string()));
 
-            args.extend(vec![
-                "-crf",
-                "28",
-                "-preset",
-                "ultrafast",
-                "-movflags",
-                "faststart+frag_keyframe+empty_moov",
-                "-avoid_negative_ts",
-                "make_zero",
-                "-y",
-                "-map_chapters",
-                "-1",
-                &output_path.to_string_lossy(),
-            ]
-            .into_iter()
-            .map(|s| s.to_string()));
+            args.extend(
+                vec![
+                    "-crf",
+                    "28",
+                    "-preset",
+                    "ultrafast",
+                    "-movflags",
+                    "faststart+frag_keyframe+empty_moov",
+                    "-avoid_negative_ts",
+                    "make_zero",
+                    "-y",
+                    "-map_chapters",
+                    "-1",
+                    &output_path.to_string_lossy(),
+                ]
+                .into_iter()
+                .map(|s| s.to_string()),
+            );
 
             args
         }
@@ -522,22 +561,24 @@ fn video_with_text_args(
 
             args.extend(audio_codec_args.iter().map(|s| (*s).to_string()));
 
-            args.extend(vec![
-                "-crf",
-                "28",
-                "-preset",
-                "ultrafast",
-                "-movflags",
-                "faststart+frag_keyframe+empty_moov",
-                "-avoid_negative_ts",
-                "make_zero",
-                "-y",
-                "-map_chapters",
-                "-1",
-                &output_path.to_string_lossy(),
-            ]
-            .into_iter()
-            .map(|s| s.to_string()));
+            args.extend(
+                vec![
+                    "-crf",
+                    "28",
+                    "-preset",
+                    "ultrafast",
+                    "-movflags",
+                    "faststart+frag_keyframe+empty_moov",
+                    "-avoid_negative_ts",
+                    "make_zero",
+                    "-y",
+                    "-map_chapters",
+                    "-1",
+                    &output_path.to_string_lossy(),
+                ]
+                .into_iter()
+                .map(|s| s.to_string()),
+            );
 
             args
         }
@@ -552,7 +593,7 @@ fn video_no_text_args(
     audio_codec_args: &[&str],
 ) -> Vec<String> {
     let frames_count = (duration * 30.0).trunc() as i32;
-    
+
     let mut args = vec![
         "-ss",
         &format!("{}", start),
@@ -579,22 +620,24 @@ fn video_no_text_args(
 
     args.extend(audio_codec_args.iter().map(|s| (*s).to_string()));
 
-    args.extend(vec![
-        "-crf",
-        "28",
-        "-preset",
-        "ultrafast",
-        "-movflags",
-        "faststart+frag_keyframe+empty_moov",
-        "-avoid_negative_ts",
-        "make_zero",
-        "-y",
-        "-map_chapters",
-        "-1",
-        &output_path.to_string_lossy(),
-    ]
-    .into_iter()
-    .map(|s| s.to_string()));
+    args.extend(
+        vec![
+            "-crf",
+            "28",
+            "-preset",
+            "ultrafast",
+            "-movflags",
+            "faststart+frag_keyframe+empty_moov",
+            "-avoid_negative_ts",
+            "make_zero",
+            "-y",
+            "-map_chapters",
+            "-1",
+            &output_path.to_string_lossy(),
+        ]
+        .into_iter()
+        .map(|s| s.to_string()),
+    );
 
     args
 }
@@ -603,7 +646,7 @@ fn audio_file_args(
     input_path: &Path,
     start: f64,
     duration: f64,
-    output_path: &Path
+    output_path: &Path,
 ) -> Vec<String> {
     vec![
         "-ss",
@@ -646,20 +689,23 @@ fn grab_frame_args(
     ];
 
     if let Some(text_content) = text {
-        use uuid::Uuid;
         use std::fs;
-        
+        use uuid::Uuid;
+
         let temp_text_name = format!("text_{}.txt", Uuid::new_v4());
         let temp_text_path = std::env::temp_dir().join(&temp_text_name);
-        
+
         match fs::write(&temp_text_path, text_content) {
             Ok(_) => {
                 let cfg = crate::config::load_config().unwrap_or_default();
                 let ffprobe_path = Path::new(&cfg.ffprobe_path);
-                let (width, _) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
-                let font_size = font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text_content.len()));
-                let font_path = get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
-                
+                let (width, _) =
+                    get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
+                let font_size = font_size
+                    .unwrap_or_else(|| calculate_font_size_for_video(width, text_content.len()));
+                let font_path = get_font_path()
+                    .unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
+
                 args.extend(vec![
                     "-vf".to_string(),
                     format!(
@@ -678,9 +724,9 @@ fn grab_frame_args(
 
     args.extend(vec![
         "-q:v".to_string(),
-        "1".to_string(),  // Highest quality for PNG
+        "1".to_string(), // Highest quality for PNG
         "-pix_fmt".to_string(),
-        "rgba".to_string(),  // Support transparency
+        "rgba".to_string(), // Support transparency
         "-y".to_string(),
         output_path.to_string_lossy().to_string(),
     ]);
@@ -691,7 +737,7 @@ fn grab_frame_args(
 fn calculate_font_size_for_video(horizontal_size: u32, text_length: usize) -> u32 {
     // Base font size proportional to video width (roughly 5% of width)
     let base_size = (horizontal_size as f32 * 0.05) as u32;
-    
+
     // Reduce font size progressively per character after a threshold
     let threshold = 40; // Start reducing after 20 characters
     if text_length > threshold {
@@ -711,16 +757,18 @@ fn get_audio_codec_args(
 ) -> Result<Vec<&'static str>, Box<dyn std::error::Error>> {
     // some files need more processing than others. for example, _all_ webm files need "basic" re-encoding.
     // then, additionally, some files need even more advanced processing if their "layout" is not stereo or mono
-    let source_extension = path.extension()
+    let source_extension = path
+        .extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| ext.to_lowercase())
         .unwrap_or_default();
 
-    let extension_needs_basic_audio_reencoding = 
+    let extension_needs_basic_audio_reencoding =
         matches!(source_extension.as_str(), "mkv" | "webm" | "avi" | "mov");
 
-    let (needs_advanced_audio_reencoding, layout) = check_if_advanced_audio_reencoding_needed(path, ffprobe_path)?;
-    
+    let (needs_advanced_audio_reencoding, layout) =
+        check_if_advanced_audio_reencoding_needed(path, ffprobe_path)?;
+
     let audio_codec_args = if extension_needs_basic_audio_reencoding {
         if needs_advanced_audio_reencoding {
             // Use appropriate channel mapping based on detected layout
@@ -760,18 +808,20 @@ pub fn check_if_advanced_audio_reencoding_needed(
 ) -> Result<(bool, String), Box<dyn std::error::Error>> {
     let output = Command::new(ffprobe_path)
         .args([
-            "-v", "error",
-            "-select_streams", "a:0",
-            "-show_entries", "stream=channel_layout",
-            "-of", "csv=p=0",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=channel_layout",
+            "-of",
+            "csv=p=0",
         ])
         .arg(video_path)
         .output()?;
 
     if output.status.success() {
-        let layout = String::from_utf8(output.stdout)?
-            .trim()
-            .to_lowercase();
+        let layout = String::from_utf8(output.stdout)?.trim().to_lowercase();
         let needs_reencoding = !matches!(layout.as_str(), "mono" | "stereo");
         Ok((needs_reencoding, layout))
     } else {
@@ -798,15 +848,17 @@ pub struct FrameQuery {
     font_size: Option<String>,
 }
 
-
 #[get("/api/clip?<query..>")]
-pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::BadRequest<&'static str>> {
+pub fn web_clip(
+    _auth: AuthGuard,
+    query: ClipQuery,
+) -> Result<Vec<u8>, status::BadRequest<&'static str>> {
     // Check if the video file exists at the given path
     let video_path = Path::new(&query.filename);
     if !video_path.exists() {
         return Err(status::BadRequest("Video file not found"));
     }
-    
+
     // Parse optional parameters
     let text = query.text.as_deref();
     let display_text = query.display_text.as_deref() == Some("true");
@@ -814,38 +866,44 @@ pub fn web_clip(_auth: AuthGuard, query: ClipQuery) -> Result<Vec<u8>, status::B
     let font_size = query.font_size.as_deref().and_then(|s| s.parse().ok());
 
     // Call the clip function and get the output path
-    match clip(video_path, &query.start_time, &query.end_time, text, display_text, format, font_size) {
-        Ok(output_path) => {
-            fs::read(&output_path)
-                .map_err(|e| {
-                    eprintln!("Error reading generated clip: {}", e);
-                    status::BadRequest("Error reading generated clip")
-                })
-        },
-        Err(_) => Err(status::BadRequest("Error creating clip"))
+    match clip(
+        video_path,
+        &query.start_time,
+        &query.end_time,
+        text,
+        display_text,
+        format,
+        font_size,
+    ) {
+        Ok(output_path) => fs::read(&output_path).map_err(|e| {
+            eprintln!("Error reading generated clip: {}", e);
+            status::BadRequest("Error reading generated clip")
+        }),
+        Err(_) => Err(status::BadRequest("Error creating clip")),
     }
 }
 
 #[get("/api/frame?<query..>")]
-pub fn web_frame(_auth: AuthGuard, query: FrameQuery) -> Result<(rocket::http::ContentType, Vec<u8>), status::BadRequest<&'static str>> {
+pub fn web_frame(
+    _auth: AuthGuard,
+    query: FrameQuery,
+) -> Result<(rocket::http::ContentType, Vec<u8>), status::BadRequest<&'static str>> {
     // Check if the video file exists at the given path
     let video_path = Path::new(&query.filename);
     if !video_path.exists() {
         return Err(status::BadRequest("Video file not found"));
     }
-    
+
     // Parse optional parameters
     let text = query.text.as_deref();
     let font_size = query.font_size.as_deref().and_then(|s| s.parse().ok());
 
     // Call the grab_frame function and get the output path
     match grab_frame(video_path, &query.time, text, font_size) {
-        Ok(output_path) => {
-            fs::read(&output_path)
-                .map(|data| (rocket::http::ContentType::PNG, data))
-                .map_err(|_| status::BadRequest("Error reading generated frame"))
-        },
-        Err(_) => Err(status::BadRequest("Error creating frame"))
+        Ok(output_path) => fs::read(&output_path)
+            .map(|data| (rocket::http::ContentType::PNG, data))
+            .map_err(|_| status::BadRequest("Error reading generated frame")),
+        Err(_) => Err(status::BadRequest("Error creating frame")),
     }
 }
 
@@ -858,7 +916,7 @@ mod tests {
         let result = TimeFormat::parse("10.5").unwrap();
         match result {
             TimeFormat::Seconds(s) => assert_eq!(s, 10.5),
-            _ => panic!("Expected seconds format")
+            _ => panic!("Expected seconds format"),
         }
     }
 
@@ -867,7 +925,7 @@ mod tests {
         let result = TimeFormat::parse("300f").unwrap();
         match result {
             TimeFormat::Frames(f) => assert_eq!(f, 300),
-            _ => panic!("Expected frames format")
+            _ => panic!("Expected frames format"),
         }
     }
 
@@ -876,7 +934,7 @@ mod tests {
         let result = TimeFormat::parse("01:30:15.5").unwrap();
         match result {
             TimeFormat::Timestamp(ts) => assert_eq!(ts, "01:30:15.5"),
-            _ => panic!("Expected timestamp format")
+            _ => panic!("Expected timestamp format"),
         }
     }
 
@@ -910,4 +968,3 @@ mod tests {
         assert!(TimeFormat::parse("").is_err());
     }
 }
-

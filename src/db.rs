@@ -10,7 +10,7 @@ pub fn get_db_path() -> std::path::PathBuf {
 
 fn init_database(conn: &Connection) -> SqliteResult<()> {
     const SCHEMA_VERSION: &str = "20250909-4";
-    
+
     // Create schema_version table if it doesn't exist
     conn.execute(
         "CREATE TABLE IF NOT EXISTS schema_version (
@@ -18,14 +18,14 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
         )",
         [],
     )?;
-    
+
     // Check current schema version
-    let current_version: Option<String> = conn.query_row(
-        "SELECT version FROM schema_version LIMIT 1",
-        [],
-        |row| row.get(0)
-    ).ok();
-    
+    let current_version: Option<String> = conn
+        .query_row("SELECT version FROM schema_version LIMIT 1", [], |row| {
+            row.get(0)
+        })
+        .ok();
+
     // If version doesn't match, drop and recreate all tables
     if current_version.as_deref() != Some(SCHEMA_VERSION) {
         // Drop existing tables
@@ -33,7 +33,7 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
         conn.execute("DROP TABLE IF EXISTS queue", [])?;
         conn.execute("DROP TABLE IF EXISTS currently_processing", [])?;
         conn.execute("DROP TABLE IF EXISTS schema_version", [])?;
-        
+
         // Recreate schema_version table
         conn.execute(
             "CREATE TABLE schema_version (
@@ -41,13 +41,13 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
             )",
             [],
         )?;
-        
+
         // Insert current schema version
         conn.execute(
             "INSERT INTO schema_version (version) VALUES (?1)",
             [SCHEMA_VERSION],
         )?;
-        
+
         // Create video_info table
         conn.execute(
             "CREATE TABLE video_info (
@@ -64,7 +64,7 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
             )",
             [],
         )?;
-        
+
         // Create queue table
         conn.execute(
             "CREATE TABLE queue (
@@ -75,7 +75,7 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
             )",
             [],
         )?;
-        
+
         // Create currently_processing table
         conn.execute(
             "CREATE TABLE currently_processing (
@@ -88,7 +88,7 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
             [],
         )?;
     }
-    
+
     Ok(())
 }
 
