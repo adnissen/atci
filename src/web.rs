@@ -1,15 +1,23 @@
 // atci (andrew's transcript and clipping interface)
 // Copyright (C) 2025 Andrew Nissen
 
-use rocket::serde::json::Json;
-use rocket::serde::Serialize;
-use rocket::{get, post, routes, response::content, catch, catchers, Request};
-use rocket::response::status::NotFound;
-use rocket::response::Redirect;
+use crate::{
+    Asset, auth::AuthGuard, clipper, config, files, model_manager, queue, search, tools_manager,
+    transcripts,
+};
 use rocket::form::{Form, FromForm};
 use rocket::http::{Cookie, CookieJar, SameSite, Status};
+use rocket::response::Redirect;
+use rocket::response::status::NotFound;
+use rocket::serde::Serialize;
+use rocket::serde::json::Json;
+use rocket::{Request, catch, catchers, get, post, response::content, routes};
 use rocket_dyn_templates::{Template, context};
-use crate::{config, files, queue, search, transcripts, clipper, tools_manager, model_manager, Asset, auth::AuthGuard};
+use rust_embed::RustEmbed;
+
+#[derive(RustEmbed)]
+#[folder = "templates/"]
+struct TemplateAssets;
 
 #[derive(Serialize)]
 pub struct ApiResponse<T> {
@@ -52,9 +60,10 @@ fn health() -> Json<ApiResponse<&'static str>> {
     Json(ApiResponse::success("OK"))
 }
 
-
 #[get("/app")]
-fn app(_auth: AuthGuard) -> Result<content::RawHtml<std::borrow::Cow<'static, [u8]>>, NotFound<String>> {
+fn app(
+    _auth: AuthGuard,
+) -> Result<content::RawHtml<std::borrow::Cow<'static, [u8]>>, NotFound<String>> {
     match Asset::get("index.html") {
         Some(content) => Ok(content::RawHtml(content.data)),
         None => Err(NotFound("index.html not found".to_string())),
@@ -62,7 +71,9 @@ fn app(_auth: AuthGuard) -> Result<content::RawHtml<std::borrow::Cow<'static, [u
 }
 
 #[get("/assets/<file..>")]
-fn assets(file: std::path::PathBuf) -> Result<(rocket::http::ContentType, std::borrow::Cow<'static, [u8]>), NotFound<String>> {
+fn assets(
+    file: std::path::PathBuf,
+) -> Result<(rocket::http::ContentType, std::borrow::Cow<'static, [u8]>), NotFound<String>> {
     let filename = file.to_string_lossy();
     match Asset::get(&filename) {
         Some(content) => {
@@ -87,17 +98,20 @@ fn assets(file: std::path::PathBuf) -> Result<(rocket::http::ContentType, std::b
 
 #[get("/auth?<redirect>")]
 fn auth_page(redirect: Option<String>) -> Template {
-    Template::render("auth", context! {
-        redirect: redirect.unwrap_or_else(|| "/app".to_string()),
-        error: None::<String>
-    })
+    Template::render(
+        "auth",
+        context! {
+            redirect: redirect.unwrap_or_else(|| "/app".to_string()),
+            error: None::<String>
+        },
+    )
 }
 
 #[post("/auth", data = "<form>")]
 fn auth_submit(form: Form<AuthForm>, cookies: &CookieJar<'_>) -> Result<Redirect, Template> {
     let config = config::load_config_or_default();
     let expected_password = config.password.as_deref().unwrap_or("default-password");
-    
+
     if form.password == expected_password {
         // Set authentication cookie
         let cookie = Cookie::build(("auth_token", form.password.clone()))
@@ -106,16 +120,19 @@ fn auth_submit(form: Form<AuthForm>, cookies: &CookieJar<'_>) -> Result<Redirect
             .path("/")
             .build();
         cookies.add(cookie);
-        
+
         // Redirect to intended destination
         let redirect_url = form.redirect.as_deref().unwrap_or("/app");
         Ok(Redirect::to(redirect_url.to_string()))
     } else {
         // Return auth page with error
-        Err(Template::render("auth", context! {
-            redirect: form.redirect.as_deref().unwrap_or("/app"),
-            error: "Invalid password"
-        }))
+        Err(Template::render(
+            "auth",
+            context! {
+                redirect: form.redirect.as_deref().unwrap_or("/app"),
+                error: "Invalid password"
+            },
+        ))
     }
 }
 
@@ -158,9 +175,12 @@ fn unauthorized(req: &Request) -> Result<Redirect, Status> {
     // Check if this is a browser request (HTML accept header) vs API request
     let accept_header = req.headers().get_one("Accept").unwrap_or("");
     let is_browser_request = accept_header.contains("text/html");
-    
+
     if is_browser_request {
-        let redirect_url = format!("/auth?redirect={}", urlencoding::encode(req.uri().path().as_str()));
+        let redirect_url = format!(
+            "/auth?redirect={}",
+            urlencoding::encode(req.uri().path().as_str())
+        );
         Ok(Redirect::to(redirect_url))
     } else {
         // For API requests, return 401 JSON
@@ -169,18 +189,26 @@ fn unauthorized(req: &Request) -> Result<Redirect, Status> {
 }
 
 pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
+    let temp_dir = std::env::temp_dir().join("atci_templates");
+    std::fs::create_dir_all(&temp_dir).expect("Failed to create temp templates directory");
+
+    // Extract embedded templates to temp directory
+    for file_path in TemplateAssets::iter() {
+        if let Some(content) = TemplateAssets::get(&file_path) {
+            let target_path = temp_dir.join(file_path.as_ref());
+            if let Some(parent) = target_path.parent() {
+                std::fs::create_dir_all(parent).expect("Failed to create template subdirectory");
+            }
+            std::fs::write(target_path, content.data.as_ref()).expect("Failed to write template file");
+        }
+    }
+
     let figment = rocket::Config::figment()
+        .merge(("template_dir", temp_dir.to_string_lossy().to_string()))
         .merge(("address", host))
         .merge(("port", port));
 
-    let mut all_routes = routes![
-        index,
-        auth_page,
-        auth_submit,
-        logout,
-        app,
-        assets
-    ];
+    let mut all_routes = routes![index, auth_page, auth_submit, logout, app, assets];
     all_routes.extend(api_routes());
 
     rocket::custom(figment)
@@ -194,13 +222,29 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
 }
 
 pub async fn launch_api_server(host: &str, port: u16) -> Result<(), rocket::Error> {
+    let temp_dir = std::env::temp_dir().join("atci_templates");
+    std::fs::create_dir_all(&temp_dir).expect("Failed to create temp templates directory");
+
+    // Extract embedded templates to temp directory
+    for file_path in TemplateAssets::iter() {
+        if let Some(content) = TemplateAssets::get(&file_path) {
+            let target_path = temp_dir.join(file_path.as_ref());
+            if let Some(parent) = target_path.parent() {
+                std::fs::create_dir_all(parent).expect("Failed to create template subdirectory");
+            }
+            std::fs::write(target_path, content.data.as_ref()).expect("Failed to write template file");
+        }
+    }
+
     let figment = rocket::Config::figment()
+        .merge(("template_dir", temp_dir.to_string_lossy().to_string()))
         .merge(("address", host))
         .merge(("port", port));
 
     rocket::custom(figment)
         .mount("/", api_routes())
         .register("/", catchers![unauthorized])
+        .attach(Template::fairing())
         .launch()
         .await?;
 

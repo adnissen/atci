@@ -3,8 +3,12 @@
 
 pub fn get_ffmpeg_url(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some(""),
-        "macos-arm" => Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/ffmpeg80arm.zip"),
+        "windows" => {
+            Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/ffmpeg80win64.zip")
+        }
+        "macos-arm" => {
+            Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/ffmpeg80arm.zip")
+        }
         "macos-x86" => Some(""),
         "linux" => Some(""),
         _ => None,
@@ -13,7 +17,7 @@ pub fn get_ffmpeg_url(platform: &str) -> Option<&'static str> {
 
 pub fn get_ffmpeg_sha256(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some(""),
+        "windows" => Some("1876f029399adef73edc42c65eee0c4961d89f2b8d0570929844a6576b1b8906"),
         "macos-arm" => Some("77d2c853f431318d55ec02676d9b2f185ebfdddb9f7677a251fbe453affe025a"),
         "macos-x86" => Some(""),
         "linux" => Some(""),
@@ -23,8 +27,12 @@ pub fn get_ffmpeg_sha256(platform: &str) -> Option<&'static str> {
 
 pub fn get_ffprobe_url(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some(""),
-        "macos-arm" => Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/ffprobe80arm.zip"),
+        "windows" => {
+            Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/ffprobe80win64.zip")
+        }
+        "macos-arm" => {
+            Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/ffprobe80arm.zip")
+        }
         "macos-x86" => Some(""),
         "linux" => Some(""),
         _ => None,
@@ -33,7 +41,7 @@ pub fn get_ffprobe_url(platform: &str) -> Option<&'static str> {
 
 pub fn get_ffprobe_sha256(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some(""),
+        "windows" => Some("4bee17709f01f220016e1b9d176a5115e0687c4956faffd605e76f0777d18bde"),
         "macos-arm" => Some("babf170e86bd6b0b2fefee5fa56f57721b0acb98ad2794b095d8030b02857dfe"),
         "macos-x86" => Some(""),
         "linux" => Some(""),
@@ -43,8 +51,12 @@ pub fn get_ffprobe_sha256(platform: &str) -> Option<&'static str> {
 
 pub fn get_whisper_cli_url(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some(""),
-        "macos-arm" => Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/whisper-cli"),
+        "windows" => Some(
+            "https://github.com/ggml-org/whisper.cpp/releases/download/v1.7.6/whisper-bin-x64.zip",
+        ),
+        "macos-arm" => {
+            Some("https://autotranscript.s3.us-east-1.amazonaws.com/binaries/whisper-cli")
+        }
         "macos-x86" => Some(""),
         "linux" => Some(""),
         _ => None,
@@ -53,7 +65,7 @@ pub fn get_whisper_cli_url(platform: &str) -> Option<&'static str> {
 
 pub fn get_whisper_cli_sha256(platform: &str) -> Option<&'static str> {
     match platform {
-        "windows" => Some(""),
+        "windows" => Some("0d2eca299c248f965bd0341bcb219db4b433c7f0c0ce2200d4df85765e8156a9"),
         "macos-arm" => Some("f2aa391fb826ae37fcf39911280985d8776ff9c77ff7c371ab878d47c20d11df"),
         "macos-x86" => Some(""),
         "linux" => Some(""),
@@ -82,21 +94,24 @@ pub fn list_tools() -> Vec<ToolInfo> {
     let tools = ["ffmpeg", "ffprobe", "whisper-cli"];
 
     let cfg: crate::AtciConfig = crate::config::load_config_or_default();
-    
-    tools.iter().map(|&tool| {
-        let downloaded_path = get_downloaded_path(tool);
-        let system_path = find_in_system_path(tool);
-        
-        ToolInfo {
-            name: tool.to_string(),
-            platform: platform.clone(),
-            downloaded: std::path::Path::new(&downloaded_path).exists(),
-            downloaded_path: downloaded_path.clone(),
-            system_available: system_path.is_some(),
-            system_path: system_path.clone(),
-            current_path: get_current_path(tool, &cfg),
-        }
-    }).collect()
+
+    tools
+        .iter()
+        .map(|&tool| {
+            let downloaded_path = get_downloaded_path(tool);
+            let system_path = find_in_system_path(tool);
+
+            ToolInfo {
+                name: tool.to_string(),
+                platform: platform.clone(),
+                downloaded: std::path::Path::new(&downloaded_path).exists(),
+                downloaded_path: downloaded_path.clone(),
+                system_available: system_path.is_some(),
+                system_path: system_path.clone(),
+                current_path: get_current_path(tool, &cfg),
+            }
+        })
+        .collect()
 }
 
 fn detect_platform() -> String {
@@ -117,12 +132,21 @@ fn detect_platform() -> String {
 
 fn get_downloaded_path(tool: &str) -> String {
     let binaries_dir = binaries_directory(tool);
-    let extension = if cfg!(target_os = "windows") { ".exe" } else { "" };
-    binaries_dir.join(format!("{}{}", tool, extension)).to_string_lossy().to_string()
+    let extension = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
+    binaries_dir
+        .join(format!("{}{}", tool, extension))
+        .to_string_lossy()
+        .to_string()
 }
 
 fn find_in_system_path(tool: &str) -> Option<String> {
-    which::which(tool).ok().map(|path| path.to_string_lossy().to_string())
+    which::which(tool)
+        .ok()
+        .map(|path| path.to_string_lossy().to_string())
 }
 
 fn get_current_path(tool: &str, cfg: &crate::AtciConfig) -> String {
@@ -139,7 +163,7 @@ fn get_current_path(tool: &str, cfg: &crate::AtciConfig) -> String {
 
 pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
     let platform = detect_platform();
-    
+
     let url = match tool {
         "ffmpeg" => get_ffmpeg_url(&platform),
         "ffprobe" => get_ffprobe_url(&platform),
@@ -148,14 +172,17 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
     };
     println!("Downloading tool: {} from {}", tool, url.unwrap());
 
-    let url = url.ok_or(format!("No download URL available for {} on {}", tool, platform))?;
-    
+    let url = url.ok_or(format!(
+        "No download URL available for {} on {}",
+        tool, platform
+    ))?;
+
     let binaries_dir = binaries_directory(tool);
     std::fs::create_dir_all(&binaries_dir)?;
-    
+
     let response = reqwest::blocking::get(url)?;
     let total_size = response.content_length().unwrap_or(0);
-    
+
     // Create progress bar
     let pb = ProgressBar::new(total_size);
     pb.set_style(
@@ -164,12 +191,12 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
             .progress_chars("#>-")
     );
     pb.set_message(format!("Downloading {}", tool));
-    
+
     // Download with progress tracking
     let mut bytes = Vec::new();
     let mut response = response;
     let mut buffer = [0; 8192]; // 8KB buffer
-    
+
     loop {
         match response.read(&mut buffer) {
             Ok(0) => break, // EOF
@@ -180,14 +207,18 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
             Err(e) => return Err(e.into()),
         }
     }
-    
+
     pb.finish_with_message(format!("Downloaded {} successfully!", tool));
-    
-    // Handle whisper-cli separately as it's a direct binary download
+
+    // Handle whisper-cli for macOS ARM as a direct binary download
     if tool == "whisper-cli" && platform == "macos-arm" {
-        let extension = if cfg!(target_os = "windows") { ".exe" } else { "" };
+        let extension = if cfg!(target_os = "windows") {
+            ".exe"
+        } else {
+            ""
+        };
         let output_path = binaries_dir.join(format!("{}{}", tool, extension));
-        
+
         std::fs::write(&output_path, &bytes)?;
 
         // Verify SHA256 hash
@@ -203,9 +234,12 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
                 }
             }
         } else {
-            eprintln!("Warning: No expected SHA256 hash found for {} on {}", tool, platform);
+            eprintln!(
+                "Warning: No expected SHA256 hash found for {} on {}",
+                tool, platform
+            );
         }
-        
+
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -214,29 +248,96 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
             permissions.set_mode(0o755);
             std::fs::set_permissions(&output_path, permissions)?;
         }
-        
+
         #[cfg(target_os = "macos")]
         {
             if let Err(e) = handle_macos_quarantine(&output_path.to_string_lossy(), &platform) {
                 eprintln!("Warning: Failed to handle macOS quarantine: {}", e);
             }
         }
-        
+
         return Ok(output_path.to_string_lossy().to_string());
     }
-    
+
     // Handle zip archives for other tools
-    let cursor = std::io::Cursor::new(bytes);
+    let cursor = std::io::Cursor::new(bytes.clone());
     let mut archive = zip::ZipArchive::new(cursor)?;
-    
+
+    // Special handling for whisper-cli on Windows to extract exe and dll files
+    if tool == "whisper-cli" && platform == "windows" {
+        let mut main_executable_path = None;
+
+        // Verify SHA256 hash of the original zip file
+        if let Some(expected_hash) = get_tool_sha256(tool, &platform) {
+            let temp_zip_path = binaries_dir.join("temp_whisper.zip");
+            std::fs::write(&temp_zip_path, &bytes)?;
+            match verify_sha256(&temp_zip_path.to_string_lossy(), expected_hash) {
+                Ok(true) => {
+                    println!("SHA256 verification successful for {} zip file", tool);
+                    std::fs::remove_file(&temp_zip_path)?;
+                }
+                Ok(false) => {
+                    std::fs::remove_file(&temp_zip_path)?;
+                    return Err(
+                        format!("SHA256 hash verification failed for {} zip file", tool).into(),
+                    );
+                }
+                Err(e) => {
+                    std::fs::remove_file(&temp_zip_path)?;
+                    eprintln!(
+                        "Warning: SHA256 verification error for {} zip file: {}",
+                        tool, e
+                    );
+                }
+            }
+        }
+
+        // First pass: extract all files and find the main executable
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let file_name = file.name().to_string(); // Convert to owned String to avoid borrow issues
+
+            // Skip directories
+            if file_name.ends_with('/') {
+                continue;
+            }
+
+            let path_parts: Vec<&str> = file_name.split('/').collect();
+            let filename = *path_parts.last().unwrap_or(&file_name.as_str());
+
+            // Extract whisper-cli.exe and all .dll files
+            if filename == "whisper-cli.exe" || filename.ends_with(".dll") {
+                let output_path = binaries_dir.join(filename);
+                let mut output_file = std::fs::File::create(&output_path)?;
+                std::io::copy(&mut file, &mut output_file)?;
+
+                if filename == "whisper-cli.exe" {
+                    main_executable_path = Some(output_path);
+                }
+
+                println!("Extracted: {}", filename);
+            }
+        }
+
+        return Ok(main_executable_path
+            .expect("Could not find whisper-cli.exe in the downloaded archive")
+            .to_string_lossy()
+            .to_string());
+    }
+
+    // Handle other tools (ffmpeg, ffprobe)
     for i in 0..archive.len() {
         let mut file = archive.by_index(i)?;
         let file_name = file.name();
-        
+
         if file_name.contains(tool) && !file_name.ends_with('/') {
-            let extension = if cfg!(target_os = "windows") { ".exe" } else { "" };
+            let extension = if cfg!(target_os = "windows") {
+                ".exe"
+            } else {
+                ""
+            };
             let output_path = binaries_dir.join(format!("{}{}", tool, extension));
-            
+
             let mut output_file = std::fs::File::create(&output_path)?;
             std::io::copy(&mut file, &mut output_file)?;
 
@@ -253,7 +354,10 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
                     }
                 }
             } else {
-                eprintln!("Warning: No expected SHA256 hash found for {} on {}", tool, platform);
+                eprintln!(
+                    "Warning: No expected SHA256 hash found for {} on {}",
+                    tool, platform
+                );
             }
 
             #[cfg(unix)]
@@ -264,37 +368,46 @@ pub fn download_tool(tool: &str) -> Result<String, Box<dyn std::error::Error>> {
                 permissions.set_mode(0o755);
                 std::fs::set_permissions(&output_path, permissions)?;
             }
-            
+
             #[cfg(target_os = "macos")]
             {
                 if let Err(e) = handle_macos_quarantine(&output_path.to_string_lossy(), &platform) {
                     eprintln!("Warning: Failed to handle macOS quarantine: {}", e);
                 }
             }
-            
+
             // Create GPL license file for ffmpeg and ffprobe
             if tool == "ffmpeg" || tool == "ffprobe" {
                 create_gpl_license_file(&binaries_dir)?;
                 create_compiling_file(&binaries_dir)?;
-                
+
                 println!();
                 println!("FREE SOFTWARE NOTICE:");
-                println!("   {} is free software licensed under the GNU General Public License v2.", tool);
+                println!(
+                    "   {} is free software licensed under the GNU General Public License v2.",
+                    tool
+                );
                 println!("   You are free to use, modify, and distribute this software under the");
-                println!("   terms of the GPL v2. See COPYING.GPLv2 in the install location for full license terms.");
-                println!("   Source code locations and build instructions are available in the COMPILING file.");
+                println!(
+                    "   terms of the GPL v2. See COPYING.GPLv2 in the install location for full license terms."
+                );
+                println!(
+                    "   Source code locations and build instructions are available in the COMPILING file."
+                );
                 println!("Install location: {}", binaries_dir.display());
                 println!();
             }
-            
+
             return Ok(output_path.to_string_lossy().to_string());
         }
     }
-    
+
     Err(format!("Could not find {} binary in the downloaded archive", tool).into())
 }
 
-fn create_gpl_license_file(binaries_dir: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+fn create_gpl_license_file(
+    binaries_dir: &std::path::Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     let license_path = binaries_dir.join("COPYING.GPLv2");
     let license_text = r#"                    GNU GENERAL PUBLIC LICENSE
                        Version 2, June 1991
@@ -635,7 +748,7 @@ proprietary programs.  If your program is a subroutine library, you may
 consider it more useful to permit linking proprietary applications with the
 library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License."#;
-    
+
     std::fs::write(license_path, license_text)?;
     Ok(())
 }
@@ -1393,17 +1506,17 @@ export LDFLAGS="$LDFLAGS -framework VideoToolbox"
 make -j 10
 
 make install"#;
-    
+
     std::fs::write(compiling_path, compiling_text)?;
     Ok(())
 }
 
+use crate::auth::AuthGuard;
+use crate::web::ApiResponse;
+use indicatif::{ProgressBar, ProgressStyle};
 use rocket::serde::json::Json;
 use rocket::{get, post};
-use crate::web::ApiResponse;
-use crate::auth::AuthGuard;
-use sha2::{Sha256, Digest};
-use indicatif::{ProgressBar, ProgressStyle};
+use sha2::{Digest, Sha256};
 use std::io::Read;
 
 fn verify_sha256(file_path: &str, expected_hash: &str) -> Result<bool, Box<dyn std::error::Error>> {
@@ -1443,7 +1556,10 @@ pub fn web_list_tools(_auth: AuthGuard) -> Json<ApiResponse<Vec<ToolInfo>>> {
 }
 
 #[post("/api/tools/download", data = "<request>")]
-pub fn web_download_tool(_auth: AuthGuard, request: Json<DownloadRequest>) -> Json<ApiResponse<String>> {
+pub fn web_download_tool(
+    _auth: AuthGuard,
+    request: Json<DownloadRequest>,
+) -> Json<ApiResponse<String>> {
     match download_tool(&request.tool) {
         Ok(path) => Json(ApiResponse::success(path)),
         Err(e) => Json(ApiResponse::error(e.to_string())),
@@ -1451,38 +1567,60 @@ pub fn web_download_tool(_auth: AuthGuard, request: Json<DownloadRequest>) -> Js
 }
 
 #[post("/api/tools/use-downloaded", data = "<request>")]
-pub fn web_use_downloaded_tool(_auth: AuthGuard, request: Json<UseDownloadedRequest>) -> Json<ApiResponse<String>> {
+pub fn web_use_downloaded_tool(
+    _auth: AuthGuard,
+    request: Json<UseDownloadedRequest>,
+) -> Json<ApiResponse<String>> {
     let downloaded_path = get_downloaded_path(&request.tool_name);
-    
+
     if std::path::Path::new(&downloaded_path).exists() {
         match crate::config::load_config() {
             Ok(mut cfg) => {
                 let config_field = match request.tool_name.as_str() {
                     "ffmpeg" => "ffmpeg_path",
-                    "ffprobe" => "ffprobe_path", 
+                    "ffprobe" => "ffprobe_path",
                     "whisper-cli" => "whispercli_path",
-                    _ => return Json(ApiResponse::error(format!("Unknown tool: {}", request.tool_name))),
+                    _ => {
+                        return Json(ApiResponse::error(format!(
+                            "Unknown tool: {}",
+                            request.tool_name
+                        )));
+                    }
                 };
-                
-                if let Err(e) = crate::config::set_config_field(&mut cfg, config_field, &downloaded_path) {
-                    return Json(ApiResponse::error(format!("Error setting config field: {}", e)));
+
+                if let Err(e) =
+                    crate::config::set_config_field(&mut cfg, config_field, &downloaded_path)
+                {
+                    return Json(ApiResponse::error(format!(
+                        "Error setting config field: {}",
+                        e
+                    )));
                 }
-                
+
                 if let Err(e) = crate::config::store_config(&cfg) {
                     return Json(ApiResponse::error(format!("Error saving config: {}", e)));
                 }
-                
-                Json(ApiResponse::success(format!("Set {} to use downloaded tool at {}", config_field, downloaded_path)))
+
+                Json(ApiResponse::success(format!(
+                    "Set {} to use downloaded tool at {}",
+                    config_field, downloaded_path
+                )))
             }
             Err(e) => Json(ApiResponse::error(format!("Error loading config: {}", e))),
         }
     } else {
-        Json(ApiResponse::error(format!("Tool '{}' is not downloaded", request.tool_name)))
+        Json(ApiResponse::error(format!(
+            "Tool '{}' is not downloaded",
+            request.tool_name
+        )))
     }
 }
 
 #[cfg(target_os = "macos")]
-pub fn handle_macos_quarantine(executable_path: &str, platform: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn handle_macos_quarantine(
+    executable_path: &str,
+    platform: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     check_macos_version()?;
     remove_quarantine(executable_path)?;
     handle_arm_mac_signing(executable_path, platform)?;
@@ -1529,13 +1667,20 @@ fn remove_quarantine(executable_path: &str) -> Result<(), Box<dyn std::error::Er
         Ok(())
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        eprintln!("xattr command failed with exit code {:?}: {}", output.status.code(), error_msg);
+        eprintln!(
+            "xattr command failed with exit code {:?}: {}",
+            output.status.code(),
+            error_msg
+        );
         Err(format!("Failed to remove quarantine: {}", error_msg).into())
     }
 }
 
 #[cfg(target_os = "macos")]
-fn handle_arm_mac_signing(executable_path: &str, platform: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn handle_arm_mac_signing(
+    executable_path: &str,
+    platform: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     if platform == "macos-arm" {
         println!("Handling ARM Mac code signing for {}", executable_path);
         clear_extended_attributes(executable_path)?;
@@ -1557,7 +1702,11 @@ fn clear_extended_attributes(executable_path: &str) -> Result<(), Box<dyn std::e
         Ok(())
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        eprintln!("xattr -cr command failed with exit code {:?}: {}", output.status.code(), error_msg);
+        eprintln!(
+            "xattr -cr command failed with exit code {:?}: {}",
+            output.status.code(),
+            error_msg
+        );
         Err(format!("Failed to clear extended attributes: {}", error_msg).into())
     }
 }
@@ -1575,7 +1724,11 @@ fn codesign_executable(executable_path: &str) -> Result<(), Box<dyn std::error::
         Ok(())
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        eprintln!("codesign command failed with exit code {:?}: {}", output.status.code(), error_msg);
+        eprintln!(
+            "codesign command failed with exit code {:?}: {}",
+            output.status.code(),
+            error_msg
+        );
         Err(format!("Failed to code sign executable: {}", error_msg).into())
     }
 }

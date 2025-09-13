@@ -59,16 +59,19 @@ pub fn list_models() -> Vec<ModelInfo> {
     let cfg: crate::AtciConfig = crate::config::load_config_or_default();
     let configured_model = &cfg.model_name;
 
-    MODEL_NAMES.iter().map(|&model_name| {
-        let model_path = models_dir.join(format!("{}.bin", model_name));
-        
-        ModelInfo {
-            name: model_name.to_string(),
-            downloaded: model_path.exists(),
-            path: model_path.to_string_lossy().to_string(),
-            configured: model_name == configured_model,
-        }
-    }).collect()
+    MODEL_NAMES
+        .iter()
+        .map(|&model_name| {
+            let model_path = models_dir.join(format!("{}.bin", model_name));
+
+            ModelInfo {
+                name: model_name.to_string(),
+                downloaded: model_path.exists(),
+                path: model_path.to_string_lossy().to_string(),
+                configured: model_name == configured_model,
+            }
+        })
+        .collect()
 }
 
 pub fn download_model(model_name: &str) -> Result<String, Box<dyn std::error::Error>> {
@@ -88,15 +91,14 @@ pub fn download_model(model_name: &str) -> Result<String, Box<dyn std::error::Er
         .timeout(std::time::Duration::from_secs(300))
         .build()?;
 
-    let mut response = client.get(&url)
-        .send()?;
+    let mut response = client.get(&url).send()?;
 
     if !response.status().is_success() {
         return Err(format!("HTTP error: {}", response.status()).into());
     }
 
     let total_size = response.content_length().unwrap_or(0);
-    
+
     // Create progress bar
     let pb = ProgressBar::new(total_size);
     pb.set_style(
@@ -105,11 +107,11 @@ pub fn download_model(model_name: &str) -> Result<String, Box<dyn std::error::Er
             .progress_chars("#>-")
     );
     pb.set_message(format!("Downloading model {}", model_name));
-    
+
     // Download with progress tracking
     let mut bytes = Vec::new();
     let mut buffer = [0; 8192]; // 8KB buffer
-    
+
     loop {
         match response.read(&mut buffer) {
             Ok(0) => break, // EOF
@@ -120,19 +122,19 @@ pub fn download_model(model_name: &str) -> Result<String, Box<dyn std::error::Er
             Err(e) => return Err(e.into()),
         }
     }
-    
+
     pb.finish_with_message(format!("Downloaded model {} successfully!", model_name));
-    
+
     std::fs::write(&model_path, bytes)?;
 
     Ok(model_path.to_string_lossy().to_string())
 }
 
+use crate::auth::AuthGuard;
+use crate::web::ApiResponse;
+use indicatif::{ProgressBar, ProgressStyle};
 use rocket::serde::json::Json;
 use rocket::{get, post};
-use crate::web::ApiResponse;
-use crate::auth::AuthGuard;
-use indicatif::{ProgressBar, ProgressStyle};
 use std::io::Read;
 
 #[derive(serde::Deserialize)]
@@ -147,7 +149,10 @@ pub fn web_list_models(_auth: AuthGuard) -> Json<ApiResponse<Vec<ModelInfo>>> {
 }
 
 #[post("/api/models/download", data = "<request>")]
-pub fn web_download_model(_auth: AuthGuard, request: Json<DownloadModelRequest>) -> Json<ApiResponse<String>> {
+pub fn web_download_model(
+    _auth: AuthGuard,
+    request: Json<DownloadModelRequest>,
+) -> Json<ApiResponse<String>> {
     match download_model(&request.model) {
         Ok(path) => Json(ApiResponse::success(path)),
         Err(e) => Json(ApiResponse::error(e.to_string())),

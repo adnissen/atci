@@ -1,12 +1,12 @@
 // atci (andrew's transcript and clipping interface)
 // Copyright (C) 2025 Andrew Nissen
 
-use serde::{Deserialize, Serialize};
-use rocket::serde::json::Json;
-use rocket::{get, post};
-use crate::web::ApiResponse;
 use crate::auth::AuthGuard;
 use crate::files;
+use crate::web::ApiResponse;
+use rocket::serde::json::Json;
+use rocket::{get, post};
+use serde::{Deserialize, Serialize};
 
 fn default_true() -> bool {
     true
@@ -80,17 +80,17 @@ pub fn store_config(config: &AtciConfig) -> Result<(), confy::ConfyError> {
 #[get("/api/config")]
 pub fn web_get_config(_auth: AuthGuard) -> Json<ApiResponse<ConfigResponse>> {
     let config = load_config().unwrap_or_default();
-    
-    let is_complete = !config.ffmpeg_path.is_empty() 
+
+    let is_complete = !config.ffmpeg_path.is_empty()
         && !config.ffprobe_path.is_empty()
         && !config.model_name.is_empty()
         && !config.whispercli_path.is_empty();
-    
+
     let response = ConfigResponse {
         config,
         is_complete,
     };
-    
+
     Json(ApiResponse::success(response))
 }
 
@@ -106,15 +106,17 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
             if !cfg.watch_directories.contains(&value.to_string()) {
                 cfg.watch_directories.push(value.to_string());
             }
-        },
+        }
         "allow_whisper" => {
-            cfg.allow_whisper = value.parse::<bool>()
+            cfg.allow_whisper = value
+                .parse::<bool>()
                 .map_err(|_| format!("Invalid boolean value for allow_whisper: {}", value))?;
-        },
+        }
         "allow_subtitles" => {
-            cfg.allow_subtitles = value.parse::<bool>()
+            cfg.allow_subtitles = value
+                .parse::<bool>()
                 .map_err(|_| format!("Invalid boolean value for allow_subtitles: {}", value))?;
-        },
+        }
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())
@@ -123,7 +125,9 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
 #[post("/api/config", data = "<config>")]
 pub fn web_set_config(_auth: AuthGuard, config: Json<AtciConfig>) -> Json<ApiResponse<String>> {
     match store_config(&config) {
-        Ok(()) => Json(ApiResponse::success("Config updated successfully".to_string())),
+        Ok(()) => Json(ApiResponse::success(
+            "Config updated successfully".to_string(),
+        )),
         Err(e) => Json(ApiResponse::error(format!("Error saving config: {}", e))),
     }
 }
