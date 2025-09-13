@@ -98,3 +98,18 @@ jobs:
           name: ${{ matrix.asset_name }}
           path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}
           retention-days: 30
+
+  download-urls:
+    name: Download URLs
+    runs-on: ubuntu-latest
+    needs: build
+    if: always() && needs.build.result == 'success'
+    steps:
+      - name: Output download URLs
+        run: |
+          echo "## Build Artifacts Download URLs"
+          echo "| Platform | Architecture | Download URL |"
+          echo "|----------|--------------|--------------|"
+          echo "| Linux | x86_64 | https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/atci-linux-x86_64 |"
+          echo "| macOS | ARM64 | https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/atci-macos-aarch64 |"
+          echo "| Windows | x86_64 | https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/atci-windows-x86_64.exe |"
