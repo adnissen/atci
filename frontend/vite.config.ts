@@ -10,6 +10,7 @@ export default defineConfig({
   build: {
     minify: true,
     outDir: '../assets/',
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         entryFileNames: '[name].js',

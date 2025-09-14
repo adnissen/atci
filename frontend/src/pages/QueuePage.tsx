@@ -13,18 +13,8 @@ import {
   DropdownMenuItem,
 } from '../components/ui/dropdown-menu'
 import { ChevronLeft } from 'lucide-react'
-import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addTimestamp } from '../lib/utils'
 import { useFileContext } from '../contexts/FileContext'
-
-
-type QueueStatus = {
-  queue: string[]
-  currently_processing?: string | null
-  processing_state: string
-  age_in_seconds?: number
-}
 
 interface QueuePageProps {
   onClose?: () => void;
@@ -32,49 +22,7 @@ interface QueuePageProps {
 
 export default function QueuePage({ onClose }: QueuePageProps = {}) {
   const navigate = useNavigate()
-  const { refreshFiles } = useFileContext()
-  const [queueStatus, setQueueStatus] = useState<QueueStatus>({
-    queue: [],
-    currently_processing: null,
-    processing_state: 'idle',
-    age_in_seconds: 0
-  })
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const fetchQueueStatus = async () => {
-    try {
-      const response = await fetch(addTimestamp('/api/queue/status'))
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          //if the previous state was processing something
-          // and the incoming state is not equal to what we had
-          if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
-            // Refresh files using current filter settings
-            refreshFiles()
-          }
-          setQueueStatus(data.data)
-        } else {
-          setError(data.error)
-        }
-        setError(null)
-      } else {
-        throw new Error(`Failed to fetch queue status: ${response.status}`)
-      }
-    } catch (err) {
-      console.error('Error fetching queue status:', err)
-      setError(err instanceof Error ? err.message : 'Failed to fetch queue status')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-  // Poll for updates every two seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchQueueStatus()
-    }, 1000)
-    return () => clearInterval(interval)
-  }, [queueStatus.currently_processing])
+  const { queueStatus, fetchQueueStatus, isQueueLoading, queueError } = useFileContext()
 
   // Remove item from queue
   const handleRemoveItem = async (item: string) => {
@@ -223,7 +171,7 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
     }
   };
 
-  if (isLoading) {
+  if (isQueueLoading) {
     return (
       <div className="h-full overflow-auto">
         <div className="text-center py-8">
@@ -251,9 +199,9 @@ export default function QueuePage({ onClose }: QueuePageProps = {}) {
           )}
         </div>
 
-      {error && (
+      {queueError && (
         <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 rounded-md">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-destructive">{queueError}</p>
         </div>
       )}
 

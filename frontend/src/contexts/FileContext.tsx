@@ -14,6 +14,13 @@ type FileRow = {
   source?: string
 }
 
+type QueueStatus = {
+  queue: string[]
+  currently_processing?: string | null
+  processing_state: string
+  age_in_seconds?: number
+}
+
 interface FileContextType {
   files: FileRow[]
   setFiles: (files: FileRow[]) => void
@@ -28,6 +35,11 @@ interface FileContextType {
   setAvailableSources: (sources: string[]) => void
   showAllFiles: boolean
   setShowAllFiles: (show: boolean | ((prev: boolean) => boolean)) => void
+  queueStatus: QueueStatus
+  setQueueStatus: (status: QueueStatus) => void
+  fetchQueueStatus: () => Promise<void>
+  isQueueLoading: boolean
+  queueError: string | null
 }
 
 const FileContext = createContext<FileContextType | undefined>(undefined)
@@ -51,12 +63,20 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
   const [selectedSources, setSelectedSources] = useLSState<string[]>('selectedSources', [])
   const [availableSources, setAvailableSources] = useState<string[]>([])
   const [showAllFiles, setShowAllFiles] = useLSState<boolean>('showAllFiles', false)
+  const [queueStatus, setQueueStatus] = useState<QueueStatus>({
+    queue: [],
+    currently_processing: null,
+    processing_state: 'idle',
+    age_in_seconds: 0
+  })
+  const [isQueueLoading, setIsQueueLoading] = useState(true)
+  const [queueError, setQueueError] = useState<string | null>(null)
 
   const refreshFiles = async (watchDirs?: string[], sources?: string[]) => {
     // Use provided parameters or fall back to context state
     const dirsToUse = watchDirs !== undefined ? watchDirs : selectedWatchDirs
     const sourcesToUse = sources !== undefined ? sources : selectedSources
-    
+
     try {
       const params = new URLSearchParams()
       params.append('filter', dirsToUse.join(','))
@@ -64,7 +84,7 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
 
       const queryString = params.toString()
       const url = queryString ? `/api/files?${queryString}` : '/api/files'
-      
+
       const response = await fetch(addTimestamp(url))
       if (response.ok) {
         const data = await response.json()
@@ -74,6 +94,34 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
       }
     } catch (error) {
       console.error('Error refreshing files:', error)
+    }
+  }
+
+  const fetchQueueStatus = async () => {
+    try {
+      const response = await fetch(addTimestamp('/api/queue/status'))
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          // If the previous state was processing something
+          // and the incoming state is not equal to what we had
+          if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
+            // Refresh files using current filter settings
+            refreshFiles()
+          }
+          setQueueStatus(data.data)
+        } else {
+          setQueueError(data.error)
+        }
+        setQueueError(null)
+      } else {
+        throw new Error(`Failed to fetch queue status: ${response.status}`)
+      }
+    } catch (err) {
+      console.error('Error fetching queue status:', err)
+      setQueueError(err instanceof Error ? err.message : 'Failed to fetch queue status')
+    } finally {
+      setIsQueueLoading(false)
     }
   }
 
@@ -122,6 +170,14 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     }
   }, [selectedWatchDirs, selectedSources, showAllFiles])
 
+  // Poll for queue status updates every 2 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchQueueStatus()
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [queueStatus.currently_processing])
+
   const value: FileContextType = {
     files,
     setFiles,
@@ -136,6 +192,11 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     setAvailableSources,
     showAllFiles,
     setShowAllFiles,
+    queueStatus,
+    setQueueStatus,
+    fetchQueueStatus,
+    isQueueLoading,
+    queueError,
   }
 
   return <FileContext.Provider value={value}>{children}</FileContext.Provider>
