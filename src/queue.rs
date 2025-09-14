@@ -443,7 +443,7 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
             let files_to_add: Vec<_> = cfg
                 .watch_directories
                 .iter()
-                .map(|wd| {
+                .flat_map(|wd| {
                     let mut files: Vec<_> = WalkDir::new(wd)
                         .into_iter()
                         .filter_map(|e| e.ok())
@@ -486,7 +486,6 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                     files.sort();
                     files
                 })
-                .flatten()
                 .collect();
 
             for file_to_add in files_to_add {

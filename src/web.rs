@@ -108,7 +108,7 @@ fn auth_page(redirect: Option<String>) -> Template {
 }
 
 #[post("/auth", data = "<form>")]
-fn auth_submit(form: Form<AuthForm>, cookies: &CookieJar<'_>) -> Result<Redirect, Template> {
+fn auth_submit(form: Form<AuthForm>, cookies: &CookieJar<'_>) -> Result<Redirect, Box<Template>> {
     let config = config::load_config_or_default();
 
     // If password is null/None, redirect without authentication
@@ -134,13 +134,13 @@ fn auth_submit(form: Form<AuthForm>, cookies: &CookieJar<'_>) -> Result<Redirect
         Ok(Redirect::to(redirect_url.to_string()))
     } else {
         // Return auth page with error
-        Err(Template::render(
+        Err(Box::new(Template::render(
             "auth",
             context! {
                 redirect: form.redirect.as_deref().unwrap_or("/app"),
                 error: "Invalid password"
             },
-        ))
+        )))
     }
 }
 

@@ -183,12 +183,12 @@ pub fn clip(
     let video_args = match format {
         "mp4" => {
             let audio_codec_args = get_audio_codec_args(path, Path::new(&cfg.ffprobe_path))?;
-            if display_text && text.is_some() {
+            if let (true, Some(text_content)) = (display_text, text) {
                 video_with_text_args(
                     path,
                     start_seconds,
                     duration,
-                    text.expect("text was missing"),
+                    text_content,
                     &temp_clip_path,
                     &audio_codec_args,
                     font_size,
@@ -204,12 +204,12 @@ pub fn clip(
             }
         }
         "gif" => {
-            if display_text && text.is_some() {
+            if let (true, Some(text_content)) = (display_text, text) {
                 gif_with_text_args(
                     path,
                     start_seconds,
                     duration,
-                    text.expect("text was missing"),
+                    text_content,
                     &temp_clip_path,
                     font_size,
                 )

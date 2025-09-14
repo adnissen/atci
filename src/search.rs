@@ -202,9 +202,7 @@ pub fn web_search_transcripts(
             .iter()
             .flat_map(|f| {
                 urlencoding::decode(f)
-                    .unwrap_or_else(|_| f.into())
-                    .to_string()
-                    .split(',')
+                    .unwrap_or_else(|_| f.into()).split(',')
                     .map(|s| s.trim().to_string())
                     .filter(|s| !s.is_empty())
                     .collect::<Vec<_>>()
