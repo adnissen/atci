@@ -33,6 +33,18 @@ fn format_datetime(timestamp: std::time::SystemTime) -> String {
     datetime.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
+fn normalize_apostrophes(text: &str) -> String {
+    text
+        // Replace right single quotation mark (U+2019) with regular apostrophe
+        .replace('\u{2019}', "'")
+        // Replace left single quotation mark (U+2018) with regular apostrophe
+        .replace('\u{2018}', "'")
+        // Replace acute accent (U+00B4) with regular apostrophe
+        .replace('\u{00B4}', "'")
+        // Replace grave accent (U+0060) with regular apostrophe
+        .replace('`', "'")
+}
+
 pub fn search(
     query: &str,
     filter: Option<&Vec<String>>,
@@ -133,11 +145,14 @@ pub fn search(
                 source: model,
             };
 
+            let normalized_query = normalize_apostrophes(&query.to_lowercase());
+
             let matches: Vec<SearchMatch> = lines
                 .iter()
                 .enumerate()
                 .filter_map(|(line_num, line)| {
-                    if line.to_lowercase().contains(&query.to_lowercase()) {
+                    let normalized_line = normalize_apostrophes(&line.to_lowercase());
+                    if normalized_line.contains(&normalized_query) {
                         // Check if the previous line contains a timestamp
                         let timestamp = if line_num > 0 {
                             let prev_line = lines[line_num - 1];

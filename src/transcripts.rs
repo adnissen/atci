@@ -627,7 +627,7 @@ mod tests {
 
         create_test_file(temp_dir.path(), "test_video.txt", "transcript content");
 
-        let result = regenerate(video_path.to_str().unwrap());
+        let result = regenerate(video_path.to_str().unwrap(), None, None);
         assert!(result.is_ok());
 
         let txt_path = temp_dir.path().join("test_video.txt");
@@ -641,7 +641,7 @@ mod tests {
 
         create_test_file(temp_dir.path(), "test_video.txt", "transcript content");
 
-        let result = regenerate(video_path.to_str().unwrap());
+        let result = regenerate(video_path.to_str().unwrap(), None, None);
         assert!(result.is_ok());
 
         let txt_path = temp_dir.path().join("test_video.txt");
@@ -653,7 +653,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let video_path = temp_dir.path().join("test_video.mp4");
 
-        let result = regenerate(video_path.to_str().unwrap());
+        let result = regenerate(video_path.to_str().unwrap(), None, None);
         assert!(result.is_err());
         assert_eq!(
             result.unwrap_err().to_string(),
