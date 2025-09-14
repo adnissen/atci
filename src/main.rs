@@ -854,10 +854,24 @@ fn setup_pid_file_management() -> Result<(), Box<dyn std::error::Error>> {
 fn update() -> Result<(), Box<dyn std::error::Error>> {
     use self_update::cargo_crate_version;
 
+    // Determine the target and binary name based on the current platform
+    let (target, bin_name) = if cfg!(target_os = "windows") && cfg!(target_arch = "x86_64") {
+        ("windows-x86_64", "atci.exe")
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        ("macos-aarch64", "atci")
+    } else {
+        return Err(format!(
+            "Self-update is only supported for Windows x86_64 and macOS aarch64. Current platform: {}-{}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        ).into());
+    };
+
     let status = self_update::backends::github::Update::configure()
         .repo_owner("adnissen")
         .repo_name("atci")
-        .bin_name("atci")
+        .bin_name(bin_name)
+        .target(target)
         .show_download_progress(true)
         .current_version(cargo_crate_version!())
         .build()?
