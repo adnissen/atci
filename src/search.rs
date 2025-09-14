@@ -36,13 +36,7 @@ fn format_datetime(timestamp: std::time::SystemTime) -> String {
 fn normalize_apostrophes(text: &str) -> String {
     text
         // Replace right single quotation mark (U+2019) with regular apostrophe
-        .replace('\u{2019}', "'")
-        // Replace left single quotation mark (U+2018) with regular apostrophe
-        .replace('\u{2018}', "'")
-        // Replace acute accent (U+00B4) with regular apostrophe
-        .replace('\u{00B4}', "'")
-        // Replace grave accent (U+0060) with regular apostrophe
-        .replace('`', "'")
+        .replace(['\u{2019}', '\u{2018}', '\u{00B4}', '`'], "'")
 }
 
 pub fn search(
@@ -204,7 +198,8 @@ pub fn web_search_transcripts(
 ) -> Json<ApiResponse<serde_json::Value>> {
     // URL decode the filter strings to handle %2C -> ,
     let decoded_filter = filter.map(|filters| {
-        filters.iter()
+        filters
+            .iter()
             .flat_map(|f| {
                 urlencoding::decode(f)
                     .unwrap_or_else(|_| f.into())

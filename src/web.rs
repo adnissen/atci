@@ -207,7 +207,8 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
             if let Some(parent) = target_path.parent() {
                 std::fs::create_dir_all(parent).expect("Failed to create template subdirectory");
             }
-            std::fs::write(target_path, content.data.as_ref()).expect("Failed to write template file");
+            std::fs::write(target_path, content.data.as_ref())
+                .expect("Failed to write template file");
         }
     }
 
@@ -240,7 +241,8 @@ pub async fn launch_api_server(host: &str, port: u16) -> Result<(), rocket::Erro
             if let Some(parent) = target_path.parent() {
                 std::fs::create_dir_all(parent).expect("Failed to create template subdirectory");
             }
-            std::fs::write(target_path, content.data.as_ref()).expect("Failed to write template file");
+            std::fs::write(target_path, content.data.as_ref())
+                .expect("Failed to write template file");
         }
     }
 
