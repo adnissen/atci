@@ -872,13 +872,25 @@ fn validate_and_prompt_config(
 
     if fields_to_verify.contains("watch_directories") && cfg.watch_directories.is_empty() {
         let watch_dir: String = Input::new()
-            .with_prompt("Watch directory (press Enter to skip)")
+            .with_prompt("Watch directory (press Enter to create and use ~/atci_videos)")
             .allow_empty(true)
             .validate_with(|input: &String| validate_directory_path(input))
             .interact()?;
 
         if !watch_dir.is_empty() {
             cfg.watch_directories.push(watch_dir);
+            config_changed = true;
+        } else {
+            // Create atci_videos directory in home directory and use it
+            let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+            let atci_videos_dir = home_dir.join("atci_videos");
+
+            if !atci_videos_dir.exists() {
+                fs::create_dir_all(&atci_videos_dir)?;
+                println!("Created directory: {}", atci_videos_dir.display());
+            }
+
+            cfg.watch_directories.push(atci_videos_dir.to_string_lossy().to_string());
             config_changed = true;
         }
     }
