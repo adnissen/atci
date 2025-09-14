@@ -125,10 +125,20 @@ pub fn regenerate(
     model: Option<String>,
     subtitle_stream_index: Option<i32>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let video_path_obj = Path::new(video_path);
+    let txt_path = video_path_obj.with_extension("txt");
+    
+    // Check if transcript file exists
+    if !txt_path.exists() {
+        return Err("No transcript files found to delete".into());
+    }
+    
+    // Delete the transcript file
+    std::fs::remove_file(&txt_path)?;
+    
+    // Add video back to the queue for re-processing
     queue::add_to_queue(video_path, model, subtitle_stream_index)?;
-
     files::get_and_save_video_info_from_disk()?;
-
     Ok(())
 }
 
@@ -424,7 +434,11 @@ mod tests {
     use super::*;
     use std::fs;
     use std::path::Path;
+    use std::sync::Mutex;
     use tempfile::TempDir;
+    
+    // Mutex to serialize regenerate tests and avoid database race conditions
+    static REGENERATE_TEST_MUTEX: Mutex<()> = Mutex::new(());
 
     fn create_test_file(dir: &Path, name: &str, content: &str) -> std::path::PathBuf {
         let file_path = dir.join(name);
@@ -622,6 +636,14 @@ mod tests {
 
     #[test]
     fn test_regenerate_success_with_both_files() {
+        let _guard = REGENERATE_TEST_MUTEX.lock().unwrap();
+        
+        // Clear queue to avoid race conditions in parallel tests
+        if let Ok(conn) = crate::db::get_connection() {
+            let _ = conn.execute("DELETE FROM queue", []);
+            let _ = conn.execute("DELETE FROM currently_processing", []);
+        }
+
         let temp_dir = TempDir::new().unwrap();
         let video_path = temp_dir.path().join("test_video.mp4");
 
@@ -636,6 +658,14 @@ mod tests {
 
     #[test]
     fn test_regenerate_success_with_only_transcript() {
+        let _guard = REGENERATE_TEST_MUTEX.lock().unwrap();
+        
+        // Clear queue to avoid race conditions in parallel tests
+        if let Ok(conn) = crate::db::get_connection() {
+            let _ = conn.execute("DELETE FROM queue", []);
+            let _ = conn.execute("DELETE FROM currently_processing", []);
+        }
+
         let temp_dir = TempDir::new().unwrap();
         let video_path = temp_dir.path().join("test_video.mp4");
 
@@ -650,6 +680,14 @@ mod tests {
 
     #[test]
     fn test_regenerate_no_files_to_delete() {
+        let _guard = REGENERATE_TEST_MUTEX.lock().unwrap();
+        
+        // Clear queue to avoid race conditions in parallel tests
+        if let Ok(conn) = crate::db::get_connection() {
+            let _ = conn.execute("DELETE FROM queue", []);
+            let _ = conn.execute("DELETE FROM currently_processing", []);
+        }
+        
         let temp_dir = TempDir::new().unwrap();
         let video_path = temp_dir.path().join("test_video.mp4");
 
