@@ -890,7 +890,8 @@ fn validate_and_prompt_config(
                 println!("Created directory: {}", atci_videos_dir.display());
             }
 
-            cfg.watch_directories.push(atci_videos_dir.to_string_lossy().to_string());
+            cfg.watch_directories
+                .push(atci_videos_dir.to_string_lossy().to_string());
             config_changed = true;
         }
     }

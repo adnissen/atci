@@ -5,79 +5,133 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Authentication Required</title>
     <style>
-        body {
+        :root {
+            --radius: 0.625rem;
+            --background: oklch(1 0 0);
+            --foreground: oklch(0.141 0.005 285.823);
+            --card: oklch(1 0 0);
+            --card-foreground: oklch(0.141 0.005 285.823);
+            --primary: oklch(0.21 0.006 285.885);
+            --primary-foreground: oklch(0.985 0 0);
+            --muted-foreground: oklch(0.552 0.016 285.938);
+            --border: oklch(0.92 0.004 286.32);
+            --input: oklch(0.92 0.004 286.32);
+            --ring: oklch(0.705 0.015 286.067);
+            --destructive: oklch(0.577 0.245 27.325);
+        }
+
+        .dark {
+            --background: oklch(0.15 0 0);
+            --foreground: oklch(0.82 0 0);
+            --card: oklch(0.18 0 0);
+            --card-foreground: oklch(0.82 0 0);
+            --primary: oklch(0.55 0.18 230);
+            --primary-foreground: oklch(0.98 0 0);
+            --muted-foreground: oklch(0.6 0 0);
+            --border: oklch(0.28 0 0);
+            --input: oklch(0.28 0 0);
+            --ring: oklch(0.55 0.18 230);
+            --destructive: oklch(0.65 0.2 25);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
             margin: 0;
             padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background-color: var(--background);
+            color: var(--foreground);
             height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
         }
-        
+
         .auth-container {
-            background: white;
+            background-color: var(--card);
+            color: var(--card-foreground);
             padding: 3rem;
-            border-radius: 12px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
             text-align: center;
             min-width: 400px;
+            max-width: 90vw;
         }
-        
+
         .password-prompt {
-            font-size: 3rem;
-            font-weight: 300;
-            color: #333;
-            margin-bottom: 2rem;
-            letter-spacing: -1px;
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--foreground);
+            margin-bottom: 1rem;
+            letter-spacing: -0.025em;
         }
-        
+
+        .subtitle {
+            color: var(--muted-foreground);
+            margin-bottom: 2rem;
+            font-size: 0.875rem;
+        }
+
         .form-group {
             margin-bottom: 1.5rem;
         }
-        
+
         .password-input {
             width: 100%;
-            padding: 1rem;
-            font-size: 1.2rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            background-color: var(--background);
+            color: var(--foreground);
+            border: 1px solid var(--input);
+            border-radius: calc(var(--radius) - 2px);
             outline: none;
-            transition: border-color 0.3s ease;
-            box-sizing: border-box;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
-        
+
         .password-input:focus {
-            border-color: #667eea;
+            border-color: var(--ring);
+            box-shadow: 0 0 0 2px var(--ring);
         }
-        
+
         .submit-btn {
             width: 100%;
-            padding: 1rem;
-            font-size: 1.1rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            padding: 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            background-color: var(--primary);
+            color: var(--primary-foreground);
             border: none;
-            border-radius: 8px;
+            border-radius: calc(var(--radius) - 2px);
             cursor: pointer;
-            transition: transform 0.2s ease;
+            transition: opacity 0.2s ease;
         }
-        
+
         .submit-btn:hover {
-            transform: translateY(-1px);
+            opacity: 0.9;
         }
-        
+
+        .submit-btn:focus {
+            outline: 2px solid var(--ring);
+            outline-offset: 2px;
+        }
+
         .error-message {
-            color: #e74c3c;
+            color: var(--destructive);
             margin-top: 1rem;
-            font-size: 0.9rem;
+            font-size: 0.875rem;
         }
-        
-        .subtitle {
-            color: #666;
-            margin-bottom: 2rem;
-            font-size: 1rem;
+
+        @media (max-width: 480px) {
+            .auth-container {
+                padding: 2rem;
+                min-width: 0;
+            }
+            .password-prompt {
+                font-size: 1.5rem;
+            }
         }
     </style>
 </head>
@@ -107,14 +161,37 @@
     </div>
     
     <script>
-        // Focus on password input
-        document.querySelector('.password-input').focus();
-        
+        // Apply stored dark mode setting
+        (function() {
+            try {
+                const isDarkMode = localStorage.getItem('isDarkMode');
+                if (isDarkMode === 'true') {
+                    document.documentElement.classList.add('dark');
+                    document.body.classList.add('dark');
+                }
+            } catch (e) {
+                // localStorage might not be available
+            }
+        })();
+
+        // Focus on password input when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const passwordInput = document.querySelector('.password-input');
+            if (passwordInput) {
+                passwordInput.focus();
+            }
+        });
+
         // Handle Enter key
-        document.querySelector('.password-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                document.querySelector('form').submit();
+        document.addEventListener('DOMContentLoaded', function() {
+            const passwordInput = document.querySelector('.password-input');
+            if (passwordInput) {
+                passwordInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        document.querySelector('form').submit();
+                    }
+                });
             }
         });
     </script>
