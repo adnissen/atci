@@ -855,7 +855,7 @@ fn update() -> Result<(), Box<dyn std::error::Error>> {
     use self_update::cargo_crate_version;
 
     let status = self_update::backends::github::Update::configure()
-        .repo_owner("andrewnissen")
+        .repo_owner("adnissen")
         .repo_name("atci")
         .bin_name("atci")
         .show_download_progress(true)
@@ -875,7 +875,7 @@ fn check_version(pretty: bool) -> Result<(), Box<dyn std::error::Error>> {
     
     // Check for latest release
     let (latest_version, update_available) = match self_update::backends::github::ReleaseList::configure()
-        .repo_owner("andrewnissen")
+        .repo_owner("adnissen")
         .repo_name("atci")
         .build()
         .and_then(|r| r.fetch())
