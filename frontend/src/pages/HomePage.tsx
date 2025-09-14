@@ -62,7 +62,7 @@ function HomePageContent() {
   const [leftPaneWidth, setLeftPaneWidth] = useState<number>(0)
   const [isLeftPaneWidthMeasured, setIsLeftPaneWidthMeasured] = useState<boolean>(false)
   const [showConfigInRightPane, setShowConfigInRightPane] = useState<boolean>(false)
-  const [showQueueInRightPane, setShowQueueInRightPane] = useState<boolean>(true)
+  const [showQueueInRightPane, setShowQueueInRightPane] = useState<boolean>(false)
 
   // Mobile drawer state
   const [isClipDrawerOpen, setIsClipDrawerOpen] = useState(false)

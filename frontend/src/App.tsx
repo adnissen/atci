@@ -1,13 +1,16 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import './App.css'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense, lazy } from 'react'
 import { useLSState } from './hooks/useLSState'
-import HomePage from './pages/HomePage'
-import ConfigPage from './pages/ConfigPage'
-import QueuePage from './pages/QueuePage'
 import ConfigSetup from './components/ConfigSetup'
 import { addTimestamp } from './lib/utils'
 import { FileProvider } from './contexts/FileContext'
+import { Sun, Moon } from 'lucide-react'
+
+// Lazy load pages for code splitting
+const HomePage = lazy(() => import('./pages/HomePage'))
+const ConfigPage = lazy(() => import('./pages/ConfigPage'))
+const QueuePage = lazy(() => import('./pages/QueuePage'))
 
 function App() {
   // Configuration state
@@ -99,17 +102,7 @@ function App() {
           className="fixed bottom-6 left-6 z-50 p-3 bg-card border border-border rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-foreground hover:bg-accent"
           title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
-          {isDarkMode ? (
-            // Sun icon for light mode
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          ) : (
-            // Moon icon for dark mode
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          )}
+          {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
       </div>
     )
@@ -127,17 +120,7 @@ function App() {
           className="fixed bottom-6 left-6 z-50 p-3 bg-card border border-border rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 text-foreground hover:bg-accent"
           title={isDarkMode ? 'Switch to light mode' : 'Switch to dark mode'}
         >
-          {isDarkMode ? (
-            // Sun icon for light mode
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          ) : (
-            // Moon icon for dark mode
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          )}
+          {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </button>
       </>
     )
@@ -146,12 +129,14 @@ function App() {
   return (
     <div className={`min-h-screen bg-background ${isDarkMode ? 'dark' : ''}`}>
       <FileProvider>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/config" element={<ConfigPage />} />
-          <Route path="/queue" element={<QueuePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="text-lg text-muted-foreground">Loading...</div></div>}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/config" element={<ConfigPage />} />
+            <Route path="/queue" element={<QueuePage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </FileProvider>
 
       {/* Theme Toggle Button */}
