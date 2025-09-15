@@ -1139,11 +1139,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         println!(
                             "   System Available: {}",
-                            if tool.system_available {
-                                "Yes"
-                            } else {
-                                "No"
-                            }
+                            if tool.system_available { "Yes" } else { "No" }
                         );
                         if let Some(system_path) = &tool.system_path {
                             println!("   System Path: {}", system_path);
