@@ -7,7 +7,39 @@ on:
   workflow_dispatch:
 
 jobs:
+  validate-version:
+    name: Validate version matches tag
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Extract version from Cargo.toml
+        id: cargo-version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Extract version from tag
+        id: tag-version
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$TAG_VERSION" >> $GITHUB_OUTPUT
+      
+      - name: Compare versions
+        run: |
+          if [ "${{ steps.cargo-version.outputs.version }}" != "${{ steps.tag-version.outputs.version }}" ]; then
+            echo "ERROR: Version mismatch!"
+            echo "Cargo.toml version: ${{ steps.cargo-version.outputs.version }}"
+            echo "Git tag version: ${{ steps.tag-version.outputs.version }}"
+            exit 1
+          fi
+          echo "Version validation passed: ${{ steps.cargo-version.outputs.version }}"
+
   build:
+    needs: validate-version
     name: Build for ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -83,6 +115,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout code
@@ -92,32 +126,12 @@ jobs:
         uses: actions/download-artifact@v4
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
+          files: |
+            atci-windows-x86_64.zip/atci-windows-x86_64.zip
+            atci-macos-aarch64.zip/atci-macos-aarch64.zip
           tag_name: ${{ github.ref_name }}
-          release_name: Release ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
           draft: false
           prerelease: false
-
-      - name: Upload Windows Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./atci-windows-x86_64.zip/atci-windows-x86_64.zip
-          asset_name: atci-windows-x86_64.zip
-          asset_content_type: application/zip
-
-      - name: Upload macOS Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./atci-macos-aarch64.zip/atci-macos-aarch64.zip
-          asset_name: atci-macos-aarch64.zip
-          asset_content_type: application/zip
