@@ -46,29 +46,42 @@ fn generate_clip_for_match(
     file_path: &std::path::Path,
     timestamp_line: &str,
     format: &str,
+    text: Option<&str>,
 ) -> (Option<String>, Option<String>) {
     // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
     if let Some(timestamp_range) = parse_timestamp_range(timestamp_line) {
         let (start_time, end_time) = timestamp_range;
         
         // Generate clip using the clipper module
+        let display_text = text.is_some();
         match clipper::clip(
             file_path,
             &start_time,
             &end_time,
-            None,      // No text overlay
-            false,     // Don't display text
+            text,      // Pass text for GIF overlay
+            display_text, // Display text for GIFs
             format,    // Use specified format (mp4 or gif)
             None,      // No custom font size
         ) {
             Ok(clip_path) => {
-                let clip_command = format!(
-                    "atci clip \"{}\" {} {} --format {}",
-                    file_path.display(),
-                    start_time,
-                    end_time,
-                    format
-                );
+                let clip_command = if let Some(text_content) = text {
+                    format!(
+                        "atci clip \"{}\" {} {} \"{}\" --format {}",
+                        file_path.display(),
+                        start_time,
+                        end_time,
+                        text_content.replace('"', "\\\""),
+                        format
+                    )
+                } else {
+                    format!(
+                        "atci clip \"{}\" {} {} --format {}",
+                        file_path.display(),
+                        start_time,
+                        end_time,
+                        format
+                    )
+                };
                 (
                     Some(clip_path.to_string_lossy().to_string()),
                     Some(clip_command),
@@ -227,7 +240,8 @@ pub fn search(
                         // Generate clip if requested and timestamp is available
                         let (clip_path, clip_command) = if (generate_clips || generate_gifs) && timestamp.is_some() {
                             let format = if generate_gifs { "gif" } else { "mp4" };
-                            generate_clip_for_match(file_path, &timestamp.as_ref().unwrap(), format)
+                            let text_for_clip = if generate_gifs { Some(*line) } else { None };
+                            generate_clip_for_match(file_path, &timestamp.as_ref().unwrap(), format, text_for_clip)
                         } else {
                             (None, None)
                         };
