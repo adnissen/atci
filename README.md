@@ -18,13 +18,13 @@ The different parts of the application can be run separately. For instance:
 * To launch everything, including the directory watcher and the web interface:
 * * `atci web all`
 
-All of the data that backs the `/api` routes is also available via the command line interface as json output. Run `atci` with no arguments to display the help dialog which lists subcommands, many of which have subcommands themselves.
+All of the data that backs the `/api` routes is also available via the command line interface. Output is human-readable by default, but can be changed to JSON with the `--json` flag. Run `atci` with no arguments to display the help dialog which lists subcommands, many of which have subcommands themselves.
 
 ## Command line examples
 
-To search (with formatted output):
+To search (default formatted output):
 ```
-atci search "Special Agent Codebreaker, Jonathan Kingdon" --pretty
+atci search "Special Agent Codebreaker, Jonathan Kingdon"
 File: /Users/andrewnissen/Movies/Decker vs Dracula: Episode 02.mp4
 126: 00:05:25.920 --> 00:05:46.060
 127:	 Hello? Guys? Is anybody home? Dracula, Dracula, come out wherever you are. It's me, Special Agent Codebreaker, Jonathan Kingdon
@@ -32,7 +32,7 @@ File: /Users/andrewnissen/Movies/Decker vs Dracula: Episode 02.mp4
 
 To search with a path filter, for example if you only want to return files with `Episode 01` in the path:
 ```
-atci search kington -f "Episode 01" --pretty
+atci search kington -f "Episode 01"
 
 File: /Users/andrewnissen/Movies/Decker vs Dracula: Episode 01.mp4
 174: 00:04:31.060 --> 00:04:36.660

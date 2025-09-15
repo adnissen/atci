@@ -114,10 +114,10 @@ enum Commands {
         query: Vec<String>,
         #[arg(
             long,
-            help = "Show formatted output instead of JSON",
+            help = "Show JSON output instead of formatted",
             default_value = "false"
         )]
-        pretty: bool,
+        json: bool,
         #[arg(
             short = 'f',
             long,
@@ -142,10 +142,10 @@ enum Commands {
     Version {
         #[arg(
             long,
-            help = "Show formatted output instead of JSON",
+            help = "Show JSON output instead of formatted",
             default_value = "false"
         )]
-        pretty: bool,
+        json: bool,
     },
 }
 
@@ -194,10 +194,10 @@ enum ToolsCommands {
     List {
         #[arg(
             long,
-            help = "Show formatted output instead of JSON",
+            help = "Show JSON output instead of formatted",
             default_value = "false"
         )]
-        pretty: bool,
+        json: bool,
     },
     #[command(about = "Download and install a specific tool")]
     Download {
@@ -213,10 +213,10 @@ enum ModelsCommands {
     List {
         #[arg(
             long,
-            help = "Show formatted output instead of JSON",
+            help = "Show JSON output instead of formatted",
             default_value = "false"
         )]
-        pretty: bool,
+        json: bool,
     },
     #[command(about = "Download and install a specific model")]
     Download {
@@ -881,7 +881,7 @@ fn update() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn check_version(pretty: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn check_version(json: bool) -> Result<(), Box<dyn std::error::Error>> {
     use self_update::cargo_crate_version;
     use serde_json::json;
 
@@ -911,16 +911,16 @@ fn check_version(pretty: bool) -> Result<(), Box<dyn std::error::Error>> {
             }
         };
 
-    if pretty {
-        println!("github: {}", latest_version);
-        println!("local: {}", current_version);
-    } else {
+    if json {
         let version_info = json!({
             "current_version": current_version,
             "latest_version": latest_version,
             "update_available": update_available
         });
         println!("{}", serde_json::to_string_pretty(&version_info)?);
+    } else {
+        println!("github: {}", latest_version);
+        println!("local: {}", current_version);
     }
 
     Ok(())
@@ -1119,9 +1119,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("{}", output_path.display());
         }
         Some(Commands::Tools { tools_command }) => match tools_command {
-            Some(ToolsCommands::List { pretty }) => {
+            Some(ToolsCommands::List { json }) => {
                 let tools = tools_manager::list_tools();
-                if pretty {
+                if json {
+                    let json_output = serde_json::to_string_pretty(&tools)?;
+                    println!("{}", json_output);
+                } else {
                     println!("Tools Status:");
                     println!("{}", "=".repeat(50));
                     for tool in tools {
@@ -1147,9 +1150,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         println!("   Configured Path: {}", tool.current_path);
                     }
-                } else {
-                    let json_output = serde_json::to_string_pretty(&tools)?;
-                    println!("{}", json_output);
                 }
             }
             Some(ToolsCommands::Download { tool }) => match tools_manager::download_tool(&tool) {
@@ -1164,9 +1164,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             None => {}
         },
         Some(Commands::Models { models_command }) => match models_command {
-            Some(ModelsCommands::List { pretty }) => {
+            Some(ModelsCommands::List { json }) => {
                 let models = model_manager::list_models();
-                if pretty {
+                if json {
+                    let json_output = serde_json::to_string_pretty(&models)?;
+                    println!("{}", json_output);
+                } else {
                     let (downloaded, available): (Vec<_>, Vec<_>) =
                         models.iter().partition(|model| model.downloaded);
 
@@ -1191,9 +1194,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("⬇️  {}", model.name);
                         }
                     }
-                } else {
-                    let json_output = serde_json::to_string_pretty(&models)?;
-                    println!("{}", json_output);
                 }
             }
             Some(ModelsCommands::Download { model }) => {
@@ -1300,14 +1300,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         Some(Commands::Search {
             query,
-            pretty,
+            json,
             filter,
         }) => {
             let search_query = query.join(" ");
 
             match search::search(&search_query, filter.as_ref()) {
                 Ok(results) => {
-                    if pretty {
+                    if json {
+                        let json_output = serde_json::to_string_pretty(&results)?;
+                        println!("{}", json_output);
+                    } else {
                         for result in results {
                             println!("File: {}", result.file_path);
                             for search_match in result.matches {
@@ -1328,9 +1331,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             println!();
                         }
-                    } else {
-                        let json_output = serde_json::to_string_pretty(&results)?;
-                        println!("{}", json_output);
                     }
                 }
                 Err(e) => {
@@ -1487,8 +1487,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         }
-        Some(Commands::Version { pretty }) => {
-            if let Err(e) = check_version(pretty) {
+        Some(Commands::Version { json }) => {
+            if let Err(e) = check_version(json) {
                 eprintln!("Error checking version: {}", e);
                 std::process::exit(1);
             }
