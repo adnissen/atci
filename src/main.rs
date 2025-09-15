@@ -125,6 +125,18 @@ enum Commands {
             value_delimiter = ','
         )]
         filter: Option<Vec<String>>,
+        #[arg(
+            long,
+            help = "Generate clips for each search result and show clip commands",
+            default_value = "false"
+        )]
+        clip: bool,
+        #[arg(
+            long,
+            help = "Generate GIF clips for each search result and show clip commands",
+            default_value = "false"
+        )]
+        gif: bool,
     },
     #[command(about = "Manage video transcripts")]
     Transcripts {
@@ -1298,10 +1310,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             query,
             json,
             filter,
+            clip,
+            gif,
         }) => {
             let search_query = query.join(" ");
 
-            match search::search(&search_query, filter.as_ref()) {
+            match search::search(&search_query, filter.as_ref(), clip, gif) {
                 Ok(results) => {
                     if json {
                         let json_output = serde_json::to_string_pretty(&results)?;
@@ -1311,18 +1325,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("File: {}", result.file_path);
                             for search_match in result.matches {
                                 if let Some(timestamp) = search_match.timestamp {
-                                    println!("{}: {}", search_match.line_number, timestamp);
+                                    println!("  {}: {}", search_match.line_number, timestamp);
                                     println!(
-                                        "{}:\t{}",
+                                        "  {}:\t{}",
                                         search_match.line_number + 1,
                                         search_match.line_text
                                     );
                                 } else {
                                     println!(
-                                        "{}: \"{}\"",
+                                        "  {}: \"{}\"",
                                         search_match.line_number, search_match.line_text
                                     );
                                 }
+                                
+                                // Display clip information if available
+                                if let Some(clip_path) = &search_match.clip_path {
+                                    println!("Clip: {}", clip_path);
+                                }
+                                if let Some(clip_command) = &search_match.clip_command {
+                                    println!("Command: {}", clip_command);
+                                }
+                                
                                 println!();
                             }
                             println!();
