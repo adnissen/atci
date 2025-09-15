@@ -51,17 +51,17 @@ fn generate_clip_for_match(
     // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
     if let Some(timestamp_range) = parse_timestamp_range(timestamp_line) {
         let (start_time, end_time) = timestamp_range;
-        
+
         // Generate clip using the clipper module
         let display_text = text.is_some();
         match clipper::clip(
             file_path,
             &start_time,
             &end_time,
-            text,      // Pass text for GIF overlay
+            text,         // Pass text for GIF overlay
             display_text, // Display text for GIFs
-            format,    // Use specified format (mp4 or gif)
-            None,      // No custom font size
+            format,       // Use specified format (mp4 or gif)
+            None,         // No custom font size
         ) {
             Ok(clip_path) => {
                 let clip_command = if let Some(text_content) = text {
@@ -88,7 +88,12 @@ fn generate_clip_for_match(
                 )
             }
             Err(e) => {
-                eprintln!("Warning: Failed to generate {} for {}: {}", format, file_path.display(), e);
+                eprintln!(
+                    "Warning: Failed to generate {} for {}: {}",
+                    format,
+                    file_path.display(),
+                    e
+                );
                 (None, None)
             }
         }
@@ -246,13 +251,19 @@ pub fn search(
                         };
 
                         // Generate clip if requested and timestamp is available
-                        let (clip_path, clip_command) = if (generate_clips || generate_gifs) && timestamp.is_some() {
-                            let format = if generate_gifs { "gif" } else { "mp4" };
-                            let text_for_clip = if generate_gifs { Some(*line) } else { None };
-                            generate_clip_for_match(file_path, &timestamp.as_ref().unwrap(), format, text_for_clip)
-                        } else {
-                            (None, None)
-                        };
+                        let (clip_path, clip_command) =
+                            if (generate_clips || generate_gifs) && timestamp.is_some() {
+                                let format = if generate_gifs { "gif" } else { "mp4" };
+                                let text_for_clip = if generate_gifs { Some(*line) } else { None };
+                                generate_clip_for_match(
+                                    file_path,
+                                    timestamp.as_ref().unwrap(),
+                                    format,
+                                    text_for_clip,
+                                )
+                            } else {
+                                (None, None)
+                            };
 
                         Some(SearchMatch {
                             line_number: line_num + 1,

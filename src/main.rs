@@ -1337,7 +1337,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         search_match.line_number, search_match.line_text
                                     );
                                 }
-                                
+
                                 // Display clip information if available
                                 if let Some(clip_path) = &search_match.clip_path {
                                     println!("Clip: {}", clip_path);
@@ -1345,7 +1345,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 if let Some(clip_command) = &search_match.clip_command {
                                     println!("Command: {}", clip_command);
                                 }
-                                
+
                                 println!();
                             }
                             println!();

@@ -6,10 +6,10 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/assets/',
+  base: '/assets/frontend/',
   build: {
     minify: true,
-    outDir: '../assets/',
+    outDir: '../assets/frontend/',
     emptyOutDir: true,
     rollupOptions: {
       output: {
