@@ -57,6 +57,7 @@ jobs:
 
   build:
     name: Build
+    if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
