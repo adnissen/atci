@@ -886,27 +886,30 @@ fn check_version(pretty: bool) -> Result<(), Box<dyn std::error::Error>> {
     use serde_json::json;
 
     let current_version = cargo_crate_version!();
-    
+
     // Check for latest release
-    let (latest_version, update_available) = match self_update::backends::github::ReleaseList::configure()
-        .repo_owner("adnissen")
-        .repo_name("atci")
-        .build()
-        .and_then(|r| r.fetch())
-    {
-        Ok(releases) => {
-            let latest_release = releases.first();
-            let latest_version = latest_release.map(|r| r.version.as_str()).unwrap_or("unknown");
-            let update_available = latest_release
-                .map(|r| r.version.as_str() != current_version)
-                .unwrap_or(false);
-            (latest_version.to_string(), update_available)
-        }
-        Err(_) => {
-            // If we can't fetch releases (repository doesn't exist, network issues, etc.)
-            ("unknown".to_string(), false)
-        }
-    };
+    let (latest_version, update_available) =
+        match self_update::backends::github::ReleaseList::configure()
+            .repo_owner("adnissen")
+            .repo_name("atci")
+            .build()
+            .and_then(|r| r.fetch())
+        {
+            Ok(releases) => {
+                let latest_release = releases.first();
+                let latest_version = latest_release
+                    .map(|r| r.version.as_str())
+                    .unwrap_or("unknown");
+                let update_available = latest_release
+                    .map(|r| r.version.as_str() != current_version)
+                    .unwrap_or(false);
+                (latest_version.to_string(), update_available)
+            }
+            Err(_) => {
+                // If we can't fetch releases (repository doesn't exist, network issues, etc.)
+                ("unknown".to_string(), false)
+            }
+        };
 
     if pretty {
         println!("Current version: {}", current_version);
