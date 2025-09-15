@@ -2,6 +2,7 @@
 // Copyright (C) 2025 Andrew Nissen
 
 use crate::auth::AuthGuard;
+use crate::clipper;
 use crate::files::VideoInfo;
 use crate::metadata;
 use crate::web::ApiResponse;
@@ -20,6 +21,8 @@ pub struct SearchMatch {
     pub line_text: String,
     pub timestamp: Option<String>,
     pub video_info: VideoInfo,
+    pub clip_path: Option<String>,
+    pub clip_command: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -39,9 +42,65 @@ fn normalize_apostrophes(text: &str) -> String {
         .replace(['\u{2019}', '\u{2018}', '\u{00B4}', '`'], "'")
 }
 
+fn generate_clip_for_match(
+    file_path: &std::path::Path,
+    timestamp_line: &str,
+) -> (Option<String>, Option<String>) {
+    // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
+    if let Some(timestamp_range) = parse_timestamp_range(timestamp_line) {
+        let (start_time, end_time) = timestamp_range;
+        
+        // Generate clip using the clipper module
+        match clipper::clip(
+            file_path,
+            &start_time,
+            &end_time,
+            None,      // No text overlay
+            false,     // Don't display text
+            "mp4",     // Default format
+            None,      // No custom font size
+        ) {
+            Ok(clip_path) => {
+                let clip_command = format!(
+                    "atci clip \"{}\" {} {}",
+                    file_path.display(),
+                    start_time,
+                    end_time
+                );
+                (
+                    Some(clip_path.to_string_lossy().to_string()),
+                    Some(clip_command),
+                )
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to generate clip for {}: {}", file_path.display(), e);
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    }
+}
+
+fn parse_timestamp_range(timestamp_line: &str) -> Option<(String, String)> {
+    // Parse lines like "126: 00:05:25.920 --> 00:05:46.060"
+    if let Some(arrow_pos) = timestamp_line.find(" --> ") {
+        let parts: Vec<&str> = timestamp_line.split(": ").collect();
+        if parts.len() >= 2 {
+            let timestamp_part = parts[1];
+            let start_end: Vec<&str> = timestamp_part.split(" --> ").collect();
+            if start_end.len() == 2 {
+                return Some((start_end[0].to_string(), start_end[1].to_string()));
+            }
+        }
+    }
+    None
+}
+
 pub fn search(
     query: &str,
     filter: Option<&Vec<String>>,
+    generate_clips: bool,
 ) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
     let cfg: AtciConfig = config::load_config()?;
     let video_extensions = crate::files::get_video_extensions();
@@ -162,11 +221,20 @@ pub fn search(
                             None
                         };
 
+                        // Generate clip if requested and timestamp is available
+                        let (clip_path, clip_command) = if generate_clips && timestamp.is_some() {
+                            generate_clip_for_match(file_path, &timestamp.as_ref().unwrap())
+                        } else {
+                            (None, None)
+                        };
+
                         Some(SearchMatch {
                             line_number: line_num + 1,
                             line_text: line.to_string(),
                             timestamp,
                             video_info: video_info.clone(),
+                            clip_path,
+                            clip_command,
                         })
                     } else {
                         None
@@ -211,7 +279,7 @@ pub fn web_search_transcripts(
             .collect()
     });
     println!("decoded_filter: {:?}", decoded_filter);
-    match search(&query, decoded_filter.as_ref()) {
+    match search(&query, decoded_filter.as_ref(), false) {
         Ok(results) => Json(ApiResponse::success(
             serde_json::to_value(results).unwrap_or_default(),
         )),
