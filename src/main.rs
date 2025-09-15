@@ -1128,11 +1128,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     println!("Tools Status:");
                     println!("{}", "=".repeat(50));
                     for tool in tools {
-                        println!("\n🔧 {}", tool.name.to_uppercase());
+                        println!("\n{}", tool.name.to_uppercase());
                         println!("   Platform: {}", tool.platform);
                         println!(
                             "   Downloaded: {}",
-                            if tool.downloaded { "✅ Yes" } else { "❌ No" }
+                            if tool.downloaded { "Yes" } else { "No" }
                         );
                         if tool.downloaded {
                             println!("   Downloaded Path: {}", tool.downloaded_path);
@@ -1140,9 +1140,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!(
                             "   System Available: {}",
                             if tool.system_available {
-                                "✅ Yes"
+                                "Yes"
                             } else {
-                                "❌ No"
+                                "No"
                             }
                         );
                         if let Some(system_path) = &tool.system_path {
@@ -1174,10 +1174,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         models.iter().partition(|model| model.downloaded);
 
                     if !downloaded.is_empty() {
-                        println!("📦 INSTALLED MODELS");
+                        println!("INSTALLED MODELS");
                         println!("{}", "=".repeat(50));
                         for model in downloaded {
-                            let status = if model.configured { "⭐ " } else { "✅ " };
+                            let status = if model.configured { "* " } else { " " };
                             println!("{}{}", status, model.name);
                             if model.configured {
                                 println!("   Status: Currently configured");
@@ -1188,10 +1188,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     if !available.is_empty() {
-                        println!("🔍 AVAILABLE MODELS");
+                        println!("AVAILABLE MODELS");
                         println!("{}", "=".repeat(50));
                         for model in available {
-                            println!("⬇️  {}", model.name);
+                            println!("  {}", model.name);
                         }
                     }
                 }
