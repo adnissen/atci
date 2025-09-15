@@ -136,6 +136,17 @@ enum Commands {
         #[command(subcommand)]
         web_command: Option<WebCommands>,
     },
+    #[command(about = "Update atci to the latest version from GitHub releases")]
+    Update,
+    #[command(about = "Display version information and check for updates")]
+    Version {
+        #[arg(
+            long,
+            help = "Show formatted output instead of JSON",
+            default_value = "false"
+        )]
+        pretty: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -840,6 +851,88 @@ fn setup_pid_file_management() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn update() -> Result<(), Box<dyn std::error::Error>> {
+    use self_update::cargo_crate_version;
+
+    // Determine the target and binary name based on the current platform
+    let (target, bin_name) = if cfg!(target_os = "windows") && cfg!(target_arch = "x86_64") {
+        ("windows-x86_64", "atci.exe")
+    } else if cfg!(target_os = "macos") && cfg!(target_arch = "aarch64") {
+        ("macos-aarch64", "atci")
+    } else {
+        return Err(format!(
+            "Self-update is only supported for Windows x86_64 and macOS aarch64. Current platform: {}-{}",
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        ).into());
+    };
+
+    let status = self_update::backends::github::Update::configure()
+        .repo_owner("adnissen")
+        .repo_name("atci")
+        .bin_name(bin_name)
+        .target(target)
+        .show_download_progress(true)
+        .current_version(cargo_crate_version!())
+        .build()?
+        .update()?;
+
+    println!("Update status: `{}`", status.version());
+    Ok(())
+}
+
+fn check_version(pretty: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use self_update::cargo_crate_version;
+    use serde_json::json;
+
+    let current_version = cargo_crate_version!();
+
+    // Check for latest release
+    let (latest_version, update_available) =
+        match self_update::backends::github::ReleaseList::configure()
+            .repo_owner("adnissen")
+            .repo_name("atci")
+            .build()
+            .and_then(|r| r.fetch())
+        {
+            Ok(releases) => {
+                let latest_release = releases.first();
+                let latest_version = latest_release
+                    .map(|r| r.version.as_str())
+                    .unwrap_or("unknown");
+                let update_available = latest_release
+                    .map(|r| r.version.as_str() != current_version)
+                    .unwrap_or(false);
+                (latest_version.to_string(), update_available)
+            }
+            Err(_) => {
+                // If we can't fetch releases (repository doesn't exist, network issues, etc.)
+                ("unknown".to_string(), false)
+            }
+        };
+
+    if pretty {
+        println!("Current version: {}", current_version);
+        println!("Latest version: {}", latest_version);
+        if latest_version == "unknown" {
+            println!("ℹ️  Could not check for updates (repository may not exist or have releases)");
+        } else if update_available {
+            println!("🔔 Update available! Run 'atci update' to update to the latest version.");
+        } else {
+            println!("✅ You are running the latest version.");
+        }
+    } else {
+        let version_info = json!({
+            "current_version": current_version,
+            "latest_version": latest_version,
+            "update_available": update_available
+        });
+        println!("{}", serde_json::to_string_pretty(&version_info)?);
+    }
+
+    Ok(())
+}
+
 fn validate_and_prompt_config(
     cfg: &mut AtciConfig,
     fields_to_verify: &HashSet<String>,
@@ -1393,6 +1486,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     });
                 }
                 None => {}
+            }
+        }
+        Some(Commands::Update) => {
+            if let Err(e) = update() {
+                eprintln!("Error updating: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Version { pretty }) => {
+            if let Err(e) = check_version(pretty) {
+                eprintln!("Error checking version: {}", e);
+                std::process::exit(1);
             }
         }
         None => {}

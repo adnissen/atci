@@ -39,8 +39,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
           - os: macos-latest
             target: aarch64-apple-darwin
           - os: windows-latest
@@ -63,10 +61,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: atci
-            asset_name: atci-linux-x86_64
           - os: macos-latest
             target: aarch64-apple-darwin
             artifact_name: atci
@@ -74,7 +68,7 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: atci.exe
-            asset_name: atci-windows-x86_64.exe
+            asset_name: atci-windows-x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -86,18 +80,12 @@ jobs:
           key: ${{ matrix.target }}
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
-      - name: Rename binary (Unix)
-        if: matrix.os != 'windows-latest'
-        run: mv target/${{ matrix.target }}/release/${{ matrix.artifact_name }} target/${{ matrix.target }}/release/${{ matrix.asset_name }}
-      - name: Rename binary (Windows)
-        if: matrix.os == 'windows-latest'
-        run: mv target/${{ matrix.target }}/release/${{ matrix.artifact_name }} target/${{ matrix.target }}/release/${{ matrix.asset_name }}
       - name: Upload build artifact
         id: upload-artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
-          path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}
+          path: target/${{ matrix.target }}/release/${{ matrix.artifact_name }}
           retention-days: 30
 
   download-urls:
@@ -120,17 +108,15 @@ jobs:
             });
 
             // Find artifact IDs by name
-            const linuxArtifact = artifacts.data.artifacts.find(a => a.name === 'atci-linux-x86_64');
             const macosArtifact = artifacts.data.artifacts.find(a => a.name === 'atci-macos-aarch64');
-            const windowsArtifact = artifacts.data.artifacts.find(a => a.name === 'atci-windows-x86_64.exe');
+            const windowsArtifact = artifacts.data.artifacts.find(a => a.name === 'atci-windows-x86_64');
 
             const comment = `## 🚀 Build Artifacts Ready!
 
             | Platform | Architecture | Download URL |
             |----------|--------------|--------------|
-            | Linux | x86_64 | [atci-linux-x86_64](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${linuxArtifact?.id || 'not-found'}) |
             | macOS | ARM64 | [atci-macos-aarch64](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${macosArtifact?.id || 'not-found'}) |
-            | Windows | x86_64 | [atci-windows-x86_64.exe](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${windowsArtifact?.id || 'not-found'}) |
+            | Windows | x86_64 | [atci-windows-x86_64](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${windowsArtifact?.id || 'not-found'}) |
 
             *Built from commit ${{ github.sha }}*`;
 
