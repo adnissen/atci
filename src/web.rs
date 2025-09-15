@@ -69,32 +69,34 @@ fn health() -> Json<ApiResponse<&'static str>> {
 }
 
 #[get("/api/version/latest")]
-fn get_latest_version(_auth: AuthGuard) -> Json<ApiResponse<VersionInfo>> {
+async fn get_latest_version(_auth: AuthGuard) -> Json<ApiResponse<VersionInfo>> {
     let current_version = cargo_crate_version!();
 
-    // Check for latest release using the same logic as the CLI version check
-    let (latest_version, update_available) =
-        match self_update::backends::github::ReleaseList::configure()
+    // Use tokio::task::spawn_blocking to safely handle blocking operations
+    let result = tokio::task::spawn_blocking(move || {
+        self_update::backends::github::ReleaseList::configure()
             .repo_owner("adnissen")
             .repo_name("atci")
             .build()
             .and_then(|r| r.fetch())
-        {
-            Ok(releases) => {
-                let latest_release = releases.first();
-                let latest_version = latest_release
-                    .map(|r| r.version.as_str())
-                    .unwrap_or("unknown");
-                let update_available = latest_release
-                    .map(|r| r.version.as_str() != current_version)
-                    .unwrap_or(false);
-                (latest_version.to_string(), update_available)
-            }
-            Err(_) => {
-                // If we can't fetch releases (repository doesn't exist, network issues, etc.)
-                ("unknown".to_string(), false)
-            }
-        };
+    }).await;
+
+    let (latest_version, update_available) = match result {
+        Ok(Ok(releases)) => {
+            let latest_release = releases.first();
+            let latest_version = latest_release
+                .map(|r| r.version.as_str())
+                .unwrap_or("unknown");
+            let update_available = latest_release
+                .map(|r| r.version.as_str() != current_version)
+                .unwrap_or(false);
+            (latest_version.to_string(), update_available)
+        }
+        _ => {
+            // If we can't fetch releases (repository doesn't exist, network issues, etc.)
+            ("unknown".to_string(), false)
+        }
+    };
 
     let version_info = VersionInfo {
         current_version: current_version.to_string(),

@@ -893,9 +893,8 @@ fn update() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn check_version(json: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn get_version_info() -> Result<(String, String, bool), Box<dyn std::error::Error>> {
     use self_update::cargo_crate_version;
-    use serde_json::json;
 
     let current_version = cargo_crate_version!();
 
@@ -922,6 +921,14 @@ fn check_version(json: bool) -> Result<(), Box<dyn std::error::Error>> {
                 ("unknown".to_string(), false)
             }
         };
+
+    Ok((current_version.to_string(), latest_version, update_available))
+}
+
+pub fn check_version(json: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use serde_json::json;
+
+    let (current_version, latest_version, update_available) = get_version_info()?;
 
     if json {
         let version_info = json!({
