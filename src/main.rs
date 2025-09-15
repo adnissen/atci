@@ -912,15 +912,8 @@ fn check_version(pretty: bool) -> Result<(), Box<dyn std::error::Error>> {
         };
 
     if pretty {
-        println!("Current version: {}", current_version);
-        println!("Latest version: {}", latest_version);
-        if latest_version == "unknown" {
-            println!("ℹ️  Could not check for updates (repository may not exist or have releases)");
-        } else if update_available {
-            println!("🔔 Update available! Run 'atci update' to update to the latest version.");
-        } else {
-            println!("✅ You are running the latest version.");
-        }
+        println!("github: {}", latest_version);
+        println!("local: {}", current_version);
     } else {
         let version_info = json!({
             "current_version": current_version,
