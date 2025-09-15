@@ -45,6 +45,7 @@ fn normalize_apostrophes(text: &str) -> String {
 fn generate_clip_for_match(
     file_path: &std::path::Path,
     timestamp_line: &str,
+    format: &str,
 ) -> (Option<String>, Option<String>) {
     // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
     if let Some(timestamp_range) = parse_timestamp_range(timestamp_line) {
@@ -57,15 +58,16 @@ fn generate_clip_for_match(
             &end_time,
             None,      // No text overlay
             false,     // Don't display text
-            "mp4",     // Default format
+            format,    // Use specified format (mp4 or gif)
             None,      // No custom font size
         ) {
             Ok(clip_path) => {
                 let clip_command = format!(
-                    "atci clip \"{}\" {} {}",
+                    "atci clip \"{}\" {} {} --format {}",
                     file_path.display(),
                     start_time,
-                    end_time
+                    end_time,
+                    format
                 );
                 (
                     Some(clip_path.to_string_lossy().to_string()),
@@ -73,7 +75,7 @@ fn generate_clip_for_match(
                 )
             }
             Err(e) => {
-                eprintln!("Warning: Failed to generate clip for {}: {}", file_path.display(), e);
+                eprintln!("Warning: Failed to generate {} for {}: {}", format, file_path.display(), e);
                 (None, None)
             }
         }
@@ -84,7 +86,7 @@ fn generate_clip_for_match(
 
 fn parse_timestamp_range(timestamp_line: &str) -> Option<(String, String)> {
     // Parse lines like "126: 00:05:25.920 --> 00:05:46.060"
-    if let Some(arrow_pos) = timestamp_line.find(" --> ") {
+    if let Some(_arrow_pos) = timestamp_line.find(" --> ") {
         let parts: Vec<&str> = timestamp_line.split(": ").collect();
         if parts.len() >= 2 {
             let timestamp_part = parts[1];
@@ -101,6 +103,7 @@ pub fn search(
     query: &str,
     filter: Option<&Vec<String>>,
     generate_clips: bool,
+    generate_gifs: bool,
 ) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
     let cfg: AtciConfig = config::load_config()?;
     let video_extensions = crate::files::get_video_extensions();
@@ -222,8 +225,9 @@ pub fn search(
                         };
 
                         // Generate clip if requested and timestamp is available
-                        let (clip_path, clip_command) = if generate_clips && timestamp.is_some() {
-                            generate_clip_for_match(file_path, &timestamp.as_ref().unwrap())
+                        let (clip_path, clip_command) = if (generate_clips || generate_gifs) && timestamp.is_some() {
+                            let format = if generate_gifs { "gif" } else { "mp4" };
+                            generate_clip_for_match(file_path, &timestamp.as_ref().unwrap(), format)
                         } else {
                             (None, None)
                         };
@@ -279,7 +283,7 @@ pub fn web_search_transcripts(
             .collect()
     });
     println!("decoded_filter: {:?}", decoded_filter);
-    match search(&query, decoded_filter.as_ref(), false) {
+    match search(&query, decoded_filter.as_ref(), false, false) {
         Ok(results) => Json(ApiResponse::success(
             serde_json::to_value(results).unwrap_or_default(),
         )),

@@ -131,6 +131,12 @@ enum Commands {
             default_value = "false"
         )]
         clip: bool,
+        #[arg(
+            long,
+            help = "Generate GIF clips for each search result and show clip commands",
+            default_value = "false"
+        )]
+        gif: bool,
     },
     #[command(about = "Manage video transcripts")]
     Transcripts {
@@ -1305,10 +1311,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             json,
             filter,
             clip,
+            gif,
         }) => {
             let search_query = query.join(" ");
 
-            match search::search(&search_query, filter.as_ref(), clip) {
+            match search::search(&search_query, filter.as_ref(), clip, gif) {
                 Ok(results) => {
                     if json {
                         let json_output = serde_json::to_string_pretty(&results)?;
