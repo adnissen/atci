@@ -98,12 +98,20 @@ fn generate_clip_for_match(
 }
 
 fn parse_timestamp_range(timestamp_line: &str) -> Option<(String, String)> {
-    // Parse lines like "126: 00:05:25.920 --> 00:05:46.060"
+    // Parse lines like "51: 00:01:07.220 --> 00:01:10.680" or "00:01:07.220 --> 00:01:10.680"
+
+    // First check if line contains the arrow separator
     if let Some(_arrow_pos) = timestamp_line.find(" --> ") {
-        let parts: Vec<&str> = timestamp_line.split(": ").collect();
-        if parts.len() >= 2 {
-            let timestamp_part = parts[1];
+        // Check if it has a number prefix (subtitle format): "51: 00:01:07.220 --> 00:01:10.680"
+        if let Some(colon_pos) = timestamp_line.find(": ") {
+            let timestamp_part = &timestamp_line[colon_pos + 2..];
             let start_end: Vec<&str> = timestamp_part.split(" --> ").collect();
+            if start_end.len() == 2 {
+                return Some((start_end[0].to_string(), start_end[1].to_string()));
+            }
+        } else {
+            // Direct format: "00:01:07.220 --> 00:01:10.680"
+            let start_end: Vec<&str> = timestamp_line.split(" --> ").collect();
             if start_end.len() == 2 {
                 return Some((start_end[0].to_string(), start_end[1].to_string()));
             }

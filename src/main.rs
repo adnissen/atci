@@ -1325,25 +1325,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("File: {}", result.file_path);
                             for search_match in result.matches {
                                 if let Some(timestamp) = search_match.timestamp {
-                                    println!("{}: {}", search_match.line_number, timestamp);
+                                    println!("  {}: {}", search_match.line_number, timestamp);
                                     println!(
-                                        "{}:\t{}",
+                                        "  {}:\t{}",
                                         search_match.line_number + 1,
                                         search_match.line_text
                                     );
                                 } else {
                                     println!(
-                                        "{}: \"{}\"",
+                                        "  {}: \"{}\"",
                                         search_match.line_number, search_match.line_text
                                     );
                                 }
                                 
                                 // Display clip information if available
                                 if let Some(clip_path) = &search_match.clip_path {
-                                    println!("   Clip: {}", clip_path);
+                                    println!("Clip: {}", clip_path);
                                 }
                                 if let Some(clip_command) = &search_match.clip_command {
-                                    println!("   Command: {}", clip_command);
+                                    println!("Command: {}", clip_command);
                                 }
                                 
                                 println!();
