@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, Download, CheckCircle, ChevronLeft, AlertCircle } from 'lucide-react';
+import { Trash2, Plus, Download, CheckCircle, ChevronLeft, AlertCircle, RefreshCw, ArrowUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import {
   Table,
@@ -46,6 +46,12 @@ interface WhisperCliTool {
   current_path: string;
 }
 
+interface VersionInfo {
+  current_version: string;
+  latest_version: string;
+  update_available: boolean;
+}
+
 interface ConfigPageProps {
   onClose?: () => void;
 }
@@ -69,12 +75,17 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
   const [downloadingModel, setDownloadingModel] = useState<string | null>(null);
   const [tools, setTools] = useState<(FFmpegTool | WhisperCliTool)[]>([]);
   const [downloadingTool, setDownloadingTool] = useState<string | null>(null);
+  const [versionInfo, setVersionInfo] = useState<VersionInfo | null>(null);
+  const [isLoadingVersion, setIsLoadingVersion] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string>('');
 
   // Fetch existing configuration on mount
   useEffect(() => {
     fetchCurrentConfig();
     fetchModels();
     fetchTools();
+    fetchVersionInfo();
   }, []);
 
   const fetchModels = async () => {
@@ -144,6 +155,59 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
       }
     } catch (error) {
       console.error('Error fetching tools:', error);
+    }
+  };
+
+  const fetchVersionInfo = async () => {
+    setIsLoadingVersion(true);
+    setUpdateMessage('');
+    try {
+      const response = await fetch(addTimestamp('/api/version/latest'));
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.data) {
+          setVersionInfo(data.data);
+        } else {
+          setErrors(prev => [...prev, data.error || 'Failed to fetch version info']);
+        }
+      } else {
+        console.error('Failed to fetch version info');
+      }
+    } catch (error) {
+      console.error('Error fetching version info:', error);
+    } finally {
+      setIsLoadingVersion(false);
+    }
+  };
+
+  const performUpdate = async () => {
+    setIsUpdating(true);
+    setUpdateMessage('');
+    setErrors([]);
+    try {
+      const response = await fetch(addTimestamp('/api/update'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setUpdateMessage(data.data || 'Update completed successfully!');
+        // Refresh version info after successful update
+        setTimeout(() => {
+          fetchVersionInfo();
+        }, 2000);
+      } else {
+        setErrors([data.error || 'Update failed']);
+      }
+    } catch (error: any) {
+      console.error('Error performing update:', error);
+      setErrors([error.message || 'Network error: Failed to perform update']);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -428,6 +492,73 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
                 <ChevronLeft className="h-4 w-4" />
                 Close
               </button>
+            )}
+          </div>
+
+          {/* Version Information Section */}
+          <div className="mb-6 border border-border rounded-lg p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-foreground">Application Version</h3>
+              <button
+                type="button"
+                onClick={fetchVersionInfo}
+                disabled={isLoadingVersion}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+                title="Refresh version information"
+              >
+                <RefreshCw className={`h-3 w-3 ${isLoadingVersion ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+            
+            {isLoadingVersion ? (
+              <div className="text-sm text-muted-foreground">Loading version information...</div>
+            ) : versionInfo ? (
+              <div className="space-y-3">
+                <div className="text-xs space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Current Version:</span>
+                    <span className="font-mono text-foreground">{versionInfo.current_version}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Latest Version:</span>
+                    <span className="font-mono text-foreground">{versionInfo.latest_version}</span>
+                  </div>
+                </div>
+                
+                {versionInfo.update_available ? (
+                  <div className="flex items-center justify-between pt-2 border-t border-border">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 text-xs text-orange-600">
+                        <ArrowUp className="h-3 w-3" />
+                        Update available
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={performUpdate}
+                      disabled={isUpdating}
+                      className="flex items-center gap-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ArrowUp className="h-3 w-3" />
+                      {isUpdating ? 'Updating...' : 'Update Now'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 pt-2 border-t border-border">
+                    <CheckCircle className="h-3 w-3 text-green-600" />
+                    <span className="text-xs text-green-600">Up to date</span>
+                  </div>
+                )}
+                
+                {updateMessage && (
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-xs text-green-800">
+                    {updateMessage}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">Failed to load version information</div>
             )}
           </div>
                 
