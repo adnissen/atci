@@ -64,7 +64,7 @@ fn health() -> Json<ApiResponse<&'static str>> {
 fn app(
     _auth: AuthGuard,
 ) -> Result<content::RawHtml<std::borrow::Cow<'static, [u8]>>, NotFound<String>> {
-    match Asset::get("index.html") {
+    match Asset::get("frontend/index.html") {
         Some(content) => Ok(content::RawHtml(content.data)),
         None => Err(NotFound("index.html not found".to_string())),
     }
