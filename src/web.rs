@@ -108,7 +108,7 @@ async fn get_latest_version(_auth: AuthGuard) -> Json<ApiResponse<VersionInfo>> 
 }
 
 #[post("/api/update")]
-fn perform_update(_auth: AuthGuard) -> Json<ApiResponse<String>> {
+async fn perform_update(_auth: AuthGuard) -> Json<ApiResponse<String>> {
     // Determine the target and binary name based on the current platform
     let (target, bin_name) = if cfg!(target_os = "windows") && cfg!(target_arch = "x86_64") {
         ("windows-x86_64", "atci.exe")
@@ -122,21 +122,32 @@ fn perform_update(_auth: AuthGuard) -> Json<ApiResponse<String>> {
         )));
     };
 
-    match self_update::backends::github::Update::configure()
-        .repo_owner("adnissen")
-        .repo_name("atci")
-        .bin_name(bin_name)
-        .target(target)
-        .show_download_progress(false) // Don't show progress in web context
-        .current_version(cargo_crate_version!())
-        .build()
-        .and_then(|updater| updater.update())
-    {
-        Ok(status) => Json(ApiResponse::success(format!(
+    let target = target.to_string();
+    let bin_name = bin_name.to_string();
+    let current_version = cargo_crate_version!().to_string();
+
+    // Use tokio::task::spawn_blocking to safely handle blocking operations
+    let result = tokio::task::spawn_blocking(move || {
+        self_update::backends::github::Update::configure()
+            .repo_owner("adnissen")
+            .repo_name("atci")
+            .bin_name(&bin_name)
+            .target(&target)
+            .show_download_progress(false) // Don't show progress in web context
+            .show_output(false) // Don't show output in web context
+            .no_confirm(true) // Don't ask for user confirmation
+            .current_version(&current_version)
+            .build()
+            .and_then(|updater| updater.update())
+    }).await;
+
+    match result {
+        Ok(Ok(status)) => Json(ApiResponse::success(format!(
             "Update successful to version: {}",
             status.version()
         ))),
-        Err(e) => Json(ApiResponse::error(format!("Update failed: {}", e))),
+        Ok(Err(e)) => Json(ApiResponse::error(format!("Update failed: {}", e))),
+        Err(e) => Json(ApiResponse::error(format!("Update task failed: {}", e))),
     }
 }
 
