@@ -113,12 +113,21 @@ export default function TopBar({
                         onClick={onQueueClick}
                         variant="ghost"
                         size="sm"
-                        className="px-2 py-1 rounded hover:bg-accent text-xs gap-1"
+                        className="px-2 py-1 rounded hover:bg-accent text-xs gap-1 group"
                         title="View processing queue"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                        </svg>
+                        <div className="relative w-4 h-4 overflow-hidden">
+                          <div className="group-hover:animate-[moveUp_1s_linear_infinite] transition-transform">
+                            {/* Create individual animated lines */}
+                            <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '2px'}}></div>
+                            <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '6px'}}></div>
+                            <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '10px'}}></div>
+                            <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '14px'}}></div>
+                            {/* Additional lines for continuous effect */}
+                            <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '18px'}}></div>
+                            <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '22px'}}></div>
+                          </div>
+                        </div>
                         <span>Queue</span>
                       </Button>
                       {queue.length > 0 && (
@@ -318,12 +327,21 @@ export default function TopBar({
                       onClick={onQueueClick}
                       variant="ghost"
                       size="sm"
-                      className="p-2 rounded-full hover:bg-accent"
+                      className="p-2 rounded-full hover:bg-accent group"
                       title="View processing queue"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                      </svg>
+                      <div className="relative w-5 h-5 overflow-hidden">
+                        <div className="group-hover:animate-[moveUp_1s_linear_infinite] transition-transform">
+                          {/* Create individual animated lines */}
+                          <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '3px'}}></div>
+                          <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '8px'}}></div>
+                          <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '13px'}}></div>
+                          <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '18px'}}></div>
+                          {/* Additional lines for continuous effect */}
+                          <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '23px'}}></div>
+                          <div className="absolute left-0 right-0 h-px bg-current rounded-full" style={{top: '28px'}}></div>
+                        </div>
+                      </div>
                     </Button>
                     {queue.length > 0 && (
                       <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
