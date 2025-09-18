@@ -8,7 +8,7 @@ use rocket::serde::json::Json;
 use rocket::{get, post};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use tokio::process::Command;
+use std::process::Command;
 
 fn default_true() -> bool {
     true
@@ -142,9 +142,9 @@ pub fn web_set_config(_auth: AuthGuard, config: Json<AtciConfig>) -> Json<ApiRes
     }
 }
 
-/// Execute a command with the video file path as an argument
-/// This function provides basic security by validating the command and path
-pub async fn execute_processing_command(
+/// Execute a command with the video file path as an argument in detached mode
+/// The command will continue running after atci exits
+pub fn execute_processing_command(
     command: &str,
     video_path: &Path,
     is_success: bool,
@@ -171,53 +171,40 @@ pub async fn execute_processing_command(
     args.push(video_path.to_str().unwrap_or(""));
 
     println!(
-        "Executing {} command: {} with args: {:?}",
+        "Spawning detached {} command: {} with args: {:?}",
         if is_success { "success" } else { "failure" },
         program,
         args
     );
 
-    // Execute the command with a timeout to prevent hanging
-    let mut child = Command::new(program)
-        .args(&args)
+    // Create the command with detached process configuration
+    let mut cmd = Command::new(program);
+    cmd.args(&args)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .spawn()?;
-
-    // Wait for completion with a reasonable timeout
-    let timeout_duration = std::time::Duration::from_secs(30);
-    match tokio::time::timeout(timeout_duration, child.wait()).await {
-        Ok(Ok(status)) => {
-            if status.success() {
-                println!(
-                    "{} command completed successfully",
-                    if is_success { "Success" } else { "Failure" }
-                );
-            } else {
-                eprintln!(
-                    "{} command failed with exit code: {:?}",
-                    if is_success { "Success" } else { "Failure" },
-                    status.code()
-                );
-            }
-        }
-        Ok(Err(e)) => {
-            eprintln!(
-                "Error executing {} command: {}",
-                if is_success { "success" } else { "failure" },
-                e
-            );
-        }
-        Err(_) => {
-            // Timeout occurred, kill the process
-            let _ = child.kill().await;
-            eprintln!(
-                "{} command timed out after {} seconds",
-                if is_success { "Success" } else { "Failure" },
-                timeout_duration.as_secs()
-            );
-        }
+        .stdin(std::process::Stdio::null());
+    
+    // Configure for detached execution
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
     }
+    
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x00000008); // DETACHED_PROCESS
+    }
+    
+    // Spawn the command and let it run independently
+    let _child = cmd.spawn()?;
+    // Don't call child.wait() - let it run independently
+    
+    println!(
+        "{} command spawned successfully and running detached",
+        if is_success { "Success" } else { "Failure" }
+    );
 
     Ok(())
 }

@@ -416,7 +416,7 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
                     &cfg.processing_success_command,
                     video_path,
                     true
-                ).await {
+                ) {
                     eprintln!("Error executing success command for {}: {}", video_path_str, e);
                 }
             }
@@ -429,7 +429,7 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
                     &cfg.processing_failure_command,
                     video_path,
                     false
-                ).await {
+                ) {
                     eprintln!("Error executing failure command for {}: {}", video_path_str, e);
                 }
             }
