@@ -411,8 +411,8 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
             println!("Processed queue item successfully: {}", video_path_str);
 
             // Execute success command if configured
-            if !cfg.processing_success_command.is_empty() {
-                if let Err(e) = config::execute_processing_command(
+            if !cfg.processing_success_command.is_empty()
+                && let Err(e) = config::execute_processing_command(
                     &cfg.processing_success_command,
                     video_path,
                     true,
@@ -422,7 +422,6 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
                         video_path_str, e
                     );
                 }
-            }
         } else {
             eprintln!(
                 "Processing failed for {}: {}",
@@ -430,8 +429,8 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
             );
 
             // Execute failure command if configured
-            if !cfg.processing_failure_command.is_empty() {
-                if let Err(e) = config::execute_processing_command(
+            if !cfg.processing_failure_command.is_empty()
+                && let Err(e) = config::execute_processing_command(
                     &cfg.processing_failure_command,
                     video_path,
                     false,
@@ -441,7 +440,6 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
                         video_path_str, e
                     );
                 }
-            }
         }
 
         // Update file info regardless of processing result
