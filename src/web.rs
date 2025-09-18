@@ -5,7 +5,6 @@ use crate::{
     Asset, auth::AuthGuard, clipper, config, files, model_manager, queue, search, tools_manager,
     transcripts,
 };
-use self_update::cargo_crate_version;
 use rocket::form::{Form, FromForm};
 use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::response::Redirect;
@@ -15,6 +14,7 @@ use rocket::serde::json::Json;
 use rocket::{Request, catch, catchers, get, post, response::content, routes};
 use rocket_dyn_templates::{Template, context};
 use rust_embed::RustEmbed;
+use self_update::cargo_crate_version;
 
 #[derive(RustEmbed)]
 #[folder = "templates/"]
@@ -79,7 +79,8 @@ async fn get_latest_version(_auth: AuthGuard) -> Json<ApiResponse<VersionInfo>> 
             .repo_name("atci")
             .build()
             .and_then(|r| r.fetch())
-    }).await;
+    })
+    .await;
 
     let (latest_version, update_available) = match result {
         Ok(Ok(releases)) => {
@@ -139,7 +140,8 @@ async fn perform_update(_auth: AuthGuard) -> Json<ApiResponse<String>> {
             .current_version(&current_version)
             .build()
             .and_then(|updater| updater.update())
-    }).await;
+    })
+    .await;
 
     match result {
         Ok(Ok(status)) => Json(ApiResponse::success(format!(

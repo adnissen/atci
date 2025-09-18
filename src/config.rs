@@ -7,6 +7,8 @@ use crate::web::ApiResponse;
 use rocket::serde::json::Json;
 use rocket::{get, post};
 use serde::{Deserialize, Serialize};
+use std::path::Path;
+use std::process::Command;
 
 fn default_true() -> bool {
     true
@@ -29,6 +31,10 @@ pub struct AtciConfig {
     pub allow_whisper: bool,
     #[serde(default = "default_true")]
     pub allow_subtitles: bool,
+    #[serde(default)]
+    pub processing_success_command: String,
+    #[serde(default)]
+    pub processing_failure_command: String,
 }
 
 #[derive(Serialize)]
@@ -48,6 +54,8 @@ impl Default for AtciConfig {
             whispercli_path: String::new(),
             allow_whisper: true,
             allow_subtitles: true,
+            processing_success_command: String::new(),
+            processing_failure_command: String::new(),
         }
     }
 }
@@ -101,6 +109,8 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
         "model_name" => cfg.model_name = value.to_string(),
         "whispercli_path" => cfg.whispercli_path = value.to_string(),
         "password" => cfg.password = Some(value.to_string()),
+        "processing_success_command" => cfg.processing_success_command = value.to_string(),
+        "processing_failure_command" => cfg.processing_failure_command = value.to_string(),
         "watch_directories" => {
             // For watch_directories, treat the value as a single directory to add
             if !cfg.watch_directories.contains(&value.to_string()) {
@@ -130,4 +140,78 @@ pub fn web_set_config(_auth: AuthGuard, config: Json<AtciConfig>) -> Json<ApiRes
         )),
         Err(e) => Json(ApiResponse::error(format!("Error saving config: {}", e))),
     }
+}
+
+/// Execute a command with the video file path piped as input in detached mode
+/// The command will continue running after atci exits
+pub fn execute_processing_command(
+    command: &str,
+    video_path: &Path,
+    is_success: bool,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if command.trim().is_empty() {
+        return Ok(());
+    }
+
+    // Basic security: ensure the video path exists and is a file
+    if !video_path.exists() || !video_path.is_file() {
+        return Err(format!("Invalid video path: {}", video_path.display()).into());
+    }
+
+    println!("Running command: {}", command);
+
+    // Create the command with detached process configuration
+    // Parse the command string to run it as a full shell command
+    let mut cmd = if cfg!(target_os = "windows") {
+        let mut c = Command::new("cmd");
+        c.args(["/C", command]);
+        c
+    } else {
+        let mut c = Command::new("sh");
+        c.args(["-c", command]);
+        c
+    };
+    cmd.stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .stdin(std::process::Stdio::piped()); // Enable piped input
+
+    // Configure for detached execution
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x00000008); // DETACHED_PROCESS
+    }
+
+    // Spawn the command with piped stdin
+    let mut child = cmd.spawn()?;
+
+    // Get and output the process ID
+    let pid = child.id();
+    println!(
+        "{} command spawned successfully with PID {} and running detached with piped input",
+        if is_success { "Success" } else { "Failure" },
+        pid
+    );
+
+    // Write the video path to stdin and close it
+    if let Some(stdin) = child.stdin.take() {
+        use std::io::Write;
+        let video_path_str = format!("{}\n", video_path.display());
+        let _ = std::thread::spawn(move || {
+            let mut stdin = stdin;
+            let _ = stdin.write_all(video_path_str.as_bytes());
+            let _ = stdin.flush();
+            // stdin is automatically closed when it goes out of scope
+        });
+    }
+
+    // Don't call child.wait() - let it run independently
+
+    Ok(())
 }

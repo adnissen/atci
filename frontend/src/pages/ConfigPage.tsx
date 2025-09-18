@@ -17,6 +17,8 @@ interface ConfigData {
   ffmpeg_path: string;
   ffprobe_path: string;
   password?: string;
+  processing_success_command?: string;
+  processing_failure_command?: string;
 }
 
 interface Model {
@@ -63,7 +65,9 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
     whispercli_path: '',
     model_path: '',
     ffmpeg_path: '',
-    ffprobe_path: ''
+    ffprobe_path: '',
+    processing_success_command: '',
+    processing_failure_command: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -316,7 +320,9 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
             model_name: config.model_name || '',
             ffmpeg_path: config.ffmpeg_path || '',
             ffprobe_path: config.ffprobe_path || '',
-            password: config.password || ''
+            password: config.password || '',
+            processing_success_command: config.processing_success_command || '',
+            processing_failure_command: config.processing_failure_command || ''
           };
           setConfig(configData);
           
@@ -439,6 +445,14 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
 
     if (config.password !== undefined) {
       submitData.password = config.password;
+    }
+
+    if (config.processing_success_command !== undefined) {
+      submitData.processing_success_command = config.processing_success_command;
+    }
+
+    if (config.processing_failure_command !== undefined) {
+      submitData.processing_failure_command = config.processing_failure_command;
     }
 
     try {
@@ -875,6 +889,45 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
                     <p className="text-xs text-muted-foreground mt-1">
                       If set, all API requests require this password (via Basic Auth or cookie).
                     </p>
+                  </div>
+
+                  {/* Processing Commands */}
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-foreground">Processing Commands</h3>
+                    
+                    <div>
+                      <label htmlFor="processing_success_command" className="block text-sm font-medium text-foreground mb-1">
+                        Success Command (optional)
+                      </label>
+                      <input
+                        type="text"
+                        id="processing_success_command"
+                        value={config.processing_success_command || ''}
+                        onChange={(e) => handleInputChange('processing_success_command', e.target.value)}
+                        placeholder="/path/to/script.sh"
+                        className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Command to execute when video processing succeeds. The video file path will be piped to the command's stdin.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label htmlFor="processing_failure_command" className="block text-sm font-medium text-foreground mb-1">
+                        Failure Command (optional)
+                      </label>
+                      <input
+                        type="text"
+                        id="processing_failure_command"
+                        value={config.processing_failure_command || ''}
+                        onChange={(e) => handleInputChange('processing_failure_command', e.target.value)}
+                        placeholder="/path/to/error-handler.sh"
+                        className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Command to execute when video processing fails. The video file path will be piped to the command's stdin.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Error Messages */}
