@@ -142,7 +142,7 @@ pub fn web_set_config(_auth: AuthGuard, config: Json<AtciConfig>) -> Json<ApiRes
     }
 }
 
-/// Execute a command with the video file path as an argument in detached mode
+/// Execute a command with the video file path piped as input in detached mode
 /// The command will continue running after atci exits
 pub fn execute_processing_command(
     command: &str,
@@ -165,24 +165,22 @@ pub fn execute_processing_command(
     }
 
     let program = parts[0];
-    let mut args = parts[1..].to_vec();
-    
-    // Add the video file path as the last argument
-    args.push(video_path.to_str().unwrap_or(""));
+    let args = &parts[1..];
 
     println!(
-        "Spawning detached {} command: {} with args: {:?}",
+        "Spawning detached {} command: {} with args: {:?}, piping video path: {}",
         if is_success { "success" } else { "failure" },
         program,
-        args
+        args,
+        video_path.display()
     );
 
     // Create the command with detached process configuration
     let mut cmd = Command::new(program);
-    cmd.args(&args)
+    cmd.args(args)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .stdin(std::process::Stdio::null());
+        .stdin(std::process::Stdio::piped()); // Enable piped input
     
     // Configure for detached execution
     #[cfg(unix)]
@@ -197,12 +195,25 @@ pub fn execute_processing_command(
         cmd.creation_flags(0x00000008); // DETACHED_PROCESS
     }
     
-    // Spawn the command and let it run independently
-    let _child = cmd.spawn()?;
+    // Spawn the command with piped stdin
+    let mut child = cmd.spawn()?;
+    
+    // Write the video path to stdin and close it
+    if let Some(stdin) = child.stdin.take() {
+        use std::io::Write;
+        let video_path_str = format!("{}\n", video_path.display());
+        let _ = std::thread::spawn(move || {
+            let mut stdin = stdin;
+            let _ = stdin.write_all(video_path_str.as_bytes());
+            let _ = stdin.flush();
+            // stdin is automatically closed when it goes out of scope
+        });
+    }
+    
     // Don't call child.wait() - let it run independently
     
     println!(
-        "{} command spawned successfully and running detached",
+        "{} command spawned successfully and running detached with piped input",
         if is_success { "Success" } else { "Failure" }
     );
 

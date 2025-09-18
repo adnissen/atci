@@ -908,7 +908,7 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
                         className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Command to execute when video processing succeeds. The video file path will be passed as the last argument.
+                        Command to execute when video processing succeeds. The video file path will be piped to the command's stdin.
                       </p>
                     </div>
 
@@ -925,7 +925,7 @@ export default function ConfigPage({ onClose }: ConfigPageProps = {}) {
                         className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
                       />
                       <p className="text-xs text-muted-foreground mt-1">
-                        Command to execute when video processing fails. The video file path will be passed as the last argument.
+                        Command to execute when video processing fails. The video file path will be piped to the command's stdin.
                       </p>
                     </div>
                   </div>
