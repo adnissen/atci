@@ -158,27 +158,23 @@ pub fn execute_processing_command(
         return Err(format!("Invalid video path: {}", video_path.display()).into());
     }
 
-    // Split the command into program and arguments
-    let parts: Vec<&str> = command.split_whitespace().collect();
-    if parts.is_empty() {
-        return Ok(());
-    }
-
-    let program = parts[0];
-    let args = &parts[1..];
-
     println!(
-        "Spawning detached {} command: {} with args: {:?}, piping video path: {}",
-        if is_success { "success" } else { "failure" },
-        program,
-        args,
-        video_path.display()
+        "Running command: {}",
+        command
     );
 
     // Create the command with detached process configuration
-    let mut cmd = Command::new(program);
-    cmd.args(args)
-        .stdout(std::process::Stdio::null())
+    // Parse the command string to run it as a full shell command
+    let mut cmd = if cfg!(target_os = "windows") {
+        let mut c = Command::new("cmd");
+        c.args(["/C", command]);
+        c
+    } else {
+        let mut c = Command::new("sh");
+        c.args(["-c", command]);
+        c
+    };
+    cmd.stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .stdin(std::process::Stdio::piped()); // Enable piped input
     

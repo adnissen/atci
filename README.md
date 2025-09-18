@@ -65,6 +65,11 @@ Disable whisper processing:
 atci config set allow_whisper false
 ```
 
+Set a command to run when processing completes successfully (the video file path is sent to the command):
+```
+atci config set processing_success_command "xargs terminal-notifier -title 'Processing Complete' -message"
+```
+
 By default, the first subtitle track is used if subtitles are enabeld. Sometimes, you might want to use a different one, or use a different whisper model than the currently configured one. You can perform an interactive regeneration, which allows you to select how to process it:
 ```
 atci transcripts regenerate -i /path/to/file.mp4
@@ -180,6 +185,8 @@ Changes to the config are reflected immediately in the watch behavior (no server
 - **`model_path`** (string): Direct path to a Whisper model file (.bin) (alternative to model_name)
 - **`model_name`** (string): Name of a model to use from ~/.atci/models/ (alternative to model_path)
 - **`password`** (string): Optional password for all connections. Can be set either in the cookie or via basic auth (no username)
+- **`processing_success_command`** (string): Shell command to run when video processing completes successfully. The video file path is sent to the command's stdin
+- **`processing_failure_command`** (string): Shell command to run when video processing fails. The video file path is sent to the command's stdin
 
 **Notes:**
 - Either `model_path` or `model_name` must be specified

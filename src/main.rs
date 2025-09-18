@@ -335,6 +335,8 @@ fn is_valid_config_field(field: &str) -> bool {
             | "password"
             | "allow_whisper"
             | "allow_subtitles"
+            | "processing_success_command"
+            | "processing_failure_command"
     )
 }
 
@@ -361,6 +363,8 @@ fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Result<()
                 .parse::<bool>()
                 .map_err(|_| format!("Invalid boolean value for allow_subtitles: {}", value))?;
         }
+        "processing_success_command" => cfg.processing_success_command = value.to_string(),
+        "processing_failure_command" => cfg.processing_failure_command = value.to_string(),
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())
@@ -376,6 +380,8 @@ fn unset_config_field(cfg: &mut AtciConfig, field: &str) -> Result<(), String> {
         "watch_directories" => cfg.watch_directories.clear(),
         "allow_whisper" => cfg.allow_whisper = true,
         "allow_subtitles" => cfg.allow_subtitles = true,
+        "processing_success_command" => cfg.processing_success_command = String::new(),
+        "processing_failure_command" => cfg.processing_failure_command = String::new(),
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())
