@@ -158,10 +158,7 @@ pub fn execute_processing_command(
         return Err(format!("Invalid video path: {}", video_path.display()).into());
     }
 
-    println!(
-        "Running command: {}",
-        command
-    );
+    println!("Running command: {}", command);
 
     // Create the command with detached process configuration
     // Parse the command string to run it as a full shell command
@@ -177,23 +174,23 @@ pub fn execute_processing_command(
     cmd.stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .stdin(std::process::Stdio::piped()); // Enable piped input
-    
+
     // Configure for detached execution
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         cmd.process_group(0);
     }
-    
+
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x00000008); // DETACHED_PROCESS
     }
-    
+
     // Spawn the command with piped stdin
     let mut child = cmd.spawn()?;
-    
+
     // Get and output the process ID
     let pid = child.id();
     println!(
@@ -201,7 +198,7 @@ pub fn execute_processing_command(
         if is_success { "Success" } else { "Failure" },
         pid
     );
-    
+
     // Write the video path to stdin and close it
     if let Some(stdin) = child.stdin.take() {
         use std::io::Write;
@@ -213,7 +210,7 @@ pub fn execute_processing_command(
             // stdin is automatically closed when it goes out of scope
         });
     }
-    
+
     // Don't call child.wait() - let it run independently
 
     Ok(())

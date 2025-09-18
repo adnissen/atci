@@ -409,28 +409,37 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
         // Execute success or failure command based on processing result
         if processing_successful {
             println!("Processed queue item successfully: {}", video_path_str);
-            
+
             // Execute success command if configured
             if !cfg.processing_success_command.is_empty() {
                 if let Err(e) = config::execute_processing_command(
                     &cfg.processing_success_command,
                     video_path,
-                    true
+                    true,
                 ) {
-                    eprintln!("Error executing success command for {}: {}", video_path_str, e);
+                    eprintln!(
+                        "Error executing success command for {}: {}",
+                        video_path_str, e
+                    );
                 }
             }
         } else {
-            eprintln!("Processing failed for {}: {}", video_path_str, error_message);
-            
+            eprintln!(
+                "Processing failed for {}: {}",
+                video_path_str, error_message
+            );
+
             // Execute failure command if configured
             if !cfg.processing_failure_command.is_empty() {
                 if let Err(e) = config::execute_processing_command(
                     &cfg.processing_failure_command,
                     video_path,
-                    false
+                    false,
                 ) {
-                    eprintln!("Error executing failure command for {}: {}", video_path_str, e);
+                    eprintln!(
+                        "Error executing failure command for {}: {}",
+                        video_path_str, e
+                    );
                 }
             }
         }

@@ -928,7 +928,11 @@ pub fn get_version_info() -> Result<(String, String, bool), Box<dyn std::error::
             }
         };
 
-    Ok((current_version.to_string(), latest_version, update_available))
+    Ok((
+        current_version.to_string(),
+        latest_version,
+        update_available,
+    ))
 }
 
 pub fn check_version(json: bool) -> Result<(), Box<dyn std::error::Error>> {
