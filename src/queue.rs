@@ -355,6 +355,18 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
             return Ok(true);
         }
 
+        // Load config to get processing commands
+        let cfg = match config::load_config() {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                eprintln!("Failed to load config: {}", e);
+                return Ok(true);
+            }
+        };
+
+        let mut processing_successful = true;
+        let mut error_message = String::new();
+
         // Create transcript with cancellation support
         let subtitle_index_i32 = subtitle_stream_index.map(|i| i as i32);
         match video_processor::cancellable_create_transcript(video_path, model, subtitle_index_i32)
@@ -369,28 +381,61 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
                 return Ok(true);
             }
             Err(e) => {
+                processing_successful = false;
+                error_message = format!("Error creating transcript: {}", e);
                 eprintln!("Error creating transcript for {}: {}", video_path_str, e);
-                return Ok(true);
             }
         }
 
-        // Update metadata with length and cancellation support
-        match video_processor::cancellable_add_length_to_metadata(video_path).await {
-            Ok(true) => {
-                // Successfully added metadata, continue
-            }
-            Ok(false) => {
-                // Cancelled, exit early
-                println!("Processing cancelled for: {}", video_path_str);
-                return Ok(true);
-            }
-            Err(e) => {
-                eprintln!("Error adding length metadata for {}: {}", video_path_str, e);
-                return Ok(true);
+        // Update metadata with length and cancellation support (only if transcript creation succeeded)
+        if processing_successful {
+            match video_processor::cancellable_add_length_to_metadata(video_path).await {
+                Ok(true) => {
+                    // Successfully added metadata, continue
+                }
+                Ok(false) => {
+                    // Cancelled, exit early
+                    println!("Processing cancelled for: {}", video_path_str);
+                    return Ok(true);
+                }
+                Err(e) => {
+                    processing_successful = false;
+                    error_message = format!("Error adding length metadata: {}", e);
+                    eprintln!("Error adding length metadata for {}: {}", video_path_str, e);
+                }
             }
         }
 
-        println!("Processed queue item: {}", video_path_str);
+        // Execute success or failure command based on processing result
+        if processing_successful {
+            println!("Processed queue item successfully: {}", video_path_str);
+            
+            // Execute success command if configured
+            if !cfg.processing_success_command.is_empty() {
+                if let Err(e) = config::execute_processing_command(
+                    &cfg.processing_success_command,
+                    video_path,
+                    true
+                ).await {
+                    eprintln!("Error executing success command for {}: {}", video_path_str, e);
+                }
+            }
+        } else {
+            eprintln!("Processing failed for {}: {}", video_path_str, error_message);
+            
+            // Execute failure command if configured
+            if !cfg.processing_failure_command.is_empty() {
+                if let Err(e) = config::execute_processing_command(
+                    &cfg.processing_failure_command,
+                    video_path,
+                    false
+                ).await {
+                    eprintln!("Error executing failure command for {}: {}", video_path_str, e);
+                }
+            }
+        }
+
+        // Update file info regardless of processing result
         files::get_and_save_video_info_from_disk()?;
         return Ok(true);
     }
