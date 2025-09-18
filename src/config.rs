@@ -198,6 +198,14 @@ pub fn execute_processing_command(
     // Spawn the command with piped stdin
     let mut child = cmd.spawn()?;
     
+    // Get and output the process ID
+    let pid = child.id();
+    println!(
+        "{} command spawned successfully with PID {} and running detached with piped input",
+        if is_success { "Success" } else { "Failure" },
+        pid
+    );
+    
     // Write the video path to stdin and close it
     if let Some(stdin) = child.stdin.take() {
         use std::io::Write;
@@ -211,11 +219,6 @@ pub fn execute_processing_command(
     }
     
     // Don't call child.wait() - let it run independently
-    
-    println!(
-        "{} command spawned successfully and running detached with piped input",
-        if is_success { "Success" } else { "Failure" }
-    );
 
     Ok(())
 }
