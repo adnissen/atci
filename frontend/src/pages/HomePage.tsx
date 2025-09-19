@@ -41,7 +41,24 @@ type QueueItem = {
 
 function HomePageContent() {
   const isSmallScreen = useIsSmallScreen()
-  const { selectedWatchDirs, selectedSources, setFiles, refreshFiles, showAllFiles, setShowAllFiles } = useFileContext()
+  const {
+    selectedWatchDirs,
+    selectedSources,
+    setFiles,
+    refreshFiles,
+    showAllFiles,
+    setShowAllFiles,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    sortColumn,
+    setSortColumn,
+    sortDirection,
+    setSortDirection,
+    totalPages,
+    totalRecords
+  } = useFileContext()
   
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
   const [searchTerm, setSearchTerm] = useState('')
@@ -387,6 +404,7 @@ function HomePageContent() {
     setClipText(text)
   }
 
+
   const handlePlayClip = () => {
     if (clipStart !== null && clipEnd !== null && clipTranscript) {
       const fallbackUrl = `/clip_player/${encodeURIComponent(clipTranscript)}?start_time=${clipStart}&end_time=${clipEnd}&display_text=false`
@@ -505,41 +523,43 @@ function HomePageContent() {
 
       {/* Main content with top padding to account for fixed header */}
       <div className={`flex h-screen`}>
-        {/* Always show transcript list */}
-        <TranscriptList
-          watchDirectory={watchDirectory}
-          isSmallScreen={isSmallScreen}
-          activeSearchTerm={activeSearchTerm}
-          searchLineNumbers={searchLineNumbers}
-          setSearchLineNumbers={setSearchLineNumbers}
-          expandedFiles={expandedFiles}
-          setExpandedFiles={setExpandedFiles}
-          transcriptData={transcriptData}
-          setTranscriptData={setTranscriptData}
-          currentProcessingFile={currentProcessingFile}
+        {/* Left pane with transcript list and pagination */}
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
+          <TranscriptList
+            watchDirectory={watchDirectory}
+            isSmallScreen={isSmallScreen}
+            activeSearchTerm={activeSearchTerm}
+            searchLineNumbers={searchLineNumbers}
+            setSearchLineNumbers={setSearchLineNumbers}
+            expandedFiles={expandedFiles}
+            setExpandedFiles={setExpandedFiles}
+            transcriptData={transcriptData}
+            setTranscriptData={setTranscriptData}
+            currentProcessingFile={currentProcessingFile}
 
-          leftPaneWidth={leftPaneWidth}
-          setLeftPaneWidth={setLeftPaneWidth}
-          isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}
-          setIsLeftPaneWidthMeasured={setIsLeftPaneWidthMeasured}
-          clipStart={clipStart}
-          clipEnd={clipEnd}
-          clipTranscript={clipTranscript}
-          fileRowRefs={fileRowRefs}
-          transcriptRowRefs={transcriptRowRefs}
-          mobileTranscriptRowRefs={mobileTranscriptRowRefs}
-          leftPaneRef={leftPaneRef}
-          onSetRightPaneUrl={handleSetRightPaneComponent}
-          onSetClipStart={handleSetClipStart}
-          onSetClipEnd={handleSetClipEnd}
-          onClearClip={handleClearClip}
-          onClipBlock={handleClipBlock}
-          showAllFiles={showAllFiles}
-        />
-        
+            leftPaneWidth={leftPaneWidth}
+            setLeftPaneWidth={setLeftPaneWidth}
+            isLeftPaneWidthMeasured={isLeftPaneWidthMeasured}
+            setIsLeftPaneWidthMeasured={setIsLeftPaneWidthMeasured}
+            clipStart={clipStart}
+            clipEnd={clipEnd}
+            clipTranscript={clipTranscript}
+            fileRowRefs={fileRowRefs}
+            transcriptRowRefs={transcriptRowRefs}
+            mobileTranscriptRowRefs={mobileTranscriptRowRefs}
+            leftPaneRef={leftPaneRef}
+            onSetRightPaneUrl={handleSetRightPaneComponent}
+            onSetClipStart={handleSetClipStart}
+            onSetClipEnd={handleSetClipEnd}
+            onClearClip={handleClearClip}
+            onClipBlock={handleClipBlock}
+            showAllFiles={showAllFiles}
+          />
+        </div>
+
         {/* Right Pane - Always visible on desktop */}
         {!isSmallScreen && (
-          <div className={`w-1/2 border-l border-border flex flex-col scrollbar-hide pt-16`}>
+          <div className={`w-1/3 border-l border-border flex flex-col scrollbar-hide pt-16`}>
             {showConfigInRightPane ? (
               <ConfigPage onClose={handleCloseConfig} />
             ) : showQueueInRightPane ? (

@@ -299,24 +299,16 @@ pub fn search(
 pub fn web_search_transcripts(
     _auth: AuthGuard,
     query: String,
-    filter: Option<Vec<String>>,
+    filter: Option<String>,
 ) -> Json<ApiResponse<serde_json::Value>> {
-    // URL decode the filter strings to handle %2C -> ,
-    let decoded_filter = filter.map(|filters| {
-        filters
-            .iter()
-            .flat_map(|f| {
-                urlencoding::decode(f)
-                    .unwrap_or_else(|_| f.into())
-                    .split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect::<Vec<_>>()
-            })
-            .collect()
+    let parsed_filter = filter.map(|f| {
+        f.split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<String>>()
     });
-    println!("decoded_filter: {:?}", decoded_filter);
-    match search(&query, decoded_filter.as_ref(), false, false) {
+
+    match search(&query, parsed_filter.as_ref(), false, false) {
         Ok(results) => Json(ApiResponse::success(
             serde_json::to_value(results).unwrap_or_default(),
         )),

@@ -35,6 +35,19 @@ interface FileContextType {
   setAvailableSources: (sources: string[]) => void
   showAllFiles: boolean
   setShowAllFiles: (show: boolean | ((prev: boolean) => boolean)) => void
+  // Pagination
+  page: number
+  setPage: (page: number | ((prev: number) => number)) => void
+  pageSize: number
+  setPageSize: (size: number | ((prev: number) => number)) => void
+  // Sorting
+  sortColumn: string
+  setSortColumn: (column: string | ((prev: string) => string)) => void
+  sortDirection: 'asc' | 'desc'
+  setSortDirection: (direction: 'asc' | 'desc' | ((prev: 'asc' | 'desc') => 'asc' | 'desc')) => void
+  // Pagination metadata from API
+  totalPages: number
+  totalRecords: number
   queueStatus: QueueStatus
   setQueueStatus: (status: QueueStatus) => void
   fetchQueueStatus: () => Promise<void>
@@ -63,6 +76,19 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
   const [selectedSources, setSelectedSources] = useLSState<string[]>('selectedSources', [])
   const [availableSources, setAvailableSources] = useState<string[]>([])
   const [showAllFiles, setShowAllFiles] = useLSState<boolean>('showAllFiles', false)
+
+  // Pagination state
+  const [page, setPage] = useLSState<number>('filePage', 0)
+  const [pageSize, setPageSize] = useLSState<number>('filePageSize', 25)
+
+  // Sorting state
+  const [sortColumn, setSortColumn] = useLSState<string>('fileSortColumn', 'created_at')
+  const [sortDirection, setSortDirection] = useLSState<'asc' | 'desc'>('fileSortDirection', 'desc')
+
+  // Pagination metadata from API
+  const [totalPages, setTotalPages] = useState<number>(0)
+  const [totalRecords, setTotalRecords] = useState<number>(0)
+
   const [queueStatus, setQueueStatus] = useState<QueueStatus>({
     queue: [],
     currently_processing: null,
@@ -79,17 +105,37 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
 
     try {
       const params = new URLSearchParams()
-      params.append('filter', dirsToUse.join(','))
-      params.append('sources', sourcesToUse.join(','))
 
-      const queryString = params.toString()
-      const url = queryString ? `/api/files?${queryString}` : '/api/files'
+      // Add filter parameters
+      const filters = [...dirsToUse, ...sourcesToUse].filter(Boolean)
+      if (filters.length > 0) {
+        params.append('filter', filters.join(','))
+      }
+
+      // Add pagination and sorting parameters
+      params.append('page', page.toString())
+      params.append('page_size', pageSize.toString())
+      params.append('sort_by', sortColumn)
+      params.append('sort_order', sortDirection === 'asc' ? '0' : '1')
+
+      const url = `/api/files?${params.toString()}`
 
       const response = await fetch(addTimestamp(url))
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          setFiles(data.data || [])
+          // Check if we got pagination metadata (from paginated endpoint)
+          if (data.data && typeof data.data === 'object' && data.data.files) {
+            // Paginated response structure
+            setFiles(data.data.files || [])
+            setTotalPages(data.data.pages || 0)
+            setTotalRecords(data.data.total_records || 0)
+          } else {
+            // Non-paginated response structure (just array of files)
+            setFiles(data.data || [])
+            setTotalPages(0)
+            setTotalRecords(0)
+          }
         }
       }
     } catch (error) {
@@ -163,12 +209,12 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     fetchSources()
   }, [])
 
-  // Refresh files when filters change, but only if showAllFiles is enabled
+  // Refresh files when filters, pagination, or sorting change, but only if showAllFiles is enabled
   useEffect(() => {
     if (showAllFiles) {
       refreshFiles()
     }
-  }, [selectedWatchDirs, selectedSources, showAllFiles])
+  }, [selectedWatchDirs, selectedSources, showAllFiles, page, pageSize, sortColumn, sortDirection])
 
   // Poll for queue status updates every 2 seconds
   useEffect(() => {
@@ -192,6 +238,19 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     setAvailableSources,
     showAllFiles,
     setShowAllFiles,
+    // Pagination
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    // Sorting
+    sortColumn,
+    setSortColumn,
+    sortDirection,
+    setSortDirection,
+    // Pagination metadata
+    totalPages,
+    totalRecords,
     queueStatus,
     setQueueStatus,
     fetchQueueStatus,
