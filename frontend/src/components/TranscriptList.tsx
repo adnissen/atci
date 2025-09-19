@@ -30,8 +30,6 @@ type TranscriptData = {
   error: string | null
 }
 
-type SortColumn = 'created_at' | 'last_generated' | 'name' | 'line_count' | 'length' | 'source'
-type SortDirection = 'asc' | 'desc'
 
 type QueueItem = {
   video_path: string
@@ -99,18 +97,26 @@ export default function TranscriptList({
   onClearClip,
   onClipBlock
 }: TranscriptListProps) {
-  const { 
-    files, 
-    refreshFiles, 
-    selectedWatchDirs, 
-    setSelectedWatchDirs, 
+  const {
+    files,
+    refreshFiles,
+    selectedWatchDirs,
+    setSelectedWatchDirs,
     availableWatchDirs,
-    selectedSources, 
-    setSelectedSources, 
-    availableSources
+    selectedSources,
+    setSelectedSources,
+    availableSources,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    sortColumn,
+    setSortColumn,
+    sortDirection,
+    setSortDirection,
+    totalPages,
+    totalRecords
   } = useFileContext()
-  const [sortColumn, setSortColumn] = useLSState<SortColumn>('sortColumn', 'created_at')
-  const [sortDirection, setSortDirection] = useLSState<SortDirection>('sortDirection', 'desc')
   const [isBulkRegenerating, setIsBulkRegenerating] = useState(false)
 
   // Replace transcript dialog state
@@ -269,7 +275,7 @@ export default function TranscriptList({
 
 
   // Handle sort column click
-  const handleSort = (column: SortColumn) => {
+  const handleSort = (column: string) => {
     if (sortColumn === column) {
       // Toggle direction if same column
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
@@ -281,7 +287,7 @@ export default function TranscriptList({
   }
 
   // Get sort indicator for header
-  const getSortIndicator = (column: SortColumn) => {
+  const getSortIndicator = (column: string) => {
     if (sortColumn !== column) {
       return (
         <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -649,6 +655,113 @@ export default function TranscriptList({
 
   const handleDeselectAllSources = () => {
     setSelectedSources([])
+  }
+
+  // Pagination handlers
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    setPageSize(newPageSize)
+    setPage(0) // Reset to first page when changing page size
+  }
+
+  // Pagination component
+  const PaginationControls = ({ className = "" }: { className?: string }) => {
+    if (!showAllFiles || totalPages <= 1) return null
+
+    const startRecord = page * pageSize + 1
+    const endRecord = Math.min((page + 1) * pageSize, totalRecords)
+
+    return (
+      <div className={`flex flex-col sm:flex-row items-center gap-2 sm:gap-4 p-4 border-t border-border bg-background ${className}`}>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <span className="hidden sm:inline">Show</span>
+          <select
+            value={pageSize}
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+            className="border border-border rounded px-2 py-1 bg-background text-xs sm:text-sm"
+          >
+            <option value={10}>10</option>
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+          </select>
+          <span className="hidden sm:inline">per page</span>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+          <span>
+            {startRecord}-{endRecord} of {totalRecords}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handlePageChange(0)}
+            disabled={page === 0}
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">First</span>
+            <span className="sm:hidden">«</span>
+          </button>
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 0}
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">Previous</span>
+            <span className="sm:hidden">‹</span>
+          </button>
+
+          <div className="flex items-center gap-1">
+            {Array.from({ length: Math.min(shouldUseMobileView ? 3 : 5, totalPages) }, (_, i) => {
+              let pageNum
+              const maxPages = shouldUseMobileView ? 3 : 5
+              if (totalPages <= maxPages) {
+                pageNum = i
+              } else if (page < Math.floor(maxPages / 2)) {
+                pageNum = i
+              } else if (page >= totalPages - Math.floor(maxPages / 2)) {
+                pageNum = totalPages - maxPages + i
+              } else {
+                pageNum = page - Math.floor(maxPages / 2) + i
+              }
+
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => handlePageChange(pageNum)}
+                  className={`px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent min-w-0 ${
+                    pageNum === page ? 'bg-primary text-primary-foreground' : ''
+                  }`}
+                >
+                  {pageNum + 1}
+                </button>
+              )
+            })}
+          </div>
+
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page >= totalPages - 1}
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">Next</span>
+            <span className="sm:hidden">›</span>
+          </button>
+          <button
+            onClick={() => handlePageChange(totalPages - 1)}
+            disabled={page >= totalPages - 1}
+            className="px-2 sm:px-3 py-1 text-xs sm:text-sm border border-border rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span className="hidden sm:inline">Last</span>
+            <span className="sm:hidden">»</span>
+          </button>
+        </div>
+      </div>
+    )
   }
 
   // Helper function to handle file expansion
@@ -1233,6 +1346,9 @@ export default function TranscriptList({
           </Table>
           )}
         </div>
+
+        {/* Pagination controls */}
+        <PaginationControls />
       </div>
 
       {/* Replace Transcript Dialog */}
