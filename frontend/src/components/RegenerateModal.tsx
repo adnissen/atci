@@ -133,7 +133,7 @@ export default function RegenerateModal({
         const option = {
           id: `whisper_${model.name}`,
           type: 'whisper' as const,
-          label: `Whisper Model: ${model.name}`,
+          label: `${model.name}`,
           model: model.name
         }
         
@@ -147,8 +147,14 @@ export default function RegenerateModal({
 
       setOptions(newOptions)
 
-      // Clear selection to force user to choose
-      setSelectedOption('')
+      // Auto-select the option that matches the current source (marked as "last used")
+      const lastUsedOption = newOptions.find(option => isCurrentSource(option))
+      if (lastUsedOption) {
+        setSelectedOption(lastUsedOption.id)
+      } else {
+        // Fallback: clear selection to force user to choose
+        setSelectedOption('')
+      }
 
     } catch (err) {
       console.error('Error fetching regeneration data:', err)
