@@ -262,7 +262,12 @@ enum ConfigCommands {
 enum WebCommands {
     #[command(about = "Launch web server with UI and API")]
     All {
-        #[arg(short = 'p', long, help = "Port to run the web server on", default_value = "4620")]
+        #[arg(
+            short = 'p',
+            long,
+            help = "Port to run the web server on",
+            default_value = "4620"
+        )]
         port: u16,
         #[arg(
             long,
@@ -273,7 +278,12 @@ enum WebCommands {
     },
     #[command(about = "Launch API-only server")]
     Api {
-        #[arg(short = 'p', long, help = "Port to run the API server on", default_value = "4620")]
+        #[arg(
+            short = 'p',
+            long,
+            help = "Port to run the API server on",
+            default_value = "4620"
+        )]
         port: u16,
         #[arg(
             long,

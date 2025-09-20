@@ -1,8 +1,8 @@
 // atci (andrew's transcript and clipping interface)
 // Copyright (C) 2025 Andrew Nissen
 
-use rusqlite::{Connection, Result as SqliteResult};
 use crate::config;
+use rusqlite::{Connection, Result as SqliteResult};
 
 pub fn get_db_path() -> std::path::PathBuf {
     let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));

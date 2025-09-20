@@ -82,15 +82,31 @@ pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
         sources,
         current_page: None,
         pages: None,
-        total_records: None
+        total_records: None,
     })
 }
 
-pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32, limit: u32, sort_by: &str, sort_order: u8) -> Result<CacheData, Box<dyn std::error::Error>> {
+pub fn load_sorted_paginated_cache_data(
+    filter: Option<&Vec<String>>,
+    page: u32,
+    limit: u32,
+    sort_by: &str,
+    sort_order: u8,
+) -> Result<CacheData, Box<dyn std::error::Error>> {
     let conn = db::get_connection()?;
 
     // Validate sort column to prevent SQL injection
-    let valid_columns = ["name", "base_name", "created_at", "line_count", "full_path", "transcript", "last_generated", "length", "source"];
+    let valid_columns = [
+        "name",
+        "base_name",
+        "created_at",
+        "line_count",
+        "full_path",
+        "transcript",
+        "last_generated",
+        "length",
+        "source",
+    ];
     let sort_column = if valid_columns.contains(&sort_by) {
         sort_by
     } else {
@@ -108,13 +124,12 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
         if filters.is_empty() {
             ("".to_string(), Vec::new())
         } else {
-            let conditions: Vec<String> = filters.iter()
+            let conditions: Vec<String> = filters
+                .iter()
                 .map(|_| "LOWER(full_path) LIKE LOWER(?)".to_string())
                 .collect();
             let where_clause = format!("WHERE {}", conditions.join(" OR "));
-            let params: Vec<String> = filters.iter()
-                .map(|f| format!("%{}%", f))
-                .collect();
+            let params: Vec<String> = filters.iter().map(|f| format!("%{}%", f)).collect();
             (where_clause, params)
         }
     } else {
@@ -159,7 +174,8 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
             files.push(video?);
         }
     } else {
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
         let video_iter = stmt.query_map(&params_refs[..], create_video_info)?;
         for video in video_iter {
             files.push(video?);
@@ -169,9 +185,7 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
     println!("trying sources query");
 
     let mut sources_stmt = conn.prepare("SELECT DISTINCT source FROM video_info WHERE source IS NOT NULL AND source != '' ORDER BY source")?;
-    let sources_iter = sources_stmt.query_map([], |row| {
-        Ok(row.get::<_, String>(0)?)
-    })?;
+    let sources_iter = sources_stmt.query_map([], |row| row.get::<_, String>(0))?;
 
     println!("sources query done");
 
@@ -193,7 +207,8 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
     let total_records: u32 = if params.is_empty() {
         count_stmt.query_row([], |row| row.get(0))?
     } else {
-        let params_refs: Vec<&dyn rusqlite::ToSql> = params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
         count_stmt.query_row(&params_refs[..], |row| row.get(0))?
     };
 
@@ -201,7 +216,7 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
 
     // Calculate total pages
     let total_pages = if limit > 0 {
-        (total_records + limit - 1) / limit // Ceiling division
+        total_records.div_ceil(limit) // Ceiling division
     } else {
         1
     };
@@ -211,7 +226,7 @@ pub fn load_sorted_paginated_cache_data(filter: Option<&Vec<String>>, page: u32,
         sources,
         current_page: Some(page),
         pages: Some(total_pages),
-        total_records: Some(total_records)
+        total_records: Some(total_records),
     })
 }
 
@@ -371,22 +386,44 @@ pub fn web_get_files(
     page: Option<u32>,
     page_size: Option<u32>,
     sort_by: Option<String>,
-    sort_order: Option<u8>
+    sort_order: Option<u8>,
 ) -> Json<ApiResponse<serde_json::Value>> {
-    let filter_vec = filter.map(|f| f.split(',').map(|s| s.trim().to_string()).collect::<Vec<String>>());
+    let filter_vec = filter.map(|f| {
+        f.split(',')
+            .map(|s| s.trim().to_string())
+            .collect::<Vec<String>>()
+    });
 
     // Check if all pagination/sorting parameters are provided
-    if let (Some(page), Some(page_size), Some(sort_by), Some(sort_order)) = (page, page_size, sort_by.as_deref(), sort_order) {
+    if let (Some(page), Some(page_size), Some(sort_by), Some(sort_order)) =
+        (page, page_size, sort_by.as_deref(), sort_order)
+    {
         // Use the new paginated and sorted method with filtering
-        match load_sorted_paginated_cache_data(filter_vec.as_ref(), page, page_size, &sort_by, sort_order) {
-            Ok(cache_data) => Json(ApiResponse::success(serde_json::to_value(cache_data).unwrap_or_default())),
-            Err(e) => Json(ApiResponse::error(format!("Failed to load paginated cache data: {}", e))),
+        match load_sorted_paginated_cache_data(
+            filter_vec.as_ref(),
+            page,
+            page_size,
+            sort_by,
+            sort_order,
+        ) {
+            Ok(cache_data) => Json(ApiResponse::success(
+                serde_json::to_value(cache_data).unwrap_or_default(),
+            )),
+            Err(e) => Json(ApiResponse::error(format!(
+                "Failed to load paginated cache data: {}",
+                e
+            ))),
         }
     } else {
         // Use the original logic with filtering
         match load_video_info_from_cache(filter_vec.as_ref()) {
-            Ok(video_infos) => Json(ApiResponse::success(serde_json::to_value(video_infos).unwrap_or_default())),
-            Err(e) => Json(ApiResponse::error(format!("Failed to load video info cache: {}", e))),
+            Ok(video_infos) => Json(ApiResponse::success(
+                serde_json::to_value(video_infos).unwrap_or_default(),
+            )),
+            Err(e) => Json(ApiResponse::error(format!(
+                "Failed to load video info cache: {}",
+                e
+            ))),
         }
     }
 }
