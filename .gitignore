@@ -28,3 +28,6 @@ atci-*.tar
 /target/
 
 .DS_STORE/
+
+.claude
+.claude/

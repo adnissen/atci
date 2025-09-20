@@ -31,7 +31,11 @@ whispercli_path = "whisper"
 model_name = "ggml-base"
 watch_directories = ["{}"]
 "#,
-        watch_dir
+        if cfg!(windows) {
+            watch_dir.replace("\\", "\\\\")
+        } else {
+            watch_dir.to_string()
+        }
     );
 
     fs::write(&test_config_path, config_content).unwrap();
@@ -258,9 +262,13 @@ fn test_transcripts_command_requires_subcommand() {
     let mut cmd = Command::cargo_bin("atci").unwrap();
     cmd.args(["transcripts"]);
 
-    cmd.assert()
-        .failure()
-        .stderr(str::contains("Usage: atci transcripts [COMMAND]"));
+    let expected_usage = if cfg!(windows) {
+        "Usage: atci.exe transcripts [COMMAND]"
+    } else {
+        "Usage: atci transcripts [COMMAND]"
+    };
+
+    cmd.assert().failure().stderr(str::contains(expected_usage));
 }
 
 #[test]

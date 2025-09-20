@@ -251,19 +251,17 @@ pub fn search(
                         };
 
                         // Generate clip if requested and timestamp is available
-                        let (clip_path, clip_command) =
-                            if (generate_clips || generate_gifs) && timestamp.is_some() {
+                        let (clip_path, clip_command) = if let Some(ts) = &timestamp {
+                            if generate_clips || generate_gifs {
                                 let format = if generate_gifs { "gif" } else { "mp4" };
                                 let text_for_clip = if generate_gifs { Some(*line) } else { None };
-                                generate_clip_for_match(
-                                    file_path,
-                                    timestamp.as_ref().unwrap(),
-                                    format,
-                                    text_for_clip,
-                                )
+                                generate_clip_for_match(file_path, ts, format, text_for_clip)
                             } else {
                                 (None, None)
-                            };
+                            }
+                        } else {
+                            (None, None)
+                        };
 
                         Some(SearchMatch {
                             line_number: line_num + 1,
