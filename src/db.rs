@@ -1,11 +1,14 @@
 // atci (andrew's transcript and clipping interface)
 // Copyright (C) 2025 Andrew Nissen
 
+use crate::config;
 use rusqlite::{Connection, Result as SqliteResult};
 
 pub fn get_db_path() -> std::path::PathBuf {
     let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    home_dir.join(".atci/video_info.db")
+    let config_sha = config::get_config_path_sha();
+    let db_name = format!("video_info_{}.db", config_sha);
+    home_dir.join(".atci").join(db_name)
 }
 
 fn init_database(conn: &Connection) -> SqliteResult<()> {

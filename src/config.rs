@@ -7,6 +7,7 @@ use crate::web::ApiResponse;
 use rocket::serde::json::Json;
 use rocket::{get, post};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::process::Command;
 
@@ -83,6 +84,20 @@ pub fn store_config(config: &AtciConfig) -> Result<(), confy::ConfyError> {
     let _ = files::get_and_save_video_info_from_disk();
 
     result
+}
+
+pub fn get_config_path_sha() -> String {
+    let config_path = if let Ok(config_path) = std::env::var("ATCI_CONFIG_PATH") {
+        std::path::PathBuf::from(config_path)
+    } else {
+        confy::get_configuration_file_path("atci", "config")
+            .unwrap_or_else(|_| std::path::PathBuf::from("default"))
+    };
+
+    let mut hasher = Sha256::new();
+    hasher.update(config_path.to_string_lossy().as_bytes());
+    let result = hasher.finalize();
+    format!("{:x}", result)[..8].to_string()
 }
 
 #[get("/api/config")]

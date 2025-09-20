@@ -416,12 +416,13 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
                     &cfg.processing_success_command,
                     video_path,
                     true,
-                ) {
-                    eprintln!(
-                        "Error executing success command for {}: {}",
-                        video_path_str, e
-                    );
-                }
+                )
+            {
+                eprintln!(
+                    "Error executing success command for {}: {}",
+                    video_path_str, e
+                );
+            }
         } else {
             eprintln!(
                 "Processing failed for {}: {}",
@@ -434,12 +435,13 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
                     &cfg.processing_failure_command,
                     video_path,
                     false,
-                ) {
-                    eprintln!(
-                        "Error executing failure command for {}: {}",
-                        video_path_str, e
-                    );
-                }
+                )
+            {
+                eprintln!(
+                    "Error executing failure command for {}: {}",
+                    video_path_str, e
+                );
+            }
         }
 
         // Update file info regardless of processing result
