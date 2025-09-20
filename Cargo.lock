@@ -162,7 +162,7 @@ dependencies = [
 
 [[package]]
 name = "atci"
-version = "25.47.0"
+version = "25.48.0"
 dependencies = [
  "assert_cmd",
  "base64",
