@@ -1493,7 +1493,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     files::get_and_save_video_info_from_disk()?;
 
-                    println!("Starting full web server on {}:{}", host, port);
+                    println!(
+                        "Starting atci \x1b[1mAPI\x1b[0m and \x1b[1mWeb UI\x1b[0m server on \x1b]8;;http://{}:{}\x1b\\http://{}:{}\x1b]8;;\x1b\\",
+                        host, port, host, port
+                    );
 
                     let rt = tokio::runtime::Runtime::new()?;
                     rt.block_on(async {
@@ -1517,7 +1520,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Setup PID file management
                     setup_pid_file_management()?;
 
-                    println!("Starting API-only server on {}:{}", host, port);
+                    println!(
+                        "Starting atci \x1b[1mAPI-only\x1b[0m server on \x1b]8;;http://{}:{}\x1b\\http://{}:{}\x1b]8;;\x1b\\",
+                        host, port, host, port
+                    );
 
                     let rt = tokio::runtime::Runtime::new()?;
                     rt.block_on(async {
