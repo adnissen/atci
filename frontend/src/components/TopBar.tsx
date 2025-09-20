@@ -350,38 +350,6 @@ export default function TopBar({
                     )}
                   </div>
 
-
-                  {/* Scroll to top button */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      if (!isAtTop) {
-                        onScrollToTop()
-                      }
-                    }}
-                    disabled={isAtTop}
-                    title={!isAtTop ? "Scroll to top" : "Already at top"}
-                    className="p-2 rounded-full hover:bg-accent disabled:opacity-50 group overflow-hidden"
-                  >
-                    <div className="relative w-5 h-5">
-                      {/* Static arrow - visible when not hovering */}
-                      <svg className="w-5 h-5 group-hover:opacity-0 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                      </svg>
-                      
-                      {/* Animated arrows - visible when hovering */}
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 group-hover:animate-[moveUpArrow_1s_linear_infinite] transition-opacity">
-                        <svg className="w-5 h-5 absolute" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                        </svg>
-                        <svg className="w-5 h-5 absolute" style={{top: '24px'}} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                        </svg>
-                      </div>
-                    </div>
-                  </Button>
-
                   {/* Config button */}
                   <Button
                     onClick={onConfigClick}
