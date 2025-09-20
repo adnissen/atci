@@ -268,9 +268,7 @@ fn test_transcripts_command_requires_subcommand() {
         "Usage: atci transcripts [COMMAND]"
     };
 
-    cmd.assert()
-        .failure()
-        .stderr(str::contains(expected_usage));
+    cmd.assert().failure().stderr(str::contains(expected_usage));
 }
 
 #[test]
