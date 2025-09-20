@@ -310,7 +310,8 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
     let figment = rocket::Config::figment()
         .merge(("template_dir", temp_dir.to_string_lossy().to_string()))
         .merge(("address", host))
-        .merge(("port", port));
+        .merge(("port", port))
+        .merge(("log_level", "off"));
 
     let mut all_routes = routes![index, auth_page, auth_submit, logout, app, assets];
     all_routes.extend(api_routes());
@@ -344,7 +345,8 @@ pub async fn launch_api_server(host: &str, port: u16) -> Result<(), rocket::Erro
     let figment = rocket::Config::figment()
         .merge(("template_dir", temp_dir.to_string_lossy().to_string()))
         .merge(("address", host))
-        .merge(("port", port));
+        .merge(("port", port))
+        .merge(("log_level", "off"));
 
     rocket::custom(figment)
         .mount("/", api_routes())
