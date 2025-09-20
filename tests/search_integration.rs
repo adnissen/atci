@@ -29,7 +29,11 @@ whispercli_path = "whisper"
 model_name = "ggml-base"
 watch_directories = ["{}"]
 "#,
-        temp_dir.path().to_string_lossy()
+        if cfg!(windows) {
+            temp_dir.path().to_string_lossy().replace("\\", "\\\\")
+        } else {
+            temp_dir.path().to_string_lossy().to_string()
+        }
     );
 
     let config_path = temp_dir.path().join("config.toml");
@@ -62,7 +66,11 @@ whispercli_path = "whisper"
 model_name = "ggml-base"
 watch_directories = ["{}"]
 "#,
-        temp_dir.path().to_string_lossy()
+        if cfg!(windows) {
+            temp_dir.path().to_string_lossy().replace("\\", "\\\\")
+        } else {
+            temp_dir.path().to_string_lossy().to_string()
+        }
     );
 
     let config_path = temp_dir.path().join("config.toml");
@@ -95,7 +103,11 @@ whispercli_path = "whisper"
 model_name = "ggml-base"
 watch_directories = ["{}"]
 "#,
-        temp_dir.path().to_string_lossy()
+        if cfg!(windows) {
+            temp_dir.path().to_string_lossy().replace("\\", "\\\\")
+        } else {
+            temp_dir.path().to_string_lossy().to_string()
+        }
     );
 
     let config_path = temp_dir.path().join("config.toml");
