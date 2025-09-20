@@ -262,7 +262,7 @@ enum ConfigCommands {
 enum WebCommands {
     #[command(about = "Launch web server with UI and API")]
     All {
-        #[arg(long, help = "Port to run the web server on", default_value = "4620")]
+        #[arg(short = 'p', long, help = "Port to run the web server on", default_value = "4620")]
         port: u16,
         #[arg(
             long,
@@ -273,7 +273,7 @@ enum WebCommands {
     },
     #[command(about = "Launch API-only server")]
     Api {
-        #[arg(long, help = "Port to run the API server on", default_value = "4620")]
+        #[arg(short = 'p', long, help = "Port to run the API server on", default_value = "4620")]
         port: u16,
         #[arg(
             long,
@@ -610,11 +610,13 @@ fn get_atci_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
 
 fn get_pid_file_path(pid: u32) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let atci_dir = get_atci_dir()?;
-    Ok(atci_dir.join(format!("atci.{}.pid", pid)))
+    let config_sha = config::get_config_path_sha();
+    Ok(atci_dir.join(format!("atci.{}.{}.pid", config_sha, pid)))
 }
 
 fn find_existing_pid_files() -> Result<Vec<u32>, Box<dyn std::error::Error>> {
     let atci_dir = get_atci_dir()?;
+    let config_sha = config::get_config_path_sha();
     let mut pids = Vec::new();
 
     if atci_dir.exists() {
@@ -623,8 +625,9 @@ fn find_existing_pid_files() -> Result<Vec<u32>, Box<dyn std::error::Error>> {
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            if file_name_str.starts_with("atci.") && file_name_str.ends_with(".pid") {
-                let pid_str = &file_name_str[5..file_name_str.len() - 4]; // Remove "atci." prefix and ".pid" suffix
+            let expected_prefix = format!("atci.{}.", config_sha);
+            if file_name_str.starts_with(&expected_prefix) && file_name_str.ends_with(".pid") {
+                let pid_str = &file_name_str[expected_prefix.len()..file_name_str.len() - 4]; // Remove prefix and ".pid" suffix
                 if let Ok(pid) = pid_str.parse::<u32>() {
                     pids.push(pid);
                 }
