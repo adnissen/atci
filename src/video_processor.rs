@@ -53,6 +53,21 @@ pub fn add_key_to_metadata_block(
     key: &str,
     value: &str,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    // Check if this is a video part file - if so, don't add metadata (only add to master files)
+    if let Some(video_part) = crate::video_parts::parse_video_part(video_path) {
+        if video_part.part_number != 1 {
+            // For parts other than part 1, skip metadata addition
+            return Ok(());
+        }
+        // For part 1, try to add metadata to the master file if it exists
+        let (_, master_transcript_path) = crate::video_parts::get_master_paths(&video_part);
+        let master_transcript = Path::new(&master_transcript_path);
+        if master_transcript.exists() {
+            // Add metadata to master transcript instead
+            return add_key_to_metadata_block(master_transcript, key, value);
+        }
+    }
+
     let video_path = Path::new(video_path);
     let txt_path = video_path.with_extension("txt");
 
@@ -518,14 +533,14 @@ pub async fn cancellable_create_transcript_for_part(
     let adjusted_transcript = adjust_transcript_timestamps(&part_transcript, total_duration_ms)?;
     
     // Append or create master transcript
-    let part_header = format!("\n>>> Part {} <<<\n", video_part.part_number);
     let final_content = if video_part.part_number == 1 || !Path::new(&master_transcript_path).exists() {
-        // First part or new master file
+        // First part or new master file - include part header only for part 1
+        let part_header = format!("\n>>> Part {} <<<\n", video_part.part_number);
         format!("{}{}", part_header, adjusted_transcript)
     } else {
-        // Append to existing master transcript
+        // Append to existing master transcript - no part header for subsequent parts
         let existing_content = std::fs::read_to_string(&master_transcript_path).unwrap_or_default();
-        format!("{}{}{}", existing_content, part_header, adjusted_transcript)
+        format!("{}\n{}", existing_content, adjusted_transcript)
     };
     
     std::fs::write(&master_transcript_path, final_content)?;
@@ -534,12 +549,11 @@ pub async fn cancellable_create_transcript_for_part(
     let transcript_lines = adjusted_transcript.lines().count() as i32;
     crate::video_parts::record_processed_part(&conn, &video_part, transcript_lines)?;
     
-    // Update or create master video
-    update_master_video(&video_part).await?;
-    
-    // Clean up part transcript and part video
+    // Clean up part transcript (but keep part video for concatenation)
     let _ = std::fs::remove_file(&part_transcript_path);
-    let _ = std::fs::remove_file(video_path);
+    
+    // Update or create master video (after transcript cleanup but before video cleanup)
+    update_master_video(&video_part).await?;
     
     // Check for next part and queue it
     let _ = crate::video_parts::check_and_queue_next_part(&video_part);
@@ -818,6 +832,27 @@ pub async fn cancellable_add_length_to_metadata(
         return Ok(false);
     }
 
+    // Check if this is a video part file - if so, handle specially
+    if let Some(video_part) = crate::video_parts::parse_video_part(video_path) {
+        if video_part.part_number != 1 {
+            // For parts other than part 1, skip metadata addition
+            return Ok(true);
+        }
+        // For part 1, try to use the master file if it exists
+        let (master_video_path, _) = crate::video_parts::get_master_paths(&video_part);
+        let master_path = Path::new(&master_video_path);
+        if master_path.exists() {
+            // Recursively call with master path, but use Box::pin to avoid recursion issues
+            return Box::pin(add_length_metadata_to_path(master_path)).await;
+        }
+    }
+
+    // Add metadata to the current path
+    add_length_metadata_to_path(video_path).await
+}
+
+async fn add_length_metadata_to_path(target_path: &Path) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
+
     let cfg: crate::AtciConfig = crate::config::load_config()?;
 
     let output = Command::new(&cfg.ffprobe_path)
@@ -828,7 +863,7 @@ pub async fn cancellable_add_length_to_metadata(
             "format=duration",
             "-of",
             "default=noprint_wrappers=1:nokey=1",
-            video_path.to_str().unwrap(),
+            target_path.to_str().unwrap(),
         ])
         .output()
         .await?;
@@ -846,10 +881,10 @@ pub async fn cancellable_add_length_to_metadata(
         let seconds = total_seconds % 60;
         let formatted = format!("{:02}:{:02}:{:02}", hours, minutes, seconds);
 
-        add_key_to_metadata_block(video_path, "length", &formatted)?;
+        add_key_to_metadata_block(target_path, "length", &formatted)?;
         println!(
             "Created or updated meta file: {}",
-            video_path.with_extension("meta").display()
+            target_path.with_extension("meta").display()
         );
         Ok(true)
     } else {
@@ -930,77 +965,74 @@ fn format_ms_to_timestamp(total_ms: u64) -> String {
     format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, milliseconds)
 }
 
-/// Update or create the master video file by concatenating all processed parts
+/// Update or create the master video file by appending the current part
 async fn update_master_video(video_part: &crate::video_parts::VideoPart) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let conn = crate::db::get_connection()?;
     let cfg = crate::config::load_config()?;
     let (master_video_path, _) = crate::video_parts::get_master_paths(video_part);
-    
-    // Get all processed parts for this video
-    let processed_parts = crate::video_parts::get_processed_parts(&conn, &video_part.base_name)?;
-    
-    if processed_parts.is_empty() {
-        return Err("No processed parts found".into());
-    }
-    
-    // Create concat file list for FFmpeg
     let parent_dir = Path::new(&video_part.video_path).parent().unwrap();
-    let concat_file_path = parent_dir.join(format!("{}_concat.txt", video_part.base_name));
+    let current_part_path = Path::new(&video_part.video_path);
+    let master_path = Path::new(&master_video_path);
     
-    let mut concat_content = String::new();
-    let mut available_parts = Vec::new();
-    
-    // Check which parts are actually available as video files
-    for part_num in processed_parts {
-        let part_path = format!("{}.part{}.{}", video_part.base_name, part_num, video_part.extension);
-        let full_part_path = parent_dir.join(&part_path);
-        
-        // Only add if the part file still exists (it might have been deleted already)
-        if full_part_path.exists() {
-            concat_content.push_str(&format!("file '{}'\n", part_path));
-            available_parts.push(part_num);
-        }
-    }
-    
-    // If no part files exist, we can't create the master video
-    if concat_content.is_empty() {
-        println!("No part files available for concatenation for {}", video_part.base_name);
+    // Check if current part file exists
+    if !current_part_path.exists() {
+        println!("Current part file doesn't exist: {}", current_part_path.display());
         return Ok(());
     }
     
-    // Check if we have all sequential parts from 1 to the highest number
-    let max_part = *available_parts.iter().max().unwrap_or(&1);
-    let has_all_sequential = (1..=max_part).all(|i| available_parts.contains(&i));
-    
-    if !has_all_sequential {
-        println!("Warning: Missing some parts for {}, concatenating available parts: {:?}", 
-                 video_part.base_name, available_parts);
+    if master_path.exists() {
+        // Master file exists - append current part to it
+        println!("Appending part {} to existing master video: {}", video_part.part_number, master_video_path);
+        
+        // Create concat file for master + current part
+        let concat_file_path = parent_dir.join(format!("{}_append.txt", video_part.base_name));
+        let concat_content = format!(
+            "file '{}'\nfile '{}'", 
+            master_path.file_name().unwrap().to_string_lossy(),
+            current_part_path.file_name().unwrap().to_string_lossy()
+        );
+        std::fs::write(&concat_file_path, concat_content)?;
+        
+        // Create temporary output file
+        let temp_master_path = parent_dir.join(format!("{}_temp.{}", video_part.base_name, video_part.extension));
+        
+        // Use FFmpeg to append current part to master
+        let output = tokio::process::Command::new(&cfg.ffmpeg_path)
+            .args([
+                "-f", "concat",
+                "-safe", "0", 
+                "-i", concat_file_path.to_str().unwrap(),
+                "-c", "copy",
+                "-y",
+                temp_master_path.to_str().unwrap(),
+            ])
+            .current_dir(parent_dir)
+            .output()
+            .await?;
+        
+        // Clean up concat file
+        let _ = std::fs::remove_file(&concat_file_path);
+        
+        if !output.status.success() {
+            let error_output = String::from_utf8_lossy(&output.stderr);
+            let _ = std::fs::remove_file(&temp_master_path);
+            return Err(format!("FFmpeg append failed: {}", error_output).into());
+        }
+        
+        // Replace master with temp file
+        std::fs::rename(&temp_master_path, &master_path)?;
+        println!("Successfully appended part {} to master video", video_part.part_number);
+        
+    } else {
+        // No master file exists - rename current part to become the master
+        println!("Creating master video from part {}: {}", video_part.part_number, master_video_path);
+        std::fs::rename(current_part_path, &master_path)?;
+        println!("Successfully created master video from part {}", video_part.part_number);
+        return Ok(()); // Don't delete the part file since we renamed it
     }
     
-    std::fs::write(&concat_file_path, concat_content)?;
+    // Clean up the current part file after successful append
+    let _ = std::fs::remove_file(current_part_path);
+    println!("Cleaned up part file: {}", current_part_path.display());
     
-    // Use FFmpeg to concatenate the videos
-    let output = tokio::process::Command::new(&cfg.ffmpeg_path)
-        .args([
-            "-f", "concat",
-            "-safe", "0",
-            "-i", concat_file_path.to_str().unwrap(),
-            "-c", "copy",
-            "-y", // Overwrite output file
-            &master_video_path,
-        ])
-        .current_dir(parent_dir)
-        .output()
-        .await?;
-    
-    // Clean up concat file
-    let _ = std::fs::remove_file(&concat_file_path);
-    
-    if !output.status.success() {
-        let error_output = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("FFmpeg concatenation failed: {}", error_output).into());
-    }
-    
-    println!("Updated master video: {} (parts: {:?})", master_video_path, available_parts);
     Ok(())
 }

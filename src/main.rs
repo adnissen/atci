@@ -1082,73 +1082,38 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
     println!("Output directory: {}", stream_dir.display());
     println!("File pattern: {}.{}.partX.{}", stream_name, timestamp, extension);
     
-    let mut part_number = 1;
-    let mut total_duration = 0;
+    // Use FFmpeg's segment muxer to automatically split the stream into 10-second parts
+    let output_pattern = stream_dir.join(format!("{}.{}.part%d.{}", stream_name, timestamp, extension));
     
-    loop {
-        let output_filename = format!("{}.{}.part{}.{}", stream_name, timestamp, part_number, extension);
-        let output_path = stream_dir.join(&output_filename);
-        
-        println!("Downloading part {}: {}", part_number, output_filename);
-        
-        // Use FFmpeg to download 10-second segment
-        let mut cmd = tokio::process::Command::new(&cfg.ffmpeg_path);
-        cmd.args([
-            "-i", url,
-            "-t", "10",  // 10 second duration
-            "-ss", &total_duration.to_string(),  // Start time offset
-            "-c", "copy",  // Copy streams without re-encoding
-            "-avoid_negative_ts", "make_zero",  // Handle timestamp issues
-            "-f", "mpegts",  // Force MPEG-TS format for better streaming support
-            "-y",  // Overwrite output files
-            output_path.to_str().unwrap(),
-        ]);
-        
-        let output = cmd.output().await?;
-        
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            
-            // Check if this is end of stream or no more data
-            if stderr.contains("End of file") || stderr.contains("No more inputs to read") {
-                println!("Reached end of stream at part {}", part_number);
-                break;
-            }
-            
-            return Err(format!("FFmpeg failed for part {}: {}", part_number, stderr).into());
-        }
-        
-        // Check if the output file was created and has reasonable size
-        if !output_path.exists() {
-            println!("No more stream data available, stopping at part {}", part_number);
-            break;
-        }
-        
-        let file_size = fs::metadata(&output_path)?.len();
-        if file_size < 1024 {  // Less than 1KB, probably empty
-            println!("Part {} is too small ({}bytes), stopping", part_number, file_size);
-            let _ = fs::remove_file(&output_path);  // Clean up small file
-            break;
-        }
-        
-        println!("✓ Part {} downloaded ({} bytes)", part_number, file_size);
-        
-        part_number += 1;
-        total_duration += 10;
-        
-        // Add small delay to avoid overwhelming the server
-        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-        
-        // Safety check to avoid infinite loops
-        if part_number > 1000 {
-            println!("Reached maximum parts limit (1000), stopping");
-            break;
-        }
+    println!("Starting continuous stream download with automatic segmentation...");
+    println!("Output pattern: {}", output_pattern.display());
+    println!("Press Ctrl+C to stop the download");
+    
+    let mut cmd = tokio::process::Command::new(&cfg.ffmpeg_path);
+    cmd.args([
+        "-i", url,
+        "-c", "copy",  // Copy streams without re-encoding
+        "-avoid_negative_ts", "make_zero",  // Handle timestamp issues
+        "-f", "segment",  // Use segment muxer
+        "-segment_time", "10",  // 10 second segments
+        "-segment_format", "mpegts",  // Output format for segments
+        "-segment_start_number", "1",  // Start numbering from 1
+        "-reset_timestamps", "1",  // Reset timestamps for each segment
+        "-y",  // Overwrite output files
+        output_pattern.to_str().unwrap(),
+    ]);
+    
+    // For live streams, we want to run FFmpeg in a way that we can monitor it
+    let mut child = cmd.spawn()?;
+    
+    // Wait for the process to complete or be interrupted
+    let status = child.wait().await?;
+    
+    if !status.success() {
+        return Err("FFmpeg process failed".into());
     }
     
-    let total_parts = part_number - 1;
     println!("Stream download completed!");
-    println!("Downloaded {} parts (~{} seconds of content)", total_parts, total_parts * 10);
     println!("Files saved to: {}", stream_dir.display());
     println!("The video parts will be automatically processed by the queue system.");
     
