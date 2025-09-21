@@ -1047,23 +1047,24 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
     
     println!("Starting stream download: {} -> {}", url, stream_name);
     
-    // Get or create streams directory
+    // Get or create streams directory structure
     let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let streams_dir = home_dir.join("atci_streams");
+    let base_streams_dir = home_dir.join("atci_streams");
+    let stream_dir = base_streams_dir.join(stream_name);
     
-    if !streams_dir.exists() {
-        fs::create_dir_all(&streams_dir)?;
-        println!("Created streams directory: {}", streams_dir.display());
+    if !stream_dir.exists() {
+        fs::create_dir_all(&stream_dir)?;
+        println!("Created stream directory: {}", stream_dir.display());
     }
     
-    // Load and update config to include streams directory in watch directories
+    // Load and update config to include this specific stream directory in watch directories
     let mut cfg: AtciConfig = config::load_config()?;
-    let streams_dir_str = streams_dir.to_string_lossy().to_string();
+    let stream_dir_str = stream_dir.to_string_lossy().to_string();
     
-    if !cfg.watch_directories.contains(&streams_dir_str) {
-        cfg.watch_directories.push(streams_dir_str.clone());
+    if !cfg.watch_directories.contains(&stream_dir_str) {
+        cfg.watch_directories.push(stream_dir_str.clone());
         config::store_config(&cfg)?;
-        println!("Added streams directory to watch directories: {}", streams_dir_str);
+        println!("Added stream directory to watch directories: {}", stream_dir_str);
     }
     
     // Validate required tools
@@ -1078,7 +1079,7 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
     let extension = if url.contains(".m3u8") { "ts" } else { "mp4" };
     
     println!("Downloading stream in 10-second parts...");
-    println!("Output directory: {}", streams_dir.display());
+    println!("Output directory: {}", stream_dir.display());
     println!("File pattern: {}.{}.partX.{}", stream_name, timestamp, extension);
     
     let mut part_number = 1;
@@ -1086,7 +1087,7 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
     
     loop {
         let output_filename = format!("{}.{}.part{}.{}", stream_name, timestamp, part_number, extension);
-        let output_path = streams_dir.join(&output_filename);
+        let output_path = stream_dir.join(&output_filename);
         
         println!("Downloading part {}: {}", part_number, output_filename);
         
@@ -1148,7 +1149,7 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
     let total_parts = part_number - 1;
     println!("Stream download completed!");
     println!("Downloaded {} parts (~{} seconds of content)", total_parts, total_parts * 10);
-    println!("Files saved to: {}", streams_dir.display());
+    println!("Files saved to: {}", stream_dir.display());
     println!("The video parts will be automatically processed by the queue system.");
     
     Ok(())
