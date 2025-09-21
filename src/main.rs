@@ -34,6 +34,7 @@ mod queue;
 mod search;
 mod tools_manager;
 mod transcripts;
+mod video_parts;
 mod video_processor;
 mod web;
 
