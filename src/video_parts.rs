@@ -1,7 +1,6 @@
 // atci (andrew's transcript and clipping interface)
 // Copyright (C) 2025 Andrew Nissen
 
-use crate::db;
 use regex::Regex;
 use rusqlite::Connection;
 use std::path::Path;
@@ -141,7 +140,7 @@ pub fn create_missing_part_placeholder(
     master_transcript_path: &str,
     missing_parts: &[i32],
     current_part: i32,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let missing_parts_str = missing_parts
         .iter()
         .map(|p| p.to_string())

@@ -489,13 +489,13 @@ pub async fn cancellable_create_transcript_for_part(
     let mut total_duration_ms = 0u64;
     
     // Calculate cumulative duration from all previous parts
-    for part_num in existing_parts {
-        if part_num < video_part.part_number {
+    for part_num in &existing_parts {
+        if *part_num < video_part.part_number {
             // Try to get duration from the master video first, then from the part file
             let master_video_exists = Path::new(&master_video_path).exists();
             let cfg = crate::config::load_config()?;
             
-            if master_video_exists && part_num == existing_parts.iter().max().unwrap_or(&0) {
+            if master_video_exists && *part_num == *existing_parts.iter().max().unwrap_or(&0) {
                 // If master video exists and this is the last processed part, get duration from master
                 if let Ok(duration_str) = get_video_duration(Path::new(&master_video_path), Path::new(&cfg.ffprobe_path)).await {
                     total_duration_ms = parse_duration_to_ms(&duration_str)?;
@@ -505,7 +505,7 @@ pub async fn cancellable_create_transcript_for_part(
                 // Try to get duration from individual part file
                 let part_video_path = format!("{}/{}.part{}.{}", 
                     Path::new(&video_part.video_path).parent().unwrap().display(),
-                    video_part.base_name, part_num, video_part.extension);
+                    video_part.base_name, *part_num, video_part.extension);
                 
                 if let Ok(duration_str) = get_video_duration(Path::new(&part_video_path), Path::new(&cfg.ffprobe_path)).await {
                     total_duration_ms += parse_duration_to_ms(&duration_str)?;

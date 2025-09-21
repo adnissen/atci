@@ -11,7 +11,7 @@ use std::path::Path;
 use std::process::Command;
 
 fn get_video_extensions() -> Vec<&'static str> {
-    vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
+    vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v", "ts"]
 }
 
 fn get_font_path() -> Result<String, Box<dyn std::error::Error>> {
@@ -794,6 +794,9 @@ fn get_audio_codec_args(
         } else {
             vec!["-c:a", "aac", "-b:a", "256k"]
         }
+    } else if source_extension == "ts" {
+        // .ts files often have malformed AAC streams that need the aac_adtstoasc filter
+        vec!["-c:a", "copy", "-bsf:a", "aac_adtstoasc"]
     } else {
         vec!["-c:a", "copy"]
     };
@@ -878,7 +881,10 @@ pub fn web_clip(
             eprintln!("Error reading generated clip: {}", e);
             status::BadRequest("Error reading generated clip")
         }),
-        Err(_) => Err(status::BadRequest("Error creating clip")),
+        Err(e) => {
+            eprintln!("Error creating clip: {}", e);
+            Err(status::BadRequest("Error creating clip"))
+        }
     }
 }
 
