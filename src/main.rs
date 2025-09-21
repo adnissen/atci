@@ -1049,8 +1049,7 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
     
     // Get or create streams directory
     let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let atci_dir = home_dir.join(".atci");
-    let streams_dir = atci_dir.join("streams");
+    let streams_dir = home_dir.join("atci_streams");
     
     if !streams_dir.exists() {
         fs::create_dir_all(&streams_dir)?;
