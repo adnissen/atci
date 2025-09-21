@@ -160,6 +160,14 @@ enum Commands {
         )]
         json: bool,
     },
+    #[command(about = "Download m3u8 stream in 10-second parts for processing")]
+    #[command(arg_required_else_help = true)]
+    Streamdl {
+        #[arg(help = "URL to the m3u8 stream")]
+        url: String,
+        #[arg(help = "Name for the stream (used in filename)")]
+        stream_name: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -1033,6 +1041,120 @@ fn validate_and_prompt_config(
     Ok(())
 }
 
+async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    use chrono::Utc;
+    use std::fs;
+    
+    println!("Starting stream download: {} -> {}", url, stream_name);
+    
+    // Get or create streams directory
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let atci_dir = home_dir.join(".atci");
+    let streams_dir = atci_dir.join("streams");
+    
+    if !streams_dir.exists() {
+        fs::create_dir_all(&streams_dir)?;
+        println!("Created streams directory: {}", streams_dir.display());
+    }
+    
+    // Load and update config to include streams directory in watch directories
+    let mut cfg: AtciConfig = config::load_config()?;
+    let streams_dir_str = streams_dir.to_string_lossy().to_string();
+    
+    if !cfg.watch_directories.contains(&streams_dir_str) {
+        cfg.watch_directories.push(streams_dir_str.clone());
+        config::store_config(&cfg)?;
+        println!("Added streams directory to watch directories: {}", streams_dir_str);
+    }
+    
+    // Validate required tools
+    if cfg.ffmpeg_path.is_empty() {
+        return Err("FFmpeg path not configured. Please run 'atci config set ffmpeg_path /path/to/ffmpeg'".into());
+    }
+    
+    // Generate timestamp for this stream session
+    let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
+    
+    // Determine file extension from stream (default to ts for m3u8)
+    let extension = if url.contains(".m3u8") { "ts" } else { "mp4" };
+    
+    println!("Downloading stream in 10-second parts...");
+    println!("Output directory: {}", streams_dir.display());
+    println!("File pattern: {}.{}.partX.{}", stream_name, timestamp, extension);
+    
+    let mut part_number = 1;
+    let mut total_duration = 0;
+    
+    loop {
+        let output_filename = format!("{}.{}.part{}.{}", stream_name, timestamp, part_number, extension);
+        let output_path = streams_dir.join(&output_filename);
+        
+        println!("Downloading part {}: {}", part_number, output_filename);
+        
+        // Use FFmpeg to download 10-second segment
+        let mut cmd = tokio::process::Command::new(&cfg.ffmpeg_path);
+        cmd.args([
+            "-i", url,
+            "-t", "10",  // 10 second duration
+            "-ss", &total_duration.to_string(),  // Start time offset
+            "-c", "copy",  // Copy streams without re-encoding
+            "-avoid_negative_ts", "make_zero",  // Handle timestamp issues
+            "-f", "mpegts",  // Force MPEG-TS format for better streaming support
+            "-y",  // Overwrite output files
+            output_path.to_str().unwrap(),
+        ]);
+        
+        let output = cmd.output().await?;
+        
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            
+            // Check if this is end of stream or no more data
+            if stderr.contains("End of file") || stderr.contains("No more inputs to read") {
+                println!("Reached end of stream at part {}", part_number);
+                break;
+            }
+            
+            return Err(format!("FFmpeg failed for part {}: {}", part_number, stderr).into());
+        }
+        
+        // Check if the output file was created and has reasonable size
+        if !output_path.exists() {
+            println!("No more stream data available, stopping at part {}", part_number);
+            break;
+        }
+        
+        let file_size = fs::metadata(&output_path)?.len();
+        if file_size < 1024 {  // Less than 1KB, probably empty
+            println!("Part {} is too small ({}bytes), stopping", part_number, file_size);
+            let _ = fs::remove_file(&output_path);  // Clean up small file
+            break;
+        }
+        
+        println!("✓ Part {} downloaded ({} bytes)", part_number, file_size);
+        
+        part_number += 1;
+        total_duration += 10;
+        
+        // Add small delay to avoid overwhelming the server
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        
+        // Safety check to avoid infinite loops
+        if part_number > 1000 {
+            println!("Reached maximum parts limit (1000), stopping");
+            break;
+        }
+    }
+    
+    let total_parts = part_number - 1;
+    println!("Stream download completed!");
+    println!("Downloaded {} parts (~{} seconds of content)", total_parts, total_parts * 10);
+    println!("Files saved to: {}", streams_dir.display());
+    println!("The video parts will be automatically processed by the queue system.");
+    
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
@@ -1548,6 +1670,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 eprintln!("Error checking version: {}", e);
                 std::process::exit(1);
             }
+        }
+        Some(Commands::Streamdl { url, stream_name }) => {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                if let Err(e) = download_stream(&url, &stream_name).await {
+                    eprintln!("Error downloading stream: {}", e);
+                    std::process::exit(1);
+                }
+            });
         }
         None => {}
     }
