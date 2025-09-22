@@ -355,14 +355,6 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
             return Ok(true);
         }
 
-        // Load config to get processing commands
-        let cfg = match config::load_config() {
-            Ok(cfg) => cfg,
-            Err(e) => {
-                eprintln!("Failed to load config: {}", e);
-                return Ok(true);
-            }
-        };
 
         let mut processing_successful = true;
         let mut error_message = String::new();
@@ -406,42 +398,15 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
             }
         }
 
-        // Execute success or failure command based on processing result
+        // Note: Success/failure commands are now handled directly by the transcript creation functions
+        // to avoid duplicate execution, especially for video parts
         if processing_successful {
             println!("Processed queue item successfully: {}", video_path_str);
-
-            // Execute success command if configured
-            if !cfg.processing_success_command.is_empty()
-                && let Err(e) = config::execute_processing_command(
-                    &cfg.processing_success_command,
-                    video_path,
-                    true,
-                )
-            {
-                eprintln!(
-                    "Error executing success command for {}: {}",
-                    video_path_str, e
-                );
-            }
         } else {
             eprintln!(
                 "Processing failed for {}: {}",
                 video_path_str, error_message
             );
-
-            // Execute failure command if configured
-            if !cfg.processing_failure_command.is_empty()
-                && let Err(e) = config::execute_processing_command(
-                    &cfg.processing_failure_command,
-                    video_path,
-                    false,
-                )
-            {
-                eprintln!(
-                    "Error executing failure command for {}: {}",
-                    video_path_str, e
-                );
-            }
         }
 
         // Update file info regardless of processing result
@@ -543,6 +508,7 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                 .collect();
 
             for file_to_add in files_to_add {
+                println!("Adding to queue: {}", file_to_add);
                 if let Err(e) = add_to_queue(&file_to_add, None, None) {
                     eprintln!("Error adding to queue: {}", e);
                 }

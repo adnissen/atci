@@ -13,6 +13,42 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::sleep;
 
+/// Helper function to execute success command for processed videos
+fn execute_success_command(video_path: &Path) {
+    if let Ok(cfg_for_command) = crate::config::load_config() {
+        if !cfg_for_command.processing_success_command.is_empty() {
+            if let Err(e) = crate::config::execute_processing_command(
+                &cfg_for_command.processing_success_command,
+                video_path,
+                true,
+            ) {
+                eprintln!(
+                    "Error executing success command for {}: {}",
+                    video_path.display(), e
+                );
+            }
+        }
+    }
+}
+
+/// Helper function to execute failure command for failed videos
+fn execute_failure_command(video_path: &Path) {
+    if let Ok(cfg_for_command) = crate::config::load_config() {
+        if !cfg_for_command.processing_failure_command.is_empty() {
+            if let Err(e) = crate::config::execute_processing_command(
+                &cfg_for_command.processing_failure_command,
+                video_path,
+                false,
+            ) {
+                eprintln!(
+                    "Error executing failure command for {}: {}",
+                    video_path.display(), e
+                );
+            }
+        }
+    }
+}
+
 fn check_cancel_file() -> bool {
     let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
     let cancel_file = home_dir.join(".atci").join(".commands").join("CANCEL");
@@ -436,7 +472,18 @@ pub async fn cancellable_create_transcript(
     if let Some(video_part) = crate::video_parts::parse_video_part(video_path) {
         return cancellable_create_transcript_for_part(video_part, model, subtitle_stream_index).await;
     } else {
-        return cancellable_create_transcript_single(video_path, model, subtitle_stream_index).await;
+        // For single videos, wrap with failure command handling
+        match cancellable_create_transcript_single(video_path, model, subtitle_stream_index).await {
+            Ok(success) => {
+                execute_success_command(video_path);
+                Ok(success)
+            }
+            Err(e) => {
+                // Execute failure command for single video processing
+                execute_failure_command(video_path);
+                Err(e)
+            }
+        }
     }
 }
 
@@ -548,12 +595,11 @@ pub async fn cancellable_create_transcript_for_part(
     let adjusted_transcript = adjust_transcript_timestamps(&part_transcript, total_duration_ms)?;
     
     // Append or create master transcript
-    let final_content = if video_part.part_number == 1 || !Path::new(&master_transcript_path).exists() {
-        // First part or new master file - include part header only for part 1
-        let part_header = format!("\n>>> Part {} <<<\n", video_part.part_number);
-        format!("{}{}", part_header, adjusted_transcript)
+    let final_content = if !Path::new(&master_transcript_path).exists() {
+        // New master file - start with this part's content
+        adjusted_transcript.clone()
     } else {
-        // Append to existing master transcript - no part header for subsequent parts
+        // Append to existing master transcript
         let existing_content = std::fs::read_to_string(&master_transcript_path).unwrap_or_default();
         let trimmed_existing = existing_content.trim_end();
         let trimmed_new = adjusted_transcript.trim_start();
@@ -568,21 +614,6 @@ pub async fn cancellable_create_transcript_for_part(
     
     // Clean up part transcript (but keep part video for concatenation)
     let _ = std::fs::remove_file(&part_transcript_path);
-    
-    // Execute success command for the part file before deletion
-    let cfg_for_command = crate::config::load_config()?;
-    if !cfg_for_command.processing_success_command.is_empty() {
-        if let Err(e) = crate::config::execute_processing_command(
-            &cfg_for_command.processing_success_command,
-            video_path,
-            true,
-        ) {
-            eprintln!(
-                "Error executing success command for part {}: {}",
-                video_part.part_number, e
-            );
-        }
-    }
 
     // Update or create master video (after transcript cleanup but before video cleanup)
     update_master_video(&video_part).await?;
@@ -597,6 +628,9 @@ pub async fn cancellable_create_transcript_for_part(
             println!("Updated length metadata for master video: {}", master_video_path);
         }
     }
+
+     // Execute success command for the part file before deletion
+     execute_success_command(video_path);
     
     // Check for next part and queue it
     let _ = crate::video_parts::check_and_queue_next_part(&video_part);
