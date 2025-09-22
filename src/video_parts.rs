@@ -117,6 +117,18 @@ pub fn check_and_queue_next_part(video_part: &VideoPart) -> Result<(), Box<dyn s
     let next_part_path = parent_dir.join(next_part_filename);
     
     if next_part_path.exists() {
+        // Check if file was modified in the last 3 seconds
+        let metadata = std::fs::metadata(&next_part_path)?;
+        let modified_time = metadata.modified()?;
+        let now = std::time::SystemTime::now();
+        
+        if let Ok(duration_since_modified) = now.duration_since(modified_time) {
+            if duration_since_modified.as_secs() < 3 {
+                println!("Next part {} was modified recently, skipping for now", next_part_path.display());
+                return Ok(());
+            }
+        }
+        
         println!("Found next part: {}", next_part_path.display());
         crate::queue::add_to_queue(&next_part_path.to_string_lossy(), None, None)?;
     }
