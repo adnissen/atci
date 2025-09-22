@@ -50,17 +50,6 @@ pub fn get_master_paths(video_part: &VideoPart) -> (String, String) {
     (master_video_path, master_transcript_path)
 }
 
-/// Check if a video part has been processed
-pub fn is_part_processed(conn: &Connection, base_name: &str, part_number: i32) -> Result<bool, rusqlite::Error> {
-    let count: i32 = conn.query_row(
-        "SELECT COUNT(*) FROM video_parts WHERE base_name = ?1 AND part_number = ?2",
-        [base_name, &part_number.to_string()],
-        |row| row.get(0),
-    )?;
-    
-    Ok(count > 0)
-}
-
 /// Get all processed parts for a base video name
 pub fn get_processed_parts(conn: &Connection, base_name: &str) -> Result<Vec<i32>, rusqlite::Error> {
     let mut stmt = conn.prepare(

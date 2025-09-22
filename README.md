@@ -70,6 +70,11 @@ Set a command to run when processing completes successfully (the video file path
 atci config set processing_success_command "xargs terminal-notifier -title 'Processing Complete' -message"
 ```
 
+Download a live stream in 60-second parts (configurable with `stream_chunk_size`):
+```
+atci streamdl "my-livestream" "https://example.com/stream/playlist.m3u8"
+```
+
 By default, the first subtitle track is used if subtitles are enabeld. Sometimes, you might want to use a different one, or use a different whisper model than the currently configured one. You can perform an interactive regeneration, which allows you to select how to process it:
 ```
 atci transcripts regenerate -i /path/to/file.mp4
@@ -153,9 +158,13 @@ The application stores its configuration in a JSON file containing the following
   "whispercli_path": "/path/to/whisper_cli",
   "ffmpeg_path": "/path/to/ffmpeg",
   "ffprobe_path": "/path/to/ffprobe",
-  "model_path": "/path/to/model.bin",
   "model_name": "ggml-base",
-  "password": ""
+  "password": "",
+  "allow_whisper": true,
+  "allow_subtitles": true,
+  "processing_success_command": "",
+  "processing_failure_command": "",
+  "stream_chunk_size": 60
 }
 ```
 
@@ -176,20 +185,65 @@ atci config set/unset
 
 Changes to the config are reflected immediately in the watch behavior (no server restart required), but will require a browser refresh to reflect in the web ui.
 
+## Working with Stream Parts and Partial Files
+
+When using the `streamdl` command, atci automatically splits streams into manageable parts based on your `stream_chunk_size` configuration (default: 60 seconds). These files are saved with a naming pattern like:
+
+```
+stream-name.20250122_143055.part1.ts
+stream-name.20250122_143055.part2.ts
+stream-name.20250122_143055.part3.ts
+...
+```
+
+### Processing Partial Files
+
+atci can process any video file, including these partial stream files. Simply use any atci command that accepts video file paths:
+
+**Search within a specific part:**
+```bash
+atci search "keyword" -f "part3"
+```
+
+**Generate clips from partial files:**
+```bash
+atci clip "/path/to/stream-name.20250122_143055.part2.ts" 30 45
+```
+
+**View transcripts for a specific part:**
+```bash
+atci transcripts get "/path/to/stream-name.20250122_143055.part1.ts"
+```
+
+**Process parts interactively:**
+```bash
+atci transcripts regenerate -i "/path/to/stream-name.20250122_143055.part4.ts"
+```
+
+Each part is treated as an independent video file with its own transcript and metadata. This allows you to:
+- Search across all parts simultaneously
+- Focus on specific time segments by targeting particular parts
+- Process long streams without memory constraints
+- Resume processing if interrupted
+
+The watch system automatically detects and processes new stream parts as they're created during live downloads.
+
 **Configuration Properties:**
 
 - **`watch_directories`** (array): List of directories to monitor for new video files
 - **`whispercli_path`** (string): Path to the whisper.cpp executable
 - **`ffmpeg_path`** (string): Path to the ffmpeg executable  
 - **`ffprobe_path`** (string): Path to the ffprobe executable
-- **`model_path`** (string): Direct path to a Whisper model file (.bin) (alternative to model_name)
-- **`model_name`** (string): Name of a model to use from ~/.atci/models/ (alternative to model_path)
+- **`model_name`** (string): Name of a model to use from ~/.atci/models/
 - **`password`** (string): Optional password for all connections. Can be set either in the cookie or via basic auth (no username)
+- **`allow_whisper`** (boolean): Enable/disable Whisper transcription processing (default: true)
+- **`allow_subtitles`** (boolean): Enable/disable subtitle extraction from video files (default: true)
 - **`processing_success_command`** (string): Shell command to run when video processing completes successfully. The video file path is sent to the command's stdin
 - **`processing_failure_command`** (string): Shell command to run when video processing fails. The video file path is sent to the command's stdin
+- **`stream_chunk_size`** (number): Duration in seconds for splitting streams when using the `streamdl` command (default: 60)
 
 **Notes:**
-- Either `model_path` or `model_name` must be specified
+- `model_name` must be specified for transcription to work
 - Watch directories cannot be subdirectories of each other
 
 ## How it works

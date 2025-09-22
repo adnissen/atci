@@ -160,13 +160,13 @@ enum Commands {
         )]
         json: bool,
     },
-    #[command(about = "Download m3u8 stream in 10-second parts for processing")]
+    #[command(about = "Download m3u8 stream in configurable parts for processing")]
     #[command(arg_required_else_help = true)]
     Streamdl {
-        #[arg(help = "URL to the m3u8 stream")]
-        url: String,
         #[arg(help = "Name for the stream (used in filename)")]
         stream_name: String,
+        #[arg(help = "URL to the m3u8 stream")]
+        url: String,
     },
 }
 
@@ -356,6 +356,7 @@ fn is_valid_config_field(field: &str) -> bool {
             | "allow_subtitles"
             | "processing_success_command"
             | "processing_failure_command"
+            | "stream_chunk_size"
     )
 }
 
@@ -384,6 +385,11 @@ fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Result<()
         }
         "processing_success_command" => cfg.processing_success_command = value.to_string(),
         "processing_failure_command" => cfg.processing_failure_command = value.to_string(),
+        "stream_chunk_size" => {
+            cfg.stream_chunk_size = value
+                .parse::<u32>()
+                .map_err(|_| format!("Invalid number value for stream_chunk_size: {}", value))?;
+        }
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())
@@ -401,6 +407,7 @@ fn unset_config_field(cfg: &mut AtciConfig, field: &str) -> Result<(), String> {
         "allow_subtitles" => cfg.allow_subtitles = true,
         "processing_success_command" => cfg.processing_success_command = String::new(),
         "processing_failure_command" => cfg.processing_failure_command = String::new(),
+        "stream_chunk_size" => cfg.stream_chunk_size = 60,
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())
@@ -1078,11 +1085,11 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
     // Determine file extension from stream (default to ts for m3u8)
     let extension = if url.contains(".m3u8") { "ts" } else { "mp4" };
     
-    println!("Downloading stream in 10-second parts...");
+    println!("Downloading stream in {}-second parts...", cfg.stream_chunk_size);
     println!("Output directory: {}", stream_dir.display());
     println!("File pattern: {}.{}.partX.{}", stream_name, timestamp, extension);
     
-    // Use FFmpeg's segment muxer to automatically split the stream into 10-second parts
+    // Use FFmpeg's segment muxer to automatically split the stream into configurable-second parts
     let output_pattern = stream_dir.join(format!("{}.{}.part%d.{}", stream_name, timestamp, extension));
     
     println!("Starting continuous stream download with automatic segmentation...");
@@ -1095,7 +1102,7 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
         "-c", "copy",  // Copy streams without re-encoding
         "-avoid_negative_ts", "make_zero",  // Handle timestamp issues
         "-f", "segment",  // Use segment muxer
-        "-segment_time", "10",  // 10 second segments
+        "-segment_time", &cfg.stream_chunk_size.to_string(),  // configurable second segments
         "-segment_format", "mpegts",  // Output format for segments
         "-segment_start_number", "1",  // Start numbering from 1
         "-reset_timestamps", "1",  // Reset timestamps for each segment
@@ -1383,7 +1390,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(ConfigCommands::Set { field, value }) => {
                 if !is_valid_config_field(&field) {
                     eprintln!(
-                        "Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password, allow_whisper, allow_subtitles",
+                        "Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password, allow_whisper, allow_subtitles, processing_success_command, processing_failure_command, stream_chunk_size",
                         field
                     );
                     std::process::exit(1);
@@ -1402,7 +1409,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(ConfigCommands::Unset { field }) => {
                 if !is_valid_config_field(&field) {
                     eprintln!(
-                        "Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password, allow_whisper, allow_subtitles",
+                        "Error: Unknown field '{}'. Valid fields are: ffmpeg_path, ffprobe_path, model_name, whispercli_path, watch_directories, password, allow_whisper, allow_subtitles, processing_success_command, processing_failure_command, stream_chunk_size",
                         field
                     );
                     std::process::exit(1);
@@ -1636,7 +1643,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         }
-        Some(Commands::Streamdl { url, stream_name }) => {
+        Some(Commands::Streamdl { stream_name, url }) => {
             let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 if let Err(e) = download_stream(&url, &stream_name).await {

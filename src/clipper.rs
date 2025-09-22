@@ -336,14 +336,17 @@ fn get_video_fps(
         // Parse fraction format like "30/1" or "2997/100"
         if fps_str.contains('/') {
             let parts: Vec<&str> = fps_str.split('/').collect();
-            if parts.len() == 2 {
-                let numerator: f64 = parts[0].parse()?;
-                let denominator: f64 = parts[1].parse()?;
-                return Ok(numerator / denominator);
+            println!("Parts: {:?}", parts);
+            println!("Parts length: {}", parts.len());
+            if parts.len() == 3 {
+                println!("tring to get num and denom");
+                let numerator: f64 = parts[0].parse::<f64>()?;
+                println!("Numerator: {}", numerator);
+                return Ok(numerator);
             }
         }
-
         // Fallback to direct parsing
+        println!("FPS string: {}", fps_str);
         fps_str
             .parse::<f64>()
             .map_err(|_| format!("Invalid frame rate format: {}", fps_str).into())
@@ -485,7 +488,8 @@ fn video_with_text_args(
                 font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
             let font_path =
                 get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
-            let frames_count = (duration * 30.0).trunc() as i32;
+            let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
+            let frames_count = (duration * fps).trunc() as i32;
 
             let mut args = vec![
                 "-ss",
@@ -591,7 +595,13 @@ fn video_no_text_args(
     output_path: &Path,
     audio_codec_args: &[&str],
 ) -> Vec<String> {
-    let frames_count = (duration * 30.0).trunc() as i32;
+    let cfg = crate::config::load_config().unwrap_or_default();
+    let ffprobe_path = Path::new(&cfg.ffprobe_path);
+    let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
+    let frames_count = (duration * fps).trunc() as i32;
+    println!("FPS: {}", fps);
+    println!("Duration: {}", duration);
+    println!("Frames count: {}", frames_count);
 
     let mut args = vec![
         "-ss",

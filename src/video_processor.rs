@@ -464,6 +464,21 @@ pub async fn cancellable_create_transcript_for_part(
     let success = match cancellable_create_transcript_single(video_path, model.clone(), subtitle_stream_index).await {
         Ok(success) => success,
         Err(e) => {
+            // Execute failure command for the part file
+            let cfg_for_command = crate::config::load_config()?;
+            if !cfg_for_command.processing_failure_command.is_empty() {
+                if let Err(cmd_err) = crate::config::execute_processing_command(
+                    &cfg_for_command.processing_failure_command,
+                    video_path,
+                    false,
+                ) {
+                    eprintln!(
+                        "Error executing failure command for part {}: {}",
+                        video_part.part_number, cmd_err
+                    );
+                }
+            }
+
             // Handle processing failure - insert error message into master transcript
             let error_message = format!(">>> Part {} FAILED: {} <<<\nError processing part {}: {}\n", 
                 video_part.part_number, video_part.base_name, video_part.part_number, e);
@@ -540,7 +555,9 @@ pub async fn cancellable_create_transcript_for_part(
     } else {
         // Append to existing master transcript - no part header for subsequent parts
         let existing_content = std::fs::read_to_string(&master_transcript_path).unwrap_or_default();
-        format!("{}\n{}", existing_content, adjusted_transcript)
+        let trimmed_existing = existing_content.trim_end();
+        let trimmed_new = adjusted_transcript.trim_start();
+        format!("{}\n\n{}", trimmed_existing, trimmed_new)
     };
     
     std::fs::write(&master_transcript_path, final_content)?;
@@ -552,8 +569,34 @@ pub async fn cancellable_create_transcript_for_part(
     // Clean up part transcript (but keep part video for concatenation)
     let _ = std::fs::remove_file(&part_transcript_path);
     
+    // Execute success command for the part file before deletion
+    let cfg_for_command = crate::config::load_config()?;
+    if !cfg_for_command.processing_success_command.is_empty() {
+        if let Err(e) = crate::config::execute_processing_command(
+            &cfg_for_command.processing_success_command,
+            video_path,
+            true,
+        ) {
+            eprintln!(
+                "Error executing success command for part {}: {}",
+                video_part.part_number, e
+            );
+        }
+    }
+
     // Update or create master video (after transcript cleanup but before video cleanup)
     update_master_video(&video_part).await?;
+    
+    // Update master video length metadata after concatenation
+    let (master_video_path, _) = crate::video_parts::get_master_paths(&video_part);
+    let master_path = Path::new(&master_video_path);
+    if master_path.exists() {
+        if let Err(e) = add_length_metadata_to_path(master_path).await {
+            eprintln!("Failed to update master video length metadata: {}", e);
+        } else {
+            println!("Updated length metadata for master video: {}", master_video_path);
+        }
+    }
     
     // Check for next part and queue it
     let _ = crate::video_parts::check_and_queue_next_part(&video_part);
