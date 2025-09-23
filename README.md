@@ -101,7 +101,7 @@ You do not need to have an entire video file in order to begin processing it. By
 
 The part numbers _must_ start at 1. When `filename.part1.ext` is processed, if `filename.ext` already exists, it will be appended to. The next file must be `filename.part2.ext`, and so on.
 
-When using the `streamdl` command, atci automatically uses ffmpeg to split an m3u8 stream into parts based on your `stream_chunk_size` configuration (default: 60 seconds). These files are saved with a naming pattern like:
+When using the `streamdl <stream-name> <url.m3u8>` command, atci automatically uses ffmpeg to split an m3u8 stream into parts based on your `stream_chunk_size` configuration (default: 60 seconds). These files are saved with a naming pattern like:
 
 ```
 stream-name.YYYYMMDD_HHMMSS.partX.ts
@@ -109,7 +109,6 @@ stream-name.YYYYMMDD_HHMMSS.partX.ts
 stream-name.20250122_143055.part1.ts
 stream-name.20250122_143055.part2.ts
 stream-name.20250122_143055.part3.ts
-...
 ```
 
 ## Quick Start
