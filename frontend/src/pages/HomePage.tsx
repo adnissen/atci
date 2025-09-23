@@ -28,11 +28,6 @@ type FileRow = {
   source?: string
 }
 
-type TranscriptData = {
-  text: string
-  loading: boolean
-  error: string | null
-}
 
 type QueueItem = {
   video_path: string
@@ -68,7 +63,6 @@ function HomePageContent() {
   const [queue] = useState<QueueItem[]>([])
   const [currentProcessingFile] = useState<QueueItem | null>(null)
   const [watchDirectory] = useState<string>('TODO delete')
-  const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
 
   const [isAtTop, setIsAtTop] = useState<boolean>(true)
   const [leftPaneScrollOffset, setLeftPaneScrollOffset] = useState<number>(0)
@@ -533,8 +527,6 @@ function HomePageContent() {
             setSearchLineNumbers={setSearchLineNumbers}
             expandedFiles={expandedFiles}
             setExpandedFiles={setExpandedFiles}
-            transcriptData={transcriptData}
-            setTranscriptData={setTranscriptData}
             currentProcessingFile={currentProcessingFile}
 
             leftPaneWidth={leftPaneWidth}

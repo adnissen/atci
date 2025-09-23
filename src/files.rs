@@ -43,7 +43,9 @@ fn format_datetime(timestamp: std::time::SystemTime) -> String {
 }
 
 pub fn get_video_extensions() -> Vec<&'static str> {
-    vec!["mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v"]
+    vec![
+        "mp4", "avi", "mov", "mkv", "wmv", "flv", "webm", "m4v", "ts",
+    ]
 }
 
 pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {

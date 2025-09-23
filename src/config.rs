@@ -15,6 +15,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_stream_chunk_size() -> u32 {
+    60
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AtciConfig {
     #[serde(default)]
@@ -36,6 +40,8 @@ pub struct AtciConfig {
     pub processing_success_command: String,
     #[serde(default)]
     pub processing_failure_command: String,
+    #[serde(default = "default_stream_chunk_size")]
+    pub stream_chunk_size: u32,
 }
 
 #[derive(Serialize)]
@@ -57,6 +63,7 @@ impl Default for AtciConfig {
             allow_subtitles: true,
             processing_success_command: String::new(),
             processing_failure_command: String::new(),
+            stream_chunk_size: 60,
         }
     }
 }
@@ -141,6 +148,11 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
             cfg.allow_subtitles = value
                 .parse::<bool>()
                 .map_err(|_| format!("Invalid boolean value for allow_subtitles: {}", value))?;
+        }
+        "stream_chunk_size" => {
+            cfg.stream_chunk_size = value
+                .parse::<u32>()
+                .map_err(|_| format!("Invalid number value for stream_chunk_size: {}", value))?;
         }
         _ => return Err(format!("Unknown field: {}", field)),
     }

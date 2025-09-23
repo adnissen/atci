@@ -65,6 +65,8 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
   onClipBlock
 }) => {
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const previousTextLength = React.useRef<number>(0);
+  const scrollPosition = React.useRef<number>(0);
 
 
 
@@ -143,11 +145,27 @@ const TranscriptView: React.FC<TranscriptViewProps> = ({
     return allBlocks;
   };
 
+  // Save scroll position before text changes
+  React.useEffect(() => {
+    if (containerRef.current) {
+      scrollPosition.current = containerRef.current.scrollTop;
+    }
+  }, [text]);
+
   // Parse the transcript into blocks with optimized dependencies
   const transcriptBlocks = React.useMemo(() => 
     parseTranscriptBlocks(text, visibleLines), 
     [text, visibleLines, searchTerm]
   );
+
+  // Restore scroll position after text update (assuming appending)
+  React.useEffect(() => {
+    if (containerRef.current && text.length > previousTextLength.current) {
+      // Only restore if text was appended (length increased)
+      containerRef.current.scrollTop = scrollPosition.current;
+    }
+    previousTextLength.current = text.length;
+  }, [transcriptBlocks]);
 
   // Process blocks to add "x lines..." messages between visible blocks - optimized
   const processedBlocks = React.useMemo(() => {

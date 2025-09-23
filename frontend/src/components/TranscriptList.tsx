@@ -24,11 +24,6 @@ import { useLSState } from '../hooks/useLSState'
 import { addTimestamp } from '../lib/utils'
 import { useFileContext } from '../contexts/FileContext'
 
-type TranscriptData = {
-  text: string
-  loading: boolean
-  error: string | null
-}
 
 
 type QueueItem = {
@@ -44,8 +39,6 @@ interface TranscriptListProps {
   setSearchLineNumbers: (lineNumbers: Record<string, number[]> | ((prev: Record<string, number[]>) => Record<string, number[]>)) => void
   expandedFiles: Set<string>
   setExpandedFiles: (files: Set<string> | ((prev: Set<string>) => Set<string>)) => void
-  transcriptData: Record<string, TranscriptData>
-  setTranscriptData: (data: Record<string, TranscriptData> | ((prev: Record<string, TranscriptData>) => Record<string, TranscriptData>)) => void
   currentProcessingFile: QueueItem | null
   showAllFiles: boolean
 
@@ -75,8 +68,6 @@ export default function TranscriptList({
   setSearchLineNumbers,
   expandedFiles,
   setExpandedFiles,
-  transcriptData,
-  setTranscriptData,
   currentProcessingFile,
   showAllFiles,
 
@@ -115,7 +106,9 @@ export default function TranscriptList({
     sortDirection,
     setSortDirection,
     totalPages,
-    totalRecords
+    totalRecords,
+    transcriptData,
+    fetchTranscript
   } = useFileContext()
   const [isBulkRegenerating, setIsBulkRegenerating] = useState(false)
 
@@ -365,43 +358,6 @@ export default function TranscriptList({
     }
   }
 
-  // Fetch transcript for a specific file
-  const fetchTranscript = async (filename: string) => {
-    // Set loading state
-    setTranscriptData(prev => ({
-      ...prev,
-      [filename]: { text: '', loading: true, error: null }
-    }))
-
-    try {
-      const response = await fetch(addTimestamp(`/api/transcripts?video_path=${encodeURIComponent(filename)}`))
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch transcript: ${response.status} ${response.statusText}`)
-      }
-      
-      const data = await response.json()
-      if (data.success) {
-        const transcriptContent = data.data
-        setTranscriptData(prev => ({
-          ...prev,
-          [filename]: { text: transcriptContent, loading: false, error: null }
-        }))
-      } else {
-        throw new Error(`Failed to fetch transcript: ${data.error}`)
-      }      
-    } catch (err) {
-      // Set error state
-      setTranscriptData(prev => ({
-        ...prev,
-        [filename]: { 
-          text: '', 
-          loading: false, 
-          error: err instanceof Error ? err.message : 'An unknown error occurred' 
-        }
-      }))
-    }
-  }
 
   // Fetch transcripts for all expanded files
   const fetchExpandedTranscripts = async () => {

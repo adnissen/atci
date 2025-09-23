@@ -70,6 +70,11 @@ Set a command to run when processing completes successfully (the video file path
 atci config set processing_success_command "xargs terminal-notifier -title 'Processing Complete' -message"
 ```
 
+Download a live stream in 60-second parts (configurable with `stream_chunk_size`):
+```
+atci streamdl my-livestream https://example.com/stream/playlist.m3u8
+```
+
 By default, the first subtitle track is used if subtitles are enabeld. Sometimes, you might want to use a different one, or use a different whisper model than the currently configured one. You can perform an interactive regeneration, which allows you to select how to process it:
 ```
 atci transcripts regenerate -i /path/to/file.mp4
@@ -88,6 +93,22 @@ Choose a processing method:
   Whisper Model: ggml-large-v3-turbo-q5_0
   Whisper Model: ggml-large-v3-turbo-q8_0 (currently configured)
   Cancel
+```
+
+## Partial Files and Streams
+
+You do not need to have an entire video file in order to begin processing it. By naming a video in a watch directory like the following: `filename.partX.ext`, atci will process parts in order and update the transcript and combined video named `filename.ext`. This means that if `filename.part4.ext` is created before `filename.part3.ext`, it will be given a placeholder `.txt` transcript and ignored until `filename.part3.ext` is created.
+
+The part numbers _must_ start at 1. When `filename.part1.ext` is processed, if `filename.ext` already exists, it will be appended to. The next file must be `filename.part2.ext`, and so on.
+
+When using the `streamdl <stream-name> <url.m3u8>` command, atci automatically uses ffmpeg to split an m3u8 stream into parts based on your `stream_chunk_size` configuration (default: 60 seconds). These files are saved with a naming pattern like:
+
+```
+stream-name.YYYYMMDD_HHMMSS.partX.ts
+
+stream-name.20250122_143055.part1.ts
+stream-name.20250122_143055.part2.ts
+stream-name.20250122_143055.part3.ts
 ```
 
 ## Quick Start
@@ -153,9 +174,13 @@ The application stores its configuration in a JSON file containing the following
   "whispercli_path": "/path/to/whisper_cli",
   "ffmpeg_path": "/path/to/ffmpeg",
   "ffprobe_path": "/path/to/ffprobe",
-  "model_path": "/path/to/model.bin",
   "model_name": "ggml-base",
-  "password": ""
+  "password": "",
+  "allow_whisper": true,
+  "allow_subtitles": true,
+  "processing_success_command": "",
+  "processing_failure_command": "",
+  "stream_chunk_size": 60
 }
 ```
 
@@ -182,14 +207,16 @@ Changes to the config are reflected immediately in the watch behavior (no server
 - **`whispercli_path`** (string): Path to the whisper.cpp executable
 - **`ffmpeg_path`** (string): Path to the ffmpeg executable  
 - **`ffprobe_path`** (string): Path to the ffprobe executable
-- **`model_path`** (string): Direct path to a Whisper model file (.bin) (alternative to model_name)
-- **`model_name`** (string): Name of a model to use from ~/.atci/models/ (alternative to model_path)
+- **`model_name`** (string): Name of a model to use from ~/.atci/models/
 - **`password`** (string): Optional password for all connections. Can be set either in the cookie or via basic auth (no username)
+- **`allow_whisper`** (boolean): Enable/disable Whisper transcription processing (default: true)
+- **`allow_subtitles`** (boolean): Enable/disable subtitle extraction from video files (default: true)
 - **`processing_success_command`** (string): Shell command to run when video processing completes successfully. The video file path is sent to the command's stdin
 - **`processing_failure_command`** (string): Shell command to run when video processing fails. The video file path is sent to the command's stdin
+- **`stream_chunk_size`** (number): Duration in seconds for splitting streams when using the `streamdl` command (default: 60)
 
 **Notes:**
-- Either `model_path` or `model_name` must be specified
+- `model_name` must be specified for transcription to work
 - Watch directories cannot be subdirectories of each other
 
 ## How it works
