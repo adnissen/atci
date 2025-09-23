@@ -307,7 +307,11 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
         }
     }
 
-    let log_level = if cfg!(debug_assertions) { "normal" } else { "off" };
+    let log_level = if cfg!(debug_assertions) {
+        "normal"
+    } else {
+        "off"
+    };
     let figment = rocket::Config::figment()
         .merge(("template_dir", temp_dir.to_string_lossy().to_string()))
         .merge(("address", host))
@@ -343,7 +347,11 @@ pub async fn launch_api_server(host: &str, port: u16) -> Result<(), rocket::Erro
         }
     }
 
-    let log_level = if cfg!(debug_assertions) { "normal" } else { "off" };
+    let log_level = if cfg!(debug_assertions) {
+        "normal"
+    } else {
+        "off"
+    };
     let figment = rocket::Config::figment()
         .merge(("template_dir", temp_dir.to_string_lossy().to_string()))
         .merge(("address", host))

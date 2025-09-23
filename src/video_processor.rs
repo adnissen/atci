@@ -15,37 +15,37 @@ use tokio::time::sleep;
 
 /// Helper function to execute success command for processed videos
 fn execute_success_command(video_path: &Path) {
-    if let Ok(cfg_for_command) = crate::config::load_config() {
-        if !cfg_for_command.processing_success_command.is_empty() {
-            if let Err(e) = crate::config::execute_processing_command(
-                &cfg_for_command.processing_success_command,
-                video_path,
-                true,
-            ) {
-                eprintln!(
-                    "Error executing success command for {}: {}",
-                    video_path.display(), e
-                );
-            }
-        }
+    if let Ok(cfg_for_command) = crate::config::load_config()
+        && !cfg_for_command.processing_success_command.is_empty()
+        && let Err(e) = crate::config::execute_processing_command(
+            &cfg_for_command.processing_success_command,
+            video_path,
+            true,
+        )
+    {
+        eprintln!(
+            "Error executing success command for {}: {}",
+            video_path.display(),
+            e
+        );
     }
 }
 
 /// Helper function to execute failure command for failed videos
 fn execute_failure_command(video_path: &Path) {
-    if let Ok(cfg_for_command) = crate::config::load_config() {
-        if !cfg_for_command.processing_failure_command.is_empty() {
-            if let Err(e) = crate::config::execute_processing_command(
-                &cfg_for_command.processing_failure_command,
-                video_path,
-                false,
-            ) {
-                eprintln!(
-                    "Error executing failure command for {}: {}",
-                    video_path.display(), e
-                );
-            }
-        }
+    if let Ok(cfg_for_command) = crate::config::load_config()
+        && !cfg_for_command.processing_failure_command.is_empty()
+        && let Err(e) = crate::config::execute_processing_command(
+            &cfg_for_command.processing_failure_command,
+            video_path,
+            false,
+        )
+    {
+        eprintln!(
+            "Error executing failure command for {}: {}",
+            video_path.display(),
+            e
+        );
     }
 }
 
@@ -470,7 +470,7 @@ pub async fn cancellable_create_transcript(
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     // Check if this is a video part
     if let Some(video_part) = crate::video_parts::parse_video_part(video_path) {
-        return cancellable_create_transcript_for_part(video_part, model, subtitle_stream_index).await;
+        cancellable_create_transcript_for_part(video_part, model, subtitle_stream_index).await
     } else {
         // For single videos, wrap with failure command handling
         match cancellable_create_transcript_single(video_path, model, subtitle_stream_index).await {
@@ -495,105 +495,144 @@ pub async fn cancellable_create_transcript_for_part(
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let conn = crate::db::get_connection()?;
     let video_path = Path::new(&video_part.video_path);
-    let (master_video_path, master_transcript_path) = crate::video_parts::get_master_paths(&video_part);
-    
-    println!("Processing video part: {} (Part {})", video_part.base_name, video_part.part_number);
-    
+    let (master_video_path, master_transcript_path) =
+        crate::video_parts::get_master_paths(&video_part);
+
+    println!(
+        "Processing video part: {} (Part {})",
+        video_part.base_name, video_part.part_number
+    );
+
     // Check for missing previous parts
-    let missing_parts = crate::video_parts::find_missing_parts(&conn, &video_part.base_name, video_part.part_number - 1)?;
+    let missing_parts = crate::video_parts::find_missing_parts(
+        &conn,
+        &video_part.base_name,
+        video_part.part_number - 1,
+    )?;
     if !missing_parts.is_empty() {
         println!("Missing previous parts: {:?}", missing_parts);
-        crate::video_parts::create_missing_part_placeholder(&master_transcript_path, &missing_parts, video_part.part_number)?;
+        crate::video_parts::create_missing_part_placeholder(
+            &master_transcript_path,
+            &missing_parts,
+            video_part.part_number,
+        )?;
         return Ok(true);
     }
-    
+
     // Create transcript for this part using the normal single video logic
-    let success = match cancellable_create_transcript_single(video_path, model.clone(), subtitle_stream_index).await {
+    let success = match cancellable_create_transcript_single(
+        video_path,
+        model.clone(),
+        subtitle_stream_index,
+    )
+    .await
+    {
         Ok(success) => success,
         Err(e) => {
             // Execute failure command for the part file
             let cfg_for_command = crate::config::load_config()?;
-            if !cfg_for_command.processing_failure_command.is_empty() {
-                if let Err(cmd_err) = crate::config::execute_processing_command(
+            if !cfg_for_command.processing_failure_command.is_empty()
+                && let Err(cmd_err) = crate::config::execute_processing_command(
                     &cfg_for_command.processing_failure_command,
                     video_path,
                     false,
-                ) {
-                    eprintln!(
-                        "Error executing failure command for part {}: {}",
-                        video_part.part_number, cmd_err
-                    );
-                }
+                )
+            {
+                eprintln!(
+                    "Error executing failure command for part {}: {}",
+                    video_part.part_number, cmd_err
+                );
             }
 
             // Handle processing failure - insert error message into master transcript
-            let error_message = format!(">>> Part {} FAILED: {} <<<\nError processing part {}: {}\n", 
-                video_part.part_number, video_part.base_name, video_part.part_number, e);
-            
-            let final_content = if video_part.part_number == 1 || !Path::new(&master_transcript_path).exists() {
-                error_message
-            } else {
-                let existing_content = std::fs::read_to_string(&master_transcript_path).unwrap_or_default();
-                format!("{}\n{}", existing_content, error_message)
-            };
-            
+            let error_message = format!(
+                ">>> Part {} FAILED: {} <<<\nError processing part {}: {}\n",
+                video_part.part_number, video_part.base_name, video_part.part_number, e
+            );
+
+            let final_content =
+                if video_part.part_number == 1 || !Path::new(&master_transcript_path).exists() {
+                    error_message
+                } else {
+                    let existing_content =
+                        std::fs::read_to_string(&master_transcript_path).unwrap_or_default();
+                    format!("{}\n{}", existing_content, error_message)
+                };
+
             std::fs::write(&master_transcript_path, final_content)?;
-            
+
             // Create error transcript for the part video as well
-            let part_error_transcript = format!("Error processing part {}: {}\n", video_part.part_number, e);
-            std::fs::write(&video_path.with_extension("txt"), part_error_transcript)?;
-            
+            let part_error_transcript =
+                format!("Error processing part {}: {}\n", video_part.part_number, e);
+            std::fs::write(video_path.with_extension("txt"), part_error_transcript)?;
+
             // Don't delete the part video on failure - keep it for debugging
-            println!("Failed to process part {} of {}: {}", video_part.part_number, video_part.base_name, e);
-            
+            println!(
+                "Failed to process part {} of {}: {}",
+                video_part.part_number, video_part.base_name, e
+            );
+
             // Still check for next part and queue it
             let _ = crate::video_parts::check_and_queue_next_part(&video_part);
-            
+
             return Ok(true); // Return true to continue processing other parts
         }
     };
-    
+
     if !success {
         return Ok(false); // Cancelled
     }
-    
+
     // Read the part transcript that was just created
     let part_transcript_path = video_path.with_extension("txt");
     let part_transcript = std::fs::read_to_string(&part_transcript_path)?;
-    
+
     // Calculate timestamp offset based on existing parts
     let existing_parts = crate::video_parts::get_processed_parts(&conn, &video_part.base_name)?;
     let mut total_duration_ms = 0u64;
-    
+
     // Calculate cumulative duration from all previous parts
     for part_num in &existing_parts {
         if *part_num < video_part.part_number {
             // Try to get duration from the master video first, then from the part file
             let master_video_exists = Path::new(&master_video_path).exists();
             let cfg = crate::config::load_config()?;
-            
+
             if master_video_exists && *part_num == *existing_parts.iter().max().unwrap_or(&0) {
                 // If master video exists and this is the last processed part, get duration from master
-                if let Ok(duration_str) = get_video_duration(Path::new(&master_video_path), Path::new(&cfg.ffprobe_path)).await {
+                if let Ok(duration_str) =
+                    get_video_duration(Path::new(&master_video_path), Path::new(&cfg.ffprobe_path))
+                        .await
+                {
                     total_duration_ms = parse_duration_to_ms(&duration_str)?;
                     break; // We have the total duration already
                 }
             } else {
                 // Try to get duration from individual part file
-                let part_video_path = format!("{}/{}.part{}.{}", 
-                    Path::new(&video_part.video_path).parent().unwrap().display(),
-                    video_part.base_name, *part_num, video_part.extension);
-                
-                if let Ok(duration_str) = get_video_duration(Path::new(&part_video_path), Path::new(&cfg.ffprobe_path)).await {
+                let part_video_path = format!(
+                    "{}/{}.part{}.{}",
+                    Path::new(&video_part.video_path)
+                        .parent()
+                        .unwrap()
+                        .display(),
+                    video_part.base_name,
+                    *part_num,
+                    video_part.extension
+                );
+
+                if let Ok(duration_str) =
+                    get_video_duration(Path::new(&part_video_path), Path::new(&cfg.ffprobe_path))
+                        .await
+                {
                     total_duration_ms += parse_duration_to_ms(&duration_str)?;
                 }
             }
         }
     }
-    
+
     // Adjust timestamps in the transcript
     let adjusted_transcript = adjust_transcript_timestamps(&part_transcript, total_duration_ms)?;
-    
+
     // Append or create master transcript
     let final_content = if !Path::new(&master_transcript_path).exists() {
         // New master file - start with this part's content
@@ -605,19 +644,19 @@ pub async fn cancellable_create_transcript_for_part(
         let trimmed_new = adjusted_transcript.trim_start();
         format!("{}\n\n{}", trimmed_existing, trimmed_new)
     };
-    
+
     std::fs::write(&master_transcript_path, final_content)?;
-    
+
     // Record this part as processed
     let transcript_lines = adjusted_transcript.lines().count() as i32;
     crate::video_parts::record_processed_part(&conn, &video_part, transcript_lines)?;
-    
+
     // Clean up part transcript (but keep part video for concatenation)
     let _ = std::fs::remove_file(&part_transcript_path);
 
     // Update or create master video (after transcript cleanup but before video cleanup)
     update_master_video(&video_part).await?;
-    
+
     // Update master video length metadata after concatenation
     let (master_video_path, _) = crate::video_parts::get_master_paths(&video_part);
     let master_path = Path::new(&master_video_path);
@@ -625,17 +664,23 @@ pub async fn cancellable_create_transcript_for_part(
         if let Err(e) = add_length_metadata_to_path(master_path).await {
             eprintln!("Failed to update master video length metadata: {}", e);
         } else {
-            println!("Updated length metadata for master video: {}", master_video_path);
+            println!(
+                "Updated length metadata for master video: {}",
+                master_video_path
+            );
         }
     }
 
-     // Execute success command for the part file before deletion
-     execute_success_command(video_path);
-    
+    // Execute success command for the part file before deletion
+    execute_success_command(video_path);
+
     // Check for next part and queue it
     let _ = crate::video_parts::check_and_queue_next_part(&video_part);
-    
-    println!("Successfully processed part {} of {}", video_part.part_number, video_part.base_name);
+
+    println!(
+        "Successfully processed part {} of {}",
+        video_part.part_number, video_part.base_name
+    );
     Ok(true)
 }
 
@@ -928,8 +973,9 @@ pub async fn cancellable_add_length_to_metadata(
     add_length_metadata_to_path(video_path).await
 }
 
-async fn add_length_metadata_to_path(target_path: &Path) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-
+async fn add_length_metadata_to_path(
+    target_path: &Path,
+) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
 
     let output = Command::new(&cfg.ffprobe_path)
@@ -970,64 +1016,73 @@ async fn add_length_metadata_to_path(target_path: &Path) -> Result<bool, Box<dyn
 }
 
 /// Parse duration string (HH:MM:SS) to milliseconds
-fn parse_duration_to_ms(duration_str: &str) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
+fn parse_duration_to_ms(
+    duration_str: &str,
+) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
     let parts: Vec<&str> = duration_str.split(':').collect();
     if parts.len() != 3 {
         return Err("Invalid duration format".into());
     }
-    
+
     let hours: u64 = parts[0].parse()?;
     let minutes: u64 = parts[1].parse()?;
     let seconds: f64 = parts[2].parse()?;
-    
+
     let total_ms = (hours * 3600 + minutes * 60) * 1000 + (seconds * 1000.0) as u64;
     Ok(total_ms)
 }
 
 /// Adjust timestamps in transcript by adding an offset
-fn adjust_transcript_timestamps(transcript: &str, offset_ms: u64) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+fn adjust_transcript_timestamps(
+    transcript: &str,
+    offset_ms: u64,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     use regex::Regex;
-    
-    let timestamp_regex = Regex::new(r"(\d{2}:\d{2}:\d{2})\.(\d{3}) --> (\d{2}:\d{2}:\d{2})\.(\d{3})")?;
-    
+
+    let timestamp_regex =
+        Regex::new(r"(\d{2}:\d{2}:\d{2})\.(\d{3}) --> (\d{2}:\d{2}:\d{2})\.(\d{3})")?;
+
     let adjusted = timestamp_regex.replace_all(transcript, |caps: &regex::Captures| {
         let start_time = &caps[1];
         let start_ms = &caps[2];
         let end_time = &caps[3];
         let end_ms = &caps[4];
-        
+
         // Parse start timestamp
-        if let Ok(start_total_ms) = parse_timestamp_to_ms(start_time, start_ms) {
-            if let Ok(end_total_ms) = parse_timestamp_to_ms(end_time, end_ms) {
-                let adjusted_start = start_total_ms + offset_ms;
-                let adjusted_end = end_total_ms + offset_ms;
-                
-                let adjusted_start_str = format_ms_to_timestamp(adjusted_start);
-                let adjusted_end_str = format_ms_to_timestamp(adjusted_end);
-                
-                return format!("{} --> {}", adjusted_start_str, adjusted_end_str);
-            }
+        if let Ok(start_total_ms) = parse_timestamp_to_ms(start_time, start_ms)
+            && let Ok(end_total_ms) = parse_timestamp_to_ms(end_time, end_ms)
+        {
+            let adjusted_start = start_total_ms + offset_ms;
+            let adjusted_end = end_total_ms + offset_ms;
+
+            let adjusted_start_str = format_ms_to_timestamp(adjusted_start);
+            let adjusted_end_str = format_ms_to_timestamp(adjusted_end);
+
+            return format!("{} --> {}", adjusted_start_str, adjusted_end_str);
         }
-        
+
         // Fallback: return original if parsing fails
         caps.get(0).unwrap().as_str().to_string()
     });
-    
+
     Ok(adjusted.to_string())
 }
 
 /// Parse timestamp (HH:MM:SS.mmm) to milliseconds
-fn parse_timestamp_to_ms(time_str: &str, ms_str: &str) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
+fn parse_timestamp_to_ms(
+    time_str: &str,
+    ms_str: &str,
+) -> Result<u64, Box<dyn std::error::Error + Send + Sync>> {
     let time_parts: Vec<&str> = time_str.split(':').collect();
     if time_parts.len() != 3 {
         return Err("Invalid time format".into());
     }
-    
+
     let hours: u64 = time_parts[0].parse()?;
     let minutes: u64 = time_parts[1].parse()?;
     let seconds: u64 = time_parts[2].parse()?;
     let milliseconds: u64 = ms_str.parse()?;
-    
+
     let total_ms = (hours * 3600 + minutes * 60 + seconds) * 1000 + milliseconds;
     Ok(total_ms)
 }
@@ -1038,78 +1093,104 @@ fn format_ms_to_timestamp(total_ms: u64) -> String {
     let minutes = (total_ms % (3600 * 1000)) / (60 * 1000);
     let seconds = (total_ms % (60 * 1000)) / 1000;
     let milliseconds = total_ms % 1000;
-    
-    format!("{:02}:{:02}:{:02}.{:03}", hours, minutes, seconds, milliseconds)
+
+    format!(
+        "{:02}:{:02}:{:02}.{:03}",
+        hours, minutes, seconds, milliseconds
+    )
 }
 
 /// Update or create the master video file by appending the current part
-async fn update_master_video(video_part: &crate::video_parts::VideoPart) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+async fn update_master_video(
+    video_part: &crate::video_parts::VideoPart,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let cfg = crate::config::load_config()?;
     let (master_video_path, _) = crate::video_parts::get_master_paths(video_part);
     let parent_dir = Path::new(&video_part.video_path).parent().unwrap();
     let current_part_path = Path::new(&video_part.video_path);
     let master_path = Path::new(&master_video_path);
-    
+
     // Check if current part file exists
     if !current_part_path.exists() {
-        println!("Current part file doesn't exist: {}", current_part_path.display());
+        println!(
+            "Current part file doesn't exist: {}",
+            current_part_path.display()
+        );
         return Ok(());
     }
-    
+
     if master_path.exists() {
         // Master file exists - append current part to it
-        println!("Appending part {} to existing master video: {}", video_part.part_number, master_video_path);
-        
+        println!(
+            "Appending part {} to existing master video: {}",
+            video_part.part_number, master_video_path
+        );
+
         // Create concat file for master + current part
         let concat_file_path = parent_dir.join(format!("{}_append.txt", video_part.base_name));
         let concat_content = format!(
-            "file '{}'\nfile '{}'", 
+            "file '{}'\nfile '{}'",
             master_path.file_name().unwrap().to_string_lossy(),
             current_part_path.file_name().unwrap().to_string_lossy()
         );
         std::fs::write(&concat_file_path, concat_content)?;
-        
+
         // Create temporary output file
-        let temp_master_path = parent_dir.join(format!("{}_temp.{}", video_part.base_name, video_part.extension));
-        
+        let temp_master_path = parent_dir.join(format!(
+            "{}_temp.{}",
+            video_part.base_name, video_part.extension
+        ));
+
         // Use FFmpeg to append current part to master
         let output = tokio::process::Command::new(&cfg.ffmpeg_path)
             .args([
-                "-f", "concat",
-                "-safe", "0", 
-                "-i", concat_file_path.to_str().unwrap(),
-                "-c", "copy",
+                "-f",
+                "concat",
+                "-safe",
+                "0",
+                "-i",
+                concat_file_path.to_str().unwrap(),
+                "-c",
+                "copy",
                 "-y",
                 temp_master_path.to_str().unwrap(),
             ])
             .current_dir(parent_dir)
             .output()
             .await?;
-        
+
         // Clean up concat file
         let _ = std::fs::remove_file(&concat_file_path);
-        
+
         if !output.status.success() {
             let error_output = String::from_utf8_lossy(&output.stderr);
             let _ = std::fs::remove_file(&temp_master_path);
             return Err(format!("FFmpeg append failed: {}", error_output).into());
         }
-        
+
         // Replace master with temp file
-        std::fs::rename(&temp_master_path, &master_path)?;
-        println!("Successfully appended part {} to master video", video_part.part_number);
-        
+        std::fs::rename(&temp_master_path, master_path)?;
+        println!(
+            "Successfully appended part {} to master video",
+            video_part.part_number
+        );
     } else {
         // No master file exists - rename current part to become the master
-        println!("Creating master video from part {}: {}", video_part.part_number, master_video_path);
-        std::fs::rename(current_part_path, &master_path)?;
-        println!("Successfully created master video from part {}", video_part.part_number);
+        println!(
+            "Creating master video from part {}: {}",
+            video_part.part_number, master_video_path
+        );
+        std::fs::rename(current_part_path, master_path)?;
+        println!(
+            "Successfully created master video from part {}",
+            video_part.part_number
+        );
         return Ok(()); // Don't delete the part file since we renamed it
     }
-    
+
     // Clean up the current part file after successful append
     let _ = std::fs::remove_file(current_part_path);
     println!("Cleaned up part file: {}", current_part_path.display());
-    
+
     Ok(())
 }

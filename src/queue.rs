@@ -355,7 +355,6 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
             return Ok(true);
         }
 
-
         let mut processing_successful = true;
         let mut error_message = String::new();
 

@@ -1051,79 +1051,102 @@ fn validate_and_prompt_config(
 async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std::error::Error>> {
     use chrono::Utc;
     use std::fs;
-    
+
     println!("Starting stream download: {} -> {}", url, stream_name);
-    
+
     // Get or create streams directory structure
     let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
     let base_streams_dir = home_dir.join("atci_streams");
     let stream_dir = base_streams_dir.join(stream_name);
-    
+
     if !stream_dir.exists() {
         fs::create_dir_all(&stream_dir)?;
         println!("Created stream directory: {}", stream_dir.display());
     }
-    
+
     // Load and update config to include this specific stream directory in watch directories
     let mut cfg: AtciConfig = config::load_config()?;
     let stream_dir_str = stream_dir.to_string_lossy().to_string();
-    
+
     if !cfg.watch_directories.contains(&stream_dir_str) {
         cfg.watch_directories.push(stream_dir_str.clone());
         config::store_config(&cfg)?;
-        println!("Added stream directory to watch directories: {}", stream_dir_str);
+        println!(
+            "Added stream directory to watch directories: {}",
+            stream_dir_str
+        );
     }
-    
+
     // Validate required tools
     if cfg.ffmpeg_path.is_empty() {
-        return Err("FFmpeg path not configured. Please run 'atci config set ffmpeg_path /path/to/ffmpeg'".into());
+        return Err(
+            "FFmpeg path not configured. Please run 'atci config set ffmpeg_path /path/to/ffmpeg'"
+                .into(),
+        );
     }
-    
+
     // Generate timestamp for this stream session
     let timestamp = Utc::now().format("%Y%m%d_%H%M%S");
-    
+
     // Determine file extension from stream (default to ts for m3u8)
     let extension = if url.contains(".m3u8") { "ts" } else { "mp4" };
-    
-    println!("Downloading stream in {}-second parts...", cfg.stream_chunk_size);
+
+    println!(
+        "Downloading stream in {}-second parts...",
+        cfg.stream_chunk_size
+    );
     println!("Output directory: {}", stream_dir.display());
-    println!("File pattern: {}.{}.partX.{}", stream_name, timestamp, extension);
-    
+    println!(
+        "File pattern: {}.{}.partX.{}",
+        stream_name, timestamp, extension
+    );
+
     // Use FFmpeg's segment muxer to automatically split the stream into configurable-second parts
-    let output_pattern = stream_dir.join(format!("{}.{}.part%d.{}", stream_name, timestamp, extension));
-    
+    let output_pattern = stream_dir.join(format!(
+        "{}.{}.part%d.{}",
+        stream_name, timestamp, extension
+    ));
+
     println!("Starting continuous stream download with automatic segmentation...");
     println!("Output pattern: {}", output_pattern.display());
     println!("Press Ctrl+C to stop the download");
-    
+
     let mut cmd = tokio::process::Command::new(&cfg.ffmpeg_path);
     cmd.args([
-        "-i", url,
-        "-c", "copy",  // Copy streams without re-encoding
-        "-avoid_negative_ts", "make_zero",  // Handle timestamp issues
-        "-f", "segment",  // Use segment muxer
-        "-segment_time", &cfg.stream_chunk_size.to_string(),  // configurable second segments
-        "-segment_format", "mpegts",  // Output format for segments
-        "-segment_start_number", "1",  // Start numbering from 1
-        "-reset_timestamps", "1",  // Reset timestamps for each segment
-        "-y",  // Overwrite output files
+        "-i",
+        url,
+        "-c",
+        "copy", // Copy streams without re-encoding
+        "-avoid_negative_ts",
+        "make_zero", // Handle timestamp issues
+        "-f",
+        "segment", // Use segment muxer
+        "-segment_time",
+        &cfg.stream_chunk_size.to_string(), // configurable second segments
+        "-segment_format",
+        "mpegts", // Output format for segments
+        "-segment_start_number",
+        "1", // Start numbering from 1
+        "-reset_timestamps",
+        "1",  // Reset timestamps for each segment
+        "-y", // Overwrite output files
         output_pattern.to_str().unwrap(),
     ]);
-    
+
     // For live streams, we want to run FFmpeg in a way that we can monitor it
     let mut child = cmd.spawn()?;
-    
+
     // Wait for the process to complete or be interrupted
     let status = child.wait().await?;
-    
+
     if !status.success() {
         return Err("FFmpeg process failed".into());
     }
-    
+
     println!("Stream download completed!");
     println!("Files saved to: {}", stream_dir.display());
     println!("The video parts will be automatically processed by the queue system.");
-    
+
     Ok(())
 }
 
