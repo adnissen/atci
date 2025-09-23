@@ -72,7 +72,7 @@ atci config set processing_success_command "xargs terminal-notifier -title 'Proc
 
 Download a live stream in 60-second parts (configurable with `stream_chunk_size`):
 ```
-atci streamdl "my-livestream" "https://example.com/stream/playlist.m3u8"
+atci streamdl my-livestream https://example.com/stream/playlist.m3u8
 ```
 
 By default, the first subtitle track is used if subtitles are enabeld. Sometimes, you might want to use a different one, or use a different whisper model than the currently configured one. You can perform an interactive regeneration, which allows you to select how to process it:
@@ -93,6 +93,23 @@ Choose a processing method:
   Whisper Model: ggml-large-v3-turbo-q5_0
   Whisper Model: ggml-large-v3-turbo-q8_0 (currently configured)
   Cancel
+```
+
+## Partial Files and Streams
+
+You do not need to have an entire video file in order to begin processing it. By naming a video in a watch directory like the following: `filename.partX.ext`, atci will process parts in order and update the transcript and combined video named `filename.ext`. This means that if `filename.part4.ext` is created before `filename.part3.ext`, it will be given a placeholder `.txt` transcript and ignored until `filename.part3.ext` is created.
+
+The part numbers _must_ start at 1. When `filename.part1.ext` is processed, if `filename.ext` already exists, it will be appended to. The next file must be `filename.part2.ext`, and so on.
+
+When using the `streamdl` command, atci automatically uses ffmpeg to split an m3u8 stream into parts based on your `stream_chunk_size` configuration (default: 60 seconds). These files are saved with a naming pattern like:
+
+```
+stream-name.YYYYMMDD_HHMMSS.partX.ts
+
+stream-name.20250122_143055.part1.ts
+stream-name.20250122_143055.part2.ts
+stream-name.20250122_143055.part3.ts
+...
 ```
 
 ## Quick Start
@@ -184,49 +201,6 @@ atci config set/unset
 ```
 
 Changes to the config are reflected immediately in the watch behavior (no server restart required), but will require a browser refresh to reflect in the web ui.
-
-## Working with Stream Parts and Partial Files
-
-When using the `streamdl` command, atci automatically splits streams into manageable parts based on your `stream_chunk_size` configuration (default: 60 seconds). These files are saved with a naming pattern like:
-
-```
-stream-name.20250122_143055.part1.ts
-stream-name.20250122_143055.part2.ts
-stream-name.20250122_143055.part3.ts
-...
-```
-
-### Processing Partial Files
-
-atci can process any video file, including these partial stream files. Simply use any atci command that accepts video file paths:
-
-**Search within a specific part:**
-```bash
-atci search "keyword" -f "part3"
-```
-
-**Generate clips from partial files:**
-```bash
-atci clip "/path/to/stream-name.20250122_143055.part2.ts" 30 45
-```
-
-**View transcripts for a specific part:**
-```bash
-atci transcripts get "/path/to/stream-name.20250122_143055.part1.ts"
-```
-
-**Process parts interactively:**
-```bash
-atci transcripts regenerate -i "/path/to/stream-name.20250122_143055.part4.ts"
-```
-
-Each part is treated as an independent video file with its own transcript and metadata. This allows you to:
-- Search across all parts simultaneously
-- Focus on specific time segments by targeting particular parts
-- Process long streams without memory constraints
-- Resume processing if interrupted
-
-The watch system automatically detects and processes new stream parts as they're created during live downloads.
 
 **Configuration Properties:**
 
