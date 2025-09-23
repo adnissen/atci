@@ -333,22 +333,23 @@ fn get_video_fps(
         .output()?;
 
     if output.status.success() {
-        let fps_str = String::from_utf8(output.stdout)?.trim().to_string();
+        let fps_str = String::from_utf8(output.stdout)?
+            .lines()
+            .next()
+            .unwrap_or("")
+            .trim()
+            .to_string();
 
         // Parse fraction format like "30/1" or "2997/100"
         if fps_str.contains('/') {
-            let parts: Vec<&str> = fps_str.split('/').collect();
-            println!("Parts: {:?}", parts);
-            println!("Parts length: {}", parts.len());
-            if parts.len() == 3 {
-                println!("tring to get num and denom");
+            let parts: Vec<&str> = fps_str.trim().split('/').collect();
+            if parts.len() == 2 {
                 let numerator: f64 = parts[0].parse::<f64>()?;
-                println!("Numerator: {}", numerator);
-                return Ok(numerator);
+                let denominator: f64 = parts[1].parse::<f64>()?;
+                return Ok(numerator / denominator);
             }
         }
         // Fallback to direct parsing
-        println!("FPS string: {}", fps_str);
         fps_str
             .parse::<f64>()
             .map_err(|_| format!("Invalid frame rate format: {}", fps_str).into())
