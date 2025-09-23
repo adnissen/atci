@@ -14,6 +14,12 @@ type FileRow = {
   source?: string
 }
 
+type TranscriptData = {
+  text: string
+  loading: boolean
+  error: string | null
+}
+
 type QueueStatus = {
   queue: string[]
   currently_processing?: string | null
@@ -53,6 +59,10 @@ interface FileContextType {
   fetchQueueStatus: () => Promise<void>
   isQueueLoading: boolean
   queueError: string | null
+  // Transcript functionality
+  transcriptData: Record<string, TranscriptData>
+  setTranscriptData: (data: Record<string, TranscriptData> | ((prev: Record<string, TranscriptData>) => Record<string, TranscriptData>)) => void
+  fetchTranscript: (filename: string) => Promise<void>
 }
 
 const FileContext = createContext<FileContextType | undefined>(undefined)
@@ -97,6 +107,9 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
   })
   const [isQueueLoading, setIsQueueLoading] = useState(true)
   const [queueError, setQueueError] = useState<string | null>(null)
+
+  // Transcript state
+  const [transcriptData, setTranscriptData] = useState<Record<string, TranscriptData>>({})
 
   const refreshFiles = async (watchDirs?: string[], sources?: string[]) => {
     // Use provided parameters or fall back to context state
@@ -154,6 +167,12 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
           if (queueStatus.currently_processing && data.data.currently_processing != queueStatus.currently_processing) {
             // Refresh files using current filter settings
             refreshFiles()
+            // if the file in the previous state (the one we were just processed) without the part is open, refresh it
+            //remove the part from the file name
+            const fileWithoutPart = queueStatus.currently_processing.replace(/\.part\d+/, '')
+            if (transcriptData[fileWithoutPart]) {
+              fetchTranscript(fileWithoutPart)
+            }
           }
           setQueueStatus(data.data)
         } else {
@@ -168,6 +187,45 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
       setQueueError(err instanceof Error ? err.message : 'Failed to fetch queue status')
     } finally {
       setIsQueueLoading(false)
+    }
+  }
+
+  // Fetch transcript for a specific file
+  const fetchTranscript = async (filename: string) => {
+    console.log('Fetching transcript for:', filename)
+    // Set loading state
+    setTranscriptData(prev => ({
+      ...prev,
+      [filename]: { text: '', loading: true, error: null }
+    }))
+
+    try {
+      const response = await fetch(addTimestamp(`/api/transcripts?video_path=${encodeURIComponent(filename)}`))
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch transcript: ${response.status} ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      if (data.success) {
+        const transcriptContent = data.data
+        setTranscriptData(prev => ({
+          ...prev,
+          [filename]: { text: transcriptContent, loading: false, error: null }
+        }))
+      } else {
+        throw new Error(`Failed to fetch transcript: ${data.error}`)
+      }      
+    } catch (err) {
+      // Set error state
+      setTranscriptData(prev => ({
+        ...prev,
+        [filename]: { 
+          text: '', 
+          loading: false, 
+          error: err instanceof Error ? err.message : 'An unknown error occurred' 
+        }
+      }))
     }
   }
 
@@ -256,6 +314,10 @@ export const FileProvider: React.FC<FileProviderProps> = ({ children }) => {
     fetchQueueStatus,
     isQueueLoading,
     queueError,
+    // Transcript functionality
+    transcriptData,
+    setTranscriptData,
+    fetchTranscript,
   }
 
   return <FileContext.Provider value={value}>{children}</FileContext.Provider>
