@@ -231,17 +231,20 @@ mod tests {
         let test_cases = vec![
             ("episode01.part1.mkv", Some(("episode01", 1, "mkv"))),
             ("show_s01e05.part2.mp4", Some(("show_s01e05", 2, "mp4"))),
-            ("complex_name_720p.part10.avi", Some(("complex_name_720p", 10, "avi"))),
+            (
+                "complex_name_720p.part10.avi",
+                Some(("complex_name_720p", 10, "avi")),
+            ),
             ("regular_video.mkv", None),
             ("episode01.mkv", None),
             ("invalid.part.mkv", None),
             ("test.partX.mp4", None),
         ];
-        
+
         for (input, expected) in test_cases {
             let path = PathBuf::from(input);
             let result = parse_video_part(&path);
-            
+
             match (result, expected) {
                 (Some(part), Some((exp_base, exp_part, exp_ext))) => {
                     assert_eq!(part.base_name, exp_base);
@@ -269,9 +272,9 @@ mod tests {
             video_path: "/videos/episode01.part1.mkv".to_string(),
             extension: "mkv".to_string(),
         };
-        
+
         let (master_video_path, master_transcript_path) = get_master_paths(&part);
-        
+
         assert_eq!(master_video_path, "/videos/episode01.mkv");
         assert_eq!(master_transcript_path, "/videos/episode01.txt");
     }
