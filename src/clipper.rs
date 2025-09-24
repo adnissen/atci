@@ -602,9 +602,6 @@ fn video_no_text_args(
     let ffprobe_path = Path::new(&cfg.ffprobe_path);
     let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
     let frames_count = (duration * fps).trunc() as i32;
-    println!("FPS: {}", fps);
-    println!("Duration: {}", duration);
-    println!("Frames count: {}", frames_count);
 
     let mut args = vec![
         "-ss",

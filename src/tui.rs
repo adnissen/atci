@@ -1,4 +1,4 @@
-use crate::{files, config, search};
+use crate::{files, config, search, clipper};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -721,6 +721,103 @@ impl App {
         std::cmp::max(available_height as usize, 5)
     }
 
+    fn get_selected_search_match(&self) -> Option<&search::SearchMatch> {
+        let mut current_match_index = 0;
+
+        for result in &self.search_results {
+            for search_match in &result.matches {
+                if current_match_index == self.search_selected_index {
+                    return Some(search_match);
+                }
+                current_match_index += 1;
+            }
+        }
+
+        None
+    }
+
+    pub fn create_clip_from_selected_match(&self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(search_match) = self.get_selected_search_match() {
+            if let Some(timestamp) = &search_match.timestamp {
+                // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
+                if let Some((start_time, end_time)) = self.parse_timestamp_range(timestamp) {
+                    let video_path = std::path::Path::new(&search_match.video_info.full_path);
+                    
+                    // Create clip with the match text as overlay
+                    let clip_path = clipper::clip(
+                        video_path,
+                        &start_time,
+                        &end_time,
+                        Some(&search_match.line_text), // Use the matched text for overlay
+                        false,                          // Display text
+                        "mp4",                         // Format
+                        None,                          // Use default font size
+                    )?;
+
+                    // Open the clip
+                    self.open_file(&clip_path)?;
+                } else {
+                    return Err("Could not parse timestamp from search result".into());
+                }
+            } else {
+                return Err("Selected search result has no timestamp".into());
+            }
+        } else {
+            return Err("No search result selected".into());
+        }
+
+        Ok(())
+    }
+
+    fn parse_timestamp_range(&self, timestamp_line: &str) -> Option<(String, String)> {
+        // Parse lines like "51: 00:01:07.220 --> 00:01:10.680" or "00:01:07.220 --> 00:01:10.680"
+        
+        // First check if line contains the arrow separator
+        if let Some(_arrow_pos) = timestamp_line.find(" --> ") {
+            // Check if it has a number prefix (subtitle format): "51: 00:01:07.220 --> 00:01:10.680"
+            if let Some(colon_pos) = timestamp_line.find(": ") {
+                let timestamp_part = &timestamp_line[colon_pos + 2..];
+                let start_end: Vec<&str> = timestamp_part.split(" --> ").collect();
+                if start_end.len() == 2 {
+                    return Some((start_end[0].to_string(), start_end[1].to_string()));
+                }
+            } else {
+                // Direct format: "00:01:07.220 --> 00:01:10.680"
+                let start_end: Vec<&str> = timestamp_line.split(" --> ").collect();
+                if start_end.len() == 2 {
+                    return Some((start_end[0].to_string(), start_end[1].to_string()));
+                }
+            }
+        }
+        None
+    }
+
+    fn open_file(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        #[cfg(target_os = "macos")]
+        {
+            std::process::Command::new("open")
+                .arg(path)
+                .spawn()?;
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            std::process::Command::new("cmd")
+                .args(["/C", "start", ""])
+                .arg(path)
+                .spawn()?;
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            std::process::Command::new("xdg-open")
+                .arg(path)
+                .spawn()?;
+        }
+
+        Ok(())
+    }
+
     pub fn refresh_system_services(&mut self) {
         self.system_services = get_system_services();
         // Ensure selection is within bounds
@@ -880,6 +977,11 @@ where
                         if app.current_tab == TabState::Transcripts && key.modifiers.contains(KeyModifiers::CONTROL) {
                             app.clear_filter();
                             app.clear_search();
+                        } else if app.current_tab == TabState::SearchResults {
+                            // Create clip from selected search result
+                            if let Err(e) = app.create_clip_from_selected_match() {
+                                eprintln!("Failed to create clip: {}", e);
+                            }
                         }
                     },
                     KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
@@ -1067,7 +1169,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                 format!("{}/Tab: Switch  q: Quit", base_controls)
             }
         },
-        TabState::SearchResults => "↑↓/jk: Navigate  t/sr/Tab: Switch  q: Quit".to_string(),
+        TabState::SearchResults => "↑↓/jk: Navigate  c: Create Clip  t/sr/Tab: Switch  q: Quit".to_string(),
     };
     let controls_block = Block::default()
         .title("Controls")
