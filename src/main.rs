@@ -34,6 +34,7 @@ mod queue;
 mod search;
 mod tools_manager;
 mod transcripts;
+mod tui;
 mod video_parts;
 mod video_processor;
 mod web;
@@ -168,6 +169,8 @@ enum Commands {
         #[arg(help = "URL to the m3u8 stream")]
         url: String,
     },
+    #[command(about = "Launch TUI interface for browsing videos and transcripts")]
+    Tui,
 }
 
 #[derive(Subcommand, Debug)]
@@ -1674,6 +1677,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     std::process::exit(1);
                 }
             });
+        }
+        Some(Commands::Tui) => {
+            if let Err(e) = tui::run() {
+                eprintln!("Error running TUI: {}", e);
+                std::process::exit(1);
+            }
         }
         None => {}
     }
