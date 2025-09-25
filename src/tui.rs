@@ -552,25 +552,38 @@ impl App {
         self.filter_input.clear();
         self.filter_input_mode = false;
         // Reload data without filter
-        if let Err(e) = self.reload_with_current_sort() {
-            eprintln!("Failed to reload data after clearing filter: {}", e);
+        if self.current_tab == TabState::SearchResults {
+            self.perform_search();
+        } else {
+            if let Err(e) = self.reload_with_current_sort() {
+                eprintln!("Failed to reload data after clearing filter: {}", e);
+            }
         }
     }
 
     pub fn apply_filter(&mut self) {
         self.filter_input_mode = false;
-        // Reload data with current filter
-        if let Err(e) = self.reload_with_current_sort() {
-            eprintln!("Failed to reload data with filter: {}", e);
+        // If we're on SearchResults tab, re-run the search with the new filter
+        if self.current_tab == TabState::SearchResults {
+            self.perform_search();
+        } else {
+            // For Transcripts tab, reload data with current filter
+            if let Err(e) = self.reload_with_current_sort() {
+                eprintln!("Failed to reload data with filter: {}", e);
+            }
         }
     }
 
     pub fn add_char_to_filter(&mut self, c: char) {
         if self.filter_input_mode {
             self.filter_input.push(c);
-            // Refresh table immediately as user types
-            if let Err(e) = self.reload_with_current_sort() {
-                eprintln!("Failed to reload data while typing filter: {}", e);
+            // Refresh data immediately as user types
+            if self.current_tab == TabState::SearchResults {
+                self.perform_search();
+            } else {
+                if let Err(e) = self.reload_with_current_sort() {
+                    eprintln!("Failed to reload data while typing filter: {}", e);
+                }
             }
         }
     }
@@ -578,9 +591,13 @@ impl App {
     pub fn remove_char_from_filter(&mut self) {
         if self.filter_input_mode {
             self.filter_input.pop();
-            // Refresh table immediately as user types
-            if let Err(e) = self.reload_with_current_sort() {
-                eprintln!("Failed to reload data while typing filter: {}", e);
+            // Refresh data immediately as user types
+            if self.current_tab == TabState::SearchResults {
+                self.perform_search();
+            } else {
+                if let Err(e) = self.reload_with_current_sort() {
+                    eprintln!("Failed to reload data while typing filter: {}", e);
+                }
             }   
         }
     }
@@ -617,12 +634,20 @@ impl App {
     pub fn add_char_to_search(&mut self, c: char) {
         if self.search_input_mode {
             self.search_input.push(c);
+            // Re-run search immediately as user types, but only on SearchResults tab
+            if self.current_tab == TabState::SearchResults {
+                self.perform_search();
+            }
         }
     }
 
     pub fn remove_char_from_search(&mut self) {
         if self.search_input_mode {
             self.search_input.pop();
+            // Re-run search immediately as user deletes, but only on SearchResults tab
+            if self.current_tab == TabState::SearchResults {
+                self.perform_search();
+            }
         }
     }
 
@@ -646,6 +671,14 @@ impl App {
                     // Keep search results empty on error
                     self.search_results.clear();
                 }
+            }
+        } else {
+            // If search input is empty, clear results (but only on SearchResults tab)
+            if self.current_tab == TabState::SearchResults {
+                self.search_results.clear();
+                self.search_selected_index = 0;
+                self.search_scroll_offset = 0;
+                self.last_search_query.clear();
             }
         }
     }
