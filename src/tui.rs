@@ -505,6 +505,10 @@ impl App {
 
     pub fn switch_to_search_results(&mut self) {
         self.current_tab = TabState::SearchResults;
+        // Populate search input with the last search query for easy editing
+        if !self.last_search_query.is_empty() {
+            self.search_input = self.last_search_query.clone();
+        }
     }
 
     pub fn jump_to_top_of_page(&mut self) {
@@ -607,7 +611,6 @@ impl App {
 
     pub fn apply_search(&mut self) {
         self.search_input_mode = false;
-        // Placeholder - will implement search functionality later
         self.perform_search();
     }
 
@@ -633,8 +636,10 @@ impl App {
                     self.search_scroll_offset = 0;
                     self.last_search_query = self.search_input.clone();
                     
-                    // Switch to search results tab
-                    self.current_tab = TabState::SearchResults;
+                    // Switch to search results tab (only if we're not already there)
+                    if self.current_tab != TabState::SearchResults {
+                        self.current_tab = TabState::SearchResults;
+                    }
                 }
                 Err(e) => {
                     eprintln!("Search failed: {}", e);
@@ -964,17 +969,17 @@ where
                         }
                     },
                     KeyCode::Char('f') => {
-                        if app.current_tab == TabState::Transcripts {
+                        if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
                             app.toggle_filter_input();
                         }
                     },
                     KeyCode::Char('/') => {
-                        if app.current_tab == TabState::Transcripts {
+                        if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
                             app.toggle_search_input();
                         }
                     },
                     KeyCode::Char('c') => {
-                        if app.current_tab == TabState::Transcripts && key.modifiers.contains(KeyModifiers::CONTROL) {
+                        if (app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults) && key.modifiers.contains(KeyModifiers::CONTROL) {
                             app.clear_filter();
                             app.clear_search();
                         } else if app.current_tab == TabState::SearchResults {
@@ -1086,7 +1091,7 @@ where
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
-    let chunks = if app.current_tab == TabState::Transcripts {
+    let chunks = if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
         Layout::default()
             .direction(Direction::Vertical)
             .margin(1)
@@ -1116,6 +1121,14 @@ fn ui(f: &mut Frame, app: &mut App) {
                 Constraint::Percentage(10), // Page area (1/10)
             ].as_ref())
             .split(chunks[2]) // Use index 2 since we added filter area
+    } else if app.current_tab == TabState::SearchResults {
+        // For SearchResults tab, use full width for controls (no page info)
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(100), // Controls area takes full width
+            ].as_ref())
+            .split(chunks[2]) // Use index 2 since we added filter area
     } else {
         // For System tab, use full width for controls
         Layout::default()
@@ -1140,8 +1153,8 @@ fn ui(f: &mut Frame, app: &mut App) {
         TabState::SearchResults => render_search_results_tab(f, chunks[0], app),
     }
 
-    // Render filter and search sections (only on transcripts tab)
-    if app.current_tab == TabState::Transcripts {
+    // Render filter and search sections (on transcripts and search results tabs)
+    if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
         render_filter_and_search_sections(f, chunks[1], app);
     }
 
@@ -1169,7 +1182,15 @@ fn ui(f: &mut Frame, app: &mut App) {
                 format!("{}/Tab: Switch  q: Quit", base_controls)
             }
         },
-        TabState::SearchResults => "↑↓/jk: Navigate  c: Create Clip  t/sr/Tab: Switch  q: Quit".to_string(),
+        TabState::SearchResults => {
+            if app.filter_input_mode {
+                "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
+            } else if app.search_input_mode {
+                "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
+            } else {
+                "↑↓/jk: Navigate  c: Create Clip  f: Filter  /: Search  Ctrl+C: Clear  t/sr/Tab: Switch  q: Quit".to_string()
+            }
+        },
     };
     let controls_block = Block::default()
         .title("Controls")
