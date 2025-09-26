@@ -2,7 +2,7 @@ use crate::{files, search};
 use crate::transcripts_tab::render_transcripts_tab;
 use crate::system_tab::{render_system_tab, find_existing_pid_files, is_process_running};
 use crate::search_tab::render_search_results_tab;
-use crate::editor_tab::{render_editor_tab, EditorData};
+use crate::editor_tab::{render_editor_tab, EditorData, FrameSelection};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -390,6 +390,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
         if app.should_refresh_system_services() {
             app.refresh_system_services();
         }
+        
+        // Check for pending frame regeneration in editor
+        app.check_frame_regeneration_timer();
 
         // Use poll to avoid blocking and allow periodic refreshes
         if event::poll(Duration::from_millis(1000))? {
@@ -456,6 +459,16 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
                             app.toggle_editor_overlay();
                         }
                     },
+                    KeyCode::Char('[') => {
+                        if app.current_tab == TabState::Editor {
+                            app.adjust_selected_frame_time(false); // Move backward
+                        }
+                    },
+                    KeyCode::Char(']') => {
+                        if app.current_tab == TabState::Editor {
+                            app.adjust_selected_frame_time(true); // Move forward
+                        }
+                    },
                     KeyCode::Char('c') => {
                         if (app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults) && key.modifiers.contains(KeyModifiers::CONTROL) {
                             app.clear_filter();
@@ -500,6 +513,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
                             } else {
                                 app.prev_page();
                             }
+                        } else if app.current_tab == TabState::Editor {
+                            app.select_frame(FrameSelection::Start);
                         }
                     },
                     KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => {
@@ -509,6 +524,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
                             } else {
                                 app.next_page();
                             }
+                        } else if app.current_tab == TabState::Editor {
+                            app.select_frame(FrameSelection::End);
                         }
                     },
                     KeyCode::Enter => {
@@ -698,7 +715,22 @@ fn ui(f: &mut Frame, app: &mut App) {
             }
         },
         TabState::Editor => {
-            let base_controls = "t/s";
+            let overlay_status = if app.editor_data.as_ref().map_or(false, |data| data.show_overlay_text) {
+                "ON"
+            } else {
+                "OFF"
+            };
+            let selected_frame = if app.editor_data.as_ref().map_or(false, |data| data.selected_frame == FrameSelection::Start) {
+                "Start"
+            } else {
+                "End"
+            };
+            let pending_regen = if app.editor_data.as_ref().map_or(false, |data| data.pending_frame_regeneration.is_some()) {
+                " (regenerating...)"
+            } else {
+                ""
+            };
+            let base_controls = format!("h/l: Select Frame ({})  [/]: Adjust Time{}  o: Toggle Overlay ({})  t/s", selected_frame, pending_regen, overlay_status);
             let mut tab_controls = String::new();
             if !app.search_results.is_empty() {
                 tab_controls.push('r');
@@ -743,34 +775,6 @@ fn ui(f: &mut Frame, app: &mut App) {
 
         f.render_widget(page_paragraph, bottom_chunks[1]);
     }
-}
-
-pub fn create_tab_title(current_tab: TabState, colors: &TableColors, has_search_results: bool) -> ratatui::text::Line<'_> {
-    use ratatui::text::{Span, Line};
-    use ratatui::style::Color;
-
-    let mut spans = vec![
-        match current_tab {
-            TabState::Transcripts => Span::styled("Transcripts (t)", Style::default().fg(Color::White)),
-            _ => Span::styled("Transcripts (t)", Style::default().fg(colors.footer_border_color)),
-        },
-        Span::styled(" | ", Style::default().fg(colors.row_fg)),
-        match current_tab {
-            TabState::System => Span::styled("System (s)", Style::default().fg(Color::White)),
-            _ => Span::styled("System (s)", Style::default().fg(colors.footer_border_color)),
-        },
-    ];
-
-    // Only show search results tab if we have results
-    if has_search_results {
-        spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
-        spans.push(match current_tab {
-            TabState::SearchResults => Span::styled("Search Results (r)", Style::default().fg(Color::White)),
-            _ => Span::styled("Search Results (r)", Style::default().fg(colors.footer_border_color)),
-        });
-    }
-
-    Line::from(spans)
 }
 
 pub fn create_tab_title_with_editor(current_tab: TabState, colors: &TableColors, has_search_results: bool, has_editor_data: bool) -> ratatui::text::Line<'_> {

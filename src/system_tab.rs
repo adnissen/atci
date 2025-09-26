@@ -5,7 +5,7 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::Frame;
 use std::{error::Error, fs, time::Duration};
 
-use crate::tui::{App, SystemService, ServiceStatus, create_tab_title};
+use crate::tui::{App, SystemService, ServiceStatus, create_tab_title_with_editor};
 
 impl App {
     pub fn system_next(&mut self) {
@@ -225,7 +225,7 @@ fn start_watcher_process() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    let title = create_tab_title(app.current_tab, &app.colors, !app.search_results.is_empty());
+    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some());
 
     // Split the main content area into sections
     let main_chunks = Layout::default()
