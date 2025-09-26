@@ -3,6 +3,7 @@ use crate::transcripts_tab::render_transcripts_tab;
 use crate::system_tab::{render_system_tab, find_existing_pid_files, is_process_running};
 use crate::search_tab::render_search_results_tab;
 use crate::editor_tab::{render_editor_tab, EditorData};
+use crate::file_tab::{render_file_view_tab, FileViewData};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -80,6 +81,7 @@ pub enum TabState {
     System,
     SearchResults,
     Editor,
+    FileView,
 }
 
 pub struct App {
@@ -105,6 +107,7 @@ pub struct App {
     pub last_search_query: String,
     pub search_scroll_offset: usize,
     pub editor_data: Option<EditorData>,
+    pub file_view_data: Option<FileViewData>,
 }
 
 #[derive(Clone)]
@@ -145,6 +148,7 @@ impl Default for App {
             last_search_query: String::new(),
             search_scroll_offset: 0,
             editor_data: None,
+            file_view_data: None,
         }
     }
 }
@@ -186,6 +190,7 @@ impl App {
             last_search_query: String::new(),
             search_scroll_offset: 0,
             editor_data: None,
+            file_view_data: None,
         };
 
         // Select first item if available
@@ -223,6 +228,8 @@ impl App {
                     TabState::SearchResults
                 } else if self.editor_data.is_some() {
                     TabState::Editor
+                } else if self.file_view_data.is_some() {
+                    TabState::FileView
                 } else {
                     TabState::Transcripts
                 }
@@ -230,11 +237,20 @@ impl App {
             TabState::SearchResults => {
                 if self.editor_data.is_some() {
                     TabState::Editor
+                } else if self.file_view_data.is_some() {
+                    TabState::FileView
                 } else {
                     TabState::Transcripts
                 }
             },
-            TabState::Editor => TabState::Transcripts,
+            TabState::Editor => {
+                if self.file_view_data.is_some() {
+                    TabState::FileView
+                } else {
+                    TabState::Transcripts
+                }
+            },
+            TabState::FileView => TabState::Transcripts,
         };
     }
 
@@ -251,6 +267,55 @@ impl App {
         // Populate search input with the last search query for easy editing
         if !self.last_search_query.is_empty() {
             self.search_input = self.last_search_query.clone();
+        }
+    }
+
+    pub fn switch_to_file_view(&mut self) {
+        self.current_tab = TabState::FileView;
+    }
+
+    pub fn open_file_view(&mut self, video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let file_view_data = FileViewData::new(video_path.to_string())?;
+        self.file_view_data = Some(file_view_data);
+        self.current_tab = TabState::FileView;
+        Ok(())
+    }
+
+    pub fn file_view_navigate_up(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.navigate_up();
+        }
+    }
+
+    pub fn file_view_navigate_down(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.navigate_down();
+        }
+    }
+
+    pub fn file_view_jump_to_top(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.jump_to_top();
+        }
+    }
+
+    pub fn file_view_jump_to_bottom(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.jump_to_bottom();
+        }
+    }
+
+    pub fn file_view_page_up(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            let page_size = (self.terminal_height as usize).saturating_sub(10);
+            data.page_up(page_size);
+        }
+    }
+
+    pub fn file_view_page_down(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            let page_size = (self.terminal_height as usize).saturating_sub(10);
+            data.page_down(page_size);
         }
     }
 
@@ -422,6 +487,22 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                 app.switch_to_editor();
             }
         },
+        KeyCode::Char('v') => {
+            if app.current_tab == TabState::Transcripts {
+                // Open file view from selected transcript
+                if let Some(selected_index) = app.state.selected() {
+                    if selected_index < app.video_data.len() {
+                        let video_path = app.video_data[selected_index].full_path.clone();
+                        if let Err(e) = app.open_file_view(&video_path) {
+                            eprintln!("Failed to open file view: {}", e);
+                        }
+                    }
+                }
+            } else if app.file_view_data.is_some() {
+                // Switch to file view if we have file view data
+                app.switch_to_file_view();
+            }
+        },
         KeyCode::Char('f') => {
             if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
                 app.toggle_filter_input();
@@ -499,6 +580,12 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                 app.search_next();
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_up_or_down(true); // j = down
+            } else if app.current_tab == TabState::FileView {
+                if key.code == KeyCode::Char('J') || key.modifiers.contains(KeyModifiers::SHIFT) {
+                    app.file_view_jump_to_bottom();
+                } else {
+                    app.file_view_navigate_down();
+                }
             }
         },
         KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K')=> {
@@ -514,6 +601,12 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                 app.search_previous();
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_up_or_down(false); // k = up
+            } else if app.current_tab == TabState::FileView {
+                if key.code == KeyCode::Char('K') || key.modifiers.contains(KeyModifiers::SHIFT) {
+                    app.file_view_jump_to_top();
+                } else {
+                    app.file_view_navigate_up();
+                }
             }
         },
         KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('H') => {
@@ -525,6 +618,8 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                 }
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_left_or_right(false); // h/left = up/previous
+            } else if app.current_tab == TabState::FileView {
+                app.file_view_page_up();
             }
         },
         KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => {
@@ -536,6 +631,8 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                 }
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_left_or_right(true); // l/right = down/next
+            } else if app.current_tab == TabState::FileView {
+                app.file_view_page_down();
             }
         },
         KeyCode::Enter => {
@@ -685,6 +782,11 @@ fn ui(f: &mut Frame, app: &mut App) {
         TabState::System => render_system_tab(f, chunks[0], app),
         TabState::SearchResults => render_search_results_tab(f, chunks[0], app),
         TabState::Editor => render_editor_tab(f, chunks[0], app),
+        TabState::FileView => {
+            if let Some(file_data) = &mut app.file_view_data {
+                render_file_view_tab(f, chunks[0], file_data, &app.colors);
+            }
+        }
     }
 
     // Render filter and search sections (on transcripts and search results tabs)
@@ -700,7 +802,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             } else if app.search_input_mode {
                 "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
             } else {
-                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  Ctrl+C: Clear  t/s";
+                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  v: View File  Ctrl+C: Clear  t/s";
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
                     tab_controls.push('r');
@@ -776,6 +878,30 @@ fn ui(f: &mut Frame, app: &mut App) {
                 format!("{}/Tab: Switch  q: Quit", base_controls)
             }
         },
+        TabState::FileView => {
+            let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  t/s";
+            let mut tab_controls = String::new();
+            if !app.search_results.is_empty() {
+                tab_controls.push('r');
+            }
+            if app.editor_data.is_some() {
+                if !tab_controls.is_empty() {
+                    tab_controls.push('/');
+                }
+                tab_controls.push('e');
+            }
+            if app.file_view_data.is_some() {
+                if !tab_controls.is_empty() {
+                    tab_controls.push('/');
+                }
+                tab_controls.push('v');
+            }
+            if !tab_controls.is_empty() {
+                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+            } else {
+                format!("{}/Tab: Switch  q: Quit", base_controls)
+            }
+        },
     };
     let controls_block = Block::default()
         .title("Controls")
@@ -806,7 +932,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     }
 }
 
-pub fn create_tab_title_with_editor(current_tab: TabState, colors: &TableColors, has_search_results: bool, has_editor_data: bool) -> ratatui::text::Line<'_> {
+pub fn create_tab_title_with_editor(current_tab: TabState, colors: &TableColors, has_search_results: bool, has_editor_data: bool, has_file_view_data: bool) -> ratatui::text::Line<'_> {
     use ratatui::text::{Span, Line};
     use ratatui::style::Color;
 
@@ -837,6 +963,15 @@ pub fn create_tab_title_with_editor(current_tab: TabState, colors: &TableColors,
         spans.push(match current_tab {
             TabState::Editor => Span::styled("Editor (e)", Style::default().fg(Color::White)),
             _ => Span::styled("Editor (e)", Style::default().fg(colors.footer_border_color)),
+        });
+    }
+
+    // Only show file view tab if we have file view data
+    if has_file_view_data {
+        spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
+        spans.push(match current_tab {
+            TabState::FileView => Span::styled("File View (v)", Style::default().fg(Color::White)),
+            _ => Span::styled("File View (v)", Style::default().fg(colors.footer_border_color)),
         });
     }
 

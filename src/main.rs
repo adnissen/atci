@@ -39,6 +39,7 @@ mod transcripts_tab;
 mod system_tab;
 mod search_tab;
 mod editor_tab;
+mod file_tab;
 mod video_parts;
 mod video_processor;
 mod web;

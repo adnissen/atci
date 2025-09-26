@@ -204,7 +204,7 @@ impl App {
 }
 
 pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some());
+    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some(), app.file_view_data.is_some());
 
     // Split the main content area into sections
     let main_chunks = Layout::default()

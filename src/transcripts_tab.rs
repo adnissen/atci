@@ -318,7 +318,7 @@ impl App {
 }
 
 pub fn render_transcripts_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App, header_style: Style, selected_row_style: Style) {
-    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some());
+    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some(), app.file_view_data.is_some());
     let headers = ["Filename", "Created At", "Generated At", "Lines", "Length", "Source"];
     let header_cells: Vec<Cell> = headers
         .iter()
