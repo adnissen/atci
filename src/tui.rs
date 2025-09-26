@@ -469,6 +469,16 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
                             app.adjust_selected_frame_time(true); // Move forward
                         }
                     },
+                    KeyCode::Char('+') | KeyCode::Char('=') => {
+                        if app.current_tab == TabState::Editor {
+                            app.adjust_font_size(true); // Increase font size
+                        }
+                    },
+                    KeyCode::Char('-') => {
+                        if app.current_tab == TabState::Editor {
+                            app.adjust_font_size(false); // Decrease font size
+                        }
+                    },
                     KeyCode::Char('c') => {
                         if (app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults) && key.modifiers.contains(KeyModifiers::CONTROL) {
                             app.clear_filter();

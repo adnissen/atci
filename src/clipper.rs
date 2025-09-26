@@ -760,6 +760,13 @@ fn calculate_font_size_for_video(horizontal_size: u32, text_length: usize) -> u3
     }
 }
 
+pub fn calculate_font_size_for_video_path(video_path: &Path, text_length: usize) -> u32 {
+    let cfg = crate::config::load_config().unwrap_or_default();
+    let ffprobe_path = Path::new(&cfg.ffprobe_path);
+    let (width, _) = get_video_dimensions(video_path, ffprobe_path).unwrap_or((1920, 1080));
+    calculate_font_size_for_video(width, text_length)
+}
+
 fn get_audio_codec_args(
     path: &Path,
     ffprobe_path: &Path,

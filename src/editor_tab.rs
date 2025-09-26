@@ -22,6 +22,7 @@ pub struct EditorData {
     pub selected_frame: FrameSelection,
     pub frame_regeneration_timer: Option<Instant>,
     pub pending_frame_regeneration: Option<FrameSelection>,
+    pub font_size: u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -32,10 +33,13 @@ pub enum FrameSelection {
 
 impl App {
     pub fn open_editor(&mut self, start_time: String, end_time: String, text: String, file_path: String) {
-        // Generate frame images with text overlay by default
+        // Calculate default font size based on video dimensions
         let video_path = Path::new(&file_path);
-        let start_frame_path = clipper::grab_frame(video_path, &start_time, Some(&text), None).ok();
-        let end_frame_path = clipper::grab_frame(video_path, &end_time, Some(&text), None).ok();
+        let default_font_size = clipper::calculate_font_size_for_video_path(video_path, text.len());
+        
+        // Generate frame images with text overlay by default
+        let start_frame_path = clipper::grab_frame(video_path, &start_time, Some(&text), Some(default_font_size)).ok();
+        let end_frame_path = clipper::grab_frame(video_path, &end_time, Some(&text), Some(default_font_size)).ok();
         
         // Load start frame if available
         let start_frame = start_frame_path.as_ref()
@@ -70,6 +74,7 @@ impl App {
             selected_frame: FrameSelection::Start, // Default to start frame selected
             frame_regeneration_timer: None,
             pending_frame_regeneration: None,
+            font_size: default_font_size,
         });
         self.current_tab = TabState::Editor;
     }
@@ -117,6 +122,19 @@ impl App {
     pub fn select_frame(&mut self, frame: FrameSelection) {
         if let Some(ref mut editor_data) = self.editor_data {
             editor_data.selected_frame = frame;
+        }
+    }
+    
+    pub fn adjust_font_size(&mut self, increase: bool) {
+        if let Some(ref mut editor_data) = self.editor_data {
+            let adjustment = if increase { 2 } else { -2 };
+            let new_size = (editor_data.font_size as i32 + adjustment).max(8) as u32; // Minimum font size of 8
+            
+            if new_size != editor_data.font_size {
+                editor_data.font_size = new_size;
+                // Regenerate frames with new font size
+                self.regenerate_editor_frames();
+            }
         }
     }
     
@@ -180,7 +198,7 @@ impl App {
                 video_path, 
                 &editor_data.start_time, 
                 text_overlay, 
-                None
+                Some(editor_data.font_size)
             ).ok();
             
             // Regenerate end frame
@@ -188,7 +206,7 @@ impl App {
                 video_path, 
                 &editor_data.end_time, 
                 text_overlay, 
-                None
+                Some(editor_data.font_size)
             ).ok();
             
             // Reload start frame if available
@@ -228,7 +246,7 @@ impl App {
                         video_path, 
                         &editor_data.start_time, 
                         text_overlay, 
-                        None
+                        Some(editor_data.font_size)
                     ).ok();
                     
                     // Reload start frame
@@ -246,7 +264,7 @@ impl App {
                         video_path, 
                         &editor_data.end_time, 
                         text_overlay, 
-                        None
+                        Some(editor_data.font_size)
                     ).ok();
                     
                     // Reload end frame
@@ -313,8 +331,8 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Min(10),    // Frame images section (expandable)
-            Constraint::Length(3),  // Text content section
+            Constraint::Min(8),     // Frame images section (reduced by 2 lines)
+            Constraint::Length(5),  // Text content section (increased by 2 lines)
         ].as_ref())
         .split(area);
 
@@ -384,6 +402,15 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
             f.render_widget(no_frame_text, frame_chunks[1]);
         }
 
+        // Split text section horizontally: 90% for text content, 10% for font size display
+        let text_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(90), // Text content
+                Constraint::Percentage(10), // Font size display
+            ].as_ref())
+            .split(main_chunks[1]);
+
         // Text content section
         let text_paragraph = Paragraph::new(editor_data.text.as_str())
             .block(
@@ -396,7 +423,20 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
             .alignment(Alignment::Left)
             .wrap(ratatui::widgets::Wrap { trim: false });
 
-        f.render_widget(text_paragraph, main_chunks[1]);
+        f.render_widget(text_paragraph, text_chunks[0]);
+
+        // Font size display section
+        let font_size_paragraph = Paragraph::new(format!("{} (+/-)", editor_data.font_size))
+            .block(
+                Block::default()
+                    .title("Font Size")
+                    .borders(Borders::ALL)
+                    .border_style(Style::new().fg(app.colors.footer_border_color))
+            )
+            .style(Style::new().fg(app.colors.row_fg))
+            .alignment(Alignment::Center);
+
+        f.render_widget(font_size_paragraph, text_chunks[1]);
     } else {
         // Show empty state
         let empty_content = "No editor content. Select a search result and press 'c' to open the editor.";
