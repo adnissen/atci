@@ -1,4 +1,4 @@
-use crate::{search, clipper};
+use crate::search;
 use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::style::{Style, Modifier};
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
@@ -153,26 +153,18 @@ impl App {
         None
     }
 
-    pub fn create_clip_from_selected_match(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn open_editor_from_selected_match(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(search_match) = self.get_selected_search_match() {
             if let Some(timestamp) = &search_match.timestamp {
                 // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
                 if let Some((start_time, end_time)) = self.parse_timestamp_range(timestamp) {
-                    let video_path = std::path::Path::new(&search_match.video_info.full_path);
-                    
-                    // Create clip with the match text as overlay
-                    let clip_path = clipper::clip(
-                        video_path,
-                        &start_time,
-                        &end_time,
-                        Some(&search_match.line_text), // Use the matched text for overlay
-                        false,                          // Display text
-                        "mp4",                         // Format
-                        None,                          // Use default font size
-                    )?;
-
-                    // Open the clip
-                    self.open_file(&clip_path)?;
+                    // Open editor with the match information
+                    self.open_editor(
+                        start_time,
+                        end_time,
+                        search_match.line_text.clone(),
+                        search_match.video_info.full_path.clone(),
+                    );
                 } else {
                     return Err("Could not parse timestamp from search result".into());
                 }
@@ -209,31 +201,6 @@ impl App {
         None
     }
 
-    fn open_file(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-        #[cfg(target_os = "macos")]
-        {
-            std::process::Command::new("open")
-                .arg(path)
-                .spawn()?;
-        }
-
-        #[cfg(target_os = "windows")]
-        {
-            std::process::Command::new("cmd")
-                .args(["/C", "start", ""])
-                .arg(path)
-                .spawn()?;
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            std::process::Command::new("xdg-open")
-                .arg(path)
-                .spawn()?;
-        }
-
-        Ok(())
-    }
 }
 
 pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {

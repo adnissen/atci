@@ -2,6 +2,7 @@ use crate::{files, search};
 use crate::transcripts_tab::render_transcripts_tab;
 use crate::system_tab::{render_system_tab, find_existing_pid_files, is_process_running};
 use crate::search_tab::render_search_results_tab;
+use crate::editor_tab::{render_editor_tab, EditorData};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -78,6 +79,7 @@ pub enum TabState {
     Transcripts,
     System,
     SearchResults,
+    Editor,
 }
 
 pub struct App {
@@ -102,6 +104,7 @@ pub struct App {
     pub search_selected_index: usize,
     pub last_search_query: String,
     pub search_scroll_offset: usize,
+    pub editor_data: Option<EditorData>,
 }
 
 #[derive(Clone)]
@@ -141,6 +144,7 @@ impl Default for App {
             search_selected_index: 0,
             last_search_query: String::new(),
             search_scroll_offset: 0,
+            editor_data: None,
         }
     }
 }
@@ -181,6 +185,7 @@ impl App {
             search_selected_index: 0,
             last_search_query: String::new(),
             search_scroll_offset: 0,
+            editor_data: None,
         };
 
         // Select first item if available
@@ -224,11 +229,20 @@ impl App {
             TabState::System => {
                 if !self.search_results.is_empty() {
                     TabState::SearchResults
+                } else if self.editor_data.is_some() {
+                    TabState::Editor
                 } else {
                     TabState::Transcripts
                 }
             },
-            TabState::SearchResults => TabState::Transcripts,
+            TabState::SearchResults => {
+                if self.editor_data.is_some() {
+                    TabState::Editor
+                } else {
+                    TabState::Transcripts
+                }
+            },
+            TabState::Editor => TabState::Transcripts,
         };
     }
 
@@ -361,8 +375,6 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), Box<dyn Error>>
-where
-    <B as Backend>::Error: 'static,
 {
     loop {
         terminal.draw(|f| ui(f, app))?;
@@ -423,6 +435,12 @@ where
                             app.switch_to_search_results();
                         }
                     },
+                    KeyCode::Char('e') => {
+                        // Only switch to editor if we have editor data
+                        if app.editor_data.is_some() {
+                            app.switch_to_editor();
+                        }
+                    },
                     KeyCode::Char('f') => {
                         if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
                             app.toggle_filter_input();
@@ -433,14 +451,19 @@ where
                             app.toggle_search_input();
                         }
                     },
+                    KeyCode::Char('o') => {
+                        if app.current_tab == TabState::Editor {
+                            app.toggle_editor_overlay();
+                        }
+                    },
                     KeyCode::Char('c') => {
                         if (app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults) && key.modifiers.contains(KeyModifiers::CONTROL) {
                             app.clear_filter();
                             app.clear_search();
                         } else if app.current_tab == TabState::SearchResults {
-                            // Create clip from selected search result
-                            if let Err(e) = app.create_clip_from_selected_match() {
-                                eprintln!("Failed to create clip: {}", e);
+                            // Open editor from selected search result
+                            if let Err(e) = app.open_editor_from_selected_match() {
+                                eprintln!("Failed to open editor: {}", e);
                             }
                         }
                     },
@@ -606,6 +629,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         TabState::Transcripts => render_transcripts_tab(f, chunks[0], app, header_style, selected_row_style),
         TabState::System => render_system_tab(f, chunks[0], app),
         TabState::SearchResults => render_search_results_tab(f, chunks[0], app),
+        TabState::Editor => render_editor_tab(f, chunks[0], app),
     }
 
     // Render filter and search sections (on transcripts and search results tabs)
@@ -622,8 +646,18 @@ fn ui(f: &mut Frame, app: &mut App) {
                 "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
             } else {
                 let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  Ctrl+C: Clear  t/s";
+                let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
-                    format!("{}r/Tab: Switch  q: Quit", base_controls)
+                    tab_controls.push('r');
+                }
+                if app.editor_data.is_some() {
+                    if !tab_controls.is_empty() {
+                        tab_controls.push('/');
+                    }
+                    tab_controls.push('e');
+                }
+                if !tab_controls.is_empty() {
+                    format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
                 } else {
                     format!("{}/Tab: Switch  q: Quit", base_controls)
                 }
@@ -631,8 +665,18 @@ fn ui(f: &mut Frame, app: &mut App) {
         },
         TabState::System => {
             let base_controls = "↑↓/jk: Navigate  Enter: Start/Kill Process  t/s";
+            let mut tab_controls = String::new();
             if !app.search_results.is_empty() {
-                format!("{}r/Tab: Switch  q: Quit", base_controls)
+                tab_controls.push('r');
+            }
+            if app.editor_data.is_some() {
+                if !tab_controls.is_empty() {
+                    tab_controls.push('/');
+                }
+                tab_controls.push('e');
+            }
+            if !tab_controls.is_empty() {
+                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
             } else {
                 format!("{}/Tab: Switch  q: Quit", base_controls)
             }
@@ -643,7 +687,32 @@ fn ui(f: &mut Frame, app: &mut App) {
             } else if app.search_input_mode {
                 "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
             } else {
-                "↑↓/jk: Navigate  c: Create Clip  f: Filter  /: Search  Ctrl+C: Clear  t/sr/Tab: Switch  q: Quit".to_string()
+                let base_controls = "↑↓/jk: Navigate  c: Open Editor  f: Filter  /: Search  Ctrl+C: Clear  t/s";
+                let mut tab_controls = String::new();
+                tab_controls.push('r');  // Always have 'r' since we're on SearchResults tab
+                if app.editor_data.is_some() {
+                    tab_controls.push('/');
+                    tab_controls.push('e');
+                }
+                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+            }
+        },
+        TabState::Editor => {
+            let base_controls = "t/s";
+            let mut tab_controls = String::new();
+            if !app.search_results.is_empty() {
+                tab_controls.push('r');
+            }
+            if app.editor_data.is_some() {
+                if !tab_controls.is_empty() {
+                    tab_controls.push('/');
+                }
+                tab_controls.push('e');
+            }
+            if !tab_controls.is_empty() {
+                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+            } else {
+                format!("{}/Tab: Switch  q: Quit", base_controls)
             }
         },
     };
@@ -698,6 +767,43 @@ pub fn create_tab_title(current_tab: TabState, colors: &TableColors, has_search_
         spans.push(match current_tab {
             TabState::SearchResults => Span::styled("Search Results (r)", Style::default().fg(Color::White)),
             _ => Span::styled("Search Results (r)", Style::default().fg(colors.footer_border_color)),
+        });
+    }
+
+    Line::from(spans)
+}
+
+pub fn create_tab_title_with_editor(current_tab: TabState, colors: &TableColors, has_search_results: bool, has_editor_data: bool) -> ratatui::text::Line<'_> {
+    use ratatui::text::{Span, Line};
+    use ratatui::style::Color;
+
+    let mut spans = vec![
+        match current_tab {
+            TabState::Transcripts => Span::styled("Transcripts (t)", Style::default().fg(Color::White)),
+            _ => Span::styled("Transcripts (t)", Style::default().fg(colors.footer_border_color)),
+        },
+        Span::styled(" | ", Style::default().fg(colors.row_fg)),
+        match current_tab {
+            TabState::System => Span::styled("System (s)", Style::default().fg(Color::White)),
+            _ => Span::styled("System (s)", Style::default().fg(colors.footer_border_color)),
+        },
+    ];
+
+    // Only show search results tab if we have results
+    if has_search_results {
+        spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
+        spans.push(match current_tab {
+            TabState::SearchResults => Span::styled("Search Results (r)", Style::default().fg(Color::White)),
+            _ => Span::styled("Search Results (r)", Style::default().fg(colors.footer_border_color)),
+        });
+    }
+
+    // Only show editor tab if we have editor data
+    if has_editor_data {
+        spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
+        spans.push(match current_tab {
+            TabState::Editor => Span::styled("Editor (e)", Style::default().fg(Color::White)),
+            _ => Span::styled("Editor (e)", Style::default().fg(colors.footer_border_color)),
         });
     }
 
