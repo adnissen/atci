@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::Path;
 use std::process::Command;
+use uuid::Uuid;
 
 fn get_video_extensions() -> Vec<&'static str> {
     vec![
@@ -62,6 +63,7 @@ pub fn grab_frame(
     time: &str,
     text: Option<&str>,
     font_size: Option<u32>,
+    width: Option<u32>,
 ) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let ffprobe_path = Path::new(&cfg.ffprobe_path);
@@ -97,14 +99,14 @@ pub fn grab_frame(
     let time_str = format!("{:.3}", time_seconds);
     let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
 
-    let temp_frame_name = format!("frame_{}{}_{}.png", time_str, caption_part, font_size_part);
+    let temp_frame_name = format!("{}.png", Uuid::new_v4());
     let temp_frame_path = std::env::temp_dir().join(&temp_frame_name);
 
-    if temp_frame_path.exists() {
-        return Ok(temp_frame_path);
-    }
+    // if temp_frame_path.exists() {
+    //     return Ok(temp_frame_path);
+    // }
 
-    let frame_args = grab_frame_args(path, time_seconds, text, &temp_frame_path, font_size);
+    let frame_args = grab_frame_args(path, time_seconds, text, &temp_frame_path, font_size, width);
 
     let mut cmd = Command::new(&cfg.ffmpeg_path);
     cmd.args(&frame_args);
@@ -687,6 +689,7 @@ fn grab_frame_args(
     text: Option<&str>,
     output_path: &Path,
     font_size: Option<u32>,
+    width: Option<u32>,
 ) -> Vec<String> {
     let mut args = vec![
         "-ss".to_string(),
@@ -696,6 +699,22 @@ fn grab_frame_args(
         "-vframes".to_string(),
         "1".to_string(),
     ];
+
+    // Build video filter components
+    let mut vf_filters = Vec::new();
+    
+    // Add scaling filter if width is specified
+    if let Some(target_width) = width {
+        let cfg = crate::config::load_config().unwrap_or_default();
+        let ffprobe_path = Path::new(&cfg.ffprobe_path);
+        let (video_width, video_height) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
+        
+        // Calculate height maintaining aspect ratio
+        let aspect_ratio = video_height as f64 / video_width as f64;
+        let target_height = (target_width as f64 * aspect_ratio).round() as u32;
+        
+        vf_filters.push(format!("scale={}:{}", target_width, target_height));
+    }
 
     if let Some(text_content) = text {
         use std::fs;
@@ -708,27 +727,41 @@ fn grab_frame_args(
             Ok(_) => {
                 let cfg = crate::config::load_config().unwrap_or_default();
                 let ffprobe_path = Path::new(&cfg.ffprobe_path);
-                let (width, _) =
-                    get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
-                let font_size = font_size
-                    .unwrap_or_else(|| calculate_font_size_for_video(width, text_content.len()));
+                let (video_width, _) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
+                
+                // Calculate font size and scale it based on output vs original video width
+                let base_font_size = font_size
+                    .unwrap_or_else(|| calculate_font_size_for_video(video_width, text_content.len()));
+                
+                // Scale font size proportionally if width is being changed
+                let scaled_font_size = if let Some(target_width) = width {
+                    let scale_factor = target_width as f32 / video_width as f32;
+                    (base_font_size as f32 * scale_factor).round() as u32
+                } else {
+                    base_font_size
+                };
                 let font_path = get_font_path()
                     .unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
 
-                args.extend(vec![
-                    "-vf".to_string(),
-                    format!(
-                        "drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10",
-                        temp_text_path.to_string_lossy(),
-                        font_size,
-                        font_path
-                    ),
-                ]);
+                vf_filters.push(format!(
+                    "drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10",
+                    temp_text_path.to_string_lossy(),
+                    scaled_font_size,
+                    font_path
+                ));
             }
             Err(_) => {
                 // If we can't write the text file, just grab the frame without text
             }
         }
+    }
+    
+    // Apply video filters if any were added
+    if !vf_filters.is_empty() {
+        args.extend(vec![
+            "-vf".to_string(),
+            vf_filters.join(","),
+        ]);
     }
 
     args.extend(vec![
@@ -865,6 +898,7 @@ pub struct FrameQuery {
     time: String,
     text: Option<String>,
     font_size: Option<String>,
+    width: Option<String>,
 }
 
 #[get("/api/clip?<query..>")]
@@ -919,9 +953,10 @@ pub fn web_frame(
     // Parse optional parameters
     let text = query.text.as_deref();
     let font_size = query.font_size.as_deref().and_then(|s| s.parse().ok());
+    let width = query.width.as_deref().and_then(|s| s.parse().ok());
 
     // Call the grab_frame function and get the output path
-    match grab_frame(video_path, &query.time, text, font_size) {
+    match grab_frame(video_path, &query.time, text, font_size, width) {
         Ok(output_path) => fs::read(&output_path)
             .map(|data| (rocket::http::ContentType::PNG, data))
             .map_err(|_| status::BadRequest("Error reading generated frame")),

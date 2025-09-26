@@ -1282,7 +1282,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             validate_and_prompt_config(&mut cfg, &required_fields)?;
 
             let output_path =
-                clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size)?;
+                clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size, Some(360))?;
             println!("{}", output_path.display());
         }
         Some(Commands::Tools { tools_command }) => match tools_command {
