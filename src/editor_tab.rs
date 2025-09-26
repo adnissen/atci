@@ -331,8 +331,8 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Min(8),     // Frame images section (reduced by 2 lines)
-            Constraint::Length(5),  // Text content section (increased by 2 lines)
+            Constraint::Min(7),     // Frame images section (reduced by 2 lines)
+            Constraint::Length(6),  // Text content section (increased by 2 lines)
         ].as_ref())
         .split(area);
 
@@ -425,6 +425,14 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
 
         f.render_widget(text_paragraph, text_chunks[0]);
 
+        // Split font size section vertically
+        let font_size_column_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage(50), // Font size display
+                Constraint::Percentage(50), // Additional space
+            ].as_ref())
+            .split(text_chunks[1]);
         // Font size display section
         let font_size_paragraph = Paragraph::new(format!("{} (+/-)", editor_data.font_size))
             .block(
@@ -436,7 +444,19 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
             .style(Style::new().fg(app.colors.row_fg))
             .alignment(Alignment::Center);
 
-        f.render_widget(font_size_paragraph, text_chunks[1]);
+        f.render_widget(font_size_paragraph, font_size_column_chunks[0]);
+
+        let format_paragraph = Paragraph::new("mp4")
+            .block(
+                Block::default()
+                    .title("Format")
+                    .borders(Borders::ALL)
+                    .border_style(Style::new().fg(app.colors.footer_border_color))
+            )
+            .style(Style::new().fg(app.colors.row_fg))
+            .alignment(Alignment::Center);
+
+        f.render_widget(format_paragraph, font_size_column_chunks[1]);
     } else {
         // Show empty state
         let empty_content = "No editor content. Select a search result and press 'c' to open the editor.";
