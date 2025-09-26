@@ -256,6 +256,14 @@ impl App {
     }
     
     pub fn adjust_selected_frame_time(&mut self, forward: bool) {
+        self.adjust_selected_frame_time_by_amount(forward, 0.1);
+    }
+    
+    pub fn adjust_selected_frame_time_by_second(&mut self, forward: bool) {
+        self.adjust_selected_frame_time_by_amount(forward, 1.0);
+    }
+    
+    fn adjust_selected_frame_time_by_amount(&mut self, forward: bool, amount: f64) {
         if let Some(ref editor_data) = self.editor_data {
             // Only allow time adjustment if a frame is selected in the unified selection system
             let selected_frame = match editor_data.editor_selection {
@@ -264,7 +272,7 @@ impl App {
                 _ => return, // Don't adjust time if no frame is selected
             };
             
-            let adjustment = if forward { 0.1 } else { -0.1 };
+            let adjustment = if forward { amount } else { -amount };
             
             // Parse both start and end times for validation
             let start_seconds = Self::parse_time_to_seconds(&editor_data.start_time).unwrap_or(0.0);

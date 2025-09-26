@@ -210,14 +210,6 @@ impl App {
         Self::calculate_page_size(self.terminal_height)
     }
 
-
-
-
-
-
-
-
-
     fn should_refresh(&self) -> bool {
         self.last_refresh.elapsed() >= Duration::from_secs(60)
     }
@@ -334,11 +326,6 @@ impl App {
             )
         }
     }
-
-
-
-
-
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
@@ -374,6 +361,241 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     })
 }
 
+fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Option<bool>, Box<dyn Error>> {
+    // Handle filter input mode
+    if app.filter_input_mode {
+        match key.code {
+            KeyCode::Esc => app.filter_input_mode = false,
+            KeyCode::Enter => app.apply_filter(),
+            KeyCode::Backspace => app.remove_char_from_filter(),
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.clear_filter();
+            },
+            KeyCode::Char(c) => app.add_char_to_filter(c),
+            _ => {}
+        }
+        return Ok(None);
+    }
+
+    // Handle search input mode
+    if app.search_input_mode {
+        match key.code {
+            KeyCode::Esc => app.search_input_mode = false,
+            KeyCode::Enter => app.apply_search(),
+            KeyCode::Backspace => app.remove_char_from_search(),
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                app.clear_search();
+            },
+            KeyCode::Char(c) => app.add_char_to_search(c),
+            _ => {}
+        }
+        return Ok(None);
+    }
+
+    // Handle text editing mode
+    if app.current_tab == TabState::Editor && app.editor_data.as_ref().map_or(false, |data| data.text_editing_mode) {
+        match key.code {
+            KeyCode::Esc => app.exit_text_editing(),
+            KeyCode::Enter => app.exit_text_editing(),
+            KeyCode::Backspace => app.remove_char_from_text(),
+            KeyCode::Char(c) => app.add_char_to_text(c),
+            _ => {}
+        }
+        return Ok(None);
+    }
+
+    // Handle normal mode key events
+    match key.code {
+        KeyCode::Char('q') => return Ok(Some(true)), // Signal to quit
+        KeyCode::Tab => app.toggle_tab(),
+        KeyCode::Char('t') => app.switch_to_transcripts(),
+        KeyCode::Char('s') => app.switch_to_system(),
+        KeyCode::Char('r') => {
+            // Only switch to search results if we have results
+            if !app.search_results.is_empty() {
+                app.switch_to_search_results();
+            }
+        },
+        KeyCode::Char('e') => {
+            // Only switch to editor if we have editor data
+            if app.editor_data.is_some() {
+                app.switch_to_editor();
+            }
+        },
+        KeyCode::Char('f') => {
+            if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
+                app.toggle_filter_input();
+            }
+        },
+        KeyCode::Char('/') => {
+            if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
+                app.toggle_search_input();
+            }
+        },
+        KeyCode::Char('o') => {
+            if app.current_tab == TabState::Editor {
+                // Open clip
+                if let Err(e) = app.open_clip() {
+                    eprintln!("Failed to open clip: {}", e);
+                }
+            }
+        },
+        KeyCode::Char('[') => {
+            if app.current_tab == TabState::Editor {
+                app.adjust_selected_frame_time(false); // Move backward by 0.1s
+            }
+        },
+        KeyCode::Char(']') => {
+            if app.current_tab == TabState::Editor {
+                app.adjust_selected_frame_time(true); // Move forward by 0.1s
+            }
+        },
+        KeyCode::Char('{') => {
+            if app.current_tab == TabState::Editor {
+                app.adjust_selected_frame_time_by_second(false); // Move backward by 1s
+            }
+        },
+        KeyCode::Char('}') => {
+            if app.current_tab == TabState::Editor {
+                app.adjust_selected_frame_time_by_second(true); // Move forward by 1s
+            }
+        },
+        KeyCode::Char('+') | KeyCode::Char('=') => {
+            if app.current_tab == TabState::Editor {
+                app.adjust_font_size(true); // Increase font size
+            }
+        },
+        KeyCode::Char('-') => {
+            if app.current_tab == TabState::Editor {
+                app.adjust_font_size(false); // Decrease font size
+            }
+        },
+        KeyCode::Char('c') => {
+            if (app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults) && key.modifiers.contains(KeyModifiers::CONTROL) {
+                app.clear_filter();
+                app.clear_search();
+            } else if app.current_tab == TabState::SearchResults {
+                // Open editor from selected search result
+                if let Err(e) = app.open_editor_from_selected_match() {
+                    eprintln!("Failed to open editor: {}", e);
+                }
+            } else if app.current_tab == TabState::Editor {
+                // Copy clip
+                if let Err(e) = app.copy_clip() {
+                    eprintln!("Failed to copy clip: {}", e);
+                }
+            }
+        },
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
+            if app.current_tab == TabState::Transcripts {
+                if key.code == KeyCode::Char('J') || key.modifiers.contains(KeyModifiers::SHIFT) {
+                    app.jump_to_bottom_of_page();
+                } else {
+                    app.next();
+                }
+            } else if app.current_tab == TabState::System {
+                app.system_next();
+            } else if app.current_tab == TabState::SearchResults {
+                app.search_next();
+            } else if app.current_tab == TabState::Editor {
+                app.navigate_editor_selection_up_or_down(true); // j = down
+            }
+        },
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K')=> {
+            if app.current_tab == TabState::Transcripts {
+                if key.code == KeyCode::Char('K') || key.modifiers.contains(KeyModifiers::SHIFT) {
+                    app.jump_to_top_of_page();
+                } else {
+                    app.previous();
+                }
+            } else if app.current_tab == TabState::System {
+                app.system_previous();
+            } else if app.current_tab == TabState::SearchResults {
+                app.search_previous();
+            } else if app.current_tab == TabState::Editor {
+                app.navigate_editor_selection_up_or_down(false); // k = up
+            }
+        },
+        KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('H') => {
+            if app.current_tab == TabState::Transcripts {
+                if key.code == KeyCode::Char('H') || key.modifiers.contains(KeyModifiers::SHIFT) {
+                    app.jump_to_first_page();
+                } else {
+                    app.prev_page();
+                }
+            } else if app.current_tab == TabState::Editor {
+                app.navigate_editor_selection_left_or_right(false); // h/left = up/previous
+            }
+        },
+        KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => {
+            if app.current_tab == TabState::Transcripts {
+                if key.code == KeyCode::Char('L') || key.modifiers.contains(KeyModifiers::SHIFT) {
+                    app.jump_to_last_page();
+                } else {
+                    app.next_page();
+                }
+            } else if app.current_tab == TabState::Editor {
+                app.navigate_editor_selection_left_or_right(true); // l/right = down/next
+            }
+        },
+        KeyCode::Enter => {
+            if app.current_tab == TabState::System {
+                // Check if the selected service is active or stopped
+                if app.system_selected_index < app.system_services.len() {
+                    let service = &app.system_services[app.system_selected_index];
+                    match service.status {
+                        ServiceStatus::Active => {
+                            if let Err(e) = app.kill_selected_service() {
+                                eprintln!("Failed to kill process: {}", e);
+                            }
+                        }
+                        ServiceStatus::Stopped => {
+                            if let Err(e) = app.start_selected_service() {
+                                eprintln!("Failed to start service: {}", e);
+                            }
+                        }
+                    }
+                }
+            } else if app.current_tab == TabState::Editor {
+                app.activate_selected_element();
+            }
+        },
+        KeyCode::Char('1') => {
+            if app.current_tab == TabState::Transcripts {
+                app.sort_by_column(0);
+            }
+        },
+        KeyCode::Char('2') => {
+            if app.current_tab == TabState::Transcripts {
+                app.sort_by_column(1);
+            }
+        },
+        KeyCode::Char('3') => {
+            if app.current_tab == TabState::Transcripts {
+                app.sort_by_column(2);
+            }
+        },
+        KeyCode::Char('4') => {
+            if app.current_tab == TabState::Transcripts {
+                app.sort_by_column(3);
+            }
+        },
+        KeyCode::Char('5') => {
+            if app.current_tab == TabState::Transcripts {
+                app.sort_by_column(4);
+            }
+        },
+        KeyCode::Char('6') => {
+            if app.current_tab == TabState::Transcripts {
+                app.sort_by_column(5);
+            }
+        },
+        _ => {}
+    }
+
+    Ok(None)
+}
+
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), Box<dyn Error>>
 {
     terminal.draw(|f| ui(f, app))?;
@@ -391,227 +613,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
         // }
         
         if let Event::Key(key) = event::read()? {
-            // Handle filter input mode
-            if app.filter_input_mode {
-                match key.code {
-                    KeyCode::Esc => app.filter_input_mode = false,
-                    KeyCode::Enter => app.apply_filter(),
-                    KeyCode::Backspace => app.remove_char_from_filter(),
-                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        app.clear_filter();
-                    },
-                    KeyCode::Char(c) => app.add_char_to_filter(c),
-                    _ => {}
+            if let Some(should_quit) = handle_key_event(app, key)? {
+                if should_quit {
+                    return Ok(());
                 }
-                terminal.draw(|f| ui(f, app))?;
-                continue;
-            }
-
-            // Handle search input mode
-            if app.search_input_mode {
-                match key.code {
-                    KeyCode::Esc => app.search_input_mode = false,
-                    KeyCode::Enter => app.apply_search(),
-                    KeyCode::Backspace => app.remove_char_from_search(),
-                    KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                        app.clear_search();
-                    },
-                    KeyCode::Char(c) => app.add_char_to_search(c),
-                    _ => {}
-                }
-                terminal.draw(|f| ui(f, app))?;
-                continue;
-            }
-
-            // Handle text editing mode
-            if app.current_tab == TabState::Editor && app.editor_data.as_ref().map_or(false, |data| data.text_editing_mode) {
-                match key.code {
-                    KeyCode::Esc => app.exit_text_editing(),
-                    KeyCode::Enter => app.exit_text_editing(),
-                    KeyCode::Backspace => app.remove_char_from_text(),
-                    KeyCode::Char(c) => app.add_char_to_text(c),
-                    _ => {}
-                }
-                terminal.draw(|f| ui(f, app))?;
-                continue;
-            }
-
-            match key.code {
-                KeyCode::Char('q') => return Ok(()),
-                KeyCode::Tab => app.toggle_tab(),
-                KeyCode::Char('t') => app.switch_to_transcripts(),
-                KeyCode::Char('s') => app.switch_to_system(),
-                KeyCode::Char('r') => {
-                    // Only switch to search results if we have results
-                    if !app.search_results.is_empty() {
-                        app.switch_to_search_results();
-                    }
-                },
-                KeyCode::Char('e') => {
-                    // Only switch to editor if we have editor data
-                    if app.editor_data.is_some() {
-                        app.switch_to_editor();
-                    }
-                },
-                KeyCode::Char('f') => {
-                    if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
-                        app.toggle_filter_input();
-                    }
-                },
-                KeyCode::Char('/') => {
-                    if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
-                        app.toggle_search_input();
-                    }
-                },
-                KeyCode::Char('o') => {
-                    if app.current_tab == TabState::Editor {
-                        // Open clip
-                        if let Err(e) = app.open_clip() {
-                            eprintln!("Failed to open clip: {}", e);
-                        }
-                    }
-                },
-                KeyCode::Char('[') => {
-                    if app.current_tab == TabState::Editor {
-                        app.adjust_selected_frame_time(false); // Move backward
-                    }
-                },
-                KeyCode::Char(']') => {
-                    if app.current_tab == TabState::Editor {
-                        app.adjust_selected_frame_time(true); // Move forward
-                    }
-                },
-                KeyCode::Char('+') | KeyCode::Char('=') => {
-                    if app.current_tab == TabState::Editor {
-                        app.adjust_font_size(true); // Increase font size
-                    }
-                },
-                KeyCode::Char('-') => {
-                    if app.current_tab == TabState::Editor {
-                        app.adjust_font_size(false); // Decrease font size
-                    }
-                },
-                KeyCode::Char('c') => {
-                    if (app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults) && key.modifiers.contains(KeyModifiers::CONTROL) {
-                        app.clear_filter();
-                        app.clear_search();
-                    } else if app.current_tab == TabState::SearchResults {
-                        // Open editor from selected search result
-                        if let Err(e) = app.open_editor_from_selected_match() {
-                            eprintln!("Failed to open editor: {}", e);
-                        }
-                    } else if app.current_tab == TabState::Editor {
-                        // Copy clip
-                        if let Err(e) = app.copy_clip() {
-                            eprintln!("Failed to copy clip: {}", e);
-                        }
-                    }
-                },
-                KeyCode::Down | KeyCode::Char('j') | KeyCode::Char('J') => {
-                    if app.current_tab == TabState::Transcripts {
-                        if key.code == KeyCode::Char('J') || key.modifiers.contains(KeyModifiers::SHIFT) {
-                            app.jump_to_bottom_of_page();
-                        } else {
-                            app.next();
-                        }
-                    } else if app.current_tab == TabState::System {
-                        app.system_next();
-                    } else if app.current_tab == TabState::SearchResults {
-                        app.search_next();
-                    } else if app.current_tab == TabState::Editor {
-                        app.navigate_editor_selection_up_or_down(true); // j = down
-                    }
-                },
-                KeyCode::Up | KeyCode::Char('k') | KeyCode::Char('K')=> {
-                    if app.current_tab == TabState::Transcripts {
-                        if key.code == KeyCode::Char('K') || key.modifiers.contains(KeyModifiers::SHIFT) {
-                            app.jump_to_top_of_page();
-                        } else {
-                            app.previous();
-                        }
-                    } else if app.current_tab == TabState::System {
-                        app.system_previous();
-                    } else if app.current_tab == TabState::SearchResults {
-                        app.search_previous();
-                    } else if app.current_tab == TabState::Editor {
-                        app.navigate_editor_selection_up_or_down(false); // k = up
-                    }
-                },
-                KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('H') => {
-                    if app.current_tab == TabState::Transcripts {
-                        if key.code == KeyCode::Char('H') || key.modifiers.contains(KeyModifiers::SHIFT) {
-                            app.jump_to_first_page();
-                        } else {
-                            app.prev_page();
-                        }
-                    } else if app.current_tab == TabState::Editor {
-                        app.navigate_editor_selection_left_or_right(false); // h/left = up/previous
-                    }
-                },
-                KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => {
-                    if app.current_tab == TabState::Transcripts {
-                        if key.code == KeyCode::Char('L') || key.modifiers.contains(KeyModifiers::SHIFT) {
-                            app.jump_to_last_page();
-                        } else {
-                            app.next_page();
-                        }
-                    } else if app.current_tab == TabState::Editor {
-                        app.navigate_editor_selection_left_or_right(true); // l/right = down/next
-                    }
-                },
-                KeyCode::Enter => {
-                    if app.current_tab == TabState::System {
-                        // Check if the selected service is active or stopped
-                        if app.system_selected_index < app.system_services.len() {
-                            let service = &app.system_services[app.system_selected_index];
-                            match service.status {
-                                ServiceStatus::Active => {
-                                    if let Err(e) = app.kill_selected_service() {
-                                        eprintln!("Failed to kill process: {}", e);
-                                    }
-                                }
-                                ServiceStatus::Stopped => {
-                                    if let Err(e) = app.start_selected_service() {
-                                        eprintln!("Failed to start service: {}", e);
-                                    }
-                                }
-                            }
-                        }
-                    } else if app.current_tab == TabState::Editor {
-                        app.activate_selected_element();
-                    }
-                },
-                KeyCode::Char('1') => {
-                    if app.current_tab == TabState::Transcripts {
-                        app.sort_by_column(0);
-                    }
-                },
-                KeyCode::Char('2') => {
-                    if app.current_tab == TabState::Transcripts {
-                        app.sort_by_column(1);
-                    }
-                },
-                KeyCode::Char('3') => {
-                    if app.current_tab == TabState::Transcripts {
-                        app.sort_by_column(2);
-                    }
-                },
-                KeyCode::Char('4') => {
-                    if app.current_tab == TabState::Transcripts {
-                        app.sort_by_column(3);
-                    }
-                },
-                KeyCode::Char('5') => {
-                    if app.current_tab == TabState::Transcripts {
-                        app.sort_by_column(4);
-                    }
-                },
-                KeyCode::Char('6') => {
-                    if app.current_tab == TabState::Transcripts {
-                        app.sort_by_column(5);
-                    }
-                },
-                _ => {}
             }
             terminal.draw(|f| ui(f, app))?;
         }
