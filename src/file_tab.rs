@@ -86,6 +86,14 @@ impl FileViewData {
         self.selected_line = new_line;
         self.list_state.select(Some(self.selected_line));
     }
+    
+    pub fn jump_to_line(&mut self, line_number: usize) {
+        let target_line = line_number.saturating_sub(1); // Convert 1-based to 0-based
+        if target_line < self.lines.len() {
+            self.selected_line = target_line;
+            self.list_state.select(Some(target_line));
+        }
+    }
 }
 
 pub fn render_file_view_tab(f: &mut Frame, area: Rect, app: &mut App) {

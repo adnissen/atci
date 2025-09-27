@@ -178,6 +178,28 @@ impl App {
         Ok(())
     }
 
+    pub fn open_file_view_from_selected_match(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(search_match) = self.get_selected_search_match() {
+            let video_path = search_match.video_info.full_path.clone();
+            let line_number = search_match.line_number;
+            
+            // Open file view with the video path
+            self.open_file_view(&video_path)?;
+            
+            // Jump to the specific line number
+            if let Some(file_data) = &mut self.file_view_data {
+                file_data.jump_to_line(line_number);
+            }
+            
+            // Switch to file view tab
+            self.current_tab = crate::tui::TabState::FileView;
+        } else {
+            return Err("No search result selected".into());
+        }
+
+        Ok(())
+    }
+
     fn parse_timestamp_range(&self, timestamp_line: &str) -> Option<(String, String)> {
         // Parse lines like "51: 00:01:07.220 --> 00:01:10.680" or "00:01:07.220 --> 00:01:10.680"
         

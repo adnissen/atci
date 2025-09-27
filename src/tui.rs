@@ -653,6 +653,11 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                         }
                     }
                 }
+            } else if app.current_tab == TabState::SearchResults {
+                // Open file view from selected search result
+                if let Err(e) = app.open_file_view_from_selected_match() {
+                    eprintln!("Failed to open file view: {}", e);
+                }
             } else if app.current_tab == TabState::Editor {
                 app.activate_selected_element();
             }
@@ -840,7 +845,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             } else if app.search_input_mode {
                 "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
             } else {
-                let base_controls = "↑↓/jk: Navigate  c: Open Editor  f: Filter  /: Search  Ctrl+C: Clear  t/s";
+                let base_controls = "↑↓/jk: Navigate  Enter: View File  c: Open Editor  f: Filter  /: Search  Ctrl+C: Clear  t/s";
                 let mut tab_controls = String::new();
                 tab_controls.push('r');  // Always have 'r' since we're on SearchResults tab
                 if app.editor_data.is_some() {
