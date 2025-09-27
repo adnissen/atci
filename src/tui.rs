@@ -340,10 +340,59 @@ impl App {
         }
     }
 
+    pub fn file_view_navigate_to_next_timestamp_range(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.navigate_to_next_timestamp_range();
+        }
+    }
+
+    pub fn file_view_navigate_to_previous_timestamp_range(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.navigate_to_previous_timestamp_range();
+        }
+    }
+
+    pub fn file_view_start_range_selection(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.start_range_selection();
+        }
+    }
+
+    pub fn parse_timestamp(&self, timestamp: &str) -> Option<String> {
+        // Simple validation and cleanup of timestamp format
+        // Expects format like "00:01:07.220"
+        if timestamp.matches(':').count() >= 2 && timestamp.contains('.') {
+            Some(timestamp.to_string())
+        } else {
+            None
+        }
+    }
+
     pub fn open_editor_from_file_view(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(file_data) = &self.file_view_data {
-            if let Some(timestamp_line) = file_data.get_timestamp_for_current_line() {
-                // Parse timestamp using the same logic as search results
+            // Check if we have a range selected first
+            if let Some((start_timestamp, end_timestamp)) = file_data.get_selected_range_timestamps() {
+                // Parse the range timestamps
+                if let (Some(start_time), Some(end_time)) = (
+                    self.parse_timestamp(&start_timestamp),
+                    self.parse_timestamp(&end_timestamp)
+                ) {
+                    let line_text = "Range selection".to_string(); // Could be more descriptive
+                    let video_path = file_data.video_path.clone();
+                    
+                    // Open editor with the range timestamps
+                    self.open_editor(
+                        start_time,
+                        end_time,
+                        line_text,
+                        video_path,
+                    );
+                    Ok(())
+                } else {
+                    Err("Could not parse timestamps from selected range".into())
+                }
+            } else if let Some(timestamp_line) = file_data.get_timestamp_for_current_line() {
+                // Fallback to current line timestamp if no range selected
                 if let Some((start_time, end_time)) = self.parse_timestamp_range(&timestamp_line) {
                     let line_text = file_data.get_text_for_current_line();
                     let video_path = file_data.video_path.clone();
@@ -635,9 +684,16 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_up_or_down(true); // j = down
             } else if app.current_tab == TabState::FileView {
-                if key.code == KeyCode::Char('J') || key.modifiers.contains(KeyModifiers::SHIFT) {
-                    app.file_view_jump_to_bottom();
-                    app.file_view_timestamp_mode = false;
+                if key.code == KeyCode::Char('J') || 
+                   (key.code == KeyCode::Char('j') && key.modifiers.contains(KeyModifiers::SHIFT)) ||
+                   (key.code == KeyCode::Down && key.modifiers.contains(KeyModifiers::SHIFT)) {
+                    if app.file_view_timestamp_mode {
+                        // Capital J or Shift+j or Shift+Down - range selection forward
+                        app.file_view_navigate_to_next_timestamp_range();
+                    } else {
+                        app.file_view_jump_to_bottom();
+                        app.file_view_timestamp_mode = false;
+                    }
                 } else {
                     app.file_view_navigate_down();
                     app.file_view_timestamp_mode = false;
@@ -658,9 +714,16 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_up_or_down(false); // k = up
             } else if app.current_tab == TabState::FileView {
-                if key.code == KeyCode::Char('K') || key.modifiers.contains(KeyModifiers::SHIFT) {
-                    app.file_view_jump_to_top();
-                    app.file_view_timestamp_mode = false;
+                if key.code == KeyCode::Char('K') || 
+                   (key.code == KeyCode::Char('k') && key.modifiers.contains(KeyModifiers::SHIFT)) ||
+                   (key.code == KeyCode::Up && key.modifiers.contains(KeyModifiers::SHIFT)) {
+                    if app.file_view_timestamp_mode {
+                        // Capital K or Shift+k or Shift+Up - range selection backward
+                        app.file_view_navigate_to_previous_timestamp_range();
+                    } else {
+                        app.file_view_jump_to_top();
+                        app.file_view_timestamp_mode = false;
+                    }
                 } else {
                     app.file_view_navigate_up();
                     app.file_view_timestamp_mode = false;
@@ -677,11 +740,24 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_left_or_right(false); // h/left = up/previous
             } else if app.current_tab == TabState::FileView {
-                if !app.file_view_timestamp_mode {
-                    app.file_view_navigate_to_nearest_timestamp();
-                    app.file_view_timestamp_mode = true;
+                if key.code == KeyCode::Char('H') || 
+                   (key.code == KeyCode::Char('h') && key.modifiers.contains(KeyModifiers::SHIFT)) ||
+                   (key.code == KeyCode::Left && key.modifiers.contains(KeyModifiers::SHIFT)) {
+                    if app.file_view_timestamp_mode {
+                        // Capital H or Shift+h or Shift+Left - range selection backward
+                        app.file_view_navigate_to_previous_timestamp_range();
+                    } else {
+                        // Regular H behavior when not in timestamp mode
+                        app.file_view_navigate_to_nearest_timestamp();
+                        app.file_view_timestamp_mode = true;
+                    }
                 } else {
-                    app.file_view_navigate_to_previous_timestamp();
+                    if !app.file_view_timestamp_mode {
+                        app.file_view_navigate_to_nearest_timestamp();
+                        app.file_view_timestamp_mode = true;
+                    } else {
+                        app.file_view_navigate_to_previous_timestamp();
+                    }
                 }
             }
         },
@@ -695,11 +771,24 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_left_or_right(true); // l/right = down/next
             } else if app.current_tab == TabState::FileView {
-                if !app.file_view_timestamp_mode {
-                    app.file_view_navigate_to_nearest_timestamp();
-                    app.file_view_timestamp_mode = true;
+                if key.code == KeyCode::Char('L') || 
+                   (key.code == KeyCode::Char('l') && key.modifiers.contains(KeyModifiers::SHIFT)) ||
+                   (key.code == KeyCode::Right && key.modifiers.contains(KeyModifiers::SHIFT)) {
+                    if app.file_view_timestamp_mode {
+                        // Capital L or Shift+l or Shift+Right - range selection forward
+                        app.file_view_navigate_to_next_timestamp_range();
+                    } else {
+                        // Regular L behavior when not in timestamp mode
+                        app.file_view_navigate_to_nearest_timestamp();
+                        app.file_view_timestamp_mode = true;
+                    }
                 } else {
-                    app.file_view_navigate_to_next_timestamp();
+                    if !app.file_view_timestamp_mode {
+                        app.file_view_navigate_to_nearest_timestamp();
+                        app.file_view_timestamp_mode = true;
+                    } else {
+                        app.file_view_navigate_to_next_timestamp();
+                    }
                 }
             }
         },
