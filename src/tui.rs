@@ -782,11 +782,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         TabState::System => render_system_tab(f, chunks[0], app),
         TabState::SearchResults => render_search_results_tab(f, chunks[0], app),
         TabState::Editor => render_editor_tab(f, chunks[0], app),
-        TabState::FileView => {
-            if let Some(file_data) = &mut app.file_view_data {
-                render_file_view_tab(f, chunks[0], file_data, &app.colors);
-            }
-        }
+        TabState::FileView => render_file_view_tab(f, chunks[0], app),
     }
 
     // Render filter and search sections (on transcripts and search results tabs)
