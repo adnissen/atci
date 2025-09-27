@@ -94,6 +94,32 @@ impl FileViewData {
             self.list_state.select(Some(target_line));
         }
     }
+    
+    pub fn get_timestamp_for_current_line(&self) -> Option<String> {
+        // Check if current line has timestamps
+        if let Some(current_line) = self.lines.get(self.selected_line) {
+            if is_timestamp_line(current_line) {
+                return Some(current_line.clone());
+            }
+        }
+        
+        // Check if the line above has timestamps
+        if self.selected_line > 0 {
+            if let Some(previous_line) = self.lines.get(self.selected_line - 1) {
+                if is_timestamp_line(previous_line) {
+                    return Some(previous_line.clone());
+                }
+            }
+        }
+        
+        None
+    }
+    
+    pub fn get_text_for_current_line(&self) -> String {
+        self.lines.get(self.selected_line)
+            .cloned()
+            .unwrap_or_default()
+    }
 }
 
 pub fn render_file_view_tab(f: &mut Frame, area: Rect, app: &mut App) {
@@ -173,7 +199,7 @@ pub fn render_file_view_tab(f: &mut Frame, area: Rect, app: &mut App) {
             .collect();
         
         let content_block = Block::default()
-            .title("Transcript Content (↑↓/jk: Navigate, ←→/hl: Page)")
+            .title("Transcript Content (↑↓/jk: Navigate, ←→/hl: Page, c: Open Editor)")
             .borders(Borders::ALL)
             .border_style(Style::new().fg(app.colors.footer_border_color));
         

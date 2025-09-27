@@ -200,7 +200,7 @@ impl App {
         Ok(())
     }
 
-    fn parse_timestamp_range(&self, timestamp_line: &str) -> Option<(String, String)> {
+    pub fn parse_timestamp_range(&self, timestamp_line: &str) -> Option<(String, String)> {
         // Parse lines like "51: 00:01:07.220 --> 00:01:10.680" or "00:01:07.220 --> 00:01:10.680"
         
         // First check if line contains the arrow separator

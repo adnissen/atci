@@ -319,6 +319,34 @@ impl App {
         }
     }
 
+    pub fn open_editor_from_file_view(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(file_data) = &self.file_view_data {
+            if let Some(timestamp_line) = file_data.get_timestamp_for_current_line() {
+                // Parse timestamp using the same logic as search results
+                if let Some((start_time, end_time)) = self.parse_timestamp_range(&timestamp_line) {
+                    let line_text = file_data.get_text_for_current_line();
+                    let video_path = file_data.video_path.clone();
+                    
+                    // Open editor with the timestamp information
+                    self.open_editor(
+                        start_time,
+                        end_time,
+                        line_text,
+                        video_path,
+                    );
+                    Ok(())
+                } else {
+                    Err("Could not parse timestamp from current line".into())
+                }
+            } else {
+                Err("No timestamp found for current line or line above".into())
+            }
+        } else {
+            Err("No file view data available".into())
+        }
+    }
+
+
 
     pub fn toggle_filter_input(&mut self) {
         self.filter_input_mode = !self.filter_input_mode;
@@ -564,6 +592,11 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                 // Copy clip
                 if let Err(e) = app.copy_clip() {
                     eprintln!("Failed to copy clip: {}", e);
+                }
+            } else if app.current_tab == TabState::FileView {
+                // Open editor from current line with timestamp
+                if let Err(e) = app.open_editor_from_file_view() {
+                    eprintln!("Failed to open editor: {}", e);
                 }
             }
         },
@@ -880,7 +913,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             }
         },
         TabState::FileView => {
-            let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  t/s";
+            let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  t/s";
             let mut tab_controls = String::new();
             if !app.search_results.is_empty() {
                 tab_controls.push('r');
