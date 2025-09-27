@@ -108,6 +108,7 @@ pub struct App {
     pub search_scroll_offset: usize,
     pub editor_data: Option<EditorData>,
     pub file_view_data: Option<FileViewData>,
+    pub file_view_timestamp_mode: bool,
 }
 
 #[derive(Clone)]
@@ -149,6 +150,7 @@ impl Default for App {
             search_scroll_offset: 0,
             editor_data: None,
             file_view_data: None,
+            file_view_timestamp_mode: false,
         }
     }
 }
@@ -191,6 +193,7 @@ impl App {
             search_scroll_offset: 0,
             editor_data: None,
             file_view_data: None,
+            file_view_timestamp_mode: false,
         };
 
         // Select first item if available
@@ -316,6 +319,24 @@ impl App {
         if let Some(data) = &mut self.file_view_data {
             let page_size = (self.terminal_height as usize).saturating_sub(10);
             data.page_down(page_size);
+        }
+    }
+
+    pub fn file_view_navigate_to_nearest_timestamp(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.navigate_to_nearest_timestamp();
+        }
+    }
+
+    pub fn file_view_navigate_to_next_timestamp(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.navigate_to_next_timestamp();
+        }
+    }
+
+    pub fn file_view_navigate_to_previous_timestamp(&mut self) {
+        if let Some(data) = &mut self.file_view_data {
+            data.navigate_to_previous_timestamp();
         }
     }
 
@@ -616,8 +637,10 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             } else if app.current_tab == TabState::FileView {
                 if key.code == KeyCode::Char('J') || key.modifiers.contains(KeyModifiers::SHIFT) {
                     app.file_view_jump_to_bottom();
+                    app.file_view_timestamp_mode = false;
                 } else {
                     app.file_view_navigate_down();
+                    app.file_view_timestamp_mode = false;
                 }
             }
         },
@@ -637,8 +660,10 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             } else if app.current_tab == TabState::FileView {
                 if key.code == KeyCode::Char('K') || key.modifiers.contains(KeyModifiers::SHIFT) {
                     app.file_view_jump_to_top();
+                    app.file_view_timestamp_mode = false;
                 } else {
                     app.file_view_navigate_up();
+                    app.file_view_timestamp_mode = false;
                 }
             }
         },
@@ -652,7 +677,12 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_left_or_right(false); // h/left = up/previous
             } else if app.current_tab == TabState::FileView {
-                app.file_view_page_up();
+                if !app.file_view_timestamp_mode {
+                    app.file_view_navigate_to_nearest_timestamp();
+                    app.file_view_timestamp_mode = true;
+                } else {
+                    app.file_view_navigate_to_previous_timestamp();
+                }
             }
         },
         KeyCode::Right | KeyCode::Char('l') | KeyCode::Char('L') => {
@@ -665,7 +695,12 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             } else if app.current_tab == TabState::Editor {
                 app.navigate_editor_selection_left_or_right(true); // l/right = down/next
             } else if app.current_tab == TabState::FileView {
-                app.file_view_page_down();
+                if !app.file_view_timestamp_mode {
+                    app.file_view_navigate_to_nearest_timestamp();
+                    app.file_view_timestamp_mode = true;
+                } else {
+                    app.file_view_navigate_to_next_timestamp();
+                }
             }
         },
         KeyCode::Enter => {
