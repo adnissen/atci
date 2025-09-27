@@ -370,6 +370,84 @@ mod tests {
         let range = file_data.get_selected_range_timestamps();
         assert!(range.is_some(), "should have valid range timestamps");
     }
+
+    #[test]
+    fn test_select_both_timestamps_on_current_line() {
+        let lines = vec![
+            "Some text".to_string(),
+            "00:05:25.920 --> 00:05:46.060".to_string(),
+            "More text".to_string(),
+        ];
+        
+        let mut file_data = FileViewData {
+            video_path: "test.mp4".to_string(),
+            lines,
+            selected_line: 1,  // On timestamp line
+            scroll_offset: 0,
+            list_state: ListState::default(),
+            selected_timestamp_position: None,
+            range_start: None,
+            range_end: None,
+        };
+        
+        // Should successfully select both timestamps on current line
+        let result = file_data.select_both_timestamps_on_current_line();
+        assert!(result, "Should succeed when on timestamp line");
+        
+        // Should have entered timestamp mode
+        assert_eq!(file_data.selected_timestamp_position, Some(TimestampPosition::Start));
+        
+        // Should have selected both timestamps as range
+        assert!(file_data.range_start.is_some());
+        assert!(file_data.range_end.is_some());
+        assert_eq!(file_data.range_start.as_ref().unwrap().position, TimestampPosition::Start);
+        assert_eq!(file_data.range_end.as_ref().unwrap().position, TimestampPosition::End);
+        
+        // Should be able to get range timestamps
+        let range = file_data.get_selected_range_timestamps();
+        assert!(range.is_some());
+        let (start, end) = range.unwrap();
+        assert_eq!(start, "00:05:25.920");
+        assert_eq!(end, "00:05:46.060");
+    }
+
+    #[test]
+    fn test_jump_to_next_timestamp_and_select_both() {
+        let lines = vec![
+            "Some text".to_string(),
+            "00:05:25.920 --> 00:05:46.060".to_string(),
+            "More text".to_string(),
+            "01:23:45.123 --> 01:24:00.456".to_string(),
+        ];
+        
+        let mut file_data = FileViewData {
+            video_path: "test.mp4".to_string(),
+            lines,
+            selected_line: 0,  // On non-timestamp line
+            scroll_offset: 0,
+            list_state: ListState::default(),
+            selected_timestamp_position: None,
+            range_start: None,
+            range_end: None,
+        };
+        
+        // Should jump to next timestamp line and select both
+        let result = file_data.jump_to_next_timestamp_and_select_both();
+        assert!(result, "Should succeed in jumping to next timestamp");
+        
+        // Should be on the timestamp line
+        assert_eq!(file_data.selected_line, 1);
+        
+        // Should have entered timestamp mode  
+        assert_eq!(file_data.selected_timestamp_position, Some(TimestampPosition::Start));
+        
+        // Should have selected both timestamps as range
+        let range = file_data.get_selected_range_timestamps();
+        assert!(range.is_some());
+        let (start, end) = range.unwrap();
+        assert_eq!(start, "00:05:25.920");
+        assert_eq!(end, "00:05:46.060");
+    }
 }
 
 impl FileViewData {
@@ -880,6 +958,118 @@ impl FileViewData {
         let end_timestamp = self.extract_timestamp_from_location(end)?;
         
         Some((start_timestamp, end_timestamp))
+    }
+    
+    pub fn select_both_timestamps_on_current_line(&mut self) -> bool {
+        // Check if current line has timestamps
+        if is_timestamp_line(&self.lines[self.selected_line]) {
+            // Enter timestamp mode and select both timestamps on this line
+            self.selected_timestamp_position = Some(TimestampPosition::Start);
+            self.range_start = Some(TimestampLocation {
+                line_index: self.selected_line,
+                position: TimestampPosition::Start,
+            });
+            self.range_end = Some(TimestampLocation {
+                line_index: self.selected_line,
+                position: TimestampPosition::End,
+            });
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn jump_to_next_timestamp_and_select_both(&mut self) -> bool {
+        let timestamp_lines = self.find_timestamp_lines();
+        if timestamp_lines.is_empty() {
+            return false;
+        }
+        
+        // Find the next timestamp after current line
+        let current_line = self.selected_line;
+        let next_timestamp = timestamp_lines
+            .iter()
+            .find(|&&line| line > current_line);
+        
+        if let Some(&next_line) = next_timestamp {
+            self.selected_line = next_line;
+            self.list_state.select(Some(next_line));
+            self.selected_timestamp_position = Some(TimestampPosition::Start);
+            self.range_start = Some(TimestampLocation {
+                line_index: next_line,
+                position: TimestampPosition::Start,
+            });
+            self.range_end = Some(TimestampLocation {
+                line_index: next_line,
+                position: TimestampPosition::End,
+            });
+            true
+        } else {
+            // Wrap to first timestamp
+            if let Some(&first_line) = timestamp_lines.first() {
+                self.selected_line = first_line;
+                self.list_state.select(Some(first_line));
+                self.selected_timestamp_position = Some(TimestampPosition::Start);
+                self.range_start = Some(TimestampLocation {
+                    line_index: first_line,
+                    position: TimestampPosition::Start,
+                });
+                self.range_end = Some(TimestampLocation {
+                    line_index: first_line,
+                    position: TimestampPosition::End,
+                });
+                true
+            } else {
+                false
+            }
+        }
+    }
+    
+    pub fn jump_to_previous_timestamp_and_select_both(&mut self) -> bool {
+        let timestamp_lines = self.find_timestamp_lines();
+        if timestamp_lines.is_empty() {
+            return false;
+        }
+        
+        // Find the previous timestamp before current line
+        let current_line = self.selected_line;
+        let prev_timestamp = timestamp_lines
+            .iter()
+            .rev()
+            .find(|&&line| line < current_line);
+        
+        if let Some(&prev_line) = prev_timestamp {
+            self.selected_line = prev_line;
+            self.list_state.select(Some(prev_line));
+            self.selected_timestamp_position = Some(TimestampPosition::Start);
+            self.range_start = Some(TimestampLocation {
+                line_index: prev_line,
+                position: TimestampPosition::End,
+            });
+            self.range_end = Some(TimestampLocation {
+                line_index: prev_line,
+                position: TimestampPosition::Start,
+            });
+            true
+        } else {
+            // Wrap to last timestamp
+            if let Some(&last_line) = timestamp_lines.last() {
+                self.selected_line = last_line;
+                self.list_state.select(Some(last_line));
+                self.selected_timestamp_position = Some(TimestampPosition::Start);
+                self.range_start = Some(TimestampLocation {
+                    line_index: last_line,
+                    position: TimestampPosition::End,
+                });
+                self.range_end = Some(TimestampLocation {
+                    line_index: last_line,
+                    position: TimestampPosition::Start,
+                });
+                true
+            } else {
+                false
+            }
+        }
     }
 }
 

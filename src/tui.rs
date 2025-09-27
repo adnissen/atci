@@ -358,6 +358,38 @@ impl App {
         }
     }
 
+    pub fn file_view_select_both_timestamps_on_current_line(&mut self) -> bool {
+        if let Some(data) = &mut self.file_view_data {
+            data.select_both_timestamps_on_current_line()
+        } else {
+            false
+        }
+    }
+
+    pub fn file_view_jump_to_next_timestamp_and_select_both(&mut self) -> bool {
+        if let Some(data) = &mut self.file_view_data {
+            let result = data.jump_to_next_timestamp_and_select_both();
+            if result {
+                self.file_view_timestamp_mode = true;
+            }
+            result
+        } else {
+            false
+        }
+    }
+
+    pub fn file_view_jump_to_previous_timestamp_and_select_both(&mut self) -> bool {
+        if let Some(data) = &mut self.file_view_data {
+            let result = data.jump_to_previous_timestamp_and_select_both();
+            if result {
+                self.file_view_timestamp_mode = true;
+            }
+            result
+        } else {
+            false
+        }
+    }
+
     pub fn parse_timestamp(&self, timestamp: &str) -> Option<String> {
         // Simple validation and cleanup of timestamp format
         // Expects format like "00:01:07.220"
@@ -377,7 +409,7 @@ impl App {
                     self.parse_timestamp(&start_timestamp),
                     self.parse_timestamp(&end_timestamp)
                 ) {
-                    let line_text = "Range selection".to_string(); // Could be more descriptive
+                    let line_text = "".to_string(); // Could be more descriptive
                     let video_path = file_data.video_path.clone();
                     
                     // Open editor with the range timestamps
@@ -691,8 +723,12 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                         // Capital J or Shift+j or Shift+Down - range selection forward
                         app.file_view_navigate_to_next_timestamp_range();
                     } else {
-                        app.file_view_jump_to_bottom();
-                        app.file_view_timestamp_mode = false;
+                        // When not in timestamp mode, try to select both timestamps on current line
+                        // If no timestamps on current line, jump to next timestamp line and select both
+                        if !app.file_view_select_both_timestamps_on_current_line() {
+                            app.file_view_jump_to_next_timestamp_and_select_both();
+                        }
+                        app.file_view_timestamp_mode = true;
                     }
                 } else {
                     app.file_view_navigate_down();
@@ -721,8 +757,12 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
                         // Capital K or Shift+k or Shift+Up - range selection backward
                         app.file_view_navigate_to_previous_timestamp_range();
                     } else {
-                        app.file_view_jump_to_top();
-                        app.file_view_timestamp_mode = false;
+                        // When not in timestamp mode, try to select both timestamps on current line
+                        // If no timestamps on current line, jump to previous timestamp line and select both
+                        if !app.file_view_select_both_timestamps_on_current_line() {
+                            app.file_view_jump_to_previous_timestamp_and_select_both();
+                        }
+                        app.file_view_timestamp_mode = true;
                     }
                 } else {
                     app.file_view_navigate_up();
