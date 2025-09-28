@@ -1,4 +1,4 @@
-use crate::{files, search};
+use crate::{files, search, config};
 use crate::transcripts_tab::render_transcripts_tab;
 use crate::system_tab::{render_system_tab, find_existing_pid_files, is_process_running};
 use crate::search_tab::render_search_results_tab;
@@ -84,6 +84,12 @@ pub enum TabState {
     FileView,
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub enum SystemSection {
+    Services,
+    Config,
+}
+
 pub struct App {
     pub state: TableState,
     pub colors: TableColors,
@@ -109,6 +115,11 @@ pub struct App {
     pub editor_data: Option<EditorData>,
     pub file_view_data: Option<FileViewData>,
     pub file_view_timestamp_mode: bool,
+    pub config_data: config::AtciConfig,
+    pub config_selected_field: usize,
+    pub config_editing_mode: bool,
+    pub config_input_buffer: String,
+    pub system_section: SystemSection,
 }
 
 #[derive(Clone)]
@@ -151,6 +162,11 @@ impl Default for App {
             editor_data: None,
             file_view_data: None,
             file_view_timestamp_mode: false,
+            config_data: config::load_config_or_default(),
+            config_selected_field: 0,
+            config_editing_mode: false,
+            config_input_buffer: String::new(),
+            system_section: SystemSection::Services,
         }
     }
 }
@@ -194,6 +210,11 @@ impl App {
             editor_data: None,
             file_view_data: None,
             file_view_timestamp_mode: false,
+            config_data: config::load_config_or_default(),
+            config_selected_field: 0,
+            config_editing_mode: false,
+            config_input_buffer: String::new(),
+            system_section: SystemSection::Services,
         };
 
         // Select first item if available
@@ -521,6 +542,104 @@ impl App {
             )
         }
     }
+
+    pub fn config_next_field(&mut self) {
+        let total_fields = self.get_config_field_count();
+        if self.config_selected_field < total_fields - 1 {
+            self.config_selected_field += 1;
+        }
+    }
+
+    pub fn config_previous_field(&mut self) {
+        if self.config_selected_field > 0 {
+            self.config_selected_field -= 1;
+        }
+    }
+
+    pub fn get_config_field_count(&self) -> usize {
+        11 // Total number of config fields
+    }
+
+    pub fn get_config_field_names(&self) -> Vec<&'static str> {
+        vec![
+            "ffmpeg_path",
+            "ffprobe_path", 
+            "model_name",
+            "whispercli_path",
+            "password",
+            "processing_success_command",
+            "processing_failure_command",
+            "watch_directories",
+            "allow_whisper",
+            "allow_subtitles",
+            "stream_chunk_size",
+        ]
+    }
+
+    pub fn get_config_field_value(&self, field_index: usize) -> String {
+        match field_index {
+            0 => self.config_data.ffmpeg_path.clone(),
+            1 => self.config_data.ffprobe_path.clone(),
+            2 => self.config_data.model_name.clone(),
+            3 => self.config_data.whispercli_path.clone(),
+            4 => self.config_data.password.clone().unwrap_or_default(),
+            5 => self.config_data.processing_success_command.clone(),
+            6 => self.config_data.processing_failure_command.clone(),
+            7 => self.config_data.watch_directories.join(", "),
+            8 => self.config_data.allow_whisper.to_string(),
+            9 => self.config_data.allow_subtitles.to_string(),
+            10 => self.config_data.stream_chunk_size.to_string(),
+            _ => String::new(),
+        }
+    }
+
+    pub fn start_config_editing(&mut self) {
+        self.config_editing_mode = true;
+        self.config_input_buffer = self.get_config_field_value(self.config_selected_field);
+    }
+
+    pub fn stop_config_editing(&mut self) {
+        self.config_editing_mode = false;
+        self.config_input_buffer.clear();
+    }
+
+    pub fn cancel_config_edit(&mut self) {
+        // Simply stop editing without saving changes
+        self.stop_config_editing();
+    }
+
+    pub fn apply_config_edit(&mut self) -> Result<(), String> {
+        let field_names = self.get_config_field_names();
+        if self.config_selected_field < field_names.len() {
+            let field_name = field_names[self.config_selected_field];
+            config::set_config_field(&mut self.config_data, field_name, &self.config_input_buffer)?;
+            // Automatically save config after editing
+            self.save_config()?;
+        }
+        self.stop_config_editing();
+        Ok(())
+    }
+
+    pub fn save_config(&mut self) -> Result<(), String> {
+        config::store_config(&self.config_data)
+            .map_err(|e| format!("Failed to save config: {}", e))
+    }
+
+    pub fn reload_config(&mut self) {
+        self.config_data = config::load_config_or_default();
+    }
+
+    pub fn add_char_to_config(&mut self, c: char) {
+        if self.config_editing_mode {
+            self.config_input_buffer.push(c);
+        }
+    }
+
+    pub fn remove_char_from_config(&mut self) {
+        if self.config_editing_mode {
+            self.config_input_buffer.pop();
+        }
+    }
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
@@ -594,6 +713,22 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
             KeyCode::Enter => app.exit_text_editing(),
             KeyCode::Backspace => app.remove_char_from_text(),
             KeyCode::Char(c) => app.add_char_to_text(c),
+            _ => {}
+        }
+        return Ok(None);
+    }
+
+    // Handle config editing mode
+    if app.current_tab == TabState::System && app.config_editing_mode {
+        match key.code {
+            KeyCode::Esc => app.cancel_config_edit(),
+            KeyCode::Enter => {
+                if let Err(e) = app.apply_config_edit() {
+                    eprintln!("Failed to apply config edit: {}", e);
+                }
+            },
+            KeyCode::Backspace => app.remove_char_from_config(),
+            KeyCode::Char(c) => app.add_char_to_config(c),
             _ => {}
         }
         return Ok(None);
@@ -834,20 +969,28 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
         },
         KeyCode::Enter => {
             if app.current_tab == TabState::System {
-                // Check if the selected service is active or stopped
-                if app.system_selected_index < app.system_services.len() {
-                    let service = &app.system_services[app.system_selected_index];
-                    match service.status {
-                        ServiceStatus::Active => {
-                            if let Err(e) = app.kill_selected_service() {
-                                eprintln!("Failed to kill process: {}", e);
+                match app.system_section {
+                    SystemSection::Services => {
+                        // Check if the selected service is active or stopped
+                        if app.system_selected_index < app.system_services.len() {
+                            let service = &app.system_services[app.system_selected_index];
+                            match service.status {
+                                ServiceStatus::Active => {
+                                    if let Err(e) = app.kill_selected_service() {
+                                        eprintln!("Failed to kill process: {}", e);
+                                    }
+                                }
+                                ServiceStatus::Stopped => {
+                                    if let Err(e) = app.start_selected_service() {
+                                        eprintln!("Failed to start service: {}", e);
+                                    }
+                                }
                             }
                         }
-                        ServiceStatus::Stopped => {
-                            if let Err(e) = app.start_selected_service() {
-                                eprintln!("Failed to start service: {}", e);
-                            }
-                        }
+                    }
+                    SystemSection::Config => {
+                        // Config editing mode
+                        app.start_config_editing();
                     }
                 }
             } else if app.current_tab == TabState::SearchResults {
@@ -887,6 +1030,20 @@ fn handle_key_event(app: &mut App, key: crossterm::event::KeyEvent) -> Result<Op
         KeyCode::Char('6') => {
             if app.current_tab == TabState::Transcripts {
                 app.sort_by_column(5);
+            }
+        },
+        KeyCode::Char('S') => {
+            if app.current_tab == TabState::System && key.modifiers.contains(KeyModifiers::SHIFT) {
+                // Save config
+                if let Err(e) = app.save_config() {
+                    eprintln!("Failed to save config: {}", e);
+                }
+            }
+        },
+        KeyCode::Char('R') => {
+            if app.current_tab == TabState::System && key.modifiers.contains(KeyModifiers::SHIFT) {
+                // Reload config
+                app.reload_config();
             }
         },
         _ => {}
@@ -1019,21 +1176,29 @@ fn ui(f: &mut Frame, app: &mut App) {
             }
         },
         TabState::System => {
-            let base_controls = "↑↓/jk: Navigate  Enter: Start/Kill Process  t/s";
-            let mut tab_controls = String::new();
-            if !app.search_results.is_empty() {
-                tab_controls.push('r');
-            }
-            if app.editor_data.is_some() {
-                if !tab_controls.is_empty() {
-                    tab_controls.push('/');
-                }
-                tab_controls.push('e');
-            }
-            if !tab_controls.is_empty() {
-                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+            if app.config_editing_mode {
+                "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
             } else {
-                format!("{}/Tab: Switch  q: Quit", base_controls)
+                let section_info = match app.system_section {
+                    SystemSection::Services => "Services: Enter: Start/Kill",
+                    SystemSection::Config => "Config: Enter: Edit",
+                };
+                let base_controls = format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s", section_info);
+                let mut tab_controls = String::new();
+                if !app.search_results.is_empty() {
+                    tab_controls.push('r');
+                }
+                if app.editor_data.is_some() {
+                    if !tab_controls.is_empty() {
+                        tab_controls.push('/');
+                    }
+                    tab_controls.push('e');
+                }
+                if !tab_controls.is_empty() {
+                    format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+                } else {
+                    format!("{}/Tab: Switch  q: Quit", base_controls)
+                }
             }
         },
         TabState::SearchResults => {

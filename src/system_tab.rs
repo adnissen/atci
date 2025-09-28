@@ -5,18 +5,44 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::Frame;
 use std::{error::Error, fs, time::Duration};
 
-use crate::tui::{App, SystemService, ServiceStatus, create_tab_title_with_editor};
+use crate::tui::{App, SystemService, ServiceStatus, SystemSection, create_tab_title_with_editor};
 
 impl App {
     pub fn system_next(&mut self) {
-        if !self.system_services.is_empty() && self.system_selected_index < self.system_services.len() - 1 {
-            self.system_selected_index += 1;
+        match self.system_section {
+            SystemSection::Services => {
+                if !self.system_services.is_empty() && self.system_selected_index < self.system_services.len() - 1 {
+                    self.system_selected_index += 1;
+                } else {
+                    // Move to config section
+                    self.system_section = SystemSection::Config;
+                    self.config_selected_field = 0;
+                }
+            }
+            SystemSection::Config => {
+                self.config_next_field();
+            }
         }
     }
 
     pub fn system_previous(&mut self) {
-        if self.system_selected_index > 0 {
-            self.system_selected_index -= 1;
+        match self.system_section {
+            SystemSection::Services => {
+                if self.system_selected_index > 0 {
+                    self.system_selected_index -= 1;
+                }
+            }
+            SystemSection::Config => {
+                if self.config_selected_field > 0 {
+                    self.config_previous_field();
+                } else {
+                    // Move back to services section
+                    self.system_section = SystemSection::Services;
+                    if !self.system_services.is_empty() {
+                        self.system_selected_index = self.system_services.len() - 1;
+                    }
+                }
+            }
         }
     }
 
@@ -232,8 +258,8 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
-            Constraint::Min(5),     // Services section (expandable)
-            Constraint::Length(3),  // Additional info section
+            Constraint::Length(8),  // Services section (smaller)
+            Constraint::Min(10),    // Config section (expandable)
         ].as_ref())
         .split(area);
 
@@ -247,25 +273,51 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
 
     // Services section inside the main block
     let services_content = render_services_list(app);
+    let services_title = if app.system_section == SystemSection::Services {
+        "Services (↑↓/jk: Navigate, Enter: Start/Kill) [ACTIVE]"
+    } else {
+        "Services (↑↓/jk: Navigate, Enter: Start/Kill)"
+    };
+    let services_border_color = if app.system_section == SystemSection::Services {
+        ratatui::style::Color::Yellow
+    } else {
+        app.colors.footer_border_color
+    };
     let services_paragraph = Paragraph::new(services_content)
         .block(
             Block::default()
-                .title("Services (↑↓/jk: Navigate, Enter: Start/Kill)")
+                .title(services_title)
                 .borders(Borders::ALL)
-                .border_style(Style::new().fg(app.colors.footer_border_color))
+                .border_style(Style::new().fg(services_border_color))
         )
         .style(Style::new().fg(app.colors.row_fg))
         .alignment(Alignment::Left);
 
     f.render_widget(services_paragraph, main_chunks[0]);
 
-    // Additional content area
-    let additional_content = "Additional system information will be displayed here.";
-    let additional_paragraph = Paragraph::new(additional_content)
+    // Config editing section
+    let config_content = render_config_section(app);
+    let config_title = if app.system_section == SystemSection::Config {
+        "Configuration (↑↓/jk: Navigate, Enter: Edit, Auto-save, Shift+R: Reload) [ACTIVE]"
+    } else {
+        "Configuration (↑↓/jk: Navigate, Enter: Edit, Auto-save, Shift+R: Reload)"
+    };
+    let config_border_color = if app.system_section == SystemSection::Config {
+        ratatui::style::Color::Yellow
+    } else {
+        app.colors.footer_border_color
+    };
+    let config_paragraph = Paragraph::new(config_content)
+        .block(
+            Block::default()
+                .title(config_title)
+                .borders(Borders::ALL)
+                .border_style(Style::new().fg(config_border_color))
+        )
         .style(Style::new().fg(app.colors.row_fg))
-        .alignment(Alignment::Center);
+        .alignment(Alignment::Left);
 
-    f.render_widget(additional_paragraph, main_chunks[1]);
+    f.render_widget(config_paragraph, main_chunks[1]);
 }
 
 fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
@@ -275,7 +327,7 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
     let mut lines = Vec::new();
 
     for (index, service) in app.system_services.iter().enumerate() {
-        let is_selected = index == app.system_selected_index;
+        let is_selected = index == app.system_selected_index && app.system_section == SystemSection::Services;
         
         let mut spans = Vec::new();
         
@@ -326,6 +378,72 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
     if lines.is_empty() {
         lines.push(Line::from(vec![
             Span::styled("No services found", Style::default().fg(Color::Gray))
+        ]));
+    }
+
+    Text::from(lines)
+}
+
+fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
+    use ratatui::text::{Line, Span, Text};
+    use ratatui::style::{Color, Style};
+
+    let mut lines = Vec::new();
+    let field_names = app.get_config_field_names();
+
+    for (index, field_name) in field_names.iter().enumerate() {
+        let is_selected = index == app.config_selected_field && app.system_section == SystemSection::Config;
+        let mut spans = Vec::new();
+
+        // Add selection indicator
+        if is_selected {
+            spans.push(Span::styled("► ", Style::default().fg(Color::Yellow)));
+        } else {
+            spans.push(Span::raw("  "));
+        }
+
+        // Field name
+        let field_display_name = field_name.replace("_", " ");
+        spans.push(Span::styled(
+            format!("{}: ", field_display_name),
+            Style::default().fg(Color::Cyan)
+        ));
+
+        // Field value
+        let field_value = if app.config_editing_mode && is_selected {
+            app.config_input_buffer.clone()
+        } else {
+            app.get_config_field_value(index)
+        };
+
+        let value_style = if app.config_editing_mode && is_selected {
+            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+        } else if is_selected {
+            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::Gray)
+        };
+
+        // Truncate long values for display
+        let display_value = if field_value.len() > 60 {
+            format!("{}...", &field_value[..57])
+        } else {
+            field_value
+        };
+
+        spans.push(Span::styled(display_value, value_style));
+
+        // Show editing indicator
+        if app.config_editing_mode && is_selected {
+            spans.push(Span::styled(" [EDITING]", Style::default().fg(Color::Green)));
+        }
+
+        lines.push(Line::from(spans));
+    }
+
+    if lines.is_empty() {
+        lines.push(Line::from(vec![
+            Span::styled("No config fields found", Style::default().fg(Color::Gray))
         ]));
     }
 
