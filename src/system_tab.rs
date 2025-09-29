@@ -1,17 +1,19 @@
 use crate::config;
-use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::style::{Style, Modifier};
-use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::Frame;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::style::{Modifier, Style};
+use ratatui::widgets::{Block, Borders, Paragraph};
 use std::{error::Error, fs};
 
-use crate::tui::{App, SystemService, ServiceStatus, SystemSection, create_tab_title_with_editor};
+use crate::tui::{App, ServiceStatus, SystemSection, SystemService, create_tab_title_with_editor};
 
 impl App {
     pub fn system_next(&mut self) {
         match self.system_section {
             SystemSection::Services => {
-                if !self.system_services.is_empty() && self.system_selected_index < self.system_services.len() - 1 {
+                if !self.system_services.is_empty()
+                    && self.system_selected_index < self.system_services.len() - 1
+                {
                     self.system_selected_index += 1;
                 } else {
                     // Move to config section
@@ -49,7 +51,9 @@ impl App {
     pub fn refresh_system_services(&mut self) {
         self.system_services = get_system_services();
         // Ensure selection is within bounds
-        if self.system_selected_index >= self.system_services.len() && !self.system_services.is_empty() {
+        if self.system_selected_index >= self.system_services.len()
+            && !self.system_services.is_empty()
+        {
             self.system_selected_index = self.system_services.len() - 1;
         }
         self.last_system_refresh = std::time::Instant::now();
@@ -160,7 +164,8 @@ pub fn get_system_services() -> Vec<SystemService> {
 
     match find_existing_pid_files() {
         Ok(pids) => {
-            let running_pids: Vec<u32> = pids.into_iter()
+            let running_pids: Vec<u32> = pids
+                .into_iter()
                 .filter(|&pid| is_process_running(pid))
                 .collect();
 
@@ -194,13 +199,15 @@ fn kill_process(pid: u32) -> Result<(), Box<dyn Error>> {
     #[cfg(unix)]
     {
         use std::process::Command;
-        let output = Command::new("kill")
-            .arg(pid.to_string())
-            .output()?;
+        let output = Command::new("kill").arg(pid.to_string()).output()?;
 
         if !output.status.success() {
-            return Err(format!("Failed to kill process {}: {}", pid, 
-                String::from_utf8_lossy(&output.stderr)).into());
+            return Err(format!(
+                "Failed to kill process {}: {}",
+                pid,
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
         }
     }
 
@@ -214,8 +221,12 @@ fn kill_process(pid: u32) -> Result<(), Box<dyn Error>> {
             .output()?;
 
         if !output.status.success() {
-            return Err(format!("Failed to kill process {}: {}", pid,
-                String::from_utf8_lossy(&output.stderr)).into());
+            return Err(format!(
+                "Failed to kill process {}: {}",
+                pid,
+                String::from_utf8_lossy(&output.stderr)
+            )
+            .into());
         }
     }
 
@@ -225,16 +236,16 @@ fn kill_process(pid: u32) -> Result<(), Box<dyn Error>> {
 fn delete_pid_file(pid: u32) -> Result<(), Box<dyn Error>> {
     let atci_dir = get_atci_dir()?;
     let config_sha = config::get_config_path_sha();
-    
+
     // Construct the expected PID file name
     let pid_file_name = format!("atci.{}.{}.pid", config_sha, pid);
     let pid_file_path = atci_dir.join(pid_file_name);
-    
+
     // Only try to delete if the file exists
     if pid_file_path.exists() {
         fs::remove_file(pid_file_path)?;
     }
-    
+
     Ok(())
 }
 
@@ -251,16 +262,25 @@ fn start_watcher_process() -> Result<(), Box<dyn Error>> {
 }
 
 pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some(), app.file_view_data.is_some());
+    let title = create_tab_title_with_editor(
+        app.current_tab,
+        &app.colors,
+        !app.search_results.is_empty(),
+        app.editor_data.is_some(),
+        app.file_view_data.is_some(),
+    );
 
     // Split the main content area into sections
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([
-            Constraint::Length(8),  // Services section (smaller)
-            Constraint::Min(10),    // Config section (expandable)
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Length(8), // Services section (smaller)
+                Constraint::Min(10),   // Config section (expandable)
+            ]
+            .as_ref(),
+        )
         .split(area);
 
     // Create main block with tab title
@@ -288,7 +308,7 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
             Block::default()
                 .title(services_title)
                 .borders(Borders::ALL)
-                .border_style(Style::new().fg(services_border_color))
+                .border_style(Style::new().fg(services_border_color)),
         )
         .style(Style::new().fg(app.colors.row_fg))
         .alignment(Alignment::Left);
@@ -312,7 +332,7 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
             Block::default()
                 .title(config_title)
                 .borders(Borders::ALL)
-                .border_style(Style::new().fg(config_border_color))
+                .border_style(Style::new().fg(config_border_color)),
         )
         .style(Style::new().fg(app.colors.row_fg))
         .alignment(Alignment::Left);
@@ -321,78 +341,91 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
 }
 
 fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
-    use ratatui::text::{Line, Span, Text};
     use ratatui::style::{Color, Style};
+    use ratatui::text::{Line, Span, Text};
 
     let mut lines = Vec::new();
 
     for (index, service) in app.system_services.iter().enumerate() {
-        let is_selected = index == app.system_selected_index && app.system_section == SystemSection::Services;
-        
+        let is_selected =
+            index == app.system_selected_index && app.system_section == SystemSection::Services;
+
         let mut spans = Vec::new();
-        
+
         // Add selection indicator
         if is_selected {
             spans.push(Span::styled("► ", Style::default().fg(Color::Yellow)));
         } else {
             spans.push(Span::raw("  "));
         }
-        
+
         // Service name
         spans.push(Span::raw(format!("{}: ", service.name)));
-        
+
         // Status and PIDs
         match service.status {
             ServiceStatus::Active => {
                 spans.push(Span::styled("active", Style::default().fg(Color::Green)));
                 if !service.pids.is_empty() {
-                    let pid_list = service.pids.iter()
+                    let pid_list = service
+                        .pids
+                        .iter()
                         .map(|pid| pid.to_string())
                         .collect::<Vec<_>>()
                         .join(", ");
                     spans.push(Span::raw(" (PID: "));
                     spans.push(Span::styled(pid_list, Style::default().fg(Color::Cyan)));
                     spans.push(Span::raw(")"));
-                    
+
                     // Show kill option if selected
                     if is_selected {
                         spans.push(Span::raw(" "));
-                        spans.push(Span::styled("← [KILL]", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
+                        spans.push(Span::styled(
+                            "← [KILL]",
+                            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                        ));
                     }
                 }
             }
             ServiceStatus::Stopped => {
                 spans.push(Span::styled("stopped", Style::default().fg(Color::Red)));
-                
+
                 // Show start option if selected
                 if is_selected {
                     spans.push(Span::raw(" "));
-                    spans.push(Span::styled("← [START]", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)));
+                    spans.push(Span::styled(
+                        "← [START]",
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD),
+                    ));
                 }
             }
         }
-        
+
         lines.push(Line::from(spans));
     }
 
     if lines.is_empty() {
-        lines.push(Line::from(vec![
-            Span::styled("No services found", Style::default().fg(Color::Gray))
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "No services found",
+            Style::default().fg(Color::Gray),
+        )]));
     }
 
     Text::from(lines)
 }
 
 fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
-    use ratatui::text::{Line, Span, Text};
     use ratatui::style::{Color, Style};
+    use ratatui::text::{Line, Span, Text};
 
     let mut lines = Vec::new();
     let field_names = app.get_config_field_names();
 
     for (index, field_name) in field_names.iter().enumerate() {
-        let is_selected = index == app.config_selected_field && app.system_section == SystemSection::Config;
+        let is_selected =
+            index == app.config_selected_field && app.system_section == SystemSection::Config;
         let mut spans = Vec::new();
 
         // Add selection indicator
@@ -406,7 +439,7 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
         let field_display_name = field_name.replace("_", " ");
         spans.push(Span::styled(
             format!("{}: ", field_display_name),
-            Style::default().fg(Color::Cyan)
+            Style::default().fg(Color::Cyan),
         ));
 
         // Field value
@@ -417,9 +450,13 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
         };
 
         let value_style = if app.config_editing_mode && is_selected {
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD)
         } else if is_selected {
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(Color::Gray)
         };
@@ -435,16 +472,20 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
 
         // Show editing indicator
         if app.config_editing_mode && is_selected {
-            spans.push(Span::styled(" [EDITING]", Style::default().fg(Color::Green)));
+            spans.push(Span::styled(
+                " [EDITING]",
+                Style::default().fg(Color::Green),
+            ));
         }
 
         lines.push(Line::from(spans));
     }
 
     if lines.is_empty() {
-        lines.push(Line::from(vec![
-            Span::styled("No config fields found", Style::default().fg(Color::Gray))
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "No config fields found",
+            Style::default().fg(Color::Gray),
+        )]));
     }
 
     Text::from(lines)

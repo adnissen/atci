@@ -27,19 +27,19 @@ mod auth;
 mod clipper;
 mod config;
 mod db;
+mod editor_tab;
+mod file_tab;
 mod files;
 mod metadata;
 mod model_manager;
 mod queue;
 mod search;
+mod search_tab;
+mod system_tab;
 mod tools_manager;
 mod transcripts;
-mod tui;
 mod transcripts_tab;
-mod system_tab;
-mod search_tab;
-mod editor_tab;
-mod file_tab;
+mod tui;
 mod video_parts;
 mod video_processor;
 mod web;
@@ -233,7 +233,10 @@ enum SupercutCommands {
         )]
         file_only: bool,
     },
-    #[command(alias = "i", about = "Create a supercut from a JSON input file or stdin")]
+    #[command(
+        alias = "i",
+        about = "Create a supercut from a JSON input file or stdin"
+    )]
     FromFile {
         #[arg(help = "Path to JSON file (omit or use '-' to read from stdin)")]
         path: Option<String>,
@@ -1333,8 +1336,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
 
-            let output_path =
-                clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size, Some(360))?;
+            let output_path = clipper::grab_frame(
+                Path::new(&path),
+                &time,
+                text.as_deref(),
+                font_size,
+                Some(360),
+            )?;
             println!("{}", output_path.display());
         }
         Some(Commands::Tools { tools_command }) => match tools_command {
@@ -1593,17 +1601,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 let mut output = serde_json::json!({
                                     "supercut_path": supercut_path
                                 });
-                                if show_file {
-                                    if let Some(data) = clip_data {
-                                        output["clip_data"] = data;
-                                    }
+                                if show_file && let Some(data) = clip_data {
+                                    output["clip_data"] = data;
                                 }
                                 println!("{}", serde_json::to_string_pretty(&output)?);
                             } else {
-                                if show_file {
-                                    if let Some(data) = clip_data {
-                                        println!("JSON:{}", serde_json::to_string_pretty(&data)?);
-                                    }
+                                if show_file && let Some(data) = clip_data {
+                                    println!("JSON:{}", serde_json::to_string_pretty(&data)?);
                                 }
                                 println!("supercut path: {}", supercut_path);
                             }

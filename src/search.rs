@@ -320,15 +320,15 @@ pub fn get_supercut_clip_data(
     for result in results {
         for search_match in result.matches {
             // Extract start and end times from timestamp if available
-            if let Some(timestamp) = &search_match.timestamp {
-                if let Some((start_time, end_time)) = parse_timestamp_range(timestamp) {
-                    clip_data.push(SupercutClipData {
-                        file_path: search_match.video_info.full_path.clone(),
-                        start_time,
-                        end_time,
-                        text: search_match.line_text.clone(),
-                    });
-                }
+            if let Some(timestamp) = &search_match.timestamp
+                && let Some((start_time, end_time)) = parse_timestamp_range(timestamp)
+            {
+                clip_data.push(SupercutClipData {
+                    file_path: search_match.video_info.full_path.clone(),
+                    start_time,
+                    end_time,
+                    text: search_match.line_text.clone(),
+                });
             }
         }
     }
@@ -362,15 +362,15 @@ pub fn search_and_supercut(
                 clip_paths.push(PathBuf::from(clip_path));
 
                 // Extract start and end times from timestamp if available
-                if let Some(timestamp) = &search_match.timestamp {
-                    if let Some((start_time, end_time)) = parse_timestamp_range(timestamp) {
-                        clip_data.push(SupercutClipData {
-                            file_path: search_match.video_info.full_path.clone(),
-                            start_time,
-                            end_time,
-                            text: search_match.line_text.clone(),
-                        });
-                    }
+                if let Some(timestamp) = &search_match.timestamp
+                    && let Some((start_time, end_time)) = parse_timestamp_range(timestamp)
+                {
+                    clip_data.push(SupercutClipData {
+                        file_path: search_match.video_info.full_path.clone(),
+                        start_time,
+                        end_time,
+                        text: search_match.line_text.clone(),
+                    });
                 }
             }
         }
@@ -392,9 +392,7 @@ pub fn search_and_supercut(
     Ok((supercut_path.to_string_lossy().to_string(), clip_data_json))
 }
 
-pub fn supercut_from_input(
-    input_path: &str,
-) -> Result<String, Box<dyn std::error::Error>> {
+pub fn supercut_from_input(input_path: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Read input from file or stdin
     let json_content = if input_path == "-" {
         let mut buffer = String::new();

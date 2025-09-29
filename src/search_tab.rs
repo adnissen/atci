@@ -1,8 +1,8 @@
 use crate::search;
-use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::style::{Style, Modifier};
-use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::Frame;
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::style::{Modifier, Style};
+use ratatui::widgets::{Block, Borders, Paragraph};
 
 use crate::tui::{App, TabState, create_tab_title_with_editor};
 
@@ -45,13 +45,18 @@ impl App {
     pub fn perform_search(&mut self) {
         // Perform actual search functionality
         if !self.search_input.is_empty() {
-            match search::search(&self.search_input, self.get_filter_option().as_ref(), false, false) {
+            match search::search(
+                &self.search_input,
+                self.get_filter_option().as_ref(),
+                false,
+                false,
+            ) {
                 Ok(results) => {
                     self.search_results = results;
                     self.search_selected_index = 0;
                     self.search_scroll_offset = 0;
                     self.last_search_query = self.search_input.clone();
-                    
+
                     // Switch to search results tab (only if we're not already there)
                     if self.current_tab != TabState::SearchResults {
                         self.current_tab = TabState::SearchResults;
@@ -92,11 +97,11 @@ impl App {
     fn update_search_scroll(&mut self) {
         // Calculate the line position of the currently selected match
         let selected_line = self.get_selected_match_line_position();
-        
+
         // Assume we have about 10 visible lines in the search results area
         // (this will be adjusted based on actual terminal height)
         let visible_lines = self.get_search_visible_lines();
-        
+
         // Scroll up if selection is above visible area
         if selected_line < self.search_scroll_offset {
             self.search_scroll_offset = selected_line;
@@ -182,15 +187,15 @@ impl App {
         if let Some(search_match) = self.get_selected_search_match() {
             let video_path = search_match.video_info.full_path.clone();
             let line_number = search_match.line_number;
-            
+
             // Open file view with the video path
             self.open_file_view(&video_path)?;
-            
+
             // Jump to the specific line number
             if let Some(file_data) = &mut self.file_view_data {
                 file_data.jump_to_line(line_number);
             }
-            
+
             // Switch to file view tab
             self.current_tab = crate::tui::TabState::FileView;
         } else {
@@ -202,7 +207,7 @@ impl App {
 
     pub fn parse_timestamp_range(&self, timestamp_line: &str) -> Option<(String, String)> {
         // Parse lines like "51: 00:01:07.220 --> 00:01:10.680" or "00:01:07.220 --> 00:01:10.680"
-        
+
         // First check if line contains the arrow separator
         if let Some(_arrow_pos) = timestamp_line.find(" --> ") {
             // Check if it has a number prefix (subtitle format): "51: 00:01:07.220 --> 00:01:10.680"
@@ -222,20 +227,28 @@ impl App {
         }
         None
     }
-
 }
 
 pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some(), app.file_view_data.is_some());
+    let title = create_tab_title_with_editor(
+        app.current_tab,
+        &app.colors,
+        !app.search_results.is_empty(),
+        app.editor_data.is_some(),
+        app.file_view_data.is_some(),
+    );
 
     // Split the main content area into sections
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([
-            Constraint::Length(3),  // Search query info
-            Constraint::Min(5),     // Results section (expandable)
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Length(3), // Search query info
+                Constraint::Min(5),    // Results section (expandable)
+            ]
+            .as_ref(),
+        )
         .split(area);
 
     // Create main block with tab title
@@ -255,10 +268,12 @@ pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app
         }
     } else {
         let total_matches: usize = app.search_results.iter().map(|r| r.matches.len()).sum();
-        format!("Search: '{}' - {} matches in {} files", 
-                app.last_search_query, 
-                total_matches, 
-                app.search_results.len())
+        format!(
+            "Search: '{}' - {} matches in {} files",
+            app.last_search_query,
+            total_matches,
+            app.search_results.len()
+        )
     };
 
     let query_paragraph = Paragraph::new(query_info)
@@ -266,7 +281,7 @@ pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app
             Block::default()
                 .title("Search Query")
                 .borders(Borders::ALL)
-                .border_style(Style::new().fg(app.colors.footer_border_color))
+                .border_style(Style::new().fg(app.colors.footer_border_color)),
         )
         .style(Style::new().fg(app.colors.row_fg))
         .alignment(Alignment::Center);
@@ -281,7 +296,7 @@ pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app
                 Block::default()
                     .title("Results (↑↓/jk: Navigate)")
                     .borders(Borders::ALL)
-                    .border_style(Style::new().fg(app.colors.footer_border_color))
+                    .border_style(Style::new().fg(app.colors.footer_border_color)),
             )
             .style(Style::new().fg(app.colors.row_fg))
             .alignment(Alignment::Left)
@@ -301,58 +316,60 @@ pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app
 }
 
 fn render_search_results_list(app: &App) -> ratatui::text::Text<'static> {
-    use ratatui::text::{Line, Span, Text};
     use ratatui::style::{Color, Style};
+    use ratatui::text::{Line, Span, Text};
 
     let mut lines = Vec::new();
     let mut current_match_index = 0;
 
     for result in &app.search_results {
         // File header
-        lines.push(Line::from(vec![
-            Span::styled(
-                format!("📁 {}", result.file_path),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-            )
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            format!("📁 {}", result.file_path),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]));
 
         for search_match in &result.matches {
             let is_selected = current_match_index == app.search_selected_index;
-            
+
             let mut spans = Vec::new();
-            
+
             // Add selection indicator
             if is_selected {
                 spans.push(Span::styled("► ", Style::default().fg(Color::Yellow)));
             } else {
                 spans.push(Span::raw("  "));
             }
-            
+
             // Line number
             spans.push(Span::styled(
                 format!("L{}: ", search_match.line_number),
-                Style::default().fg(Color::Gray)
+                Style::default().fg(Color::Gray),
             ));
-            
+
             // Timestamp if available
             if let Some(timestamp) = &search_match.timestamp {
                 spans.push(Span::styled(
                     format!("[{}] ", timestamp.trim()),
-                    Style::default().fg(Color::Green)
+                    Style::default().fg(Color::Green),
                 ));
             }
-            
+
             // Match text (highlight the search term if possible)
             let line_text = &search_match.line_text;
             if is_selected {
                 spans.push(Span::styled(
                     line_text.clone(),
-                    Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
                 ));
             } else {
                 spans.push(Span::raw(line_text.clone()));
             }
-            
+
             lines.push(Line::from(spans));
             current_match_index += 1;
         }
@@ -362,9 +379,10 @@ fn render_search_results_list(app: &App) -> ratatui::text::Text<'static> {
     }
 
     if lines.is_empty() {
-        lines.push(Line::from(vec![
-            Span::styled("No search results", Style::default().fg(Color::Gray))
-        ]));
+        lines.push(Line::from(vec![Span::styled(
+            "No search results",
+            Style::default().fg(Color::Gray),
+        )]));
     }
 
     Text::from(lines)

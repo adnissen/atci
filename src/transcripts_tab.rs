@@ -1,8 +1,8 @@
 use crate::files;
-use ratatui::widgets::{Cell, Row, Table, Block, Borders};
-use ratatui::style::{Style, Stylize};
-use ratatui::layout::Constraint;
 use ratatui::Frame;
+use ratatui::layout::Constraint;
+use ratatui::style::{Style, Stylize};
+use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 use std::error::Error;
 
 use crate::tui::{App, SortOrder, create_tab_title_with_editor};
@@ -92,10 +92,10 @@ impl App {
 
         let cache_data = files::load_sorted_paginated_cache_data(
             self.get_filter_option().as_ref(), // filter
-            0,           // page (reset to first page when sorting)
-            page_size,   // limit
-            sort_by,     // sort column
-            sort_order,  // sort order
+            0,                                 // page (reset to first page when sorting)
+            page_size,                         // limit
+            sort_by,                           // sort column
+            sort_order,                        // sort order
         )?;
 
         self.video_data = cache_data.files;
@@ -196,10 +196,10 @@ impl App {
 
         let cache_data = files::load_sorted_paginated_cache_data(
             self.get_filter_option().as_ref(), // filter
-            page,        // specific page
-            page_size,   // limit
-            sort_by,     // sort column
-            sort_order,  // sort order
+            page,                              // specific page
+            page_size,                         // limit
+            sort_by,                           // sort column
+            sort_order,                        // sort order
         )?;
 
         self.video_data = cache_data.files;
@@ -317,9 +317,28 @@ impl App {
     }
 }
 
-pub fn render_transcripts_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App, header_style: Style, selected_row_style: Style) {
-    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some(), app.file_view_data.is_some());
-    let headers = ["Filename", "Created At", "Generated At", "Lines", "Length", "Source"];
+pub fn render_transcripts_tab(
+    f: &mut Frame,
+    area: ratatui::layout::Rect,
+    app: &mut App,
+    header_style: Style,
+    selected_row_style: Style,
+) {
+    let title = create_tab_title_with_editor(
+        app.current_tab,
+        &app.colors,
+        !app.search_results.is_empty(),
+        app.editor_data.is_some(),
+        app.file_view_data.is_some(),
+    );
+    let headers = [
+        "Filename",
+        "Created At",
+        "Generated At",
+        "Lines",
+        "Length",
+        "Source",
+    ];
     let header_cells: Vec<Cell> = headers
         .iter()
         .enumerate()
@@ -327,55 +346,74 @@ pub fn render_transcripts_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &
             let mut content = format!("{} ({})", title, i + 1);
 
             // Add sort indicator if this column is being sorted
-            if let Some(sort_col) = app.sort_column {
-                if sort_col == i {
-                    let indicator = match app.sort_order {
-                        SortOrder::Ascending => " ↑",
-                        SortOrder::Descending => " ↓",
-                    };
-                    content.push_str(indicator);
-                }
+            if let Some(sort_col) = app.sort_column
+                && sort_col == i
+            {
+                let indicator = match app.sort_order {
+                    SortOrder::Ascending => " ↑",
+                    SortOrder::Descending => " ↓",
+                };
+                content.push_str(indicator);
             }
 
             Cell::from(content)
         })
         .collect();
 
-    let header = Row::new(header_cells)
-        .style(header_style)
-        .height(1);
+    let header = Row::new(header_cells).style(header_style).height(1);
 
     let rows = if app.video_data.is_empty() {
         // Show empty state
-        vec![Row::new(vec![
-            Cell::from("No video files found"),
-            Cell::from(""),
-            Cell::from(""),
-            Cell::from(""),
-            Cell::from(""),
-            Cell::from(""),
-        ]).style(Style::new().fg(app.colors.row_fg).bg(app.colors.normal_row_color))]
-    } else {
-        app.video_data.iter().enumerate().map(|(i, video)| {
-            let color = match i % 2 {
-                0 => app.colors.normal_row_color,
-                _ => app.colors.alt_row_color,
-            };
-
-            // Format the data to match our table columns and create Row directly
+        vec![
             Row::new(vec![
-                Cell::from(video.base_name.as_str()),
-                Cell::from(video.created_at.split(' ').next().unwrap_or(&video.created_at)),
-                Cell::from(video.last_generated.as_ref()
-                    .map(|dt| dt.split(' ').next().unwrap_or(dt))
-                    .unwrap_or("-")),
-                Cell::from(video.line_count.to_string()),
-                Cell::from(video.length.as_deref().unwrap_or("-")),
-                Cell::from(video.source.as_deref().unwrap_or("-")),
+                Cell::from("No video files found"),
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(""),
             ])
-            .style(Style::new().fg(app.colors.row_fg).bg(color))
-            .height(1)
-        }).collect()
+            .style(
+                Style::new()
+                    .fg(app.colors.row_fg)
+                    .bg(app.colors.normal_row_color),
+            ),
+        ]
+    } else {
+        app.video_data
+            .iter()
+            .enumerate()
+            .map(|(i, video)| {
+                let color = match i % 2 {
+                    0 => app.colors.normal_row_color,
+                    _ => app.colors.alt_row_color,
+                };
+
+                // Format the data to match our table columns and create Row directly
+                Row::new(vec![
+                    Cell::from(video.base_name.as_str()),
+                    Cell::from(
+                        video
+                            .created_at
+                            .split(' ')
+                            .next()
+                            .unwrap_or(&video.created_at),
+                    ),
+                    Cell::from(
+                        video
+                            .last_generated
+                            .as_ref()
+                            .map(|dt| dt.split(' ').next().unwrap_or(dt))
+                            .unwrap_or("-"),
+                    ),
+                    Cell::from(video.line_count.to_string()),
+                    Cell::from(video.length.as_deref().unwrap_or("-")),
+                    Cell::from(video.source.as_deref().unwrap_or("-")),
+                ])
+                .style(Style::new().fg(app.colors.row_fg).bg(color))
+                .height(1)
+            })
+            .collect()
     };
 
     let t = Table::new(
@@ -387,16 +425,16 @@ pub fn render_transcripts_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &
             Constraint::Percentage(10), // Lines
             Constraint::Percentage(10), // Length
             Constraint::Percentage(25), // Source
-        ]
+        ],
     )
-        .header(header)
-        .bg(app.colors.buffer_bg)
-        .row_highlight_style(selected_row_style)
-        .block(
-            Block::default()
-                .title(title)
-                .borders(Borders::ALL)
-                .border_style(Style::new().fg(app.colors.footer_border_color)),
-        );
+    .header(header)
+    .bg(app.colors.buffer_bg)
+    .row_highlight_style(selected_row_style)
+    .block(
+        Block::default()
+            .title(title)
+            .borders(Borders::ALL)
+            .border_style(Style::new().fg(app.colors.footer_border_color)),
+    );
     f.render_stateful_widget(t, area, &mut app.state);
 }
