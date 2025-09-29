@@ -144,6 +144,12 @@ enum Commands {
             default_value = "false"
         )]
         gif: bool,
+        #[arg(
+            long,
+            help = "Combine all search result clips into a single supercut video",
+            default_value = "false"
+        )]
+        supercut: bool,
     },
     #[command(about = "Manage video transcripts")]
     Transcripts {
@@ -1468,49 +1474,63 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             filter,
             clip,
             gif,
+            supercut,
         }) => {
             let search_query = query.join(" ");
 
-            match search::search(&search_query, filter.as_ref(), clip, gif) {
-                Ok(results) => {
-                    if json {
-                        let json_output = serde_json::to_string_pretty(&results)?;
-                        println!("{}", json_output);
-                    } else {
-                        for result in results {
-                            println!("File: {}", result.file_path);
-                            for search_match in result.matches {
-                                if let Some(timestamp) = search_match.timestamp {
-                                    println!("  {}: {}", search_match.line_number, timestamp);
-                                    println!(
-                                        "  {}:\t{}",
-                                        search_match.line_number + 1,
-                                        search_match.line_text
-                                    );
-                                } else {
-                                    println!(
-                                        "  {}: \"{}\"",
-                                        search_match.line_number, search_match.line_text
-                                    );
-                                }
-
-                                // Display clip information if available
-                                if let Some(clip_path) = &search_match.clip_path {
-                                    println!("Clip: {}", clip_path);
-                                }
-                                if let Some(clip_command) = &search_match.clip_command {
-                                    println!("Command: {}", clip_command);
-                                }
-
-                                println!();
-                            }
-                            println!();
-                        }
+            if supercut {
+                // Supercut mode: combine all clips into one video
+                match search::search_and_supercut(&search_query, filter.as_ref()) {
+                    Ok(supercut_path) => {
+                        println!("{}", supercut_path);
+                    }
+                    Err(e) => {
+                        eprintln!("Error creating supercut: {}", e);
+                        std::process::exit(1);
                     }
                 }
-                Err(e) => {
-                    eprintln!("Error searching: {}", e);
-                    std::process::exit(1);
+            } else {
+                match search::search(&search_query, filter.as_ref(), clip, gif) {
+                    Ok(results) => {
+                        if json {
+                            let json_output = serde_json::to_string_pretty(&results)?;
+                            println!("{}", json_output);
+                        } else {
+                            for result in results {
+                                println!("File: {}", result.file_path);
+                                for search_match in result.matches {
+                                    if let Some(timestamp) = search_match.timestamp {
+                                        println!("  {}: {}", search_match.line_number, timestamp);
+                                        println!(
+                                            "  {}:\t{}",
+                                            search_match.line_number + 1,
+                                            search_match.line_text
+                                        );
+                                    } else {
+                                        println!(
+                                            "  {}: \"{}\"",
+                                            search_match.line_number, search_match.line_text
+                                        );
+                                    }
+
+                                    // Display clip information if available
+                                    if let Some(clip_path) = &search_match.clip_path {
+                                        println!("Clip: {}", clip_path);
+                                    }
+                                    if let Some(clip_command) = &search_match.clip_command {
+                                        println!("Command: {}", clip_command);
+                                    }
+
+                                    println!();
+                                }
+                                println!();
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error searching: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
         }

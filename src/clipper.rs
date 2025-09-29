@@ -7,7 +7,8 @@ use rocket::serde::Deserialize;
 use rocket::{get, response::status};
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::Path;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use uuid::Uuid;
 
@@ -798,6 +799,146 @@ pub fn calculate_font_size_for_video_path(video_path: &Path, text_length: usize)
     let ffprobe_path = Path::new(&cfg.ffprobe_path);
     let (width, _) = get_video_dimensions(video_path, ffprobe_path).unwrap_or((1920, 1080));
     calculate_font_size_for_video(width, text_length)
+}
+
+pub fn concatenate_videos(
+    video_paths: &[PathBuf],
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    if video_paths.is_empty() {
+        return Err("No video paths provided for concatenation".into());
+    }
+
+    let cfg: crate::AtciConfig = crate::config::load_config()?;
+    let ffmpeg_path = &cfg.ffmpeg_path;
+    let ffprobe_path = Path::new(&cfg.ffprobe_path);
+
+    // Create a unique output filename
+    let output_name = format!("supercut_{}.mp4", Uuid::new_v4());
+    let output_path = std::env::temp_dir().join(&output_name);
+
+    // Create a temporary file list for ffmpeg concat demuxer
+    let concat_list_name = format!("concat_list_{}.txt", Uuid::new_v4());
+    let concat_list_path = std::env::temp_dir().join(&concat_list_name);
+
+    // Normalize all videos to 1920x1080 with black bars and consistent audio encoding
+    let mut normalized_paths: Vec<PathBuf> = Vec::new();
+
+    for (i, video_path) in video_paths.iter().enumerate() {
+        let normalized_name = format!("normalized_{}_{}.mp4", i, Uuid::new_v4());
+        let normalized_path = std::env::temp_dir().join(&normalized_name);
+
+        // Build normalization command
+        // - Scale to fit within 1920x1080 while maintaining aspect ratio
+        // - Add black bars (pad) to reach exactly 1920x1080
+        // - Set consistent frame rate (30fps)
+        // - Re-encode audio to AAC for consistency
+        // - Reset timestamps to avoid discontinuities
+        let mut args = vec![
+            "-i".to_string(),
+            video_path.to_string_lossy().to_string(),
+            "-vf".to_string(),
+            "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30".to_string(),
+            "-c:v".to_string(),
+            "libx264".to_string(),
+            "-preset".to_string(),
+            "ultrafast".to_string(),
+            "-crf".to_string(),
+            "23".to_string(),
+            "-profile:v".to_string(),
+            "baseline".to_string(),
+            "-level".to_string(),
+            "3.1".to_string(),
+        ];
+
+        // Always re-encode audio to AAC for consistency across all clips
+        args.extend(vec![
+            "-c:a".to_string(),
+            "aac".to_string(),
+            "-b:a".to_string(),
+            "256k".to_string(),
+            "-ar".to_string(),
+            "48000".to_string(),
+            "-ac".to_string(),
+            "2".to_string(),
+        ]);
+
+        args.extend(vec![
+            "-pix_fmt".to_string(),
+            "yuv420p".to_string(),
+            "-movflags".to_string(),
+            "faststart+frag_keyframe+empty_moov".to_string(),
+            "-avoid_negative_ts".to_string(),
+            "make_zero".to_string(),
+            "-fflags".to_string(),
+            "+genpts".to_string(),
+            "-y".to_string(),
+            normalized_path.to_string_lossy().to_string(),
+        ]);
+
+        let output = Command::new(ffmpeg_path).args(&args).output()?;
+
+        if !output.status.success() {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            return Err(format!(
+                "Error normalizing video {}: {}",
+                video_path.display(),
+                error_msg
+            )
+            .into());
+        }
+
+        normalized_paths.push(normalized_path);
+    }
+
+    // Create concat list file
+    let mut concat_file = fs::File::create(&concat_list_path)?;
+    for normalized_path in &normalized_paths {
+        writeln!(concat_file, "file '{}'", normalized_path.display())?;
+    }
+    drop(concat_file);
+
+    // Concatenate all normalized videos
+    // Re-encode to ensure proper stream alignment and avoid any discontinuities
+    let concat_list_str = concat_list_path.to_string_lossy().to_string();
+    let output_path_str = output_path.to_string_lossy().to_string();
+
+    let concat_args = vec![
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        &concat_list_str,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "ultrafast",
+        "-crf",
+        "23",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "256k",
+        "-movflags",
+        "faststart",
+        "-y",
+        &output_path_str,
+    ];
+
+    let output = Command::new(ffmpeg_path).args(&concat_args).output()?;
+
+    // Clean up temporary files
+    let _ = fs::remove_file(&concat_list_path);
+    for normalized_path in &normalized_paths {
+        let _ = fs::remove_file(normalized_path);
+    }
+
+    if output.status.success() {
+        Ok(output_path)
+    } else {
+        let error_msg = String::from_utf8_lossy(&output.stderr);
+        Err(format!("Error concatenating videos: {}", error_msg).into())
+    }
 }
 
 fn get_audio_codec_args(

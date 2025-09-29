@@ -13,6 +13,7 @@ use rocket::get;
 use rocket::serde::json::Json;
 use serde::Serialize;
 use std::fs;
+use std::path::PathBuf;
 use walkdir::WalkDir;
 
 #[derive(Debug, Serialize)]
@@ -291,6 +292,38 @@ pub fn search(
     results.sort_by(|a, b| a.file_path.cmp(&b.file_path));
 
     Ok(results)
+}
+
+pub fn search_and_supercut(
+    query: &str,
+    filter: Option<&Vec<String>>,
+) -> Result<String, Box<dyn std::error::Error>> {
+    // First, get all search results with clips generated
+    let results = search(query, filter, true, false)?;
+
+    if results.is_empty() {
+        return Err("No search results found".into());
+    }
+
+    // Collect all clip paths from search results
+    let mut clip_paths: Vec<PathBuf> = Vec::new();
+
+    for result in results {
+        for search_match in result.matches {
+            if let Some(clip_path) = search_match.clip_path {
+                clip_paths.push(PathBuf::from(clip_path));
+            }
+        }
+    }
+
+    if clip_paths.is_empty() {
+        return Err("No clips were generated from search results".into());
+    }
+
+    // Concatenate all clips into a supercut
+    let supercut_path = clipper::concatenate_videos(&clip_paths)?;
+
+    Ok(supercut_path.to_string_lossy().to_string())
 }
 
 #[get("/api/search?<query>&<filter>")]
