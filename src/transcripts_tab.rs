@@ -209,44 +209,44 @@ impl App {
         Ok(())
     }
 
-    pub fn refresh_data(&mut self) -> Result<(), Box<dyn Error>> {
-        // Get currently selected item for preservation
-        let selected_path = self.state.selected()
-            .and_then(|i| self.video_data.get(i))
-            .map(|v| v.full_path.clone());
+    // pub fn refresh_data(&mut self) -> Result<(), Box<dyn Error>> {
+    //     // Get currently selected item for preservation
+    //     let selected_path = self.state.selected()
+    //         .and_then(|i| self.video_data.get(i))
+    //         .map(|v| v.full_path.clone());
 
-        // Update disk cache and reload data with current sorting
-        files::get_and_save_video_info_from_disk()?;
+    //     // Update disk cache and reload data with current sorting
+    //     files::get_and_save_video_info_from_disk()?;
 
-        let (sort_by, sort_order) = self.get_sort_params();
-        let page_size = self.get_page_size();
+    //     let (sort_by, sort_order) = self.get_sort_params();
+    //     let page_size = self.get_page_size();
 
-        let cache_data = files::load_sorted_paginated_cache_data(
-            self.get_filter_option().as_ref(), // filter
-            self.current_page, // current page
-            page_size,   // limit
-            sort_by,     // sort column
-            sort_order,  // sort order
-        )?;
+    //     let cache_data = files::load_sorted_paginated_cache_data(
+    //         self.get_filter_option().as_ref(), // filter
+    //         self.current_page, // current page
+    //         page_size,   // limit
+    //         sort_by,     // sort column
+    //         sort_order,  // sort order
+    //     )?;
 
-        self.video_data = cache_data.files;
-        self.total_pages = cache_data.pages.unwrap_or(1);
+    //     self.video_data = cache_data.files;
+    //     self.total_pages = cache_data.pages.unwrap_or(1);
 
-        // Restore selection if possible
-        if let Some(path) = selected_path {
-            if let Some(new_index) = self.video_data.iter().position(|v| v.full_path == path) {
-                self.state.select(Some(new_index));
-            } else {
-                // If selected item no longer exists, select first item
-                if !self.video_data.is_empty() {
-                    self.state.select(Some(0));
-                }
-            }
-        }
+    //     // Restore selection if possible
+    //     if let Some(path) = selected_path {
+    //         if let Some(new_index) = self.video_data.iter().position(|v| v.full_path == path) {
+    //             self.state.select(Some(new_index));
+    //         } else {
+    //             // If selected item no longer exists, select first item
+    //             if !self.video_data.is_empty() {
+    //                 self.state.select(Some(0));
+    //             }
+    //         }
+    //     }
 
-        self.last_refresh = std::time::Instant::now();
-        Ok(())
-    }
+    //     self.last_refresh = std::time::Instant::now();
+    //     Ok(())
+    // }
 
     pub fn get_sort_params(&self) -> (&str, u8) {
         let sort_by = if let Some(column) = self.sort_column {

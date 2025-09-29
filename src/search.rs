@@ -11,8 +11,9 @@ use chrono::{DateTime, Local};
 use rayon::prelude::*;
 use rocket::get;
 use rocket::serde::json::Json;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::{self, Read};
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
@@ -30,6 +31,14 @@ pub struct SearchMatch {
 pub struct SearchResult {
     pub file_path: String,
     pub matches: Vec<SearchMatch>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SupercutClipData {
+    pub file_path: String,
+    pub start_time: String,
+    pub end_time: String,
+    pub text: String,
 }
 
 fn format_datetime(timestamp: std::time::SystemTime) -> String {
@@ -297,7 +306,8 @@ pub fn search(
 pub fn search_and_supercut(
     query: &str,
     filter: Option<&Vec<String>>,
-) -> Result<String, Box<dyn std::error::Error>> {
+    show_file: bool,
+) -> Result<(String, Option<serde_json::Value>), Box<dyn std::error::Error>> {
     // First, get all search results with clips generated
     let results = search(query, filter, true, false)?;
 
@@ -305,19 +315,99 @@ pub fn search_and_supercut(
         return Err("No search results found".into());
     }
 
-    // Collect all clip paths from search results
+    // Collect all clip paths and clip data from search results
     let mut clip_paths: Vec<PathBuf> = Vec::new();
+    let mut clip_data: Vec<SupercutClipData> = Vec::new();
 
     for result in results {
         for search_match in result.matches {
             if let Some(clip_path) = search_match.clip_path {
                 clip_paths.push(PathBuf::from(clip_path));
+
+                // Extract start and end times from timestamp if available
+                if let Some(timestamp) = &search_match.timestamp {
+                    if let Some((start_time, end_time)) = parse_timestamp_range(timestamp) {
+                        clip_data.push(SupercutClipData {
+                            file_path: search_match.video_info.full_path.clone(),
+                            start_time,
+                            end_time,
+                            text: search_match.line_text.clone(),
+                        });
+                    }
+                }
             }
         }
     }
 
     if clip_paths.is_empty() {
         return Err("No clips were generated from search results".into());
+    }
+
+    // Concatenate all clips into a supercut
+    let supercut_path = clipper::concatenate_videos(&clip_paths)?;
+
+    let clip_data_json = if show_file {
+        Some(serde_json::to_value(&clip_data)?)
+    } else {
+        None
+    };
+
+    Ok((supercut_path.to_string_lossy().to_string(), clip_data_json))
+}
+
+pub fn supercut_from_input(
+    input_path: &str,
+) -> Result<String, Box<dyn std::error::Error>> {
+    // Read input from file or stdin
+    let json_content = if input_path == "-" {
+        let mut buffer = String::new();
+        io::stdin().read_to_string(&mut buffer)?;
+        buffer
+    } else {
+        fs::read_to_string(input_path)?
+    };
+
+    // Parse JSON into clip data
+    let clip_data: Vec<SupercutClipData> = serde_json::from_str(&json_content)?;
+
+    if clip_data.is_empty() {
+        return Err("No clip data found in input".into());
+    }
+
+    // Generate clips from the data
+    let mut clip_paths: Vec<PathBuf> = Vec::new();
+
+    for clip in &clip_data {
+        let file_path = std::path::Path::new(&clip.file_path);
+
+        if !file_path.exists() {
+            eprintln!("Warning: Video file not found: {}", clip.file_path);
+            continue;
+        }
+
+        match clipper::clip(
+            file_path,
+            &clip.start_time,
+            &clip.end_time,
+            None,  // Don't display text in supercuts
+            false, // Don't display text
+            "mp4", // Use mp4 format
+            None,  // No custom font size
+        ) {
+            Ok(clip_path) => {
+                clip_paths.push(clip_path);
+            }
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to generate clip for {}: {}",
+                    clip.file_path, e
+                );
+            }
+        }
+    }
+
+    if clip_paths.is_empty() {
+        return Err("No clips were generated from input data".into());
     }
 
     // Concatenate all clips into a supercut

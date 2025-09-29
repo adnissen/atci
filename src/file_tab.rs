@@ -25,7 +25,7 @@ pub struct FileViewData {
     pub video_path: String,
     pub lines: Vec<String>,
     pub selected_line: usize,
-    pub scroll_offset: usize,
+    pub _scroll_offset: usize,
     pub list_state: ListState,
     pub selected_timestamp_position: Option<TimestampPosition>,
     pub range_start: Option<TimestampLocation>,
@@ -117,7 +117,7 @@ fn create_timestamp_spans(line: &str, selected_position: &Option<TimestampPositi
     if !is_timestamp_line(line) {
         // Check if this non-timestamp line is within the range
         let in_range = range_start.is_some() && range_end.is_some() && {
-            let timestamp_lines: Vec<usize> = line.lines().enumerate()
+            let _timestamp_lines: Vec<usize> = line.lines().enumerate()
                 .filter_map(|(_, l)| if is_timestamp_line(l) { Some(line_index) } else { None })
                 .collect();
             
@@ -464,7 +464,7 @@ impl FileViewData {
             video_path,
             lines,
             selected_line: 0,
-            scroll_offset: 0,
+            _scroll_offset: 0,
             list_state,
             selected_timestamp_position: None,
             range_start: None,
@@ -650,20 +650,20 @@ impl FileViewData {
         self.clear_timestamp_selection();
     }
     
-    pub fn jump_to_top(&mut self) {
-        self.selected_line = 0;
-        self.scroll_offset = 0;
-        self.list_state.select(Some(0));
-        self.clear_timestamp_selection();
-    }
-    
-    pub fn jump_to_bottom(&mut self) {
-        if !self.lines.is_empty() {
-            self.selected_line = self.lines.len() - 1;
-            self.list_state.select(Some(self.selected_line));
-        }
-        self.clear_timestamp_selection();
-    }
+    // pub fn jump_to_top(&mut self) {
+    //     self.selected_line = 0;
+    //     self._scroll_offset = 0;
+    //     self.list_state.select(Some(0));
+    //     self.clear_timestamp_selection();
+    // }
+
+    // pub fn jump_to_bottom(&mut self) {
+    //     if !self.lines.is_empty() {
+    //         self.selected_line = self.lines.len() - 1;
+    //         self.list_state.select(Some(self.selected_line));
+    //     }
+    //     self.clear_timestamp_selection();
+    // }
     
     fn clear_timestamp_selection(&mut self) {
         self.selected_timestamp_position = None;
@@ -671,15 +671,15 @@ impl FileViewData {
         self.range_end = None;
     }
     
-    pub fn start_range_selection(&mut self) {
-        if let Some(position) = &self.selected_timestamp_position {
-            self.range_start = Some(TimestampLocation {
-                line_index: self.selected_line,
-                position: position.clone(),
-            });
-            self.range_end = None;
-        }
-    }
+    // pub fn start_range_selection(&mut self) {
+    //     if let Some(position) = &self.selected_timestamp_position {
+    //         self.range_start = Some(TimestampLocation {
+    //             line_index: self.selected_line,
+    //             position: position.clone(),
+    //         });
+    //         self.range_end = None;
+    //     }
+    // }
     
     pub fn navigate_to_next_timestamp_range(&mut self) {
         let timestamp_lines = self.find_timestamp_lines();
@@ -744,12 +744,18 @@ impl FileViewData {
                 }
                 None => {
                     // Start range selection
-                    self.start_range_selection();
+                    if let Some(position) = &self.selected_timestamp_position {
+                        self.range_start = Some(TimestampLocation {
+                            line_index: self.selected_line,
+                            position: position.clone(),
+                        });
+                        self.range_end = None;
+                    }
                     return;
                 }
             }
         }
-        
+
         // Find the next timestamp after current line
         let current_line = self.selected_line;
         let next_timestamp = timestamp_lines
@@ -842,12 +848,18 @@ impl FileViewData {
                 }
                 None => {
                     // Start range selection
-                    self.start_range_selection();
+                    if let Some(position) = &self.selected_timestamp_position {
+                        self.range_start = Some(TimestampLocation {
+                            line_index: self.selected_line,
+                            position: position.clone(),
+                        });
+                        self.range_end = None;
+                    }
                     return;
                 }
             }
         }
-        
+
         // Find the previous timestamp before current line
         let current_line = self.selected_line;
         let prev_timestamp = timestamp_lines
@@ -877,18 +889,18 @@ impl FileViewData {
         }
     }
     
-    pub fn page_up(&mut self, page_size: usize) {
-        let new_line = self.selected_line.saturating_sub(page_size);
-        self.selected_line = new_line;
-        self.list_state.select(Some(self.selected_line));
-    }
-    
-    pub fn page_down(&mut self, page_size: usize) {
-        let max_line = self.lines.len().saturating_sub(1);
-        let new_line = std::cmp::min(self.selected_line + page_size, max_line);
-        self.selected_line = new_line;
-        self.list_state.select(Some(self.selected_line));
-    }
+    // pub fn page_up(&mut self, page_size: usize) {
+    //     let new_line = self.selected_line.saturating_sub(page_size);
+    //     self.selected_line = new_line;
+    //     self.list_state.select(Some(self.selected_line));
+    // }
+
+    // pub fn page_down(&mut self, page_size: usize) {
+    //     let max_line = self.lines.len().saturating_sub(1);
+    //     let new_line = std::cmp::min(self.selected_line + page_size, max_line);
+    //     self.selected_line = new_line;
+    //     self.list_state.select(Some(self.selected_line));
+    // }
     
     pub fn jump_to_line(&mut self, line_number: usize) {
         let target_line = line_number.saturating_sub(1); // Convert 1-based to 0-based

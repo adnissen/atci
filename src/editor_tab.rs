@@ -99,20 +99,20 @@ impl App {
         }
     }
     
-    pub fn toggle_editor_overlay(&mut self) {
-        if let Some(ref mut editor_data) = self.editor_data {
-            editor_data.show_overlay_text = !editor_data.show_overlay_text;
-            // Regenerate frames with new overlay setting
-            self.regenerate_editor_frames();
-        }
-    }
-    
-    
-    pub fn select_frame(&mut self, frame: FrameSelection) {
-        if let Some(ref mut editor_data) = self.editor_data {
-            editor_data.selected_frame = frame;
-        }
-    }
+    // pub fn toggle_editor_overlay(&mut self) {
+    //     if let Some(ref mut editor_data) = self.editor_data {
+    //         editor_data.show_overlay_text = !editor_data.show_overlay_text;
+    //         // Regenerate frames with new overlay setting
+    //         self.regenerate_editor_frames();
+    //     }
+    // }
+
+
+    // pub fn select_frame(&mut self, frame: FrameSelection) {
+    //     if let Some(ref mut editor_data) = self.editor_data {
+    //         editor_data.selected_frame = frame;
+    //     }
+    // }
 
     pub fn navigate_editor_selection_left_or_right(&mut self, right: bool) {
         if let Some(ref mut editor_data) = self.editor_data {

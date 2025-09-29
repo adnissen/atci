@@ -78,7 +78,7 @@ pub fn grab_frame(
     validate_video_file(path)?;
 
     // Create a static filename with time and caption
-    let caption_part = match text {
+    let _caption_part = match text {
         Some(text_content) => {
             // Sanitize text for filename - remove/replace problematic characters
             let sanitized_text = text_content
@@ -97,8 +97,8 @@ pub fn grab_frame(
         None => String::new(),
     };
 
-    let time_str = format!("{:.3}", time_seconds);
-    let font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
+    let _time_str = format!("{:.3}", time_seconds);
+    let _font_size_part = font_size.map(|fs| format!("_fs{}", fs)).unwrap_or_default();
 
     let temp_frame_name = format!("{}.png", Uuid::new_v4());
     let temp_frame_path = std::env::temp_dir().join(&temp_frame_name);
@@ -810,7 +810,7 @@ pub fn concatenate_videos(
 
     let cfg: crate::AtciConfig = crate::config::load_config()?;
     let ffmpeg_path = &cfg.ffmpeg_path;
-    let ffprobe_path = Path::new(&cfg.ffprobe_path);
+    let _ffprobe_path = Path::new(&cfg.ffprobe_path);
 
     // Create a unique output filename
     let output_name = format!("supercut_{}.mp4", Uuid::new_v4());

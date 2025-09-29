@@ -145,24 +145,11 @@ enum Commands {
         )]
         gif: bool,
     },
-    #[command(about = "Create a supercut video from search results")]
+    #[command(about = "Create supercut videos")]
     #[command(arg_required_else_help = true)]
     Supercut {
-        #[arg(help = "Search query", num_args = 1.., value_delimiter = ' ')]
-        query: Vec<String>,
-        #[arg(
-            long,
-            help = "Show JSON output instead of formatted",
-            default_value = "false"
-        )]
-        json: bool,
-        #[arg(
-            short = 'f',
-            long,
-            help = "Comma-separated list of strings to filter results by path",
-            value_delimiter = ','
-        )]
-        filter: Option<Vec<String>>,
+        #[command(subcommand)]
+        supercut_command: Option<SupercutCommands>,
     },
     #[command(about = "Manage video transcripts")]
     Transcripts {
@@ -212,6 +199,46 @@ enum FilesCommands {
     },
     #[command(about = "Update file information cache by scanning watch directories")]
     Update,
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum SupercutCommands {
+    #[command(alias = "s", about = "Create a supercut from search results")]
+    Search {
+        #[arg(help = "Search query", num_args = 1.., value_delimiter = ' ')]
+        query: Vec<String>,
+        #[arg(
+            long,
+            help = "Show JSON output instead of formatted",
+            default_value = "false"
+        )]
+        json: bool,
+        #[arg(
+            short = 'f',
+            long,
+            help = "Comma-separated list of strings to filter results by path",
+            value_delimiter = ','
+        )]
+        filter: Option<Vec<String>>,
+        #[arg(
+            long,
+            help = "Show the clip data file that can be used to recreate the supercut",
+            default_value = "false"
+        )]
+        show_file: bool,
+    },
+    #[command(alias = "i", about = "Create a supercut from a JSON input file")]
+    Input {
+        #[arg(help = "Path to JSON file containing clip data (use '-' to read from stdin)")]
+        path: String,
+        #[arg(
+            long,
+            help = "Show JSON output instead of formatted",
+            default_value = "false"
+        )]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -1533,30 +1560,66 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Some(Commands::Supercut {
-            query,
-            json,
-            filter,
-        }) => {
-            let search_query = query.join(" ");
+        Some(Commands::Supercut { supercut_command }) => match supercut_command {
+            Some(SupercutCommands::Search {
+                query,
+                json,
+                filter,
+                show_file,
+            }) => {
+                let search_query = query.join(" ");
 
-            match search::search_and_supercut(&search_query, filter.as_ref()) {
-                Ok(supercut_path) => {
-                    if json {
-                        let output = serde_json::json!({
-                            "supercut_path": supercut_path
-                        });
-                        println!("{}", serde_json::to_string_pretty(&output)?);
-                    } else {
-                        println!("{}", supercut_path);
+                match search::search_and_supercut(&search_query, filter.as_ref(), show_file) {
+                    Ok((supercut_path, clip_data)) => {
+                        if json {
+                            let mut output = serde_json::json!({
+                                "supercut_path": supercut_path
+                            });
+                            if show_file {
+                                if let Some(data) = clip_data {
+                                    output["clip_data"] = data;
+                                }
+                            }
+                            println!("{}", serde_json::to_string_pretty(&output)?);
+                        } else {
+                            println!("{}", supercut_path);
+                            if show_file {
+                                if let Some(data) = clip_data {
+                                    println!("\nClip data:");
+                                    println!("{}", serde_json::to_string_pretty(&data)?);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error creating supercut: {}", e);
+                        std::process::exit(1);
                     }
                 }
-                Err(e) => {
-                    eprintln!("Error creating supercut: {}", e);
-                    std::process::exit(1);
+            }
+            Some(SupercutCommands::Input { path, json }) => {
+                match search::supercut_from_input(&path) {
+                    Ok(supercut_path) => {
+                        if json {
+                            let output = serde_json::json!({
+                                "supercut_path": supercut_path
+                            });
+                            println!("{}", serde_json::to_string_pretty(&output)?);
+                        } else {
+                            println!("{}", supercut_path);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error creating supercut from input: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
-        }
+            None => {
+                eprintln!("Error: No subcommand provided");
+                std::process::exit(1);
+            }
+        },
         Some(Commands::Transcripts {
             transcripts_command,
         }) => match transcripts_command {

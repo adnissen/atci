@@ -16,7 +16,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, TableState},
     Frame, Terminal,
 };
-use std::{error::Error, io, time::{Duration, Instant}};
+use std::{error::Error, io, time::Instant};
 
 pub struct TableColors {
     pub buffer_bg: Color,
@@ -96,7 +96,7 @@ pub struct App {
     pub video_data: Vec<files::VideoInfo>,
     pub sort_column: Option<usize>,
     pub sort_order: SortOrder,
-    pub last_refresh: Instant,
+    pub _last_refresh: Instant,
     pub terminal_height: u16,
     pub current_page: u32,
     pub total_pages: u32,
@@ -143,7 +143,7 @@ impl Default for App {
             video_data: Vec::new(),
             sort_column: None,
             sort_order: SortOrder::Ascending,
-            last_refresh: Instant::now(),
+            _last_refresh: Instant::now(),
             terminal_height: 24,
             current_page: 0,
             total_pages: 1,
@@ -191,7 +191,7 @@ impl App {
             video_data: cache_data.files,
             sort_column: Some(2), // Generated At column
             sort_order: SortOrder::Descending,
-            last_refresh: Instant::now(),
+            _last_refresh: Instant::now(),
             terminal_height,
             current_page: 0,
             total_pages: cache_data.pages.unwrap_or(1),
@@ -239,9 +239,9 @@ impl App {
         Self::calculate_page_size(self.terminal_height)
     }
 
-    fn should_refresh(&self) -> bool {
-        self.last_refresh.elapsed() >= Duration::from_secs(60)
-    }
+    // fn should_refresh(&self) -> bool {
+    //     self._last_refresh.elapsed() >= Duration::from_secs(60)
+    // }
 
 
     pub fn toggle_tab(&mut self) {
@@ -317,31 +317,31 @@ impl App {
         }
     }
 
-    pub fn file_view_jump_to_top(&mut self) {
-        if let Some(data) = &mut self.file_view_data {
-            data.jump_to_top();
-        }
-    }
+    // pub fn file_view_jump_to_top(&mut self) {
+    //     if let Some(data) = &mut self.file_view_data {
+    //         data.jump_to_top();
+    //     }
+    // }
 
-    pub fn file_view_jump_to_bottom(&mut self) {
-        if let Some(data) = &mut self.file_view_data {
-            data.jump_to_bottom();
-        }
-    }
+    // pub fn file_view_jump_to_bottom(&mut self) {
+    //     if let Some(data) = &mut self.file_view_data {
+    //         data.jump_to_bottom();
+    //     }
+    // }
 
-    pub fn file_view_page_up(&mut self) {
-        if let Some(data) = &mut self.file_view_data {
-            let page_size = (self.terminal_height as usize).saturating_sub(10);
-            data.page_up(page_size);
-        }
-    }
+    // pub fn file_view_page_up(&mut self) {
+    //     if let Some(data) = &mut self.file_view_data {
+    //         let page_size = (self.terminal_height as usize).saturating_sub(10);
+    //         data.page_up(page_size);
+    //     }
+    // }
 
-    pub fn file_view_page_down(&mut self) {
-        if let Some(data) = &mut self.file_view_data {
-            let page_size = (self.terminal_height as usize).saturating_sub(10);
-            data.page_down(page_size);
-        }
-    }
+    // pub fn file_view_page_down(&mut self) {
+    //     if let Some(data) = &mut self.file_view_data {
+    //         let page_size = (self.terminal_height as usize).saturating_sub(10);
+    //         data.page_down(page_size);
+    //     }
+    // }
 
     pub fn file_view_navigate_to_nearest_timestamp(&mut self) {
         if let Some(data) = &mut self.file_view_data {
@@ -373,11 +373,11 @@ impl App {
         }
     }
 
-    pub fn file_view_start_range_selection(&mut self) {
-        if let Some(data) = &mut self.file_view_data {
-            data.start_range_selection();
-        }
-    }
+    // pub fn file_view_start_range_selection(&mut self) {
+    //     if let Some(data) = &mut self.file_view_data {
+    //         data.start_range_selection();
+    //     }
+    // }
 
     pub fn file_view_select_both_timestamps_on_current_line(&mut self) -> bool {
         if let Some(data) = &mut self.file_view_data {
