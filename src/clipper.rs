@@ -830,14 +830,14 @@ pub fn concatenate_videos(
         // Build normalization command
         // - Scale to fit within 1920x1080 while maintaining aspect ratio
         // - Add black bars (pad) to reach exactly 1920x1080
-        // - Set consistent frame rate (30fps)
+        // - Set consistent frame rate (30fps) with strict CFR mode
         // - Re-encode audio to AAC for consistency
         // - Reset timestamps to avoid discontinuities
         let mut args = vec![
             "-i".to_string(),
             video_path.to_string_lossy().to_string(),
             "-vf".to_string(),
-            "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=30".to_string(),
+            "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30:round=near".to_string(),
             "-c:v".to_string(),
             "libx264".to_string(),
             "-preset".to_string(),
@@ -848,9 +848,18 @@ pub fn concatenate_videos(
             "baseline".to_string(),
             "-level".to_string(),
             "3.1".to_string(),
+            "-g".to_string(),
+            "30".to_string(), // Keyframe every 30 frames (1 second at 30fps)
+            "-keyint_min".to_string(),
+            "30".to_string(),
+            "-sc_threshold".to_string(),
+            "0".to_string(), // Disable scene change detection for consistent keyframes
+            "-force_key_frames".to_string(),
+            "expr:gte(t,n_forced*1)".to_string(), // Force keyframe every 1 second
         ];
 
         // Always re-encode audio to AAC for consistency across all clips
+        // Use async mode to help with A/V sync
         args.extend(vec![
             "-c:a".to_string(),
             "aac".to_string(),
@@ -860,6 +869,8 @@ pub fn concatenate_videos(
             "48000".to_string(),
             "-ac".to_string(),
             "2".to_string(),
+            "-async".to_string(),
+            "1".to_string(), // Enable audio sync correction
         ]);
 
         args.extend(vec![
@@ -870,7 +881,11 @@ pub fn concatenate_videos(
             "-avoid_negative_ts".to_string(),
             "make_zero".to_string(),
             "-fflags".to_string(),
-            "+genpts".to_string(),
+            "+genpts+igndts".to_string(), // Generate PTS and ignore DTS
+            "-vsync".to_string(),
+            "cfr".to_string(), // Constant frame rate mode
+            "-max_muxing_queue_size".to_string(),
+            "1024".to_string(), // Increase muxing queue to prevent drops
             "-y".to_string(),
             normalized_path.to_string_lossy().to_string(),
         ]);
@@ -898,7 +913,8 @@ pub fn concatenate_videos(
     drop(concat_file);
 
     // Concatenate all normalized videos
-    // Re-encode to ensure proper stream alignment and avoid any discontinuities
+    // Since clips are already normalized with identical specs, we can safely copy streams
+    // This preserves quality and is much faster
     let concat_list_str = concat_list_path.to_string_lossy().to_string();
     let output_path_str = output_path.to_string_lossy().to_string();
 
@@ -909,18 +925,12 @@ pub fn concatenate_videos(
         "0",
         "-i",
         &concat_list_str,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "ultrafast",
-        "-crf",
-        "23",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "256k",
+        "-c",
+        "copy",
         "-movflags",
         "faststart",
+        "-fflags",
+        "+genpts",
         "-y",
         &output_path_str,
     ];
