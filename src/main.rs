@@ -234,7 +234,7 @@ enum SupercutCommands {
         file_only: bool,
     },
     #[command(alias = "i", about = "Create a supercut from a JSON input file or stdin")]
-    Input {
+    FromFile {
         #[arg(help = "Path to JSON file (omit or use '-' to read from stdin)")]
         path: Option<String>,
         #[arg(
@@ -1615,7 +1615,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            Some(SupercutCommands::Input { path, json }) => {
+            Some(SupercutCommands::FromFile { path, json }) => {
                 let input_path = path.as_deref().unwrap_or("-");
                 match search::supercut_from_input(input_path) {
                     Ok(supercut_path) => {
