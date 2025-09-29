@@ -35,6 +35,11 @@ mod search;
 mod tools_manager;
 mod transcripts;
 mod tui;
+mod transcripts_tab;
+mod system_tab;
+mod search_tab;
+mod editor_tab;
+mod file_tab;
 mod video_parts;
 mod video_processor;
 mod web;
@@ -1278,7 +1283,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             validate_and_prompt_config(&mut cfg, &required_fields)?;
 
             let output_path =
-                clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size)?;
+                clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size, Some(360))?;
             println!("{}", output_path.display());
         }
         Some(Commands::Tools { tools_command }) => match tools_command {
