@@ -202,7 +202,6 @@ enum FilesCommands {
 }
 
 #[derive(Subcommand, Debug)]
-#[command(arg_required_else_help = true)]
 enum SupercutCommands {
     #[command(alias = "s", about = "Create a supercut from search results")]
     Search {
@@ -227,11 +226,17 @@ enum SupercutCommands {
             default_value = "false"
         )]
         show_file: bool,
+        #[arg(
+            long,
+            help = "Only output the clip data JSON without creating the supercut",
+            default_value = "false"
+        )]
+        file_only: bool,
     },
-    #[command(alias = "i", about = "Create a supercut from a JSON input file")]
+    #[command(alias = "i", about = "Create a supercut from a JSON input file or stdin")]
     Input {
-        #[arg(help = "Path to JSON file containing clip data (use '-' to read from stdin)")]
-        path: String,
+        #[arg(help = "Path to JSON file (omit or use '-' to read from stdin)")]
+        path: Option<String>,
         #[arg(
             long,
             help = "Show JSON output instead of formatted",
@@ -1566,39 +1571,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 json,
                 filter,
                 show_file,
+                file_only,
             }) => {
                 let search_query = query.join(" ");
 
-                match search::search_and_supercut(&search_query, filter.as_ref(), show_file) {
-                    Ok((supercut_path, clip_data)) => {
-                        if json {
-                            let mut output = serde_json::json!({
-                                "supercut_path": supercut_path
-                            });
-                            if show_file {
-                                if let Some(data) = clip_data {
-                                    output["clip_data"] = data;
-                                }
-                            }
-                            println!("{}", serde_json::to_string_pretty(&output)?);
-                        } else {
-                            println!("{}", supercut_path);
-                            if show_file {
-                                if let Some(data) = clip_data {
-                                    println!("\nClip data:");
-                                    println!("{}", serde_json::to_string_pretty(&data)?);
-                                }
-                            }
+                if file_only {
+                    // Only generate clip data without creating supercut
+                    match search::get_supercut_clip_data(&search_query, filter.as_ref()) {
+                        Ok(clip_data) => {
+                            println!("{}", serde_json::to_string_pretty(&clip_data)?);
+                        }
+                        Err(e) => {
+                            eprintln!("Error generating clip data: {}", e);
+                            std::process::exit(1);
                         }
                     }
-                    Err(e) => {
-                        eprintln!("Error creating supercut: {}", e);
-                        std::process::exit(1);
+                } else {
+                    match search::search_and_supercut(&search_query, filter.as_ref(), show_file) {
+                        Ok((supercut_path, clip_data)) => {
+                            if json {
+                                let mut output = serde_json::json!({
+                                    "supercut_path": supercut_path
+                                });
+                                if show_file {
+                                    if let Some(data) = clip_data {
+                                        output["clip_data"] = data;
+                                    }
+                                }
+                                println!("{}", serde_json::to_string_pretty(&output)?);
+                            } else {
+                                if show_file {
+                                    if let Some(data) = clip_data {
+                                        println!("JSON:{}", serde_json::to_string_pretty(&data)?);
+                                    }
+                                }
+                                println!("supercut path: {}", supercut_path);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error creating supercut: {}", e);
+                            std::process::exit(1);
+                        }
                     }
                 }
             }
             Some(SupercutCommands::Input { path, json }) => {
-                match search::supercut_from_input(&path) {
+                let input_path = path.as_deref().unwrap_or("-");
+                match search::supercut_from_input(input_path) {
                     Ok(supercut_path) => {
                         if json {
                             let output = serde_json::json!({

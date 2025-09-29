@@ -303,6 +303,43 @@ pub fn search(
     Ok(results)
 }
 
+pub fn get_supercut_clip_data(
+    query: &str,
+    filter: Option<&Vec<String>>,
+) -> Result<Vec<SupercutClipData>, Box<dyn std::error::Error>> {
+    // Get all search results without generating clips
+    let results = search(query, filter, false, false)?;
+
+    if results.is_empty() {
+        return Err("No search results found".into());
+    }
+
+    // Collect clip data from search results
+    let mut clip_data: Vec<SupercutClipData> = Vec::new();
+
+    for result in results {
+        for search_match in result.matches {
+            // Extract start and end times from timestamp if available
+            if let Some(timestamp) = &search_match.timestamp {
+                if let Some((start_time, end_time)) = parse_timestamp_range(timestamp) {
+                    clip_data.push(SupercutClipData {
+                        file_path: search_match.video_info.full_path.clone(),
+                        start_time,
+                        end_time,
+                        text: search_match.line_text.clone(),
+                    });
+                }
+            }
+        }
+    }
+
+    if clip_data.is_empty() {
+        return Err("No clips with timestamps found in search results".into());
+    }
+
+    Ok(clip_data)
+}
+
 pub fn search_and_supercut(
     query: &str,
     filter: Option<&Vec<String>>,
