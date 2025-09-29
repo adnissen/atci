@@ -183,7 +183,7 @@ pub fn clip(
         return Ok(temp_clip_path);
     }
 
-    let duration = (end_seconds - start_seconds) + 0.1;
+    let duration = end_seconds - start_seconds;
 
     let video_args = match format {
         "mp4" => {
@@ -494,23 +494,18 @@ fn video_with_text_args(
                 font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
             let font_path =
                 get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
-            let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
-            let frames_count = (duration * fps).trunc() as i32;
 
             let mut args = vec![
+                "-accurate_seek",
                 "-ss",
-                &format!("{}", start),
+                &format!("{:.6}", start),
                 "-i",
                 &input_path.to_string_lossy(),
-                "-ss",
-                "00:00:00.001",
                 "-t",
-                &format!("{}", duration),
+                &format!("{:.6}", duration),
                 "-vf",
-                &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10", 
+                &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10",
                        temp_text_path.to_string_lossy(), font_size, font_path),
-                "-frames:v",
-                &frames_count.to_string(),
                 "-c:v",
                 "libx264",
                 "-profile:v",
@@ -536,6 +531,8 @@ fn video_with_text_args(
                     "faststart+frag_keyframe+empty_moov",
                     "-avoid_negative_ts",
                     "make_zero",
+                    "-max_interleave_delta",
+                    "500M",
                     "-y",
                     "-map_chapters",
                     "-1",
@@ -549,12 +546,13 @@ fn video_with_text_args(
         }
         Err(_) => {
             let mut args = vec![
+                "-accurate_seek",
                 "-ss",
-                &format!("{}", start),
-                "-t",
-                &format!("{}", duration),
+                &format!("{:.6}", start),
                 "-i",
                 &input_path.to_string_lossy(),
+                "-t",
+                &format!("{:.6}", duration),
                 "-c:v",
                 "libx264",
                 "-profile:v",
@@ -580,6 +578,8 @@ fn video_with_text_args(
                     "faststart+frag_keyframe+empty_moov",
                     "-avoid_negative_ts",
                     "make_zero",
+                    "-max_interleave_delta",
+                    "500M",
                     "-y",
                     "-map_chapters",
                     "-1",
@@ -601,22 +601,14 @@ fn video_no_text_args(
     output_path: &Path,
     audio_codec_args: &[&str],
 ) -> Vec<String> {
-    let cfg = crate::config::load_config().unwrap_or_default();
-    let ffprobe_path = Path::new(&cfg.ffprobe_path);
-    let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
-    let frames_count = (duration * fps).trunc() as i32;
-
     let mut args = vec![
+        "-accurate_seek",
         "-ss",
-        &format!("{}", start),
+        &format!("{:.6}", start),
         "-i",
         &input_path.to_string_lossy(),
-        "-ss",
-        "00:00:00.001",
         "-t",
-        &format!("{}", duration),
-        "-frames:v",
-        &frames_count.to_string(),
+        &format!("{:.6}", duration),
         "-c:v",
         "libx264",
         "-profile:v",
@@ -642,6 +634,8 @@ fn video_no_text_args(
             "faststart+frag_keyframe+empty_moov",
             "-avoid_negative_ts",
             "make_zero",
+            "-max_interleave_delta",
+            "500M",
             "-y",
             "-map_chapters",
             "-1",
@@ -828,14 +822,14 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
         // Build normalization command
         // - Scale to fit within 1920x1080 while maintaining aspect ratio
         // - Add black bars (pad) to reach exactly 1920x1080
-        // - Set consistent frame rate (30fps) with strict CFR mode
-        // - Re-encode audio to AAC for consistency
-        // - Reset timestamps to avoid discontinuities
+        // - Set consistent frame rate (30fps)
+        // - Re-encode audio to AAC for consistency with audio sync correction
+        // - Use proper timestamp handling
         let mut args = vec![
             "-i".to_string(),
             video_path.to_string_lossy().to_string(),
             "-vf".to_string(),
-            "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30:round=near".to_string(),
+            "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30".to_string(),
             "-c:v".to_string(),
             "libx264".to_string(),
             "-preset".to_string(),
@@ -857,8 +851,10 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
         ];
 
         // Always re-encode audio to AAC for consistency across all clips
-        // Use async mode to help with A/V sync
+        // Use aresample filter for audio sync correction
         args.extend(vec![
+            "-af".to_string(),
+            "aresample=async=1000:first_pts=0".to_string(),
             "-c:a".to_string(),
             "aac".to_string(),
             "-b:a".to_string(),
@@ -867,8 +863,6 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
             "48000".to_string(),
             "-ac".to_string(),
             "2".to_string(),
-            "-async".to_string(),
-            "1".to_string(), // Enable audio sync correction
         ]);
 
         args.extend(vec![
@@ -878,10 +872,8 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
             "faststart+frag_keyframe+empty_moov".to_string(),
             "-avoid_negative_ts".to_string(),
             "make_zero".to_string(),
-            "-fflags".to_string(),
-            "+genpts+igndts".to_string(), // Generate PTS and ignore DTS
-            "-vsync".to_string(),
-            "cfr".to_string(), // Constant frame rate mode
+            "-max_interleave_delta".to_string(),
+            "500M".to_string(),
             "-max_muxing_queue_size".to_string(),
             "1024".to_string(), // Increase muxing queue to prevent drops
             "-y".to_string(),
@@ -927,6 +919,8 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
         "copy",
         "-movflags",
         "faststart",
+        "-avoid_negative_ts",
+        "make_zero",
         "-fflags",
         "+genpts",
         "-y",
