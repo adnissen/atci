@@ -299,258 +299,6 @@ fn create_timestamp_spans(
     spans
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_timestamp_detection() {
-        // Valid VTT timestamp lines
-        assert!(is_timestamp_line("00:05:25.920 --> 00:05:46.060"));
-        assert!(is_timestamp_line("01:23:45.123 --> 01:24:00.456"));
-        assert!(is_timestamp_line("00:00:00.000 --> 00:00:05.500"));
-
-        // Invalid lines
-        assert!(!is_timestamp_line("This is a regular text line"));
-        assert!(!is_timestamp_line("00:05:25 --> 00:05:46")); // Missing milliseconds
-        assert!(!is_timestamp_line("0:5:25.920 --> 0:5:46.060")); // Wrong format
-        assert!(!is_timestamp_line("00:05:25.920 -> 00:05:46.060")); // Wrong arrow
-        assert!(!is_timestamp_line("00:05:25.920")); // Only one timestamp
-        assert!(!is_timestamp_line("")); // Empty line
-    }
-
-    #[test]
-    fn test_individual_timestamp_navigation() {
-        let lines = vec![
-            "Some text".to_string(),
-            "00:05:25.920 --> 00:05:46.060".to_string(),
-            "More text".to_string(),
-            "01:23:45.123 --> 01:24:00.456".to_string(),
-        ];
-
-        let mut file_data = FileViewData {
-            video_path: "test.mp4".to_string(),
-            lines,
-            selected_line: 1, // Start on first timestamp line
-            scroll_offset: 0,
-            list_state: ListState::default(),
-            selected_timestamp_position: None,
-            range_start: None,
-            range_end: None,
-        };
-
-        // Navigate to nearest timestamp should select start position
-        file_data.navigate_to_nearest_timestamp();
-        assert_eq!(
-            file_data.selected_timestamp_position,
-            Some(TimestampPosition::Start)
-        );
-        assert_eq!(file_data.selected_line, 1);
-
-        // Navigate to next should move to end position on same line
-        file_data.navigate_to_next_timestamp();
-        assert_eq!(
-            file_data.selected_timestamp_position,
-            Some(TimestampPosition::End)
-        );
-        assert_eq!(file_data.selected_line, 1);
-
-        // Navigate to next again should move to start of next timestamp line
-        file_data.navigate_to_next_timestamp();
-        assert_eq!(
-            file_data.selected_timestamp_position,
-            Some(TimestampPosition::Start)
-        );
-        assert_eq!(file_data.selected_line, 3);
-
-        // Navigate to previous should move to end of previous timestamp line
-        file_data.navigate_to_previous_timestamp();
-        assert_eq!(
-            file_data.selected_timestamp_position,
-            Some(TimestampPosition::End)
-        );
-        assert_eq!(file_data.selected_line, 1);
-
-        // Navigate to previous should move to start position on same line
-        file_data.navigate_to_previous_timestamp();
-        assert_eq!(
-            file_data.selected_timestamp_position,
-            Some(TimestampPosition::Start)
-        );
-        assert_eq!(file_data.selected_line, 1);
-    }
-
-    #[test]
-    fn test_timestamp_range_selection() {
-        let lines = vec![
-            "Some text".to_string(),
-            "00:05:25.920 --> 00:05:46.060".to_string(),
-            "More text".to_string(),
-            "01:23:45.123 --> 01:24:00.456".to_string(),
-        ];
-
-        let mut file_data = FileViewData {
-            video_path: "test.mp4".to_string(),
-            lines,
-            selected_line: 1, // Start on first timestamp line
-            scroll_offset: 0,
-            list_state: ListState::default(),
-            selected_timestamp_position: Some(TimestampPosition::Start),
-            range_start: None,
-            range_end: None,
-        };
-
-        // Start range selection
-        file_data.start_range_selection();
-        assert!(file_data.range_start.is_some());
-        assert_eq!(file_data.range_start.as_ref().unwrap().line_index, 1);
-        assert_eq!(
-            file_data.range_start.as_ref().unwrap().position,
-            TimestampPosition::Start
-        );
-
-        // Navigate to next timestamp for range
-        file_data.navigate_to_next_timestamp_range();
-        assert!(file_data.range_end.is_some());
-        assert_eq!(file_data.range_end.as_ref().unwrap().line_index, 1);
-        assert_eq!(
-            file_data.range_end.as_ref().unwrap().position,
-            TimestampPosition::End
-        );
-
-        // Get selected range timestamps
-        let range = file_data.get_selected_range_timestamps();
-        assert!(range.is_some());
-        let (start, end) = range.unwrap();
-        assert_eq!(start, "00:05:25.920");
-        assert_eq!(end, "00:05:46.060");
-    }
-
-    #[test]
-    fn test_automatic_range_start() {
-        let lines = vec![
-            "Some text".to_string(),
-            "00:05:25.920 --> 00:05:46.060".to_string(),
-            "More text".to_string(),
-            "01:23:45.123 --> 01:24:00.456".to_string(),
-        ];
-
-        let mut file_data = FileViewData {
-            video_path: "test.mp4".to_string(),
-            lines,
-            selected_line: 1, // Start on first timestamp line
-            scroll_offset: 0,
-            list_state: ListState::default(),
-            selected_timestamp_position: Some(TimestampPosition::Start),
-            range_start: None,
-            range_end: None,
-        };
-
-        // Navigate to range directly without manually starting range selection
-        file_data.navigate_to_next_timestamp_range();
-
-        // This should have automatically set range_start
-        assert!(
-            file_data.range_start.is_some(),
-            "range_start should be automatically set"
-        );
-        assert!(file_data.range_end.is_some(), "range_end should be set");
-
-        let range = file_data.get_selected_range_timestamps();
-        assert!(range.is_some(), "should have valid range timestamps");
-    }
-
-    #[test]
-    fn test_select_both_timestamps_on_current_line() {
-        let lines = vec![
-            "Some text".to_string(),
-            "00:05:25.920 --> 00:05:46.060".to_string(),
-            "More text".to_string(),
-        ];
-
-        let mut file_data = FileViewData {
-            video_path: "test.mp4".to_string(),
-            lines,
-            selected_line: 1, // On timestamp line
-            scroll_offset: 0,
-            list_state: ListState::default(),
-            selected_timestamp_position: None,
-            range_start: None,
-            range_end: None,
-        };
-
-        // Should successfully select both timestamps on current line
-        let result = file_data.select_both_timestamps_on_current_line();
-        assert!(result, "Should succeed when on timestamp line");
-
-        // Should have entered timestamp mode
-        assert_eq!(
-            file_data.selected_timestamp_position,
-            Some(TimestampPosition::Start)
-        );
-
-        // Should have selected both timestamps as range
-        assert!(file_data.range_start.is_some());
-        assert!(file_data.range_end.is_some());
-        assert_eq!(
-            file_data.range_start.as_ref().unwrap().position,
-            TimestampPosition::Start
-        );
-        assert_eq!(
-            file_data.range_end.as_ref().unwrap().position,
-            TimestampPosition::End
-        );
-
-        // Should be able to get range timestamps
-        let range = file_data.get_selected_range_timestamps();
-        assert!(range.is_some());
-        let (start, end) = range.unwrap();
-        assert_eq!(start, "00:05:25.920");
-        assert_eq!(end, "00:05:46.060");
-    }
-
-    #[test]
-    fn test_jump_to_next_timestamp_and_select_both() {
-        let lines = vec![
-            "Some text".to_string(),
-            "00:05:25.920 --> 00:05:46.060".to_string(),
-            "More text".to_string(),
-            "01:23:45.123 --> 01:24:00.456".to_string(),
-        ];
-
-        let mut file_data = FileViewData {
-            video_path: "test.mp4".to_string(),
-            lines,
-            selected_line: 0, // On non-timestamp line
-            scroll_offset: 0,
-            list_state: ListState::default(),
-            selected_timestamp_position: None,
-            range_start: None,
-            range_end: None,
-        };
-
-        // Should jump to next timestamp line and select both
-        let result = file_data.jump_to_next_timestamp_and_select_both();
-        assert!(result, "Should succeed in jumping to next timestamp");
-
-        // Should be on the timestamp line
-        assert_eq!(file_data.selected_line, 1);
-
-        // Should have entered timestamp mode
-        assert_eq!(
-            file_data.selected_timestamp_position,
-            Some(TimestampPosition::Start)
-        );
-
-        // Should have selected both timestamps as range
-        let range = file_data.get_selected_range_timestamps();
-        assert!(range.is_some());
-        let (start, end) = range.unwrap();
-        assert_eq!(start, "00:05:25.920");
-        assert_eq!(end, "00:05:46.060");
-    }
-}
-
 impl FileViewData {
     pub fn new(video_path: String) -> Result<Self, Box<dyn std::error::Error>> {
         let transcript_content = transcripts::get_transcript(&video_path)?;
@@ -1322,5 +1070,266 @@ pub fn render_file_view_tab(f: &mut Frame, area: Rect, app: &mut App) {
             .alignment(Alignment::Center);
 
         f.render_widget(empty_paragraph, area);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_timestamp_detection() {
+        // Valid VTT timestamp lines
+        assert!(is_timestamp_line("00:05:25.920 --> 00:05:46.060"));
+        assert!(is_timestamp_line("01:23:45.123 --> 01:24:00.456"));
+        assert!(is_timestamp_line("00:00:00.000 --> 00:00:05.500"));
+
+        // Invalid lines
+        assert!(!is_timestamp_line("This is a regular text line"));
+        assert!(!is_timestamp_line("00:05:25 --> 00:05:46")); // Missing milliseconds
+        assert!(!is_timestamp_line("0:5:25.920 --> 0:5:46.060")); // Wrong format
+        assert!(!is_timestamp_line("00:05:25.920 -> 00:05:46.060")); // Wrong arrow
+        assert!(!is_timestamp_line("00:05:25.920")); // Only one timestamp
+        assert!(!is_timestamp_line("")); // Empty line
+    }
+
+    #[test]
+    fn test_individual_timestamp_navigation() {
+        let lines = vec![
+            "Some text".to_string(),
+            "00:05:25.920 --> 00:05:46.060".to_string(),
+            "More text".to_string(),
+            "01:23:45.123 --> 01:24:00.456".to_string(),
+        ];
+
+        let mut file_data = FileViewData {
+            video_path: "test.mp4".to_string(),
+            lines,
+            selected_line: 1, // Start on first timestamp line
+            _scroll_offset: 0,
+            list_state: ListState::default(),
+            selected_timestamp_position: None,
+            range_start: None,
+            range_end: None,
+        };
+
+        // Navigate to nearest timestamp should select start position
+        file_data.navigate_to_nearest_timestamp();
+        assert_eq!(
+            file_data.selected_timestamp_position,
+            Some(TimestampPosition::Start)
+        );
+        assert_eq!(file_data.selected_line, 1);
+
+        // Navigate to next should move to end position on same line
+        file_data.navigate_to_next_timestamp();
+        assert_eq!(
+            file_data.selected_timestamp_position,
+            Some(TimestampPosition::End)
+        );
+        assert_eq!(file_data.selected_line, 1);
+
+        // Navigate to next again should move to start of next timestamp line
+        file_data.navigate_to_next_timestamp();
+        assert_eq!(
+            file_data.selected_timestamp_position,
+            Some(TimestampPosition::Start)
+        );
+        assert_eq!(file_data.selected_line, 3);
+
+        // Navigate to previous should move to end of previous timestamp line
+        file_data.navigate_to_previous_timestamp();
+        assert_eq!(
+            file_data.selected_timestamp_position,
+            Some(TimestampPosition::End)
+        );
+        assert_eq!(file_data.selected_line, 1);
+
+        // Navigate to previous should move to start position on same line
+        file_data.navigate_to_previous_timestamp();
+        assert_eq!(
+            file_data.selected_timestamp_position,
+            Some(TimestampPosition::Start)
+        );
+        assert_eq!(file_data.selected_line, 1);
+    }
+
+    #[test]
+    fn test_timestamp_range_selection() {
+        let lines = vec![
+            "Some text".to_string(),
+            "00:05:25.920 --> 00:05:46.060".to_string(),
+            "More text".to_string(),
+            "01:23:45.123 --> 01:24:00.456".to_string(),
+        ];
+
+        let mut file_data = FileViewData {
+            video_path: "test.mp4".to_string(),
+            lines,
+            selected_line: 1, // Start on first timestamp line
+            _scroll_offset: 0,
+            list_state: ListState::default(),
+            selected_timestamp_position: Some(TimestampPosition::Start),
+            range_start: None,
+            range_end: None,
+        };
+
+        // Navigate to range - this will move from Start to End on same line
+        file_data.navigate_to_next_timestamp_range();
+        assert!(file_data.range_start.is_some());
+        assert_eq!(file_data.range_start.as_ref().unwrap().line_index, 1);
+        assert_eq!(
+            file_data.range_start.as_ref().unwrap().position,
+            TimestampPosition::Start
+        );
+        assert!(file_data.range_end.is_some());
+        assert_eq!(file_data.range_end.as_ref().unwrap().line_index, 1);
+        assert_eq!(
+            file_data.range_end.as_ref().unwrap().position,
+            TimestampPosition::End
+        );
+        assert_eq!(
+            file_data.selected_timestamp_position,
+            Some(TimestampPosition::End)
+        );
+
+        // Get selected range timestamps
+        let range = file_data.get_selected_range_timestamps();
+        assert!(range.is_some());
+        let (start, end) = range.unwrap();
+        assert_eq!(start, "00:05:25.920");
+        assert_eq!(end, "00:05:46.060");
+
+        // Navigate to next timestamp - this should move to line 3
+        file_data.navigate_to_next_timestamp_range();
+        assert_eq!(file_data.range_end.as_ref().unwrap().line_index, 3);
+        assert_eq!(
+            file_data.range_end.as_ref().unwrap().position,
+            TimestampPosition::Start
+        );
+    }
+
+    #[test]
+    fn test_automatic_range_start() {
+        let lines = vec![
+            "Some text".to_string(),
+            "00:05:25.920 --> 00:05:46.060".to_string(),
+            "More text".to_string(),
+            "01:23:45.123 --> 01:24:00.456".to_string(),
+        ];
+
+        let mut file_data = FileViewData {
+            video_path: "test.mp4".to_string(),
+            lines,
+            selected_line: 1, // Start on first timestamp line
+            _scroll_offset: 0,
+            list_state: ListState::default(),
+            selected_timestamp_position: Some(TimestampPosition::Start),
+            range_start: None,
+            range_end: None,
+        };
+
+        // Navigate to range directly without manually starting range selection
+        file_data.navigate_to_next_timestamp_range();
+
+        // This should have automatically set range_start
+        assert!(
+            file_data.range_start.is_some(),
+            "range_start should be automatically set"
+        );
+        assert!(file_data.range_end.is_some(), "range_end should be set");
+
+        let range = file_data.get_selected_range_timestamps();
+        assert!(range.is_some(), "should have valid range timestamps");
+    }
+
+    #[test]
+    fn test_select_both_timestamps_on_current_line() {
+        let lines = vec![
+            "Some text".to_string(),
+            "00:05:25.920 --> 00:05:46.060".to_string(),
+            "More text".to_string(),
+        ];
+
+        let mut file_data = FileViewData {
+            video_path: "test.mp4".to_string(),
+            lines,
+            selected_line: 1, // On timestamp line
+            _scroll_offset: 0,
+            list_state: ListState::default(),
+            selected_timestamp_position: None,
+            range_start: None,
+            range_end: None,
+        };
+
+        // Should successfully select both timestamps on current line
+        let result = file_data.select_both_timestamps_on_current_line();
+        assert!(result, "Should succeed when on timestamp line");
+
+        // Should have entered timestamp mode
+        assert_eq!(
+            file_data.selected_timestamp_position,
+            Some(TimestampPosition::Start)
+        );
+
+        // Should have selected both timestamps as range
+        assert!(file_data.range_start.is_some());
+        assert!(file_data.range_end.is_some());
+        assert_eq!(
+            file_data.range_start.as_ref().unwrap().position,
+            TimestampPosition::Start
+        );
+        assert_eq!(
+            file_data.range_end.as_ref().unwrap().position,
+            TimestampPosition::End
+        );
+
+        // Should be able to get range timestamps
+        let range = file_data.get_selected_range_timestamps();
+        assert!(range.is_some());
+        let (start, end) = range.unwrap();
+        assert_eq!(start, "00:05:25.920");
+        assert_eq!(end, "00:05:46.060");
+    }
+
+    #[test]
+    fn test_jump_to_next_timestamp_and_select_both() {
+        let lines = vec![
+            "Some text".to_string(),
+            "00:05:25.920 --> 00:05:46.060".to_string(),
+            "More text".to_string(),
+            "01:23:45.123 --> 01:24:00.456".to_string(),
+        ];
+
+        let mut file_data = FileViewData {
+            video_path: "test.mp4".to_string(),
+            lines,
+            selected_line: 0, // On non-timestamp line
+            _scroll_offset: 0,
+            list_state: ListState::default(),
+            selected_timestamp_position: None,
+            range_start: None,
+            range_end: None,
+        };
+
+        // Should jump to next timestamp line and select both
+        let result = file_data.jump_to_next_timestamp_and_select_both();
+        assert!(result, "Should succeed in jumping to next timestamp");
+
+        // Should be on the timestamp line
+        assert_eq!(file_data.selected_line, 1);
+
+        // Should have entered timestamp mode
+        assert_eq!(
+            file_data.selected_timestamp_position,
+            Some(TimestampPosition::Start)
+        );
+
+        // Should have selected both timestamps as range
+        let range = file_data.get_selected_range_timestamps();
+        assert!(range.is_some());
+        let (start, end) = range.unwrap();
+        assert_eq!(start, "00:05:25.920");
+        assert_eq!(end, "00:05:46.060");
     }
 }
