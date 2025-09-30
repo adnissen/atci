@@ -270,7 +270,7 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
             "-i".to_string(),
             video_path.to_string_lossy().to_string(),
             "-vf".to_string(),
-            "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30,setpts=PTS-STARTPTS".to_string(),
+            "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:black,fps=fps=30".to_string(),
             "-c:v".to_string(),
             "libx264".to_string(),
             "-preset".to_string(),
@@ -291,10 +291,10 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
             "expr:gte(t,n_forced*1)".to_string(),
         ];
 
-        // Always re-encode audio to AAC for consistency with strict sync
+        // Always re-encode audio to AAC for consistency
         args.extend(vec![
             "-af".to_string(),
-            "aresample=async=1:first_pts=0,asetpts=PTS-STARTPTS".to_string(),
+            "aresample=async=1000:first_pts=0".to_string(),
             "-c:a".to_string(),
             "aac".to_string(),
             "-b:a".to_string(),
@@ -358,9 +358,7 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
         "-avoid_negative_ts",
         "make_zero",
         "-fflags",
-        "+genpts+igndts",
-        "-max_interleave_delta",
-        "0",
+        "+genpts",
         "-y",
         &output_path_str,
     ];
