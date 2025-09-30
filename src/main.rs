@@ -232,6 +232,12 @@ enum SupercutCommands {
             default_value = "false"
         )]
         file_only: bool,
+        #[arg(
+            long,
+            help = "Extract word-level timestamps and clip only the specific word",
+            default_value = "false"
+        )]
+        word: bool,
     },
     #[command(
         alias = "i",
@@ -1580,12 +1586,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 filter,
                 show_file,
                 file_only,
+                word,
             }) => {
                 let search_query = query.join(" ");
 
                 if file_only {
                     // Only generate clip data without creating supercut
-                    match search::get_supercut_clip_data(&search_query, filter.as_ref()) {
+                    match search::get_supercut_clip_data(&search_query, filter.as_ref(), word) {
                         Ok(clip_data) => {
                             println!("{}", serde_json::to_string_pretty(&clip_data)?);
                         }
@@ -1595,7 +1602,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 } else {
-                    match search::search_and_supercut(&search_query, filter.as_ref(), show_file) {
+                    match search::search_and_supercut(&search_query, filter.as_ref(), show_file, word) {
                         Ok((supercut_path, clip_data)) => {
                             if json {
                                 let mut output = serde_json::json!({

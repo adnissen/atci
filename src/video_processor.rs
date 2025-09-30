@@ -1068,6 +1068,196 @@ fn adjust_transcript_timestamps(
     Ok(adjusted.to_string())
 }
 
+/// Extract word-level timestamps for a specific video clip
+/// This function transcribes audio with word-level granularity (-ml 1) to get precise word timestamps
+pub async fn extract_word_timestamps(
+    video_path: &Path,
+    start_time: &str,
+    end_time: &str,
+    search_word: &str,
+) -> Result<Option<(String, String)>, Box<dyn std::error::Error + Send + Sync>> {
+    let cfg: crate::AtciConfig = crate::config::load_config()?;
+
+    // First, create a temporary clip of just this segment
+    let temp_clip = std::env::temp_dir().join(format!("word_clip_{}.mp3", uuid::Uuid::new_v4()));
+
+    // Extract audio for this specific segment
+    let clip_output = tokio::process::Command::new(&cfg.ffmpeg_path)
+        .args([
+            "-ss",
+            start_time,
+            "-i",
+            video_path.to_str().unwrap(),
+            "-t",
+            &format!("{}", parse_time_to_seconds(end_time)? - parse_time_to_seconds(start_time)?),
+            "-vn",
+            "-acodec",
+            "libmp3lame",
+            "-ar",
+            "16000",
+            "-ac",
+            "1",
+            "-y",
+            temp_clip.to_str().unwrap(),
+        ])
+        .output()
+        .await?;
+
+    if !clip_output.status.success() {
+        let _ = std::fs::remove_file(&temp_clip);
+        return Err("Failed to extract audio clip".into());
+    }
+
+    // Check for audio stream
+    let has_audio = has_audio_stream(video_path, Path::new(&cfg.ffprobe_path))
+        .await
+        .unwrap_or(false);
+
+    if !has_audio {
+        let _ = std::fs::remove_file(&temp_clip);
+        return Ok(None);
+    }
+
+    // Transcribe with word-level timestamps using -ml 1 option
+    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+    let model_path = home_dir
+        .join(".atci/models")
+        .join(format!("{}.bin", cfg.model_name));
+
+    let word_vtt_path = temp_clip.with_extension("mp3.vtt");
+
+    let transcribe_output = tokio::process::Command::new(&cfg.whispercli_path)
+        .args([
+            "-m",
+            model_path.to_str().unwrap(),
+            "-np",
+            "--max-context",
+            "0",
+            "-ml",
+            "1", // Word-level timestamps
+            "-ovtt",
+            "-f",
+            temp_clip.to_str().unwrap(),
+        ])
+        .output()
+        .await?;
+
+    if !transcribe_output.status.success() {
+        let _ = std::fs::remove_file(&temp_clip);
+        let _ = std::fs::remove_file(&word_vtt_path);
+        return Err("Whisper transcription failed".into());
+    }
+
+    // Parse the VTT output to find our word
+    let result = if word_vtt_path.exists() {
+        let content = std::fs::read_to_string(&word_vtt_path)?;
+        let word_result = find_word_in_vtt(&content, search_word, start_time)?;
+
+        let _ = std::fs::remove_file(&temp_clip);
+        let _ = std::fs::remove_file(&word_vtt_path);
+
+        word_result
+    } else {
+        let _ = std::fs::remove_file(&temp_clip);
+        None
+    };
+
+    Ok(result)
+}
+
+/// Parse time string (HH:MM:SS.mmm or MM:SS.mmm) to seconds
+fn parse_time_to_seconds(time_str: &str) -> Result<f64, Box<dyn std::error::Error + Send + Sync>> {
+    let parts: Vec<&str> = time_str.split(':').collect();
+
+    match parts.len() {
+        2 => {
+            // MM:SS.mmm format
+            let minutes: f64 = parts[0].parse()?;
+            let seconds: f64 = parts[1].parse()?;
+            Ok(minutes * 60.0 + seconds)
+        }
+        3 => {
+            // HH:MM:SS.mmm format
+            let hours: f64 = parts[0].parse()?;
+            let minutes: f64 = parts[1].parse()?;
+            let seconds: f64 = parts[2].parse()?;
+            Ok(hours * 3600.0 + minutes * 60.0 + seconds)
+        }
+        _ => Err("Invalid time format".into()),
+    }
+}
+
+/// Format seconds back to HH:MM:SS.mmm format
+fn seconds_to_time_string(seconds: f64) -> String {
+    let hours = (seconds / 3600.0).floor() as u32;
+    let minutes = ((seconds % 3600.0) / 60.0).floor() as u32;
+    let secs = seconds % 60.0;
+    format!("{:02}:{:02}:{:06.3}", hours, minutes, secs)
+}
+
+/// Find a specific word in VTT content and return its timestamps
+fn find_word_in_vtt(
+    vtt_content: &str,
+    search_word: &str,
+    offset_time: &str,
+) -> Result<Option<(String, String)>, Box<dyn std::error::Error + Send + Sync>> {
+    let offset_seconds = parse_time_to_seconds(offset_time)?;
+
+    // Normalize search word: lowercase and strip punctuation
+    let search_normalized = search_word
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect::<String>();
+
+    // Parse VTT format - skip the first line (WEBVTT header)
+    let lines: Vec<&str> = vtt_content.lines().skip(1).collect();
+
+    let timestamp_regex = regex::Regex::new(r"^(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})")?;
+
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i].trim();
+
+        // Check if this is a timestamp line
+        if let Some(caps) = timestamp_regex.captures(line) {
+            let start = &caps[1];
+            let end = &caps[2];
+
+            // Check the next non-empty line for the text
+            if i + 1 < lines.len() {
+                let text_line = lines[i + 1].trim();
+
+                // Skip empty lines
+                if !text_line.is_empty() {
+                    // Normalize text: lowercase and strip punctuation
+                    let text_normalized = text_line
+                        .to_lowercase()
+                        .chars()
+                        .filter(|c| c.is_alphanumeric())
+                        .collect::<String>();
+
+                    // Check if this line contains our search word (case-insensitive, punctuation-insensitive match)
+                    if text_normalized == search_normalized || text_normalized.contains(&search_normalized) {
+                        // Add offset to timestamps
+                        let start_seconds = parse_time_to_seconds(start)? + offset_seconds;
+                        let end_seconds = parse_time_to_seconds(end)? + offset_seconds;
+
+                        return Ok(Some((
+                            seconds_to_time_string(start_seconds),
+                            seconds_to_time_string(end_seconds),
+                        )));
+                    }
+                }
+            }
+        }
+
+        i += 1;
+    }
+
+    Ok(None)
+}
+
 /// Parse timestamp (HH:MM:SS.mmm) to milliseconds
 fn parse_timestamp_to_ms(
     time_str: &str,

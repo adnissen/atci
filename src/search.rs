@@ -306,6 +306,7 @@ pub fn search(
 pub fn get_supercut_clip_data(
     query: &str,
     filter: Option<&Vec<String>>,
+    word_level: bool,
 ) -> Result<Vec<SupercutClipData>, Box<dyn std::error::Error>> {
     // Get all search results without generating clips
     let results = search(query, filter, false, false)?;
@@ -317,50 +318,66 @@ pub fn get_supercut_clip_data(
     // Collect clip data from search results
     let mut clip_data: Vec<SupercutClipData> = Vec::new();
 
-    for result in results {
-        for search_match in result.matches {
-            // Extract start and end times from timestamp if available
-            if let Some(timestamp) = &search_match.timestamp
-                && let Some((start_time, end_time)) = parse_timestamp_range(timestamp)
-            {
-                clip_data.push(SupercutClipData {
-                    file_path: search_match.video_info.full_path.clone(),
-                    start_time,
-                    end_time,
-                    text: search_match.line_text.clone(),
-                });
+    if word_level {
+        // Use async runtime to extract word-level timestamps
+        let rt = tokio::runtime::Runtime::new()?;
+        for result in results {
+            for search_match in result.matches {
+                // Extract start and end times from timestamp if available
+                if let Some(timestamp) = &search_match.timestamp
+                    && let Some((start_time, end_time)) = parse_timestamp_range(timestamp)
+                {
+                    // Extract word-level timestamps
+                    let video_path = std::path::Path::new(&search_match.video_info.full_path);
+
+                    match rt.block_on(crate::video_processor::extract_word_timestamps(
+                        video_path,
+                        &start_time,
+                        &end_time,
+                        query,
+                    )) {
+                        Ok(Some((word_start, word_end))) => {
+                            clip_data.push(SupercutClipData {
+                                file_path: search_match.video_info.full_path.clone(),
+                                start_time: word_start,
+                                end_time: word_end,
+                                text: search_match.line_text.clone(),
+                            });
+                        }
+                        Ok(None) => {
+                            eprintln!(
+                                "Warning: Could not find word '{}' in segment from {}",
+                                query, search_match.video_info.full_path
+                            );
+                            // Fallback to using the full timestamp
+                            clip_data.push(SupercutClipData {
+                                file_path: search_match.video_info.full_path.clone(),
+                                start_time,
+                                end_time,
+                                text: search_match.line_text.clone(),
+                            });
+                        }
+                        Err(e) => {
+                            eprintln!(
+                                "Warning: Failed to extract word timestamps for {}: {}",
+                                search_match.video_info.full_path, e
+                            );
+                            // Fallback to using the full timestamp
+                            clip_data.push(SupercutClipData {
+                                file_path: search_match.video_info.full_path.clone(),
+                                start_time,
+                                end_time,
+                                text: search_match.line_text.clone(),
+                            });
+                        }
+                    }
+                }
             }
         }
-    }
-
-    if clip_data.is_empty() {
-        return Err("No clips with timestamps found in search results".into());
-    }
-
-    Ok(clip_data)
-}
-
-pub fn search_and_supercut(
-    query: &str,
-    filter: Option<&Vec<String>>,
-    show_file: bool,
-) -> Result<(String, Option<serde_json::Value>), Box<dyn std::error::Error>> {
-    // First, get all search results with clips generated
-    let results = search(query, filter, true, false)?;
-
-    if results.is_empty() {
-        return Err("No search results found".into());
-    }
-
-    // Collect all clip paths and clip data from search results
-    let mut clip_paths: Vec<PathBuf> = Vec::new();
-    let mut clip_data: Vec<SupercutClipData> = Vec::new();
-
-    for result in results {
-        for search_match in result.matches {
-            if let Some(clip_path) = search_match.clip_path {
-                clip_paths.push(PathBuf::from(clip_path));
-
+    } else {
+        // Use original sentence-level timestamps
+        for result in results {
+            for search_match in result.matches {
                 // Extract start and end times from timestamp if available
                 if let Some(timestamp) = &search_match.timestamp
                     && let Some((start_time, end_time)) = parse_timestamp_range(timestamp)
@@ -376,20 +393,117 @@ pub fn search_and_supercut(
         }
     }
 
-    if clip_paths.is_empty() {
-        return Err("No clips were generated from search results".into());
+    if clip_data.is_empty() {
+        return Err("No clips with timestamps found in search results".into());
     }
 
-    // Concatenate all clips into a supercut
-    let supercut_path = clipper::concatenate_videos(&clip_paths)?;
+    Ok(clip_data)
+}
 
-    let clip_data_json = if show_file {
-        Some(serde_json::to_value(&clip_data)?)
+pub fn search_and_supercut(
+    query: &str,
+    filter: Option<&Vec<String>>,
+    show_file: bool,
+    word_level: bool,
+) -> Result<(String, Option<serde_json::Value>), Box<dyn std::error::Error>> {
+    if word_level {
+        // For word-level, we need to extract word timestamps first, then create clips
+        let clip_data = get_supercut_clip_data(query, filter, true)?;
+
+        // Generate clips from the word-level data using clip_for_supercut for forced keyframes
+        let mut clip_paths: Vec<PathBuf> = Vec::new();
+
+        for clip in &clip_data {
+            let file_path = std::path::Path::new(&clip.file_path);
+
+            if !file_path.exists() {
+                eprintln!("Warning: Video file not found: {}", clip.file_path);
+                continue;
+            }
+
+            match clipper::clip(
+                file_path,
+                &clip.start_time,
+                &clip.end_time,
+                None,  // No text overlay for supercuts
+                false, // Don't display text
+                "mp4", // MP4 format
+                None,  // Default font size
+            ) {
+                Ok(clip_path) => {
+                    clip_paths.push(clip_path);
+                }
+                Err(e) => {
+                    eprintln!(
+                        "Warning: Failed to generate clip for {}: {}",
+                        clip.file_path, e
+                    );
+                }
+            }
+        }
+
+        if clip_paths.is_empty() {
+            return Err("No clips were generated from word-level timestamps".into());
+        }
+
+        // Concatenate all clips into a supercut
+        let supercut_path = clipper::concatenate_videos(&clip_paths)?;
+
+        let clip_data_json = if show_file {
+            Some(serde_json::to_value(&clip_data)?)
+        } else {
+            None
+        };
+
+        Ok((supercut_path.to_string_lossy().to_string(), clip_data_json))
     } else {
-        None
-    };
+        // Original sentence-level approach
+        // First, get all search results with clips generated
+        let results = search(query, filter, true, false)?;
 
-    Ok((supercut_path.to_string_lossy().to_string(), clip_data_json))
+        if results.is_empty() {
+            return Err("No search results found".into());
+        }
+
+        // Collect all clip paths and clip data from search results
+        let mut clip_paths: Vec<PathBuf> = Vec::new();
+        let mut clip_data: Vec<SupercutClipData> = Vec::new();
+
+        for result in results {
+            for search_match in result.matches {
+                if let Some(clip_path) = search_match.clip_path {
+                    clip_paths.push(PathBuf::from(clip_path));
+
+                    // Extract start and end times from timestamp if available
+                    if let Some(timestamp) = &search_match.timestamp
+                        && let Some((start_time, end_time)) = parse_timestamp_range(timestamp)
+                    {
+                        clip_data.push(SupercutClipData {
+                            file_path: search_match.video_info.full_path.clone(),
+                            start_time,
+                            end_time,
+                            text: search_match.line_text.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        if clip_paths.is_empty() {
+            return Err("No clips were generated from search results".into());
+        }
+
+        // Concatenate all clips into a supercut
+        let supercut_path = clipper::concatenate_videos(&clip_paths)?;
+
+        let clip_data_json = if show_file {
+            Some(serde_json::to_value(&clip_data)?)
+        } else {
+            None
+        };
+
+        Ok((supercut_path.to_string_lossy().to_string(), clip_data_json))
+    }
 }
 
 pub fn supercut_from_input(input_path: &str) -> Result<String, Box<dyn std::error::Error>> {
