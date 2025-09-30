@@ -180,7 +180,7 @@ pub fn clip(
     let temp_clip_path = std::env::temp_dir().join(&temp_clip_name);
 
     //if temp_clip_path.exists() {
-        //return Ok(temp_clip_path);
+    //return Ok(temp_clip_path);
     //}
 
     let duration = end_seconds - start_seconds;
@@ -842,17 +842,18 @@ fn grab_frame_args(
 
     // Build video filter components
     let mut vf_filters = Vec::new();
-    
+
     // Add scaling filter if width is specified
     if let Some(target_width) = width {
         let cfg = crate::config::load_config().unwrap_or_default();
         let ffprobe_path = Path::new(&cfg.ffprobe_path);
-        let (video_width, video_height) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
-        
+        let (video_width, video_height) =
+            get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
+
         // Calculate height maintaining aspect ratio
         let aspect_ratio = video_height as f64 / video_width as f64;
         let target_height = (target_width as f64 * aspect_ratio).round() as u32;
-        
+
         vf_filters.push(format!("scale={}:{}", target_width, target_height));
     }
 
@@ -867,12 +868,14 @@ fn grab_frame_args(
             Ok(_) => {
                 let cfg = crate::config::load_config().unwrap_or_default();
                 let ffprobe_path = Path::new(&cfg.ffprobe_path);
-                let (video_width, _) = get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
-                
+                let (video_width, _) =
+                    get_video_dimensions(input_path, ffprobe_path).unwrap_or((1920, 1080));
+
                 // Calculate font size and scale it based on output vs original video width
-                let base_font_size = font_size
-                    .unwrap_or_else(|| calculate_font_size_for_video(video_width, text_content.len()));
-                
+                let base_font_size = font_size.unwrap_or_else(|| {
+                    calculate_font_size_for_video(video_width, text_content.len())
+                });
+
                 // Scale font size proportionally if width is being changed
                 let scaled_font_size = if let Some(target_width) = width {
                     let scale_factor = target_width as f32 / video_width as f32;
@@ -895,13 +898,10 @@ fn grab_frame_args(
             }
         }
     }
-    
+
     // Apply video filters if any were added
     if !vf_filters.is_empty() {
-        args.extend(vec![
-            "-vf".to_string(),
-            vf_filters.join(","),
-        ]);
+        args.extend(vec!["-vf".to_string(), vf_filters.join(",")]);
     }
 
     args.extend(vec![

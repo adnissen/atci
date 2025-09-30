@@ -1089,7 +1089,10 @@ pub async fn extract_word_timestamps(
             "-i",
             video_path.to_str().unwrap(),
             "-t",
-            &format!("{}", parse_time_to_seconds(end_time)? - parse_time_to_seconds(start_time)?),
+            &format!(
+                "{}",
+                parse_time_to_seconds(end_time)? - parse_time_to_seconds(start_time)?
+            ),
             "-vn",
             "-acodec",
             "libmp3lame",
@@ -1213,7 +1216,8 @@ fn find_word_in_vtt(
     // Parse VTT format - skip the first line (WEBVTT header)
     let lines: Vec<&str> = vtt_content.lines().skip(1).collect();
 
-    let timestamp_regex = regex::Regex::new(r"^(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})")?;
+    let timestamp_regex =
+        regex::Regex::new(r"^(\d{2}:\d{2}:\d{2}\.\d{3}) --> (\d{2}:\d{2}:\d{2}\.\d{3})")?;
 
     let mut i = 0;
     while i < lines.len() {
@@ -1238,7 +1242,9 @@ fn find_word_in_vtt(
                         .collect::<String>();
 
                     // Check if this line contains our search word (case-insensitive, punctuation-insensitive match)
-                    if text_normalized == search_normalized || text_normalized.contains(&search_normalized) {
+                    if text_normalized == search_normalized
+                        || text_normalized.contains(&search_normalized)
+                    {
                         // Add offset to timestamps
                         let start_seconds = parse_time_to_seconds(start)? + offset_seconds;
                         let end_seconds = parse_time_to_seconds(end)? + offset_seconds;

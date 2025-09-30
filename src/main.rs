@@ -1605,7 +1605,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 if file_only {
                     // Only generate clip data without creating supercut
-                    match search::get_supercut_clip_data(&search_query, filter.as_ref(), word, random) {
+                    match search::get_supercut_clip_data(
+                        &search_query,
+                        filter.as_ref(),
+                        word,
+                        random,
+                    ) {
                         Ok(clip_data) => {
                             println!("{}", serde_json::to_string_pretty(&clip_data)?);
                         }
@@ -1615,7 +1620,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 } else {
-                    match search::search_and_supercut(&search_query, filter.as_ref(), show_file, word, random) {
+                    match search::search_and_supercut(
+                        &search_query,
+                        filter.as_ref(),
+                        show_file,
+                        word,
+                        random,
+                    ) {
                         Ok((supercut_path, clip_data)) => {
                             if json {
                                 let mut output = serde_json::json!({

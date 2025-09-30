@@ -517,7 +517,10 @@ pub fn search_and_supercut(
     }
 }
 
-pub fn supercut_from_input(input_path: &str, randomize: bool) -> Result<String, Box<dyn std::error::Error>> {
+pub fn supercut_from_input(
+    input_path: &str,
+    randomize: bool,
+) -> Result<String, Box<dyn std::error::Error>> {
     // Read input from file or stdin
     let json_content = if input_path == "-" {
         let mut buffer = String::new();
