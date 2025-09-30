@@ -345,10 +345,10 @@ pub fn get_supercut_clip_data(
                             });
                         }
                         Ok(None) => {
-                            eprintln!(
-                                "Warning: Could not find word '{}' in segment from {}",
-                                query, search_match.video_info.full_path
-                            );
+                            // eprintln!(
+                            //     "Warning: Could not find word '{}' in segment from {}",
+                            //     query, search_match.video_info.full_path
+                            // );
                         }
                         Err(e) => {
                             eprintln!(
