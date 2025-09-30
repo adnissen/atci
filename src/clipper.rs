@@ -314,6 +314,7 @@ pub fn concatenate_videos(video_paths: &[PathBuf]) -> Result<PathBuf, Box<dyn st
             "make_zero".to_string(),
             "-max_muxing_queue_size".to_string(),
             "1024".to_string(),
+            "-shortest".to_string(),
             "-y".to_string(),
             normalized_path.to_string_lossy().to_string(),
         ]);

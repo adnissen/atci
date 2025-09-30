@@ -216,6 +216,7 @@ dependencies = [
  "image",
  "indicatif 0.18.0",
  "predicates",
+ "rand 0.8.5",
  "ratatui",
  "ratatui-image",
  "rayon",

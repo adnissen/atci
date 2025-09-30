@@ -238,6 +238,12 @@ enum SupercutCommands {
             default_value = "false"
         )]
         word: bool,
+        #[arg(
+            long,
+            help = "Randomize the order of clips before generating the supercut",
+            default_value = "false"
+        )]
+        random: bool,
     },
     #[command(
         alias = "i",
@@ -252,6 +258,12 @@ enum SupercutCommands {
             default_value = "false"
         )]
         json: bool,
+        #[arg(
+            long,
+            help = "Randomize the order of clips before generating the supercut",
+            default_value = "false"
+        )]
+        random: bool,
     },
 }
 
@@ -1587,12 +1599,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 show_file,
                 file_only,
                 word,
+                random,
             }) => {
                 let search_query = query.join(" ");
 
                 if file_only {
                     // Only generate clip data without creating supercut
-                    match search::get_supercut_clip_data(&search_query, filter.as_ref(), word) {
+                    match search::get_supercut_clip_data(&search_query, filter.as_ref(), word, random) {
                         Ok(clip_data) => {
                             println!("{}", serde_json::to_string_pretty(&clip_data)?);
                         }
@@ -1602,7 +1615,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 } else {
-                    match search::search_and_supercut(&search_query, filter.as_ref(), show_file, word) {
+                    match search::search_and_supercut(&search_query, filter.as_ref(), show_file, word, random) {
                         Ok((supercut_path, clip_data)) => {
                             if json {
                                 let mut output = serde_json::json!({
@@ -1626,9 +1639,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
             }
-            Some(SupercutCommands::FromFile { path, json }) => {
+            Some(SupercutCommands::FromFile { path, json, random }) => {
                 let input_path = path.as_deref().unwrap_or("-");
-                match search::supercut_from_input(input_path) {
+                match search::supercut_from_input(input_path, random) {
                     Ok(supercut_path) => {
                         if json {
                             let output = serde_json::json!({

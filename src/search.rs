@@ -307,6 +307,7 @@ pub fn get_supercut_clip_data(
     query: &str,
     filter: Option<&Vec<String>>,
     word_level: bool,
+    randomize: bool,
 ) -> Result<Vec<SupercutClipData>, Box<dyn std::error::Error>> {
     // Get all search results without generating clips
     let results = search(query, filter, false, false)?;
@@ -390,6 +391,14 @@ pub fn get_supercut_clip_data(
         return Err("No clips with timestamps found in search results".into());
     }
 
+    // Randomize the order if requested
+    if randomize {
+        use rand::seq::SliceRandom;
+        use rand::thread_rng;
+        let mut rng = thread_rng();
+        clip_data.shuffle(&mut rng);
+    }
+
     Ok(clip_data)
 }
 
@@ -398,10 +407,11 @@ pub fn search_and_supercut(
     filter: Option<&Vec<String>>,
     show_file: bool,
     word_level: bool,
+    randomize: bool,
 ) -> Result<(String, Option<serde_json::Value>), Box<dyn std::error::Error>> {
     if word_level {
         // For word-level, we need to extract word timestamps first, then create clips
-        let clip_data = get_supercut_clip_data(query, filter, true)?;
+        let clip_data = get_supercut_clip_data(query, filter, true, randomize)?;
 
         // Generate clips from the word-level data using clip_for_supercut for forced keyframes
         let mut clip_paths: Vec<PathBuf> = Vec::new();
@@ -486,6 +496,14 @@ pub fn search_and_supercut(
             return Err("No clips were generated from search results".into());
         }
 
+        // Randomize the order if requested
+        if randomize {
+            use rand::seq::SliceRandom;
+            use rand::thread_rng;
+            let mut rng = thread_rng();
+            clip_paths.shuffle(&mut rng);
+        }
+
         // Concatenate all clips into a supercut
         let supercut_path = clipper::concatenate_videos(&clip_paths)?;
 
@@ -499,7 +517,7 @@ pub fn search_and_supercut(
     }
 }
 
-pub fn supercut_from_input(input_path: &str) -> Result<String, Box<dyn std::error::Error>> {
+pub fn supercut_from_input(input_path: &str, randomize: bool) -> Result<String, Box<dyn std::error::Error>> {
     // Read input from file or stdin
     let json_content = if input_path == "-" {
         let mut buffer = String::new();
@@ -510,10 +528,18 @@ pub fn supercut_from_input(input_path: &str) -> Result<String, Box<dyn std::erro
     };
 
     // Parse JSON into clip data
-    let clip_data: Vec<SupercutClipData> = serde_json::from_str(&json_content)?;
+    let mut clip_data: Vec<SupercutClipData> = serde_json::from_str(&json_content)?;
 
     if clip_data.is_empty() {
         return Err("No clip data found in input".into());
+    }
+
+    // Randomize the order if requested
+    if randomize {
+        use rand::seq::SliceRandom;
+        use rand::thread_rng;
+        let mut rng = thread_rng();
+        clip_data.shuffle(&mut rng);
     }
 
     // Generate clips from the data
