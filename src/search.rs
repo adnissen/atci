@@ -349,13 +349,6 @@ pub fn get_supercut_clip_data(
                                 "Warning: Could not find word '{}' in segment from {}",
                                 query, search_match.video_info.full_path
                             );
-                            // Fallback to using the full timestamp
-                            clip_data.push(SupercutClipData {
-                                file_path: search_match.video_info.full_path.clone(),
-                                start_time,
-                                end_time,
-                                text: search_match.line_text.clone(),
-                            });
                         }
                         Err(e) => {
                             eprintln!(

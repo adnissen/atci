@@ -1614,9 +1614,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("{}", serde_json::to_string_pretty(&output)?);
                             } else {
                                 if show_file && let Some(data) = clip_data {
-                                    println!("JSON:{}", serde_json::to_string_pretty(&data)?);
+                                    println!("{}", serde_json::to_string_pretty(&data)?);
                                 }
-                                println!("supercut path: {}", supercut_path);
+                                println!("{}", supercut_path);
                             }
                         }
                         Err(e) => {
