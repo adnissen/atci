@@ -1,14 +1,16 @@
-use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::style::Style;
+use clipboard_rs::{Clipboard, ClipboardContext};
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
+use ratatui::style::Style;
+use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui_image::{
+    FilterType::Lanczos3, Resize, StatefulImage, picker::Picker, protocol::StatefulProtocol,
+};
 use std::path::Path;
 use std::process::Command;
-use ratatui::Frame;
-use ratatui_image::{picker::Picker, StatefulImage, protocol::StatefulProtocol, Resize, FilterType::Lanczos3};
-use clipboard_rs::{Clipboard, ClipboardContext};
 
-use crate::tui::{App, TabState, create_tab_title_with_editor};
 use crate::clipper;
+use crate::tui::{App, TabState, create_tab_title_with_editor};
 
 pub struct EditorData {
     pub start_time: String,
@@ -44,35 +46,53 @@ pub enum EditorSelection {
 }
 
 impl App {
-    pub fn open_editor(&mut self, start_time: String, end_time: String, text: String, file_path: String) {
+    pub fn open_editor(
+        &mut self,
+        start_time: String,
+        end_time: String,
+        text: String,
+        file_path: String,
+    ) {
         // Calculate default font size based on video dimensions
         let video_path = Path::new(&file_path);
         let default_font_size = clipper::calculate_font_size_for_video_path(video_path, text.len());
-        
+
         // Generate frame images with text overlay by default
-        let start_frame_path = clipper::grab_frame(video_path, &start_time, Some(&text), Some(default_font_size), Some(360)).ok();
-        let end_frame_path = clipper::grab_frame(video_path, &end_time, Some(&text), Some(default_font_size), Some(360)).ok();
-        
+        let start_frame_path = clipper::grab_frame(
+            video_path,
+            &start_time,
+            Some(&text),
+            Some(default_font_size),
+            Some(360),
+        )
+        .ok();
+        let end_frame_path = clipper::grab_frame(
+            video_path,
+            &end_time,
+            Some(&text),
+            Some(default_font_size),
+            Some(360),
+        )
+        .ok();
+
         // Load start frame if available
         let picker = Picker::from_query_stdio().ok().unwrap();
 
-        let start_frame = start_frame_path.as_ref()
-            .and_then(|path| {
-                image::ImageReader::open(path)
-                    .ok()
-                    .and_then(|reader| reader.decode().ok())
-                    .map(|img| picker.new_resize_protocol(img))
-            });
-            
+        let start_frame = start_frame_path.as_ref().and_then(|path| {
+            image::ImageReader::open(path)
+                .ok()
+                .and_then(|reader| reader.decode().ok())
+                .map(|img| picker.new_resize_protocol(img))
+        });
+
         // Load end frame if available - use separate picker instance
-        let end_frame = end_frame_path.as_ref()
-            .and_then(|path| {
-                image::ImageReader::open(path)
-                    .ok()
-                    .and_then(|reader| reader.decode().ok())
-                    .map(|img| picker.new_resize_protocol(img))
-            });
-        
+        let end_frame = end_frame_path.as_ref().and_then(|path| {
+            image::ImageReader::open(path)
+                .ok()
+                .and_then(|reader| reader.decode().ok())
+                .map(|img| picker.new_resize_protocol(img))
+        });
+
         self.editor_data = Some(EditorData {
             start_time,
             end_time,
@@ -87,7 +107,7 @@ impl App {
             font_size: default_font_size,
             editor_selection: EditorSelection::StartFrame, // Default selection
             text_editing_mode: false,
-            text_input: text, // Initialize with current text
+            text_input: text,          // Initialize with current text
             format: "mp4".to_string(), // Default format
         });
         self.current_tab = TabState::Editor;
@@ -98,21 +118,20 @@ impl App {
             self.current_tab = TabState::Editor;
         }
     }
-    
-    pub fn toggle_editor_overlay(&mut self) {
-        if let Some(ref mut editor_data) = self.editor_data {
-            editor_data.show_overlay_text = !editor_data.show_overlay_text;
-            // Regenerate frames with new overlay setting
-            self.regenerate_editor_frames();
-        }
-    }
-    
-    
-    pub fn select_frame(&mut self, frame: FrameSelection) {
-        if let Some(ref mut editor_data) = self.editor_data {
-            editor_data.selected_frame = frame;
-        }
-    }
+
+    // pub fn toggle_editor_overlay(&mut self) {
+    //     if let Some(ref mut editor_data) = self.editor_data {
+    //         editor_data.show_overlay_text = !editor_data.show_overlay_text;
+    //         // Regenerate frames with new overlay setting
+    //         self.regenerate_editor_frames();
+    //     }
+    // }
+
+    // pub fn select_frame(&mut self, frame: FrameSelection) {
+    //     if let Some(ref mut editor_data) = self.editor_data {
+    //         editor_data.selected_frame = frame;
+    //     }
+    // }
 
     pub fn navigate_editor_selection_left_or_right(&mut self, right: bool) {
         if let Some(ref mut editor_data) = self.editor_data {
@@ -120,7 +139,7 @@ impl App {
             if editor_data.text_editing_mode {
                 return;
             }
-            
+
             editor_data.editor_selection = match (editor_data.editor_selection, right) {
                 // start frame
                 (EditorSelection::StartFrame, true) => EditorSelection::EndFrame, // right
@@ -144,27 +163,27 @@ impl App {
             };
         }
     }
-    
+
     pub fn navigate_editor_selection_up_or_down(&mut self, down: bool) {
         if let Some(ref mut editor_data) = self.editor_data {
             // Don't navigate if in text editing mode
             if editor_data.text_editing_mode {
                 return;
             }
-            
+
             editor_data.editor_selection = match (editor_data.editor_selection, down) {
                 // start frame
                 (EditorSelection::StartFrame, true) => EditorSelection::TextContent, // down
                 (EditorSelection::StartFrame, false) => EditorSelection::TextContent, // up
-                
+
                 // end frame
                 (EditorSelection::EndFrame, true) => EditorSelection::FontSize, // down
-                (EditorSelection::EndFrame, false) => EditorSelection::Format, // up
+                (EditorSelection::EndFrame, false) => EditorSelection::Format,  // up
 
                 // font size
                 (EditorSelection::FontSize, true) => EditorSelection::Format, // down
                 (EditorSelection::FontSize, false) => EditorSelection::EndFrame, // up
-                
+
                 // format
                 (EditorSelection::Format, true) => EditorSelection::EndFrame, // down
                 (EditorSelection::Format, false) => EditorSelection::FontSize, // up
@@ -175,7 +194,7 @@ impl App {
             }
         }
     }
-    
+
     pub fn activate_selected_element(&mut self) {
         if let Some(ref mut editor_data) = self.editor_data {
             match editor_data.editor_selection {
@@ -210,43 +229,43 @@ impl App {
             }
         }
     }
-    
+
     pub fn exit_text_editing(&mut self) {
-        if let Some(ref mut editor_data) = self.editor_data {
-            if editor_data.text_editing_mode {
-                // Update the text and regenerate frames if overlay is enabled
-                editor_data.text = editor_data.text_input.clone();
-                editor_data.text_editing_mode = false;
-                
-                // Regenerate frames if overlay text is enabled
-                if editor_data.show_overlay_text {
-                    self.regenerate_editor_frames();
-                }
+        if let Some(ref mut editor_data) = self.editor_data
+            && editor_data.text_editing_mode
+        {
+            // Update the text and regenerate frames if overlay is enabled
+            editor_data.text = editor_data.text_input.clone();
+            editor_data.text_editing_mode = false;
+
+            // Regenerate frames if overlay text is enabled
+            if editor_data.show_overlay_text {
+                self.regenerate_editor_frames();
             }
         }
     }
-    
+
     pub fn add_char_to_text(&mut self, c: char) {
-        if let Some(ref mut editor_data) = self.editor_data {
-            if editor_data.text_editing_mode {
-                editor_data.text_input.push(c);
-            }
+        if let Some(ref mut editor_data) = self.editor_data
+            && editor_data.text_editing_mode
+        {
+            editor_data.text_input.push(c);
         }
     }
-    
+
     pub fn remove_char_from_text(&mut self) {
-        if let Some(ref mut editor_data) = self.editor_data {
-            if editor_data.text_editing_mode {
-                editor_data.text_input.pop();
-            }
+        if let Some(ref mut editor_data) = self.editor_data
+            && editor_data.text_editing_mode
+        {
+            editor_data.text_input.pop();
         }
     }
-    
+
     pub fn adjust_font_size(&mut self, increase: bool) {
         if let Some(ref mut editor_data) = self.editor_data {
             let adjustment = if increase { 2 } else { -2 };
             let new_size = (editor_data.font_size as i32 + adjustment).max(8) as u32; // Minimum font size of 8
-            
+
             if new_size != editor_data.font_size {
                 editor_data.font_size = new_size;
                 // Regenerate frames with new font size
@@ -254,15 +273,15 @@ impl App {
             }
         }
     }
-    
+
     pub fn adjust_selected_frame_time(&mut self, forward: bool) {
         self.adjust_selected_frame_time_by_amount(forward, 0.1);
     }
-    
+
     pub fn adjust_selected_frame_time_by_second(&mut self, forward: bool) {
         self.adjust_selected_frame_time_by_amount(forward, 1.0);
     }
-    
+
     fn adjust_selected_frame_time_by_amount(&mut self, forward: bool, amount: f64) {
         if let Some(ref editor_data) = self.editor_data {
             // Only allow time adjustment if a frame is selected in the unified selection system
@@ -271,13 +290,13 @@ impl App {
                 EditorSelection::EndFrame => FrameSelection::End,
                 _ => return, // Don't adjust time if no frame is selected
             };
-            
+
             let adjustment = if forward { amount } else { -amount };
-            
+
             // Parse both start and end times for validation
             let start_seconds = Self::parse_time_to_seconds(&editor_data.start_time).unwrap_or(0.0);
             let end_seconds = Self::parse_time_to_seconds(&editor_data.end_time).unwrap_or(0.0);
-            
+
             match selected_frame {
                 FrameSelection::Start => {
                     let current_time = editor_data.start_time.clone();
@@ -312,7 +331,7 @@ impl App {
             }
         }
     }
-    
+
     fn regenerate_editor_frames(&mut self) {
         if let Some(ref mut editor_data) = self.editor_data {
             let video_path = Path::new(&editor_data.file_path);
@@ -321,46 +340,46 @@ impl App {
             } else {
                 None
             };
-            
+
             // Regenerate start frame
             editor_data.start_frame_path = clipper::grab_frame(
-                video_path, 
-                &editor_data.start_time, 
-                text_overlay, 
+                video_path,
+                &editor_data.start_time,
+                text_overlay,
                 Some(editor_data.font_size),
-                Some(360)
-            ).ok();
-            
+                Some(360),
+            )
+            .ok();
+
             // Regenerate end frame
             editor_data.end_frame_path = clipper::grab_frame(
-                video_path, 
-                &editor_data.end_time, 
-                text_overlay, 
+                video_path,
+                &editor_data.end_time,
+                text_overlay,
                 Some(editor_data.font_size),
-                Some(360)
-            ).ok();
-            
+                Some(360),
+            )
+            .ok();
+
             let picker = Picker::from_query_stdio().ok().unwrap();
             // Reload start frame if available
-            editor_data.start_frame = editor_data.start_frame_path.as_ref()
-                .and_then(|path| {
-                    image::ImageReader::open(path)
-                        .ok()
-                        .and_then(|reader| reader.decode().ok())
-                        .map(|img| picker.new_resize_protocol(img))
-                });
-                
+            editor_data.start_frame = editor_data.start_frame_path.as_ref().and_then(|path| {
+                image::ImageReader::open(path)
+                    .ok()
+                    .and_then(|reader| reader.decode().ok())
+                    .map(|img| picker.new_resize_protocol(img))
+            });
+
             // Reload end frame if available - use separate picker instance
-            editor_data.end_frame = editor_data.end_frame_path.as_ref()
-                .and_then(|path| {
-                    image::ImageReader::open(path)
-                        .ok()
-                        .and_then(|reader| reader.decode().ok())
-                        .map(|img| picker.new_resize_protocol(img))
-                });
+            editor_data.end_frame = editor_data.end_frame_path.as_ref().and_then(|path| {
+                image::ImageReader::open(path)
+                    .ok()
+                    .and_then(|reader| reader.decode().ok())
+                    .map(|img| picker.new_resize_protocol(img))
+            });
         }
     }
-    
+
     fn regenerate_single_frame(&mut self, frame: FrameSelection) {
         if let Some(ref mut editor_data) = self.editor_data {
             let video_path = Path::new(&editor_data.file_path);
@@ -369,20 +388,21 @@ impl App {
             } else {
                 None
             };
-            
+
             match frame {
                 FrameSelection::Start => {
                     editor_data.start_frame_path = clipper::grab_frame(
-                        video_path, 
-                        &editor_data.start_time, 
-                        text_overlay, 
+                        video_path,
+                        &editor_data.start_time,
+                        text_overlay,
                         Some(editor_data.font_size),
-                        Some(360)
-                    ).ok();
-                    
+                        Some(360),
+                    )
+                    .ok();
+
                     // Reload start frame
-                    editor_data.start_frame = editor_data.start_frame_path.as_ref()
-                        .and_then(|path| {
+                    editor_data.start_frame =
+                        editor_data.start_frame_path.as_ref().and_then(|path| {
                             let picker = Picker::from_query_stdio().ok().unwrap();
                             image::ImageReader::open(path)
                                 .ok()
@@ -392,31 +412,31 @@ impl App {
                 }
                 FrameSelection::End => {
                     editor_data.end_frame_path = clipper::grab_frame(
-                        video_path, 
-                        &editor_data.end_time, 
-                        text_overlay, 
+                        video_path,
+                        &editor_data.end_time,
+                        text_overlay,
                         Some(editor_data.font_size),
-                        Some(360)
-                    ).ok();
-                    
+                        Some(360),
+                    )
+                    .ok();
+
                     // Reload end frame
-                    editor_data.end_frame = editor_data.end_frame_path.as_ref()
-                        .and_then(|path| {
-                            let picker = Picker::from_query_stdio().ok().unwrap();
-                            image::ImageReader::open(path)
-                                .ok()
-                                .and_then(|reader| reader.decode().ok())
-                                .map(|img| picker.new_resize_protocol(img))
-                        });
+                    editor_data.end_frame = editor_data.end_frame_path.as_ref().and_then(|path| {
+                        let picker = Picker::from_query_stdio().ok().unwrap();
+                        image::ImageReader::open(path)
+                            .ok()
+                            .and_then(|reader| reader.decode().ok())
+                            .map(|img| picker.new_resize_protocol(img))
+                    });
                 }
             }
         }
     }
-    
+
     fn parse_time_to_seconds(time_str: &str) -> Result<f64, Box<dyn std::error::Error>> {
         // Parse time format like "00:01:23.456" or "1:23.456" or "23.456"
         let parts: Vec<&str> = time_str.split(':').collect();
-        
+
         match parts.len() {
             1 => {
                 // Just seconds: "23.456"
@@ -435,15 +455,15 @@ impl App {
                 let seconds = parts[2].parse::<f64>()?;
                 Ok(hours * 3600.0 + minutes * 60.0 + seconds)
             }
-            _ => Err("Invalid time format".into())
+            _ => Err("Invalid time format".into()),
         }
     }
-    
+
     fn seconds_to_time_string(seconds: f64) -> String {
         let hours = (seconds / 3600.0) as u32;
         let minutes = ((seconds % 3600.0) / 60.0) as u32;
         let secs = seconds % 60.0;
-        
+
         if hours > 0 {
             format!("{:02}:{:02}:{:06.3}", hours, minutes, secs)
         } else if minutes > 0 {
@@ -452,7 +472,7 @@ impl App {
             format!("{:06.3}", secs)
         }
     }
-    
+
     pub fn copy_clip(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(ref _editor_data) = self.editor_data {
             let clip_path = self.generate_clip()?;
@@ -460,7 +480,7 @@ impl App {
         }
         Ok(())
     }
-    
+
     pub fn open_clip(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(ref _editor_data) = self.editor_data {
             let clip_path = self.generate_clip()?;
@@ -468,13 +488,17 @@ impl App {
         }
         Ok(())
     }
-    
+
     fn generate_clip(&self) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
         if let Some(ref editor_data) = self.editor_data {
             let video_path = Path::new(&editor_data.file_path);
             let display_text = editor_data.show_overlay_text;
-            let text = if display_text { Some(editor_data.text.as_str()) } else { None };
-            
+            let text = if display_text {
+                Some(editor_data.text.as_str())
+            } else {
+                None
+            };
+
             // Generate the clip using the current parameters
             clipper::clip(
                 video_path,
@@ -489,53 +513,62 @@ impl App {
             Err("No editor data available".into())
         }
     }
-    
+
     fn copy_file_to_clipboard(&self, file_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let ctx = ClipboardContext::new()
             .map_err(|e| format!("Failed to create clipboard context: {}", e))?;
-        
+
         // Copy the actual file to clipboard using file list support
         let file_list = vec![file_path.to_string_lossy().to_string()];
         ctx.set_files(file_list)
             .map_err(|e| format!("Failed to set files in clipboard: {}", e))?;
-        
+
         Ok(())
     }
-    
+
     fn open_file(&self, file_path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(target_os = "macos")]
         {
             Command::new("open").arg(file_path).spawn()?;
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             Command::new("xdg-open").arg(file_path).spawn()?;
         }
-        
+
         #[cfg(target_os = "windows")]
         {
             Command::new("cmd")
                 .args(["/C", "start", "", &file_path.display().to_string()])
                 .spawn()?;
         }
-        
+
         Ok(())
     }
 }
 
 pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App) {
     // Use the same tab title system as other tabs
-    let title = create_tab_title_with_editor(app.current_tab, &app.colors, !app.search_results.is_empty(), app.editor_data.is_some(), app.file_view_data.is_some());
+    let title = create_tab_title_with_editor(
+        app.current_tab,
+        &app.colors,
+        !app.search_results.is_empty(),
+        app.editor_data.is_some(),
+        app.file_view_data.is_some(),
+    );
 
     // Split the main content area into sections
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
-        .constraints([
-            Constraint::Min(7),     // Frame images section (reduced by 2 lines)
-            Constraint::Length(6),  // Text content section (increased by 2 lines)
-        ].as_ref())
+        .constraints(
+            [
+                Constraint::Min(7),    // Frame images section (reduced by 2 lines)
+                Constraint::Length(6), // Text content section (increased by 2 lines)
+            ]
+            .as_ref(),
+        )
         .split(area);
 
     // Create main block with tab title
@@ -550,10 +583,13 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         // Frame images section
         let frame_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(50), // Start frame
-                Constraint::Percentage(50), // End frame
-            ].as_ref())
+            .constraints(
+                [
+                    Constraint::Percentage(50), // Start frame
+                    Constraint::Percentage(50), // End frame
+                ]
+                .as_ref(),
+            )
             .split(main_chunks[0]);
 
         // Start frame
@@ -563,14 +599,14 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         } else {
             format!("Start Frame: {}", editor_data.start_time)
         };
-        
+
         let start_frame_block = Block::default()
             .title(start_frame_title)
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(if start_selected { 
-                ratatui::style::Color::Yellow 
-            } else { 
-                app.colors.footer_border_color 
+            .border_style(Style::new().fg(if start_selected {
+                ratatui::style::Color::Yellow
+            } else {
+                app.colors.footer_border_color
             }));
 
         if let Some(ref mut start_frame_protocol) = editor_data.start_frame {
@@ -593,14 +629,14 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         } else {
             format!("End Frame: {}", editor_data.end_time)
         };
-        
+
         let end_frame_block = Block::default()
             .title(end_frame_title)
             .borders(Borders::ALL)
-            .border_style(Style::new().fg(if end_selected { 
-                ratatui::style::Color::Yellow 
-            } else { 
-                app.colors.footer_border_color 
+            .border_style(Style::new().fg(if end_selected {
+                ratatui::style::Color::Yellow
+            } else {
+                app.colors.footer_border_color
             }));
 
         if let Some(ref mut end_frame_protocol) = editor_data.end_frame {
@@ -619,10 +655,13 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         // Split text section horizontally: 90% for text content, 10% for font size display
         let text_chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(90), // Text content
-                Constraint::Percentage(10), // Font size display
-            ].as_ref())
+            .constraints(
+                [
+                    Constraint::Percentage(90), // Text content
+                    Constraint::Percentage(10), // Font size display
+                ]
+                .as_ref(),
+            )
             .split(main_chunks[1]);
 
         // Text content section
@@ -631,7 +670,7 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         } else {
             &editor_data.text
         };
-        
+
         let text_selected = editor_data.editor_selection == EditorSelection::TextContent;
         let text_title = if editor_data.text_editing_mode {
             format!("Text Content - {} [EDITING]", editor_data.file_path)
@@ -640,17 +679,19 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         } else {
             format!("Text Content - {}", editor_data.file_path)
         };
-        
+
         let text_paragraph = Paragraph::new(text_content.as_str())
             .block(
                 Block::default()
                     .title(text_title)
                     .borders(Borders::ALL)
-                    .border_style(Style::new().fg(if text_selected || editor_data.text_editing_mode {
-                        ratatui::style::Color::Yellow
-                    } else {
-                        app.colors.footer_border_color
-                    }))
+                    .border_style(Style::new().fg(
+                        if text_selected || editor_data.text_editing_mode {
+                            ratatui::style::Color::Yellow
+                        } else {
+                            app.colors.footer_border_color
+                        },
+                    )),
             )
             .style(Style::new().fg(app.colors.row_fg))
             .alignment(Alignment::Left)
@@ -661,20 +702,27 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         // Split font size section vertically
         let font_size_column_chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage(50), // Font size display
-                Constraint::Percentage(50), // Format display
-            ].as_ref())
+            .constraints(
+                [
+                    Constraint::Percentage(50), // Font size display
+                    Constraint::Percentage(50), // Format display
+                ]
+                .as_ref(),
+            )
             .split(text_chunks[1]);
         // Font size display section
         let font_size_selected = editor_data.editor_selection == EditorSelection::FontSize;
-        let overlay_state = if editor_data.show_overlay_text { "[on]" } else { "[off]" };
+        let overlay_state = if editor_data.show_overlay_text {
+            "[on]"
+        } else {
+            "[off]"
+        };
         let font_size_title = if font_size_selected {
             format!("Font {} [SELECTED]", overlay_state)
         } else {
             format!("Font {}", overlay_state)
         };
-        
+
         let font_size_paragraph = Paragraph::new(format!("{} (+/-)", editor_data.font_size))
             .block(
                 Block::default()
@@ -684,7 +732,7 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
                         ratatui::style::Color::Yellow
                     } else {
                         app.colors.footer_border_color
-                    }))
+                    })),
             )
             .style(Style::new().fg(app.colors.row_fg))
             .alignment(Alignment::Center);
@@ -697,7 +745,7 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         } else {
             "Format"
         };
-        
+
         let format_paragraph = Paragraph::new(editor_data.format.as_str())
             .block(
                 Block::default()
@@ -707,7 +755,7 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
                         ratatui::style::Color::Yellow
                     } else {
                         app.colors.footer_border_color
-                    }))
+                    })),
             )
             .style(Style::new().fg(app.colors.row_fg))
             .alignment(Alignment::Center);
@@ -715,7 +763,8 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         f.render_widget(format_paragraph, font_size_column_chunks[1]);
     } else {
         // Show empty state
-        let empty_content = "No editor content. Select a search result and press 'c' to open the editor.";
+        let empty_content =
+            "No editor content. Select a search result and press 'c' to open the editor.";
         let empty_paragraph = Paragraph::new(empty_content)
             .style(Style::new().fg(app.colors.row_fg))
             .alignment(Alignment::Center);

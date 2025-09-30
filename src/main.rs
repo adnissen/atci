@@ -27,19 +27,19 @@ mod auth;
 mod clipper;
 mod config;
 mod db;
+mod editor_tab;
+mod file_tab;
 mod files;
 mod metadata;
 mod model_manager;
 mod queue;
 mod search;
+mod search_tab;
+mod system_tab;
 mod tools_manager;
 mod transcripts;
-mod tui;
 mod transcripts_tab;
-mod system_tab;
-mod search_tab;
-mod editor_tab;
-mod file_tab;
+mod tui;
 mod video_parts;
 mod video_processor;
 mod web;
@@ -145,6 +145,12 @@ enum Commands {
         )]
         gif: bool,
     },
+    #[command(about = "Create supercut videos")]
+    #[command(arg_required_else_help = true)]
+    Supercut {
+        #[command(subcommand)]
+        supercut_command: Option<SupercutCommands>,
+    },
     #[command(about = "Manage video transcripts")]
     Transcripts {
         #[command(subcommand)]
@@ -193,6 +199,72 @@ enum FilesCommands {
     },
     #[command(about = "Update file information cache by scanning watch directories")]
     Update,
+}
+
+#[derive(Subcommand, Debug)]
+enum SupercutCommands {
+    #[command(alias = "s", about = "Create a supercut from search results")]
+    Search {
+        #[arg(help = "Search query", num_args = 1.., value_delimiter = ' ')]
+        query: Vec<String>,
+        #[arg(
+            long,
+            help = "Show JSON output instead of formatted",
+            default_value = "false"
+        )]
+        json: bool,
+        #[arg(
+            short = 'f',
+            long,
+            help = "Comma-separated list of strings to filter results by path",
+            value_delimiter = ','
+        )]
+        filter: Option<Vec<String>>,
+        #[arg(
+            long,
+            help = "Show the clip data file that can be used to recreate the supercut",
+            default_value = "false"
+        )]
+        show_file: bool,
+        #[arg(
+            long,
+            help = "Only output the clip data JSON without creating the supercut",
+            default_value = "false"
+        )]
+        file_only: bool,
+        #[arg(
+            long,
+            help = "Extract word-level timestamps and clip only the specific word",
+            default_value = "false"
+        )]
+        word: bool,
+        #[arg(
+            long,
+            help = "Randomize the order of clips before generating the supercut",
+            default_value = "false"
+        )]
+        random: bool,
+    },
+    #[command(
+        alias = "i",
+        about = "Create a supercut from a JSON input file or stdin"
+    )]
+    FromFile {
+        #[arg(help = "Path to JSON file (omit or use '-' to read from stdin)")]
+        path: Option<String>,
+        #[arg(
+            long,
+            help = "Show JSON output instead of formatted",
+            default_value = "false"
+        )]
+        json: bool,
+        #[arg(
+            long,
+            help = "Randomize the order of clips before generating the supercut",
+            default_value = "false"
+        )]
+        random: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -1282,8 +1354,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
 
-            let output_path =
-                clipper::grab_frame(Path::new(&path), &time, text.as_deref(), font_size, Some(360))?;
+            let output_path = clipper::grab_frame(
+                Path::new(&path),
+                &time,
+                text.as_deref(),
+                font_size,
+                Some(360),
+            )?;
             println!("{}", output_path.display());
         }
         Some(Commands::Tools { tools_command }) => match tools_command {
@@ -1514,6 +1591,89 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
+        Some(Commands::Supercut { supercut_command }) => match supercut_command {
+            Some(SupercutCommands::Search {
+                query,
+                json,
+                filter,
+                show_file,
+                file_only,
+                word,
+                random,
+            }) => {
+                let search_query = query.join(" ");
+
+                if file_only {
+                    // Only generate clip data without creating supercut
+                    match search::get_supercut_clip_data(
+                        &search_query,
+                        filter.as_ref(),
+                        word,
+                        random,
+                    ) {
+                        Ok(clip_data) => {
+                            println!("{}", serde_json::to_string_pretty(&clip_data)?);
+                        }
+                        Err(e) => {
+                            eprintln!("Error generating clip data: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    match search::search_and_supercut(
+                        &search_query,
+                        filter.as_ref(),
+                        show_file,
+                        word,
+                        random,
+                    ) {
+                        Ok((supercut_path, clip_data)) => {
+                            if json {
+                                let mut output = serde_json::json!({
+                                    "supercut_path": supercut_path
+                                });
+                                if show_file && let Some(data) = clip_data {
+                                    output["clip_data"] = data;
+                                }
+                                println!("{}", serde_json::to_string_pretty(&output)?);
+                            } else {
+                                if show_file && let Some(data) = clip_data {
+                                    println!("{}", serde_json::to_string_pretty(&data)?);
+                                }
+                                println!("{}", supercut_path);
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error creating supercut: {}", e);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
+            Some(SupercutCommands::FromFile { path, json, random }) => {
+                let input_path = path.as_deref().unwrap_or("-");
+                match search::supercut_from_input(input_path, random) {
+                    Ok(supercut_path) => {
+                        if json {
+                            let output = serde_json::json!({
+                                "supercut_path": supercut_path
+                            });
+                            println!("{}", serde_json::to_string_pretty(&output)?);
+                        } else {
+                            println!("{}", supercut_path);
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Error creating supercut from input: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+            None => {
+                eprintln!("Error: No subcommand provided");
+                std::process::exit(1);
+            }
+        },
         Some(Commands::Transcripts {
             transcripts_command,
         }) => match transcripts_command {
