@@ -55,6 +55,26 @@ Generate a frame with some text (outputs to the `/tmp` directory):
 atci frame "/Users/andrew.nissen/Movies/Decker vs Dracula: Episode 03.mp4" 00:01:30.720 "What do you want, Mr President\?" --font-size=36
 ```
 
+Create a supercut from search results (concatenates all matching clips):
+```
+atci supercut search "Kington"
+```
+
+Create a supercut from a JSON file with clip data:
+```
+atci supercut from-file clips.json
+```
+
+Show the clip data JSON that can be used to recreate a supercut:
+```
+atci supercut search "Dracula" --show-file
+```
+
+Generate only the clip data JSON without creating the supercut:
+```
+atci supercut search "Special Agent" --file-only
+```
+
 Disable extracting subtitles:
 ```
 atci config set allow_subtitles false
