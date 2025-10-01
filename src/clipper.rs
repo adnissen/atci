@@ -618,6 +618,10 @@ fn video_with_text_args(
     audio_codec_args: &[&str],
     font_size: Option<u32>,
 ) -> Vec<String> {
+    let is_ts_source = input_path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_lowercase() == "ts")
+        .unwrap_or(false);
     use std::fs;
     use uuid::Uuid;
 
@@ -633,35 +637,63 @@ fn video_with_text_args(
                 font_size.unwrap_or_else(|| calculate_font_size_for_video(width, text.len()));
             let font_path =
                 get_font_path().unwrap_or_else(|_| "/System/Library/Fonts/Arial.ttf".to_string());
-            let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
-            let frames_count = (duration * fps).trunc() as i32;
+            let mut args = if is_ts_source {
+                // For .ts files, use input-side seeking with explicit frame reading
+                vec![
+                    "-ss",
+                    &format!("{}", start),
+                    "-i",
+                    &input_path.to_string_lossy(),
+                    "-t",
+                    &format!("{}", duration),
+                    "-vf",
+                    &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10,format=yuv420p",
+                           temp_text_path.to_string_lossy(), font_size, font_path),
+                    "-c:v",
+                    "libx264",
+                    "-profile:v",
+                    "baseline",
+                    "-level",
+                    "3.1",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-vsync",
+                    "cfr",
+                ]
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>()
+            } else {
+                let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
+                let frames_count = (duration * fps).trunc() as i32;
 
-            let mut args = vec![
-                "-ss",
-                &format!("{}", start),
-                "-i",
-                &input_path.to_string_lossy(),
-                "-ss",
-                "00:00:00.001",
-                "-t",
-                &format!("{}", duration),
-                "-vf",
-                &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10", 
-                       temp_text_path.to_string_lossy(), font_size, font_path),
-                "-frames:v",
-                &frames_count.to_string(),
-                "-c:v",
-                "libx264",
-                "-profile:v",
-                "baseline",
-                "-level",
-                "3.1",
-                "-pix_fmt",
-                "yuv420p",
-            ]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect::<Vec<String>>();
+                vec![
+                    "-ss",
+                    &format!("{}", start),
+                    "-i",
+                    &input_path.to_string_lossy(),
+                    "-ss",
+                    "00:00:00.001",
+                    "-t",
+                    &format!("{}", duration),
+                    "-vf",
+                    &format!("drawtext=textfile='{}':fontcolor=white:fontsize={}:fontfile='{}':x=(w-text_w)/2:y=h-th-10",
+                           temp_text_path.to_string_lossy(), font_size, font_path),
+                    "-frames:v",
+                    &frames_count.to_string(),
+                    "-c:v",
+                    "libx264",
+                    "-profile:v",
+                    "baseline",
+                    "-level",
+                    "3.1",
+                    "-pix_fmt",
+                    "yuv420p",
+                ]
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>()
+            };
 
             args.extend(audio_codec_args.iter().map(|s| (*s).to_string()));
 
@@ -740,34 +772,66 @@ fn video_no_text_args(
     output_path: &Path,
     audio_codec_args: &[&str],
 ) -> Vec<String> {
-    let cfg = crate::config::load_config().unwrap_or_default();
-    let ffprobe_path = Path::new(&cfg.ffprobe_path);
-    let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
-    let frames_count = (duration * fps).trunc() as i32;
+    let is_ts_source = input_path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_lowercase() == "ts")
+        .unwrap_or(false);
 
-    let mut args = vec![
-        "-ss",
-        &format!("{}", start),
-        "-i",
-        &input_path.to_string_lossy(),
-        "-ss",
-        "00:00:00.001",
-        "-t",
-        &format!("{}", duration),
-        "-frames:v",
-        &frames_count.to_string(),
-        "-c:v",
-        "libx264",
-        "-profile:v",
-        "baseline",
-        "-level",
-        "3.1",
-        "-pix_fmt",
-        "yuv420p",
-    ]
-    .into_iter()
-    .map(|s| s.to_string())
-    .collect::<Vec<String>>();
+    let mut args = if is_ts_source {
+        // For .ts files, use input-side seeking with explicit frame format
+        vec![
+            "-ss",
+            &format!("{}", start),
+            "-i",
+            &input_path.to_string_lossy(),
+            "-t",
+            &format!("{}", duration),
+            "-vf",
+            "format=yuv420p",
+            "-c:v",
+            "libx264",
+            "-profile:v",
+            "baseline",
+            "-level",
+            "3.1",
+            "-pix_fmt",
+            "yuv420p",
+            "-vsync",
+            "cfr",
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>()
+    } else {
+        let cfg = crate::config::load_config().unwrap_or_default();
+        let ffprobe_path = Path::new(&cfg.ffprobe_path);
+        let fps = get_video_fps(input_path, ffprobe_path).unwrap_or(30.0);
+        let frames_count = (duration * fps).trunc() as i32;
+
+        vec![
+            "-ss",
+            &format!("{}", start),
+            "-i",
+            &input_path.to_string_lossy(),
+            "-ss",
+            "00:00:00.001",
+            "-t",
+            &format!("{}", duration),
+            "-frames:v",
+            &frames_count.to_string(),
+            "-c:v",
+            "libx264",
+            "-profile:v",
+            "baseline",
+            "-level",
+            "3.1",
+            "-pix_fmt",
+            "yuv420p",
+        ]
+        .into_iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>()
+    };
 
     args.extend(audio_codec_args.iter().map(|s| (*s).to_string()));
 
@@ -800,12 +864,12 @@ fn audio_file_args(
     output_path: &Path,
 ) -> Vec<String> {
     vec![
+        "-i",
+        &input_path.to_string_lossy(),
         "-ss",
         &format!("{}", start),
         "-t",
         &format!("{}", duration),
-        "-i",
-        &input_path.to_string_lossy(),
         "-vn",
         "-acodec",
         "libmp3lame",
@@ -985,8 +1049,9 @@ fn get_audio_codec_args(
             vec!["-c:a", "aac", "-b:a", "256k"]
         }
     } else if source_extension == "ts" {
-        // .ts files often have malformed AAC streams that need the aac_adtstoasc filter
-        vec!["-c:a", "copy", "-bsf:a", "aac_adtstoasc"]
+        // .ts files need re-encoding for consistent playback due to MPEG-TS stream issues
+        // Use aac_at encoder on macOS for better compatibility with QuickTime/Safari
+        vec!["-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2"]
     } else {
         vec!["-c:a", "copy"]
     };
