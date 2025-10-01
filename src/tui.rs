@@ -1070,18 +1070,35 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
         //     }
         // }
 
-        // // Refresh system services every second
-        // if app.should_refresh_system_services() {
-        //     app.refresh_system_services();
-        // }
-
-        if let Event::Key(key) = event::read()? {
-            if let Some(should_quit) = handle_key_event(app, key)?
-                && should_quit
-            {
-                return Ok(());
+        // Refresh system services every second, otherwise block rendering on key
+        if app.current_tab == TabState::System {
+            if app.should_refresh_system_services() {
+                app.refresh_system_services();
             }
-            terminal.draw(|f| ui(f, app))?;
+            // Use event::poll to allow periodic work every second
+            if event::poll(std::time::Duration::from_secs(1))? {
+                if let Event::Key(key) = event::read()? {
+                    if let Some(should_quit) = handle_key_event(app, key)?
+                        && should_quit
+                    {
+                        return Ok(());
+                    }
+                    terminal.draw(|f| ui(f, app))?;
+                }
+            } else {
+                // Timeout occurred (1 second elapsed), do periodic work here if needed
+                // For now, just redraw to reflect any changes (e.g., system service refresh)
+                terminal.draw(|f| ui(f, app))?;
+            }
+        } else {
+            if let Event::Key(key) = event::read()? {
+                if let Some(should_quit) = handle_key_event(app, key)?
+                    && should_quit
+                {
+                    return Ok(());
+                }
+                terminal.draw(|f| ui(f, app))?;
+            }
         }
     }
 }
