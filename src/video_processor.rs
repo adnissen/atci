@@ -49,26 +49,26 @@ fn execute_failure_command(video_path: &Path) {
     }
 }
 
-fn check_cancel_file() -> bool {
-    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    let cancel_file = home_dir.join(".atci").join(".commands").join("CANCEL");
-    cancel_file.exists()
+fn check_cancel_request() -> bool {
+    if let Ok(conn) = crate::db::get_connection() {
+        conn.query_row("SELECT created_at FROM cancel_requests LIMIT 1", [], |_| {
+            Ok(())
+        })
+        .is_ok()
+    } else {
+        false
+    }
 }
 
-fn cleanup_cancel_and_processing_files(
+fn cleanup_cancel_and_processing(
     video_path: &Path,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let home_dir = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
-    let cancel_file = home_dir.join(".atci").join(".commands").join("CANCEL");
     let mp3_path = video_path.with_extension("mp3");
 
-    // Remove cancel file
-    if cancel_file.exists() {
-        let _ = fs::remove_file(&cancel_file);
-    }
-
-    // Remove currently processing entry from database
+    // Remove cancel requests and currently processing entry from database
     if let Ok(conn) = crate::db::get_connection() {
+        let _ = conn.execute("DELETE FROM cancel_requests", []);
+
         let video_path_str = video_path.to_string_lossy();
         let _ = conn.execute(
             "DELETE FROM currently_processing WHERE path = ?1",
@@ -762,8 +762,8 @@ pub async fn cancellable_create_transcript_single(
     }
 
     // Check if we should cancel before proceeding with audio extraction
-    if check_cancel_file() {
-        cleanup_cancel_and_processing_files(video_path)?;
+    if check_cancel_request() {
+        cleanup_cancel_and_processing(video_path)?;
         return Ok(false);
     }
 
@@ -828,9 +828,9 @@ pub async fn cancellable_create_transcript_single(
                 }
             }
             _ = sleep(Duration::from_millis(500)) => {
-                if check_cancel_file() {
+                if check_cancel_request() {
                     let _ = child.kill().await;
-                    cleanup_cancel_and_processing_files(video_path)?;
+                    cleanup_cancel_and_processing(video_path)?;
                     return Ok(false);
                 }
             }
@@ -838,8 +838,8 @@ pub async fn cancellable_create_transcript_single(
     }
 
     // Check for cancellation before transcription
-    if check_cancel_file() {
-        cleanup_cancel_and_processing_files(video_path)?;
+    if check_cancel_request() {
+        cleanup_cancel_and_processing(video_path)?;
         return Ok(false);
     }
 
@@ -880,9 +880,9 @@ pub async fn cancellable_create_transcript_single(
                 }
             }
             _ = sleep(Duration::from_millis(500)) => {
-                if check_cancel_file() {
+                if check_cancel_request() {
                     let _ = child.kill().await;
-                    cleanup_cancel_and_processing_files(video_path)?;
+                    cleanup_cancel_and_processing(video_path)?;
                     return Ok(false);
                 }
             }
@@ -949,8 +949,8 @@ pub async fn web_get_subtitle_streams(
 pub async fn cancellable_add_length_to_metadata(
     video_path: &Path,
 ) -> Result<bool, Box<dyn std::error::Error + Send + Sync>> {
-    if check_cancel_file() {
-        cleanup_cancel_and_processing_files(video_path)?;
+    if check_cancel_request() {
+        cleanup_cancel_and_processing(video_path)?;
         return Ok(false);
     }
 

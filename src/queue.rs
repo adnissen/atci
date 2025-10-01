@@ -417,31 +417,35 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
 }
 
 pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let commands_dir = home_dir.join(".atci").join(".commands");
-    let cancel_file = commands_dir.join("CANCEL");
+    let conn = crate::db::get_connection()?;
 
-    if cancel_file.exists() {
-        let metadata = fs::metadata(&cancel_file)?;
-        let created = metadata
-            .created()
-            .or_else(|_| metadata.modified())
-            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+    // Check if a cancel request already exists
+    let existing: Option<String> = conn
+        .query_row(
+            "SELECT created_at FROM cancel_requests LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .ok();
 
-        let duration = created
-            .duration_since(std::time::SystemTime::UNIX_EPOCH)
-            .unwrap_or(Duration::from_secs(0));
-        let datetime =
-            chrono::DateTime::from_timestamp(duration.as_secs() as i64, 0).unwrap_or_default();
-
+    if let Some(created_at) = existing {
         Ok(format!(
-            "CANCEL file already exists, created at: {}",
-            datetime.format("%Y-%m-%d %H:%M:%S UTC")
+            "Cancel request already exists, created at: {}",
+            created_at
         ))
     } else {
-        fs::create_dir_all(&commands_dir)?;
-        fs::write(&cancel_file, "")?;
-        Ok("Created CANCEL file".to_string())
+        let now = chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string();
+        let rows_affected = conn.execute(
+            "INSERT INTO cancel_requests (created_at) VALUES (?1)",
+            [&now],
+        )?;
+        if rows_affected > 0 {
+            Ok("Created cancel request".to_string())
+        } else {
+            Err("Failed to create cancel request".into())
+        }
     }
 }
 
@@ -507,7 +511,6 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                 .collect();
 
             for file_to_add in files_to_add {
-                println!("Adding to queue: {}", file_to_add);
                 if let Err(e) = add_to_queue(&file_to_add, None, None) {
                     eprintln!("Error adding to queue: {}", e);
                 }
