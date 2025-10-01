@@ -290,6 +290,11 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
                 .to_string_lossy()
                 .to_string();
 
+            // Skip files with .partX.ext format (e.g., video.part1.mp4)
+            if filename.contains(".part") {
+                return None;
+            }
+
             let txt_path = file_path.with_extension("txt");
 
             let transcript_exists = txt_path.exists();
