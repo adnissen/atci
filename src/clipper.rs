@@ -618,7 +618,8 @@ fn video_with_text_args(
     audio_codec_args: &[&str],
     font_size: Option<u32>,
 ) -> Vec<String> {
-    let is_ts_source = input_path.extension()
+    let is_ts_source = input_path
+        .extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| ext.to_lowercase() == "ts")
         .unwrap_or(false);
@@ -772,7 +773,8 @@ fn video_no_text_args(
     output_path: &Path,
     audio_codec_args: &[&str],
 ) -> Vec<String> {
-    let is_ts_source = input_path.extension()
+    let is_ts_source = input_path
+        .extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| ext.to_lowercase() == "ts")
         .unwrap_or(false);
