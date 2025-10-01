@@ -434,7 +434,9 @@ pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
             created_at
         ))
     } else {
-        let now = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string();
+        let now = chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string();
         let rows_affected = conn.execute(
             "INSERT INTO cancel_requests (created_at) VALUES (?1)",
             [&now],

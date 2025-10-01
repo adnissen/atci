@@ -51,11 +51,9 @@ fn execute_failure_command(video_path: &Path) {
 
 fn check_cancel_request() -> bool {
     if let Ok(conn) = crate::db::get_connection() {
-        conn.query_row(
-            "SELECT created_at FROM cancel_requests LIMIT 1",
-            [],
-            |_| Ok(()),
-        )
+        conn.query_row("SELECT created_at FROM cancel_requests LIMIT 1", [], |_| {
+            Ok(())
+        })
         .is_ok()
     } else {
         false
