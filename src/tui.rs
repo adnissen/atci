@@ -750,17 +750,7 @@ fn handle_key_event(
             }
         }
         KeyCode::Char('v') => {
-            if app.current_tab == TabState::Transcripts {
-                // Open file view from selected transcript
-                if let Some(selected_index) = app.state.selected()
-                    && selected_index < app.video_data.len()
-                {
-                    let video_path = app.video_data[selected_index].full_path.clone();
-                    if let Err(e) = app.open_file_view(&video_path) {
-                        eprintln!("Failed to open file view: {}", e);
-                    }
-                }
-            } else if app.file_view_data.is_some() {
+            if app.file_view_data.is_some() {
                 // Switch to file view if we have file view data
                 app.switch_to_file_view();
             }
@@ -1001,6 +991,16 @@ fn handle_key_event(
                         app.start_config_editing();
                     }
                 }
+            } else if app.current_tab == TabState::Transcripts {
+                // Open file view from selected transcript
+                if let Some(selected_index) = app.state.selected()
+                    && selected_index < app.video_data.len()
+                {
+                    let video_path = app.video_data[selected_index].full_path.clone();
+                    if let Err(e) = app.open_file_view(&video_path) {
+                        eprintln!("Failed to open file view: {}", e);
+                    }
+                }
             } else if app.current_tab == TabState::SearchResults {
                 // Open file view from selected search result
                 if let Err(e) = app.open_file_view_from_selected_match() {
@@ -1194,7 +1194,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             } else if app.search_input_mode {
                 "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
             } else {
-                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  v: View File  Ctrl+C: Clear  t/s";
+                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  Enter: View File  Ctrl+C: Clear  t/s";
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
                     tab_controls.push('r');
