@@ -1,8 +1,8 @@
 use crate::files;
 use ratatui::Frame;
-use ratatui::layout::Constraint;
-use ratatui::style::{Style, Stylize};
-use ratatui::widgets::{Block, Borders, Cell, Row, Table};
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::widgets::{Block, Borders, Cell, List, ListItem, Row, Table};
 use std::error::Error;
 
 use crate::tui::{App, SortOrder, create_tab_title_with_editor};
@@ -437,4 +437,60 @@ pub fn render_transcripts_tab(
             .border_style(Style::new().fg(app.colors.footer_border_color)),
     );
     f.render_stateful_widget(t, area, &mut app.state);
+
+    // Render regenerate popup if shown
+    if app.show_regenerate_popup {
+        render_regenerate_popup(f, app);
+    }
+}
+
+fn render_regenerate_popup(f: &mut Frame, app: &App) {
+    let area = centered_rect(60, 50, f.area());
+
+    // Create the popup block
+    let block = Block::default()
+        .title("Choose Processing Method")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow));
+
+    // Create list items
+    let items: Vec<ListItem> = app
+        .regenerate_popup_options
+        .iter()
+        .enumerate()
+        .map(|(i, option)| {
+            let style = if i == app.regenerate_popup_selected {
+                Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            };
+            ListItem::new(option.as_str()).style(style)
+        })
+        .collect();
+
+    let list = List::new(items).block(block);
+
+    // Clear the area first to create the popup effect
+    f.render_widget(ratatui::widgets::Clear, area);
+    f.render_widget(list, area);
+}
+
+/// Helper function to create a centered rect using up certain percentage of the available rect `r`
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::vertical([
+        Constraint::Percentage((100 - percent_y) / 2),
+        Constraint::Percentage(percent_y),
+        Constraint::Percentage((100 - percent_y) / 2),
+    ])
+    .split(r);
+
+    Layout::horizontal([
+        Constraint::Percentage((100 - percent_x) / 2),
+        Constraint::Percentage(percent_x),
+        Constraint::Percentage((100 - percent_x) / 2),
+    ])
+    .split(popup_layout[1])[1]
 }

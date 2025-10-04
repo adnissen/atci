@@ -128,6 +128,10 @@ pub struct App {
     pub queue_items: Vec<String>,
     pub currently_processing: Option<String>,
     pub currently_processing_age: u64,
+    pub show_regenerate_popup: bool,
+    pub regenerate_popup_selected: usize,
+    pub regenerate_popup_options: Vec<String>,
+    pub regenerate_popup_option_types: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -179,6 +183,10 @@ impl Default for App {
             queue_items: Vec::new(),
             currently_processing: None,
             currently_processing_age: 0,
+            show_regenerate_popup: false,
+            regenerate_popup_selected: 0,
+            regenerate_popup_options: Vec::new(),
+            regenerate_popup_option_types: Vec::new(),
         }
     }
 }
@@ -231,6 +239,10 @@ impl App {
             queue_items: Vec::new(),
             currently_processing: None,
             currently_processing_age: 0,
+            show_regenerate_popup: false,
+            regenerate_popup_selected: 0,
+            regenerate_popup_options: Vec::new(),
+            regenerate_popup_option_types: Vec::new(),
         };
 
         // Select first item if available
@@ -678,6 +690,158 @@ impl App {
             self.queue_selected_index -= 1;
         }
     }
+
+    pub fn show_regenerate_popup(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        use crate::model_manager;
+        use std::process::Command;
+
+        // Get the selected video path
+        let video_path = if let Some(selected_index) = self.state.selected() {
+            if selected_index < self.video_data.len() {
+                self.video_data[selected_index].full_path.clone()
+            } else {
+                return Err("No video selected".into());
+            }
+        } else {
+            return Err("No video selected".into());
+        };
+
+        let video_path_obj = std::path::Path::new(&video_path);
+        if !video_path_obj.exists() {
+            return Err(format!("Video file does not exist: {}", video_path).into());
+        }
+
+        let cfg = config::load_config()?;
+        let mut options = Vec::new();
+        let mut option_types = Vec::new();
+
+        // Check for subtitle streams using ffprobe directly (synchronous)
+        let ffprobe_output = Command::new(&cfg.ffprobe_path)
+            .args([
+                "-v", "quiet",
+                "-print_format", "json",
+                "-show_streams",
+                "-select_streams", "s",
+                video_path_obj.to_str().unwrap(),
+            ])
+            .output();
+
+        if let Ok(output) = ffprobe_output {
+            if output.status.success() {
+                if let Ok(json_str) = String::from_utf8(output.stdout) {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                        if let Some(streams) = json["streams"].as_array() {
+                            for stream in streams {
+                                let index = stream["index"].as_i64().unwrap_or(0) as i32;
+                                let language = stream["tags"]["language"]
+                                    .as_str()
+                                    .unwrap_or("unknown");
+                                let title = stream["tags"]["title"]
+                                    .as_str();
+
+                                let lang_display = if let Some(t) = title {
+                                    format!("{} - {}", language, t)
+                                } else {
+                                    language.to_string()
+                                };
+
+                                options.push(format!("Subtitles: {} ({})", lang_display, index));
+                                option_types.push(format!("subtitle_{}", index));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check for available Whisper models
+        let models = model_manager::list_models();
+        let downloaded_models: Vec<_> = models.iter().filter(|m| m.downloaded).collect();
+
+        if !downloaded_models.is_empty() && cfg.allow_whisper {
+            for model in &downloaded_models {
+                options.push(format!("Whisper Model: {}", model.name));
+                option_types.push(format!("whisper_{}", model.name));
+            }
+        }
+
+        options.push("Cancel".to_string());
+        option_types.push("cancel".to_string());
+
+        if options.len() == 1 {
+            return Err("No processing options available".into());
+        }
+
+        self.regenerate_popup_options = options;
+        self.regenerate_popup_option_types = option_types;
+        self.regenerate_popup_selected = 0;
+        self.show_regenerate_popup = true;
+
+        Ok(())
+    }
+
+    pub fn close_regenerate_popup(&mut self) {
+        self.show_regenerate_popup = false;
+        self.regenerate_popup_selected = 0;
+        self.regenerate_popup_options.clear();
+        self.regenerate_popup_option_types.clear();
+    }
+
+    pub fn regenerate_popup_next(&mut self) {
+        if self.regenerate_popup_selected < self.regenerate_popup_options.len().saturating_sub(1) {
+            self.regenerate_popup_selected += 1;
+        }
+    }
+
+    pub fn regenerate_popup_previous(&mut self) {
+        if self.regenerate_popup_selected > 0 {
+            self.regenerate_popup_selected -= 1;
+        }
+    }
+
+    pub fn execute_regenerate_selection(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.regenerate_popup_selected >= self.regenerate_popup_option_types.len() {
+            return Err("Invalid selection".into());
+        }
+
+        let option_type = &self.regenerate_popup_option_types[self.regenerate_popup_selected];
+
+        if option_type == "cancel" {
+            self.close_regenerate_popup();
+            return Ok(());
+        }
+
+        // Get the selected video path
+        let video_path = if let Some(selected_index) = self.state.selected() {
+            if selected_index < self.video_data.len() {
+                self.video_data[selected_index].full_path.clone()
+            } else {
+                return Err("No video selected".into());
+            }
+        } else {
+            return Err("No video selected".into());
+        };
+
+        // Determine model and subtitle stream based on selection
+        let (model, subtitle_stream_index) = if option_type.starts_with("subtitle_") {
+            let stream_index = option_type
+                .strip_prefix("subtitle_")
+                .unwrap()
+                .parse::<i32>()?;
+            (None, Some(stream_index))
+        } else if option_type.starts_with("whisper_") {
+            let model_name = option_type.strip_prefix("whisper_").unwrap();
+            (Some(model_name.to_string()), None)
+        } else {
+            return Err("Unknown option type".into());
+        };
+
+        // Add to queue instead of processing immediately
+        crate::queue::add_to_queue(&video_path, model, subtitle_stream_index)?;
+
+        self.close_regenerate_popup();
+        Ok(())
+    }
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
@@ -722,6 +886,23 @@ fn handle_key_event(
     app: &mut App,
     key: crossterm::event::KeyEvent,
 ) -> Result<Option<bool>, Box<dyn Error>> {
+    // Handle regenerate popup
+    if app.show_regenerate_popup {
+        match key.code {
+            KeyCode::Esc => app.close_regenerate_popup(),
+            KeyCode::Enter => {
+                if let Err(e) = app.execute_regenerate_selection() {
+                    eprintln!("Failed to execute regenerate: {}", e);
+                    app.close_regenerate_popup();
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => app.regenerate_popup_next(),
+            KeyCode::Up | KeyCode::Char('k') => app.regenerate_popup_previous(),
+            _ => {}
+        }
+        return Ok(None);
+    }
+
     // Handle filter input mode
     if app.filter_input_mode {
         match key.code {
@@ -793,8 +974,13 @@ fn handle_key_event(
         KeyCode::Char('s') => app.switch_to_system(),
         KeyCode::Char('q') => app.switch_to_queue(),
         KeyCode::Char('r') => {
-            // Only switch to search results if we have results
-            if !app.search_results.is_empty() {
+            if app.current_tab == TabState::Transcripts {
+                // Show regenerate popup
+                if let Err(e) = app.show_regenerate_popup() {
+                    eprintln!("Failed to show regenerate popup: {}", e);
+                }
+            } else if !app.search_results.is_empty() {
+                // Only switch to search results if we have results
                 app.switch_to_search_results();
             }
         }
@@ -1260,14 +1446,17 @@ fn ui(f: &mut Frame, app: &mut App) {
     }
 
     // Controls section
-    let controls_text = match app.current_tab {
-        TabState::Transcripts => {
-            if app.filter_input_mode {
+    let controls_text = if app.show_regenerate_popup {
+        "↑↓/jk: Navigate  Enter: Select  Esc: Cancel".to_string()
+    } else {
+        match app.current_tab {
+            TabState::Transcripts => {
+                if app.filter_input_mode {
                 "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
             } else if app.search_input_mode {
                 "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
             } else {
-                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  Enter: View File  Ctrl+C: Clear  t/s/q";
+                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  r: Regenerate  f: Filter  /: Search  Enter: View File  Ctrl+C: Clear  t/s/q";
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
                     tab_controls.push('r');
@@ -1401,6 +1590,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                 format!("{}/Tab: Switch  Ctrl+Z: Quit", base_controls)
             }
         }
+        }
     };
     let controls_block = Block::default()
         .title("Controls")
@@ -1511,6 +1701,8 @@ pub fn create_tab_title_with_editor(
 }
 
 async fn ensure_watcher_running() -> Result<(), Box<dyn Error>> {
+    use std::fs::OpenOptions;
+
     // Check if any watcher processes are currently running
     let running_pids: Vec<u32> = match find_existing_pid_files() {
         Ok(pids) => pids
@@ -1527,17 +1719,38 @@ async fn ensure_watcher_running() -> Result<(), Box<dyn Error>> {
         // Get the current executable path
         let current_exe = std::env::current_exe()?;
 
-        // Spawn a new atci watch process
+        // Create log file in ~/.atci/watcher.log
+        let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+        let log_path = home_dir.join(".atci").join("watcher.log");
+
+        // Ensure .atci directory exists
+        if let Some(parent) = log_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let log_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)?;
+
+        // Clone file descriptors for stdout and stderr
+        let stdout_file = log_file.try_clone()?;
+        let stderr_file = log_file;
+
+        // Spawn a new atci watch process with output redirected to log
         tokio::spawn(async move {
             let mut cmd = tokio::process::Command::new(&current_exe);
             cmd.arg("watch");
+            cmd.stdout(stdout_file);
+            cmd.stderr(stderr_file);
 
             match cmd.spawn() {
                 Ok(mut child) => {
                     // Let it run in the background - don't wait for it
                     tokio::spawn(async move {
                         if let Err(e) = child.wait().await {
-                            eprintln!("Watcher process exited with error: {}", e);
+                            // Can't log here since we're in the background
+                            let _ = e;
                         }
                     });
                 }
