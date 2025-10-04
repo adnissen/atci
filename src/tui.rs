@@ -1,5 +1,6 @@
 use crate::editor_tab::{EditorData, render_editor_tab};
 use crate::file_tab::{FileViewData, render_file_view_tab};
+use crate::queue_tab::render_queue_tab;
 use crate::search_tab::render_search_results_tab;
 use crate::system_tab::{find_existing_pid_files, is_process_running, render_system_tab};
 use crate::transcripts_tab::render_transcripts_tab;
@@ -81,6 +82,7 @@ pub enum SortOrder {
 pub enum TabState {
     Transcripts,
     System,
+    Queue,
     SearchResults,
     Editor,
     FileView,
@@ -122,6 +124,10 @@ pub struct App {
     pub config_editing_mode: bool,
     pub config_input_buffer: String,
     pub system_section: SystemSection,
+    pub queue_selected_index: usize,
+    pub queue_items: Vec<String>,
+    pub currently_processing: Option<String>,
+    pub currently_processing_age: u64,
 }
 
 #[derive(Clone)]
@@ -169,6 +175,10 @@ impl Default for App {
             config_editing_mode: false,
             config_input_buffer: String::new(),
             system_section: SystemSection::Services,
+            queue_selected_index: 0,
+            queue_items: Vec::new(),
+            currently_processing: None,
+            currently_processing_age: 0,
         }
     }
 }
@@ -217,6 +227,10 @@ impl App {
             config_editing_mode: false,
             config_input_buffer: String::new(),
             system_section: SystemSection::Services,
+            queue_selected_index: 0,
+            queue_items: Vec::new(),
+            currently_processing: None,
+            currently_processing_age: 0,
         };
 
         // Select first item if available
@@ -226,6 +240,9 @@ impl App {
 
         // Initialize system services
         app.refresh_system_services();
+
+        // Initialize queue
+        app.refresh_queue();
 
         Ok(app)
     }
@@ -248,7 +265,8 @@ impl App {
     pub fn toggle_tab(&mut self) {
         self.current_tab = match self.current_tab {
             TabState::Transcripts => TabState::System,
-            TabState::System => {
+            TabState::System => TabState::Queue,
+            TabState::Queue => {
                 if !self.search_results.is_empty() {
                     TabState::SearchResults
                 } else if self.editor_data.is_some() {
@@ -624,6 +642,42 @@ impl App {
             self.config_input_buffer.pop();
         }
     }
+
+    pub fn refresh_queue(&mut self) {
+        use crate::queue::{get_queue, get_queue_status};
+
+        if let Ok(queue) = get_queue(None) {
+            self.queue_items = queue;
+        }
+
+        if let Ok((path, age)) = get_queue_status(None) {
+            self.currently_processing = path;
+            self.currently_processing_age = age;
+        }
+    }
+
+    pub fn switch_to_queue(&mut self) {
+        self.current_tab = TabState::Queue;
+        self.refresh_queue();
+    }
+
+    pub fn queue_next(&mut self) {
+        let total_items = if self.currently_processing.is_some() {
+            self.queue_items.len() + 1
+        } else {
+            self.queue_items.len()
+        };
+
+        if total_items > 0 && self.queue_selected_index < total_items - 1 {
+            self.queue_selected_index += 1;
+        }
+    }
+
+    pub fn queue_previous(&mut self) {
+        if self.queue_selected_index > 0 {
+            self.queue_selected_index -= 1;
+        }
+    }
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
@@ -737,6 +791,7 @@ fn handle_key_event(
         KeyCode::Tab => app.toggle_tab(),
         KeyCode::Char('t') => app.switch_to_transcripts(),
         KeyCode::Char('s') => app.switch_to_system(),
+        KeyCode::Char('q') => app.switch_to_queue(),
         KeyCode::Char('r') => {
             // Only switch to search results if we have results
             if !app.search_results.is_empty() {
@@ -840,6 +895,8 @@ fn handle_key_event(
                 }
             } else if app.current_tab == TabState::System {
                 app.system_next();
+            } else if app.current_tab == TabState::Queue {
+                app.queue_next();
             } else if app.current_tab == TabState::SearchResults {
                 app.search_next();
             } else if app.current_tab == TabState::Editor {
@@ -876,6 +933,8 @@ fn handle_key_event(
                 }
             } else if app.current_tab == TabState::System {
                 app.system_previous();
+            } else if app.current_tab == TabState::Queue {
+                app.queue_previous();
             } else if app.current_tab == TabState::SearchResults {
                 app.search_previous();
             } else if app.current_tab == TabState::Editor {
@@ -1085,6 +1144,19 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
                 }
             }
             terminal.draw(|f| ui(f, app))?;
+        } else if app.current_tab == TabState::Queue {
+            // Refresh queue every second
+            app.refresh_queue();
+            if event::poll(Duration::from_secs(1))? {
+                if let Event::Key(key) = event::read()? {
+                    if let Some(should_quit) = handle_key_event(app, key)?
+                        && should_quit
+                    {
+                        return Ok(());
+                    }
+                }
+            }
+            terminal.draw(|f| ui(f, app))?;
         } else {
             if let Event::Key(key) = event::read()? {
                 if let Some(should_quit) = handle_key_event(app, key)?
@@ -1176,6 +1248,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             render_transcripts_tab(f, chunks[0], app, header_style, selected_row_style)
         }
         TabState::System => render_system_tab(f, chunks[0], app),
+        TabState::Queue => render_queue_tab(f, chunks[0], app),
         TabState::SearchResults => render_search_results_tab(f, chunks[0], app),
         TabState::Editor => render_editor_tab(f, chunks[0], app),
         TabState::FileView => render_file_view_tab(f, chunks[0], app),
@@ -1194,7 +1267,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             } else if app.search_input_mode {
                 "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
             } else {
-                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  Enter: View File  Ctrl+C: Clear  t/s";
+                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  Enter: View File  Ctrl+C: Clear  t/s/q";
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
                     tab_controls.push('r');
@@ -1221,7 +1294,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                     SystemSection::Config => "Config: Enter: Edit",
                 };
                 let base_controls =
-                    format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s", section_info);
+                    format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s/q", section_info);
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
                     tab_controls.push('r');
@@ -1237,6 +1310,24 @@ fn ui(f: &mut Frame, app: &mut App) {
                 } else {
                     format!("{}/Tab: Switch  Ctrl+Z: Quit", base_controls)
                 }
+            }
+        }
+        TabState::Queue => {
+            let base_controls = "↑↓/jk: Navigate  t/s/q";
+            let mut tab_controls = String::new();
+            if !app.search_results.is_empty() {
+                tab_controls.push('r');
+            }
+            if app.editor_data.is_some() {
+                if !tab_controls.is_empty() {
+                    tab_controls.push('/');
+                }
+                tab_controls.push('e');
+            }
+            if !tab_controls.is_empty() {
+                format!("{}{}/Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
+            } else {
+                format!("{}/Tab: Switch  Ctrl+Z: Quit", base_controls)
             }
         }
         TabState::SearchResults => {
@@ -1365,6 +1456,14 @@ pub fn create_tab_title_with_editor(
             TabState::System => Span::styled("System (s)", Style::default().fg(Color::White)),
             _ => Span::styled(
                 "System (s)",
+                Style::default().fg(colors.footer_border_color),
+            ),
+        },
+        Span::styled(" | ", Style::default().fg(colors.row_fg)),
+        match current_tab {
+            TabState::Queue => Span::styled("Queue (q)", Style::default().fg(Color::White)),
+            _ => Span::styled(
+                "Queue (q)",
                 Style::default().fg(colors.footer_border_color),
             ),
         },

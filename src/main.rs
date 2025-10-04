@@ -33,6 +33,7 @@ mod files;
 mod metadata;
 mod model_manager;
 mod queue;
+mod queue_tab;
 mod search;
 mod search_tab;
 mod system_tab;
