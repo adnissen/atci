@@ -3,7 +3,7 @@ use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use std::{error::Error, fs};
+use std::{error::Error, fs, time::Duration};
 
 use crate::tui::{App, ServiceStatus, SystemSection, SystemService, create_tab_title_with_editor};
 
@@ -59,9 +59,9 @@ impl App {
         self.last_system_refresh = std::time::Instant::now();
     }
 
-    // pub fn should_refresh_system_services(&self) -> bool {
-    //     self.last_system_refresh.elapsed() >= Duration::from_secs(1)
-    // }
+    pub fn should_refresh_system_services(&self) -> bool {
+        self.last_system_refresh.elapsed() >= Duration::from_secs(1)
+    }
 
     pub fn kill_selected_service(&mut self) -> Result<(), Box<dyn Error>> {
         if self.system_selected_index < self.system_services.len() {

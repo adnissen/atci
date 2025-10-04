@@ -18,7 +18,7 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Paragraph, TableState},
 };
-use std::{error::Error, io, time::Instant};
+use std::{error::Error, io, time::{Duration, Instant}};
 
 pub struct TableColors {
     pub buffer_bg: Color,
@@ -1070,18 +1070,30 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
         //     }
         // }
 
-        // // Refresh system services every second
-        // if app.should_refresh_system_services() {
-        //     app.refresh_system_services();
-        // }
-
-        if let Event::Key(key) = event::read()? {
-            if let Some(should_quit) = handle_key_event(app, key)?
-                && should_quit
-            {
-                return Ok(());
+        // Refresh system services every second
+        if app.current_tab == TabState::System {
+            if app.should_refresh_system_services() {
+                app.refresh_system_services();
+            }
+            if event::poll(Duration::from_secs(1))? {
+                if let Event::Key(key) = event::read()? {
+                    if let Some(should_quit) = handle_key_event(app, key)?
+                        && should_quit
+                    {
+                        return Ok(());
+                    }
+                }
             }
             terminal.draw(|f| ui(f, app))?;
+        } else {
+            if let Event::Key(key) = event::read()? {
+                if let Some(should_quit) = handle_key_event(app, key)?
+                    && should_quit
+                {
+                    return Ok(());
+                }
+                terminal.draw(|f| ui(f, app))?;
+            }
         }
     }
 }
