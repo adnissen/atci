@@ -733,7 +733,7 @@ fn handle_key_event(
 
     // Handle normal mode key events
     match key.code {
-        KeyCode::Char('q') => return Ok(Some(true)), // Signal to quit
+        KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => return Ok(Some(true)), // Signal to quit
         KeyCode::Tab => app.toggle_tab(),
         KeyCode::Char('t') => app.switch_to_transcripts(),
         KeyCode::Char('s') => app.switch_to_system(),
@@ -1206,9 +1206,9 @@ fn ui(f: &mut Frame, app: &mut App) {
                     tab_controls.push('e');
                 }
                 if !tab_controls.is_empty() {
-                    format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+                    format!("{}{}/Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
                 } else {
-                    format!("{}/Tab: Switch  q: Quit", base_controls)
+                    format!("{}/Tab: Switch  Ctrl+Z: Quit", base_controls)
                 }
             }
         }
@@ -1233,9 +1233,9 @@ fn ui(f: &mut Frame, app: &mut App) {
                     tab_controls.push('e');
                 }
                 if !tab_controls.is_empty() {
-                    format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+                    format!("{}{}/Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
                 } else {
-                    format!("{}/Tab: Switch  q: Quit", base_controls)
+                    format!("{}/Tab: Switch  Ctrl+Z: Quit", base_controls)
                 }
             }
         }
@@ -1252,7 +1252,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                     tab_controls.push('/');
                     tab_controls.push('e');
                 }
-                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+                format!("{}{}/Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
             }
         }
         TabState::Editor => {
@@ -1281,9 +1281,9 @@ fn ui(f: &mut Frame, app: &mut App) {
                 tab_controls.push('e');
             }
             if !tab_controls.is_empty() {
-                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+                format!("{}{}/Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
             } else {
-                format!("{}/Tab: Switch  q: Quit", base_controls)
+                format!("{}/Tab: Switch  Ctrl+Z: Quit", base_controls)
             }
         }
         TabState::FileView => {
@@ -1305,9 +1305,9 @@ fn ui(f: &mut Frame, app: &mut App) {
                 tab_controls.push('v');
             }
             if !tab_controls.is_empty() {
-                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+                format!("{}{}/Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
             } else {
-                format!("{}/Tab: Switch  q: Quit", base_controls)
+                format!("{}/Tab: Switch  Ctrl+Z: Quit", base_controls)
             }
         }
     };
