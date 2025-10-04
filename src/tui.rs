@@ -132,6 +132,7 @@ pub struct App {
     pub regenerate_popup_selected: usize,
     pub regenerate_popup_options: Vec<String>,
     pub regenerate_popup_option_types: Vec<String>,
+    pub tui_started_watcher: bool,
 }
 
 #[derive(Clone)]
@@ -187,6 +188,7 @@ impl Default for App {
             regenerate_popup_selected: 0,
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
+            tui_started_watcher: false,
         }
     }
 }
@@ -243,6 +245,7 @@ impl App {
             regenerate_popup_selected: 0,
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
+            tui_started_watcher: false,
         };
 
         // Select first item if available
@@ -848,9 +851,13 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         // Ensure file watcher is running before starting TUI
-        if let Err(e) = ensure_watcher_running().await {
-            eprintln!("Warning: Failed to ensure watcher is running: {}", e);
-        }
+        let started_watcher = match ensure_watcher_running().await {
+            Ok(started) => started,
+            Err(e) => {
+                eprintln!("Warning: Failed to ensure watcher is running: {}", e);
+                false
+            }
+        };
 
         enable_raw_mode()?;
         let mut stdout = io::stdout();
@@ -864,6 +871,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         let mut terminal = Terminal::new(backend)?;
 
         let mut app = App::new()?;
+        app.tui_started_watcher = started_watcher;
         let res = run_app(&mut terminal, &mut app);
 
         disable_raw_mode()?;
@@ -876,6 +884,13 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
         if let Err(err) = res {
             println!("{:?}", err)
+        }
+
+        // If we started the watcher, stop it now
+        if app.tui_started_watcher {
+            if let Err(e) = stop_watcher_processes().await {
+                eprintln!("Warning: Failed to stop watcher processes: {}", e);
+            }
         }
 
         Ok(())
@@ -1700,7 +1715,49 @@ pub fn create_tab_title_with_editor(
     Line::from(spans)
 }
 
-async fn ensure_watcher_running() -> Result<(), Box<dyn Error>> {
+async fn stop_watcher_processes() -> Result<(), Box<dyn Error>> {
+    use std::process::Command;
+
+    // Find all watcher PIDs
+    let running_pids: Vec<u32> = match find_existing_pid_files() {
+        Ok(pids) => pids
+            .into_iter()
+            .filter(|&pid| is_process_running(pid))
+            .collect(),
+        Err(_) => vec![],
+    };
+
+    // Kill all running watcher processes and remove their PID files
+    for pid in running_pids {
+        #[cfg(unix)]
+        {
+            let _ = Command::new("kill").arg(pid.to_string()).output();
+        }
+
+        #[cfg(windows)]
+        {
+            let _ = Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+        }
+
+        // Remove the PID file
+        if let Ok(pid_file_path) = get_pid_file_path(pid) {
+            let _ = std::fs::remove_file(&pid_file_path);
+        }
+    }
+
+    Ok(())
+}
+
+fn get_pid_file_path(pid: u32) -> Result<std::path::PathBuf, Box<dyn Error>> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let atci_dir = home_dir.join(".atci");
+    let config_sha = crate::config::get_config_path_sha();
+    Ok(atci_dir.join(format!("atci.{}.{}.pid", config_sha, pid)))
+}
+
+async fn ensure_watcher_running() -> Result<bool, Box<dyn Error>> {
     use std::fs::OpenOptions;
 
     // Check if any watcher processes are currently running
@@ -1759,9 +1816,13 @@ async fn ensure_watcher_running() -> Result<(), Box<dyn Error>> {
                 }
             }
         });
-    }
 
-    Ok(())
+        // Return true to indicate we started the watcher
+        Ok(true)
+    } else {
+        // Return false to indicate watcher was already running
+        Ok(false)
+    }
 }
 
 fn render_filter_and_search_sections(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
