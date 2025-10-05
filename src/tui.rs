@@ -1,5 +1,6 @@
 use crate::editor_tab::{EditorData, render_editor_tab};
 use crate::file_tab::{FileViewData, render_file_view_tab};
+use crate::queue_tab::render_queue_tab;
 use crate::search_tab::render_search_results_tab;
 use crate::system_tab::{find_existing_pid_files, is_process_running, render_system_tab};
 use crate::transcripts_tab::render_transcripts_tab;
@@ -18,7 +19,11 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Paragraph, TableState},
 };
-use std::{error::Error, io, time::{Duration, Instant}};
+use std::{
+    error::Error,
+    io,
+    time::{Duration, Instant},
+};
 
 pub struct TableColors {
     pub buffer_bg: Color,
@@ -81,6 +86,7 @@ pub enum SortOrder {
 pub enum TabState {
     Transcripts,
     System,
+    Queue,
     SearchResults,
     Editor,
     FileView,
@@ -122,6 +128,15 @@ pub struct App {
     pub config_editing_mode: bool,
     pub config_input_buffer: String,
     pub system_section: SystemSection,
+    pub queue_selected_index: usize,
+    pub queue_items: Vec<String>,
+    pub currently_processing: Option<String>,
+    pub currently_processing_age: u64,
+    pub show_regenerate_popup: bool,
+    pub regenerate_popup_selected: usize,
+    pub regenerate_popup_options: Vec<String>,
+    pub regenerate_popup_option_types: Vec<String>,
+    pub tui_started_watcher: bool,
 }
 
 #[derive(Clone)]
@@ -169,6 +184,15 @@ impl Default for App {
             config_editing_mode: false,
             config_input_buffer: String::new(),
             system_section: SystemSection::Services,
+            queue_selected_index: 0,
+            queue_items: Vec::new(),
+            currently_processing: None,
+            currently_processing_age: 0,
+            show_regenerate_popup: false,
+            regenerate_popup_selected: 0,
+            regenerate_popup_options: Vec::new(),
+            regenerate_popup_option_types: Vec::new(),
+            tui_started_watcher: false,
         }
     }
 }
@@ -217,6 +241,15 @@ impl App {
             config_editing_mode: false,
             config_input_buffer: String::new(),
             system_section: SystemSection::Services,
+            queue_selected_index: 0,
+            queue_items: Vec::new(),
+            currently_processing: None,
+            currently_processing_age: 0,
+            show_regenerate_popup: false,
+            regenerate_popup_selected: 0,
+            regenerate_popup_options: Vec::new(),
+            regenerate_popup_option_types: Vec::new(),
+            tui_started_watcher: false,
         };
 
         // Select first item if available
@@ -226,6 +259,9 @@ impl App {
 
         // Initialize system services
         app.refresh_system_services();
+
+        // Initialize queue
+        app.refresh_queue();
 
         Ok(app)
     }
@@ -248,7 +284,8 @@ impl App {
     pub fn toggle_tab(&mut self) {
         self.current_tab = match self.current_tab {
             TabState::Transcripts => TabState::System,
-            TabState::System => {
+            TabState::System => TabState::Queue,
+            TabState::Queue => {
                 if !self.search_results.is_empty() {
                     TabState::SearchResults
                 } else if self.editor_data.is_some() {
@@ -624,15 +661,204 @@ impl App {
             self.config_input_buffer.pop();
         }
     }
+
+    pub fn refresh_queue(&mut self) {
+        use crate::queue::{get_queue, get_queue_status};
+
+        if let Ok(queue) = get_queue(None) {
+            self.queue_items = queue;
+        }
+
+        if let Ok((path, age)) = get_queue_status(None) {
+            self.currently_processing = path;
+            self.currently_processing_age = age;
+        }
+    }
+
+    pub fn switch_to_queue(&mut self) {
+        self.current_tab = TabState::Queue;
+        self.refresh_queue();
+    }
+
+    pub fn queue_next(&mut self) {
+        let total_items = if self.currently_processing.is_some() {
+            self.queue_items.len() + 1
+        } else {
+            self.queue_items.len()
+        };
+
+        if total_items > 0 && self.queue_selected_index < total_items - 1 {
+            self.queue_selected_index += 1;
+        }
+    }
+
+    pub fn queue_previous(&mut self) {
+        if self.queue_selected_index > 0 {
+            self.queue_selected_index -= 1;
+        }
+    }
+
+    pub fn show_regenerate_popup(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        use crate::model_manager;
+        use std::process::Command;
+
+        // Get the selected video path
+        let video_path = if let Some(selected_index) = self.state.selected() {
+            if selected_index < self.video_data.len() {
+                self.video_data[selected_index].full_path.clone()
+            } else {
+                return Err("No video selected".into());
+            }
+        } else {
+            return Err("No video selected".into());
+        };
+
+        let video_path_obj = std::path::Path::new(&video_path);
+        if !video_path_obj.exists() {
+            return Err(format!("Video file does not exist: {}", video_path).into());
+        }
+
+        let cfg = config::load_config()?;
+        let mut options = Vec::new();
+        let mut option_types = Vec::new();
+
+        // Check for subtitle streams using ffprobe directly (synchronous)
+        let ffprobe_output = Command::new(&cfg.ffprobe_path)
+            .args([
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_streams",
+                "-select_streams",
+                "s",
+                video_path_obj.to_str().unwrap(),
+            ])
+            .output();
+
+        if let Ok(output) = ffprobe_output
+            && output.status.success()
+            && let Ok(json_str) = String::from_utf8(output.stdout)
+            && let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str)
+            && let Some(streams) = json["streams"].as_array()
+        {
+            for stream in streams {
+                let index = stream["index"].as_i64().unwrap_or(0) as i32;
+                let language = stream["tags"]["language"].as_str().unwrap_or("unknown");
+                let title = stream["tags"]["title"].as_str();
+
+                let lang_display = if let Some(t) = title {
+                    format!("{} - {}", language, t)
+                } else {
+                    language.to_string()
+                };
+
+                options.push(format!("Subtitles: {} ({})", lang_display, index));
+                option_types.push(format!("subtitle_{}", index));
+            }
+        }
+
+        // Check for available Whisper models
+        let models = model_manager::list_models();
+        let downloaded_models: Vec<_> = models.iter().filter(|m| m.downloaded).collect();
+
+        if !downloaded_models.is_empty() && cfg.allow_whisper {
+            for model in &downloaded_models {
+                options.push(format!("Whisper Model: {}", model.name));
+                option_types.push(format!("whisper_{}", model.name));
+            }
+        }
+
+        options.push("Cancel".to_string());
+        option_types.push("cancel".to_string());
+
+        if options.len() == 1 {
+            return Err("No processing options available".into());
+        }
+
+        self.regenerate_popup_options = options;
+        self.regenerate_popup_option_types = option_types;
+        self.regenerate_popup_selected = 0;
+        self.show_regenerate_popup = true;
+
+        Ok(())
+    }
+
+    pub fn close_regenerate_popup(&mut self) {
+        self.show_regenerate_popup = false;
+        self.regenerate_popup_selected = 0;
+        self.regenerate_popup_options.clear();
+        self.regenerate_popup_option_types.clear();
+    }
+
+    pub fn regenerate_popup_next(&mut self) {
+        if self.regenerate_popup_selected < self.regenerate_popup_options.len().saturating_sub(1) {
+            self.regenerate_popup_selected += 1;
+        }
+    }
+
+    pub fn regenerate_popup_previous(&mut self) {
+        if self.regenerate_popup_selected > 0 {
+            self.regenerate_popup_selected -= 1;
+        }
+    }
+
+    pub fn execute_regenerate_selection(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.regenerate_popup_selected >= self.regenerate_popup_option_types.len() {
+            return Err("Invalid selection".into());
+        }
+
+        let option_type = &self.regenerate_popup_option_types[self.regenerate_popup_selected];
+
+        if option_type == "cancel" {
+            self.close_regenerate_popup();
+            return Ok(());
+        }
+
+        // Get the selected video path
+        let video_path = if let Some(selected_index) = self.state.selected() {
+            if selected_index < self.video_data.len() {
+                self.video_data[selected_index].full_path.clone()
+            } else {
+                return Err("No video selected".into());
+            }
+        } else {
+            return Err("No video selected".into());
+        };
+
+        // Determine model and subtitle stream based on selection
+        let (model, subtitle_stream_index) = if option_type.starts_with("subtitle_") {
+            let stream_index = option_type
+                .strip_prefix("subtitle_")
+                .unwrap()
+                .parse::<i32>()?;
+            (None, Some(stream_index))
+        } else if option_type.starts_with("whisper_") {
+            let model_name = option_type.strip_prefix("whisper_").unwrap();
+            (Some(model_name.to_string()), None)
+        } else {
+            return Err("Unknown option type".into());
+        };
+
+        // Add to queue instead of processing immediately
+        crate::queue::add_to_queue(&video_path, model, subtitle_stream_index)?;
+
+        self.close_regenerate_popup();
+        Ok(())
+    }
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
         // Ensure file watcher is running before starting TUI
-        if let Err(e) = ensure_watcher_running().await {
-            eprintln!("Warning: Failed to ensure watcher is running: {}", e);
-        }
+        let started_watcher = match ensure_watcher_running().await {
+            Ok(started) => started,
+            Err(e) => {
+                eprintln!("Warning: Failed to ensure watcher is running: {}", e);
+                false
+            }
+        };
 
         enable_raw_mode()?;
         let mut stdout = io::stdout();
@@ -646,6 +872,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         let mut terminal = Terminal::new(backend)?;
 
         let mut app = App::new()?;
+        app.tui_started_watcher = started_watcher;
         let res = run_app(&mut terminal, &mut app);
 
         disable_raw_mode()?;
@@ -660,6 +887,13 @@ pub fn run() -> Result<(), Box<dyn Error>> {
             println!("{:?}", err)
         }
 
+        // If we started the watcher, stop it now
+        if app.tui_started_watcher
+            && let Err(e) = stop_watcher_processes().await
+        {
+            eprintln!("Warning: Failed to stop watcher processes: {}", e);
+        }
+
         Ok(())
     })
 }
@@ -668,6 +902,23 @@ fn handle_key_event(
     app: &mut App,
     key: crossterm::event::KeyEvent,
 ) -> Result<Option<bool>, Box<dyn Error>> {
+    // Handle regenerate popup
+    if app.show_regenerate_popup {
+        match key.code {
+            KeyCode::Esc => app.close_regenerate_popup(),
+            KeyCode::Enter => {
+                if let Err(e) = app.execute_regenerate_selection() {
+                    eprintln!("Failed to execute regenerate: {}", e);
+                    app.close_regenerate_popup();
+                }
+            }
+            KeyCode::Down | KeyCode::Char('j') => app.regenerate_popup_next(),
+            KeyCode::Up | KeyCode::Char('k') => app.regenerate_popup_previous(),
+            _ => {}
+        }
+        return Ok(None);
+    }
+
     // Handle filter input mode
     if app.filter_input_mode {
         match key.code {
@@ -733,14 +984,19 @@ fn handle_key_event(
 
     // Handle normal mode key events
     match key.code {
-        KeyCode::Char('q') => return Ok(Some(true)), // Signal to quit
+        KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            return Ok(Some(true));
+        } // Signal to quit
         KeyCode::Tab => app.toggle_tab(),
         KeyCode::Char('t') => app.switch_to_transcripts(),
         KeyCode::Char('s') => app.switch_to_system(),
+        KeyCode::Char('q') => app.switch_to_queue(),
         KeyCode::Char('r') => {
-            // Only switch to search results if we have results
-            if !app.search_results.is_empty() {
-                app.switch_to_search_results();
+            if app.current_tab == TabState::Transcripts {
+                // Show regenerate popup
+                if let Err(e) = app.show_regenerate_popup() {
+                    eprintln!("Failed to show regenerate popup: {}", e);
+                }
             }
         }
         KeyCode::Char('e') => {
@@ -750,17 +1006,7 @@ fn handle_key_event(
             }
         }
         KeyCode::Char('v') => {
-            if app.current_tab == TabState::Transcripts {
-                // Open file view from selected transcript
-                if let Some(selected_index) = app.state.selected()
-                    && selected_index < app.video_data.len()
-                {
-                    let video_path = app.video_data[selected_index].full_path.clone();
-                    if let Err(e) = app.open_file_view(&video_path) {
-                        eprintln!("Failed to open file view: {}", e);
-                    }
-                }
-            } else if app.file_view_data.is_some() {
+            if app.file_view_data.is_some() {
                 // Switch to file view if we have file view data
                 app.switch_to_file_view();
             }
@@ -773,9 +1019,14 @@ fn handle_key_event(
             }
         }
         KeyCode::Char('/') => {
-            if app.current_tab == TabState::Transcripts
-                || app.current_tab == TabState::SearchResults
-            {
+            if app.current_tab == TabState::SearchResults {
+                // If already on search results, toggle search input to highlight search box
+                app.toggle_search_input();
+            } else if !app.search_results.is_empty() {
+                // If we have search results, switch to search results page
+                app.switch_to_search_results();
+            } else if app.current_tab == TabState::Transcripts {
+                // If on transcripts with no results, allow starting a new search
                 app.toggle_search_input();
             }
         }
@@ -850,6 +1101,8 @@ fn handle_key_event(
                 }
             } else if app.current_tab == TabState::System {
                 app.system_next();
+            } else if app.current_tab == TabState::Queue {
+                app.queue_next();
             } else if app.current_tab == TabState::SearchResults {
                 app.search_next();
             } else if app.current_tab == TabState::Editor {
@@ -886,6 +1139,8 @@ fn handle_key_event(
                 }
             } else if app.current_tab == TabState::System {
                 app.system_previous();
+            } else if app.current_tab == TabState::Queue {
+                app.queue_previous();
             } else if app.current_tab == TabState::SearchResults {
                 app.search_previous();
             } else if app.current_tab == TabState::Editor {
@@ -1001,6 +1256,16 @@ fn handle_key_event(
                         app.start_config_editing();
                     }
                 }
+            } else if app.current_tab == TabState::Transcripts {
+                // Open file view from selected transcript
+                if let Some(selected_index) = app.state.selected()
+                    && selected_index < app.video_data.len()
+                {
+                    let video_path = app.video_data[selected_index].full_path.clone();
+                    if let Err(e) = app.open_file_view(&video_path) {
+                        eprintln!("Failed to open file view: {}", e);
+                    }
+                }
             } else if app.current_tab == TabState::SearchResults {
                 // Open file view from selected search result
                 if let Err(e) = app.open_file_view_from_selected_match() {
@@ -1062,6 +1327,7 @@ fn handle_key_event(
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), Box<dyn Error>> {
     terminal.draw(|f| ui(f, app))?;
+    update_cursor_visibility(terminal, app)?;
     loop {
         // Check if we should refresh data (for transcripts tab)
         // if app.should_refresh() {
@@ -1075,27 +1341,57 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
             if app.should_refresh_system_services() {
                 app.refresh_system_services();
             }
-            if event::poll(Duration::from_secs(1))? {
-                if let Event::Key(key) = event::read()? {
-                    if let Some(should_quit) = handle_key_event(app, key)?
-                        && should_quit
-                    {
-                        return Ok(());
-                    }
-                }
+            if event::poll(Duration::from_secs(1))?
+                && let Event::Key(key) = event::read()?
+                && let Some(should_quit) = handle_key_event(app, key)?
+                && should_quit
+            {
+                return Ok(());
             }
             terminal.draw(|f| ui(f, app))?;
-        } else {
-            if let Event::Key(key) = event::read()? {
-                if let Some(should_quit) = handle_key_event(app, key)?
-                    && should_quit
-                {
-                    return Ok(());
-                }
-                terminal.draw(|f| ui(f, app))?;
+            update_cursor_visibility(terminal, app)?;
+        } else if app.current_tab == TabState::Queue {
+            // Refresh queue every second
+            app.refresh_queue();
+            if event::poll(Duration::from_secs(1))?
+                && let Event::Key(key) = event::read()?
+                && let Some(should_quit) = handle_key_event(app, key)?
+                && should_quit
+            {
+                return Ok(());
             }
+            terminal.draw(|f| ui(f, app))?;
+            update_cursor_visibility(terminal, app)?;
+        } else if let Event::Key(key) = event::read()? {
+            if let Some(should_quit) = handle_key_event(app, key)?
+                && should_quit
+            {
+                return Ok(());
+            }
+            terminal.draw(|f| ui(f, app))?;
+            update_cursor_visibility(terminal, app)?;
         }
     }
+}
+
+fn update_cursor_visibility<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: &App,
+) -> Result<(), Box<dyn Error>> {
+    if app.filter_input_mode
+        || app.search_input_mode
+        || app.config_editing_mode
+        || (app.current_tab == TabState::Editor
+            && app
+                .editor_data
+                .as_ref()
+                .is_some_and(|data| data.text_editing_mode))
+    {
+        terminal.show_cursor()?;
+    } else {
+        terminal.hide_cursor()?;
+    }
+    Ok(())
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
@@ -1176,6 +1472,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             render_transcripts_tab(f, chunks[0], app, header_style, selected_row_style)
         }
         TabState::System => render_system_tab(f, chunks[0], app),
+        TabState::Queue => render_queue_tab(f, chunks[0], app),
         TabState::SearchResults => render_search_results_tab(f, chunks[0], app),
         TabState::Editor => render_editor_tab(f, chunks[0], app),
         TabState::FileView => render_file_view_tab(f, chunks[0], app),
@@ -1187,127 +1484,157 @@ fn ui(f: &mut Frame, app: &mut App) {
     }
 
     // Controls section
-    let controls_text = match app.current_tab {
-        TabState::Transcripts => {
-            if app.filter_input_mode {
-                "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
-            } else if app.search_input_mode {
-                "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
-            } else {
-                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  f: Filter  /: Search  v: View File  Ctrl+C: Clear  t/s";
+    let controls_text = if app.show_regenerate_popup {
+        "↑↓/jk: Navigate  Enter: Select  Esc: Cancel".to_string()
+    } else {
+        match app.current_tab {
+            TabState::Transcripts => {
+                if app.filter_input_mode {
+                    "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
+                } else if app.search_input_mode {
+                    "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
+                } else {
+                    let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  r: Regenerate  f: Filter  Enter: View File  Ctrl+C: Clear  t/s/q";
+                    let mut tab_controls = String::new();
+                    if !app.search_results.is_empty() {
+                        tab_controls.push_str("/ (search)");
+                    }
+                    if app.editor_data.is_some() {
+                        if !tab_controls.is_empty() {
+                            tab_controls.push('-');
+                        }
+                        tab_controls.push('e');
+                    }
+                    if !tab_controls.is_empty() {
+                        format!(
+                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                            base_controls, tab_controls
+                        )
+                    } else {
+                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
+                    }
+                }
+            }
+            TabState::System => {
+                if app.config_editing_mode {
+                    "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
+                } else {
+                    let section_info = match app.system_section {
+                        SystemSection::Services => "Services: Enter: Start/Kill",
+                        SystemSection::Config => "Config: Enter: Edit",
+                    };
+                    let base_controls =
+                        format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s/q", section_info);
+                    let mut tab_controls = String::new();
+                    if !app.search_results.is_empty() {
+                        tab_controls.push_str("/ (search)");
+                    }
+                    if app.editor_data.is_some() {
+                        if !tab_controls.is_empty() {
+                            tab_controls.push('-');
+                        }
+                        tab_controls.push('e');
+                    }
+                    if !tab_controls.is_empty() {
+                        format!(
+                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                            base_controls, tab_controls
+                        )
+                    } else {
+                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
+                    }
+                }
+            }
+            TabState::Queue => {
+                let base_controls = "↑↓/jk: Navigate  t/s/q";
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
-                    tab_controls.push('r');
+                    tab_controls.push_str("/ (search)");
                 }
                 if app.editor_data.is_some() {
                     if !tab_controls.is_empty() {
-                        tab_controls.push('/');
+                        tab_controls.push('-');
                     }
                     tab_controls.push('e');
                 }
                 if !tab_controls.is_empty() {
-                    format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+                    format!(
+                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        base_controls, tab_controls
+                    )
                 } else {
-                    format!("{}/Tab: Switch  q: Quit", base_controls)
+                    format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
                 }
             }
-        }
-        TabState::System => {
-            if app.config_editing_mode {
-                "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
-            } else {
-                let section_info = match app.system_section {
-                    SystemSection::Services => "Services: Enter: Start/Kill",
-                    SystemSection::Config => "Config: Enter: Edit",
+            TabState::SearchResults => {
+                if app.filter_input_mode {
+                    "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
+                } else if app.search_input_mode {
+                    "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
+                } else {
+                    let base_controls = "↑↓/jk: Navigate  Enter: View File  c: Open Editor  f: Filter  /: Search  Ctrl+C: Clear  t/s";
+                    let mut tab_controls = String::new();
+                    if app.editor_data.is_some() {
+                        tab_controls.push('e');
+                    }
+                    if !tab_controls.is_empty() {
+                        format!(
+                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                            base_controls, tab_controls
+                        )
+                    } else {
+                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
+                    }
+                }
+            }
+            TabState::Editor => {
+                let _overlay_status = if app
+                    .editor_data
+                    .as_ref()
+                    .is_some_and(|data| data.show_overlay_text)
+                {
+                    "ON"
+                } else {
+                    "OFF"
                 };
-                let base_controls =
-                    format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s", section_info);
+                let pending_regen = ""; // No longer using async regeneration
+                let base_controls = format!(
+                    "[/]: Adjust Frame Time{}  j/k/h/l: Navigate  Enter: Activate  c: Copy  o: Open  t/s",
+                    pending_regen
+                );
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
-                    tab_controls.push('r');
+                    tab_controls.push_str("/ (search)");
+                }
+                if !tab_controls.is_empty() {
+                    format!(
+                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        base_controls, tab_controls
+                    )
+                } else {
+                    format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
+                }
+            }
+            TabState::FileView => {
+                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  t/s";
+                let mut tab_controls = String::new();
+                if !app.search_results.is_empty() {
+                    tab_controls.push_str("/ (search)");
                 }
                 if app.editor_data.is_some() {
                     if !tab_controls.is_empty() {
-                        tab_controls.push('/');
+                        tab_controls.push('-');
                     }
                     tab_controls.push('e');
                 }
                 if !tab_controls.is_empty() {
-                    format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
+                    format!(
+                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        base_controls, tab_controls
+                    )
                 } else {
-                    format!("{}/Tab: Switch  q: Quit", base_controls)
+                    format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
                 }
-            }
-        }
-        TabState::SearchResults => {
-            if app.filter_input_mode {
-                "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
-            } else if app.search_input_mode {
-                "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
-            } else {
-                let base_controls = "↑↓/jk: Navigate  Enter: View File  c: Open Editor  f: Filter  /: Search  Ctrl+C: Clear  t/s";
-                let mut tab_controls = String::new();
-                tab_controls.push('r'); // Always have 'r' since we're on SearchResults tab
-                if app.editor_data.is_some() {
-                    tab_controls.push('/');
-                    tab_controls.push('e');
-                }
-                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
-            }
-        }
-        TabState::Editor => {
-            let _overlay_status = if app
-                .editor_data
-                .as_ref()
-                .is_some_and(|data| data.show_overlay_text)
-            {
-                "ON"
-            } else {
-                "OFF"
-            };
-            let pending_regen = ""; // No longer using async regeneration
-            let base_controls = format!(
-                "[/]: Adjust Frame Time{}  j/k/h/l: Navigate  Enter: Activate  c: Copy  o: Open  t/s",
-                pending_regen
-            );
-            let mut tab_controls = String::new();
-            if !app.search_results.is_empty() {
-                tab_controls.push('r');
-            }
-            if app.editor_data.is_some() {
-                if !tab_controls.is_empty() {
-                    tab_controls.push('/');
-                }
-                tab_controls.push('e');
-            }
-            if !tab_controls.is_empty() {
-                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
-            } else {
-                format!("{}/Tab: Switch  q: Quit", base_controls)
-            }
-        }
-        TabState::FileView => {
-            let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  t/s";
-            let mut tab_controls = String::new();
-            if !app.search_results.is_empty() {
-                tab_controls.push('r');
-            }
-            if app.editor_data.is_some() {
-                if !tab_controls.is_empty() {
-                    tab_controls.push('/');
-                }
-                tab_controls.push('e');
-            }
-            if app.file_view_data.is_some() {
-                if !tab_controls.is_empty() {
-                    tab_controls.push('/');
-                }
-                tab_controls.push('v');
-            }
-            if !tab_controls.is_empty() {
-                format!("{}{}/Tab: Switch  q: Quit", base_controls, tab_controls)
-            } else {
-                format!("{}/Tab: Switch  q: Quit", base_controls)
             }
         }
     };
@@ -1368,6 +1695,11 @@ pub fn create_tab_title_with_editor(
                 Style::default().fg(colors.footer_border_color),
             ),
         },
+        Span::styled(" | ", Style::default().fg(colors.row_fg)),
+        match current_tab {
+            TabState::Queue => Span::styled("Queue (q)", Style::default().fg(Color::White)),
+            _ => Span::styled("Queue (q)", Style::default().fg(colors.footer_border_color)),
+        },
     ];
 
     // Only show search results tab if we have results
@@ -1375,10 +1707,10 @@ pub fn create_tab_title_with_editor(
         spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
         spans.push(match current_tab {
             TabState::SearchResults => {
-                Span::styled("Search Results (r)", Style::default().fg(Color::White))
+                Span::styled("Search Results (/)", Style::default().fg(Color::White))
             }
             _ => Span::styled(
-                "Search Results (r)",
+                "Search Results (/)",
                 Style::default().fg(colors.footer_border_color),
             ),
         });
@@ -1411,7 +1743,51 @@ pub fn create_tab_title_with_editor(
     Line::from(spans)
 }
 
-async fn ensure_watcher_running() -> Result<(), Box<dyn Error>> {
+async fn stop_watcher_processes() -> Result<(), Box<dyn Error>> {
+    use std::process::Command;
+
+    // Find all watcher PIDs
+    let running_pids: Vec<u32> = match find_existing_pid_files() {
+        Ok(pids) => pids
+            .into_iter()
+            .filter(|&pid| is_process_running(pid))
+            .collect(),
+        Err(_) => vec![],
+    };
+
+    // Kill all running watcher processes and remove their PID files
+    for pid in running_pids {
+        #[cfg(unix)]
+        {
+            let _ = Command::new("kill").arg(pid.to_string()).output();
+        }
+
+        #[cfg(windows)]
+        {
+            let _ = Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+        }
+
+        // Remove the PID file
+        if let Ok(pid_file_path) = get_pid_file_path(pid) {
+            let _ = std::fs::remove_file(&pid_file_path);
+        }
+    }
+
+    Ok(())
+}
+
+fn get_pid_file_path(pid: u32) -> Result<std::path::PathBuf, Box<dyn Error>> {
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let atci_dir = home_dir.join(".atci");
+    let config_sha = crate::config::get_config_path_sha();
+    Ok(atci_dir.join(format!("atci.{}.{}.pid", config_sha, pid)))
+}
+
+async fn ensure_watcher_running() -> Result<bool, Box<dyn Error>> {
+    use std::fs::OpenOptions;
+
     // Check if any watcher processes are currently running
     let running_pids: Vec<u32> = match find_existing_pid_files() {
         Ok(pids) => pids
@@ -1428,17 +1804,38 @@ async fn ensure_watcher_running() -> Result<(), Box<dyn Error>> {
         // Get the current executable path
         let current_exe = std::env::current_exe()?;
 
-        // Spawn a new atci watch process
+        // Create log file in ~/.atci/watcher.log
+        let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+        let log_path = home_dir.join(".atci").join("watcher.log");
+
+        // Ensure .atci directory exists
+        if let Some(parent) = log_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let log_file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)?;
+
+        // Clone file descriptors for stdout and stderr
+        let stdout_file = log_file.try_clone()?;
+        let stderr_file = log_file;
+
+        // Spawn a new atci watch process with output redirected to log
         tokio::spawn(async move {
             let mut cmd = tokio::process::Command::new(&current_exe);
             cmd.arg("watch");
+            cmd.stdout(stdout_file);
+            cmd.stderr(stderr_file);
 
             match cmd.spawn() {
                 Ok(mut child) => {
                     // Let it run in the background - don't wait for it
                     tokio::spawn(async move {
                         if let Err(e) = child.wait().await {
-                            eprintln!("Watcher process exited with error: {}", e);
+                            // Can't log here since we're in the background
+                            let _ = e;
                         }
                     });
                 }
@@ -1447,9 +1844,13 @@ async fn ensure_watcher_running() -> Result<(), Box<dyn Error>> {
                 }
             }
         });
-    }
 
-    Ok(())
+        // Return true to indicate we started the watcher
+        Ok(true)
+    } else {
+        // Return false to indicate watcher was already running
+        Ok(false)
+    }
 }
 
 fn render_filter_and_search_sections(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
@@ -1489,12 +1890,19 @@ fn render_filter_and_search_sections(f: &mut Frame, area: ratatui::layout::Rect,
             app.colors.footer_border_color
         }));
 
-    let filter_paragraph = Paragraph::new(filter_text)
+    let filter_paragraph = Paragraph::new(filter_text.clone())
         .block(filter_block)
         .style(filter_style)
         .alignment(Alignment::Left);
 
     f.render_widget(filter_paragraph, filter_search_chunks[0]);
+
+    // Show cursor if in filter input mode
+    if app.filter_input_mode {
+        let cursor_x = filter_search_chunks[0].x + 1 + app.filter_input.len() as u16;
+        let cursor_y = filter_search_chunks[0].y + 1;
+        f.set_cursor_position((cursor_x, cursor_y));
+    }
 
     // Render search section
     let search_text = if app.search_input.is_empty() {
@@ -1520,10 +1928,17 @@ fn render_filter_and_search_sections(f: &mut Frame, area: ratatui::layout::Rect,
             app.colors.footer_border_color
         }));
 
-    let search_paragraph = Paragraph::new(search_text)
+    let search_paragraph = Paragraph::new(search_text.clone())
         .block(search_block)
         .style(search_style)
         .alignment(Alignment::Left);
 
     f.render_widget(search_paragraph, filter_search_chunks[1]);
+
+    // Show cursor if in search input mode
+    if app.search_input_mode {
+        let cursor_x = filter_search_chunks[1].x + 1 + app.search_input.len() as u16;
+        let cursor_y = filter_search_chunks[1].y + 1;
+        f.set_cursor_position((cursor_x, cursor_y));
+    }
 }

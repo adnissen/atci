@@ -294,8 +294,18 @@ fn remove_first_line_from_queue(
 
 pub async fn process_queue() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async {
+        eprintln!("[QUEUE] Queue processor started");
         loop {
-            let _ = process_queue_iteration().await;
+            match process_queue_iteration().await {
+                Ok(processed) => {
+                    if processed {
+                        eprintln!("[QUEUE] Successfully processed queue item");
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[QUEUE] Error processing queue: {}", e);
+                }
+            }
 
             // Clear the currently_processing table after each iteration
             if let Ok(conn) = db::get_connection() {
@@ -327,7 +337,11 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
         .ok();
 
     if let Some((video_path_str, model, subtitle_stream_index)) = current_item {
-        println!("Processing queue item: {}", video_path_str);
+        eprintln!("[QUEUE] Processing queue item: {}", video_path_str);
+        eprintln!(
+            "[QUEUE] Model: {:?}, Subtitle stream: {:?}",
+            model, subtitle_stream_index
+        );
         let video_path_str = video_path_str.trim();
         if video_path_str.is_empty() {
             return Ok(false);
@@ -451,6 +465,7 @@ pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
 
 pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
+        eprintln!("[WATCHER] Metadata watcher started");
         loop {
             let cfg: AtciConfig = config::load_config().expect("Failed to load config");
 
@@ -512,7 +527,9 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
 
             for file_to_add in files_to_add {
                 if let Err(e) = add_to_queue(&file_to_add, None, None) {
-                    eprintln!("Error adding to queue: {}", e);
+                    eprintln!("[WATCHER] Error adding to queue: {}", e);
+                } else {
+                    eprintln!("[WATCHER] Added to queue: {}", file_to_add);
                 }
             }
 
@@ -536,15 +553,17 @@ pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Erro
                             ))
                         })
                             && let Some(Ok((path, model, subtitle_stream_index))) = rows.next() {
+                                eprintln!("[WATCHER] Moving to currently_processing: {}", path);
                                 // Add to currently_processing table with current timestamp
                                 let now = chrono::Utc::now().to_rfc3339();
                                 let _ = conn.execute(
                                     "INSERT INTO currently_processing (starting_time, path, model, subtitle_stream_index) VALUES (?1, ?2, ?3, ?4)",
-                                    (now, path, model, subtitle_stream_index),
+                                    (now, &path, model, subtitle_stream_index),
                                 );
 
                                 // Remove from queue
                                 let _ = remove_first_line_from_queue(Some(&conn));
+                                eprintln!("[WATCHER] Moved item to currently_processing and removed from queue");
                             }
                 }
             }

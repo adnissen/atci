@@ -250,12 +250,37 @@ fn delete_pid_file(pid: u32) -> Result<(), Box<dyn Error>> {
 }
 
 fn start_watcher_process() -> Result<(), Box<dyn Error>> {
+    use std::fs::OpenOptions;
+    use std::process::Stdio;
+
     // Get the current executable path
     let current_exe = std::env::current_exe()?;
 
-    // Spawn a new atci watch process
+    // Create log file in ~/.atci/watcher.log
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let log_path = home_dir.join(".atci").join("watcher.log");
+
+    // Ensure .atci directory exists
+    if let Some(parent) = log_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)?;
+
+    // Clone file descriptors for stdout and stderr
+    let stdout_file = log_file.try_clone()?;
+    let stderr_file = log_file;
+
+    // Spawn a new atci watch process with output redirected to log
+    // Use stdin(Stdio::null()) to detach from terminal
     std::process::Command::new(&current_exe)
         .arg("watch")
+        .stdin(Stdio::null())
+        .stdout(stdout_file)
+        .stderr(stderr_file)
         .spawn()?;
 
     Ok(())
