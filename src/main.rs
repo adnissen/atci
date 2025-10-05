@@ -979,6 +979,29 @@ fn setup_pid_file_management() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn check_watcher_running() -> Result<bool, Box<dyn std::error::Error>> {
+    let existing_pids = find_existing_pid_files()?;
+
+    if existing_pids.is_empty() {
+        return Ok(false);
+    }
+
+    let (running_pids, stale_pids): (Vec<&u32>, Vec<&u32>) = existing_pids
+        .iter()
+        .partition(|&&pid| is_process_running(pid));
+
+    // Clean up stale PID files
+    for &pid in &stale_pids {
+        if let Ok(pid_file_path) = get_pid_file_path(*pid) {
+            let _ = fs::remove_file(&pid_file_path);
+            println!("Cleaned up stale PID file for process {}", pid);
+        }
+    }
+
+    // Return true if there are running processes
+    Ok(!running_pids.is_empty())
+}
+
 fn update() -> Result<(), Box<dyn std::error::Error>> {
     use self_update::cargo_crate_version;
 
@@ -1775,8 +1798,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     // Validate and prompt for missing configuration
                     validate_and_prompt_config(&mut cfg, &required_fields)?;
 
-                    // Setup PID file management
-                    setup_pid_file_management()?;
+                    // Check if watcher is already running
+                    let watcher_already_running = check_watcher_running()?;
 
                     files::get_and_save_video_info_from_disk()?;
 
@@ -1787,14 +1810,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let rt = tokio::runtime::Runtime::new()?;
                     rt.block_on(async {
-                        if let Err(e) = queue::watch_for_missing_metadata().await {
-                            eprintln!("Error starting metadata watcher: {}", e);
-                            std::process::exit(1);
-                        }
+                        if watcher_already_running {
+                            println!("Watcher process already running, skipping watcher and queue processor startup");
+                        } else {
+                            // Create PID file for this watcher process
+                            if let Err(e) = create_pid_file() {
+                                eprintln!("Error creating PID file: {}", e);
+                                std::process::exit(1);
+                            }
 
-                        if let Err(e) = queue::process_queue().await {
-                            eprintln!("Error starting queue processor: {}", e);
-                            std::process::exit(1);
+                            if let Err(e) = queue::watch_for_missing_metadata().await {
+                                eprintln!("Error starting metadata watcher: {}", e);
+                                std::process::exit(1);
+                            }
+
+                            if let Err(e) = queue::process_queue().await {
+                                eprintln!("Error starting queue processor: {}", e);
+                                std::process::exit(1);
+                            }
                         }
 
                         if let Err(e) = web::launch_server(&host, port).await {
@@ -1804,16 +1837,49 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     });
                 }
                 Some(WebCommands::Api { host, port }) => {
-                    // Setup PID file management
-                    setup_pid_file_management()?;
+                    let mut cfg: AtciConfig = config::load_config()?;
+                    let mut required_fields = HashSet::new();
+                    required_fields.insert("ffmpeg_path".to_string());
+                    required_fields.insert("ffprobe_path".to_string());
+                    required_fields.insert("whispercli_path".to_string());
+                    required_fields.insert("model_name".to_string());
+                    required_fields.insert("watch_directories".to_string());
+
+                    // Validate and prompt for missing configuration
+                    validate_and_prompt_config(&mut cfg, &required_fields)?;
+
+                    // Check if watcher is already running
+                    let watcher_already_running = check_watcher_running()?;
+
+                    files::get_and_save_video_info_from_disk()?;
 
                     println!(
-                        "Starting atci \x1b[1mAPI-only\x1b[0m server on \x1b]8;;http://{}:{}\x1b\\http://{}:{}\x1b]8;;\x1b\\",
+                        "Starting atci \x1b[1mAPI\x1b[0m server on \x1b]8;;http://{}:{}\x1b\\http://{}:{}\x1b]8;;\x1b\\",
                         host, port, host, port
                     );
 
                     let rt = tokio::runtime::Runtime::new()?;
                     rt.block_on(async {
+                        if watcher_already_running {
+                            println!("Watcher process already running, skipping watcher and queue processor startup");
+                        } else {
+                            // Create PID file for this watcher process
+                            if let Err(e) = create_pid_file() {
+                                eprintln!("Error creating PID file: {}", e);
+                                std::process::exit(1);
+                            }
+
+                            if let Err(e) = queue::watch_for_missing_metadata().await {
+                                eprintln!("Error starting metadata watcher: {}", e);
+                                std::process::exit(1);
+                            }
+
+                            if let Err(e) = queue::process_queue().await {
+                                eprintln!("Error starting queue processor: {}", e);
+                                std::process::exit(1);
+                            }
+                        }
+
                         if let Err(e) = web::launch_api_server(&host, port).await {
                             eprintln!("Error starting API server: {}", e);
                             std::process::exit(1);
