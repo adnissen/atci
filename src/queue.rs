@@ -338,7 +338,10 @@ pub async fn process_queue_iteration() -> Result<bool, Box<dyn std::error::Error
 
     if let Some((video_path_str, model, subtitle_stream_index)) = current_item {
         eprintln!("[QUEUE] Processing queue item: {}", video_path_str);
-        eprintln!("[QUEUE] Model: {:?}, Subtitle stream: {:?}", model, subtitle_stream_index);
+        eprintln!(
+            "[QUEUE] Model: {:?}, Subtitle stream: {:?}",
+            model, subtitle_stream_index
+        );
         let video_path_str = video_path_str.trim();
         if video_path_str.is_empty() {
             return Ok(false);

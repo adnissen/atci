@@ -19,7 +19,11 @@ use ratatui::{
     style::{Color, Modifier, Style},
     widgets::{Block, Borders, Paragraph, TableState},
 };
-use std::{error::Error, io, time::{Duration, Instant}};
+use std::{
+    error::Error,
+    io,
+    time::{Duration, Instant},
+};
 
 pub struct TableColors {
     pub buffer_bg: Color,
@@ -721,39 +725,36 @@ impl App {
         // Check for subtitle streams using ffprobe directly (synchronous)
         let ffprobe_output = Command::new(&cfg.ffprobe_path)
             .args([
-                "-v", "quiet",
-                "-print_format", "json",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
                 "-show_streams",
-                "-select_streams", "s",
+                "-select_streams",
+                "s",
                 video_path_obj.to_str().unwrap(),
             ])
             .output();
 
-        if let Ok(output) = ffprobe_output {
-            if output.status.success() {
-                if let Ok(json_str) = String::from_utf8(output.stdout) {
-                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                        if let Some(streams) = json["streams"].as_array() {
-                            for stream in streams {
-                                let index = stream["index"].as_i64().unwrap_or(0) as i32;
-                                let language = stream["tags"]["language"]
-                                    .as_str()
-                                    .unwrap_or("unknown");
-                                let title = stream["tags"]["title"]
-                                    .as_str();
+        if let Ok(output) = ffprobe_output
+            && output.status.success()
+            && let Ok(json_str) = String::from_utf8(output.stdout)
+            && let Ok(json) = serde_json::from_str::<serde_json::Value>(&json_str)
+            && let Some(streams) = json["streams"].as_array()
+        {
+            for stream in streams {
+                let index = stream["index"].as_i64().unwrap_or(0) as i32;
+                let language = stream["tags"]["language"].as_str().unwrap_or("unknown");
+                let title = stream["tags"]["title"].as_str();
 
-                                let lang_display = if let Some(t) = title {
-                                    format!("{} - {}", language, t)
-                                } else {
-                                    language.to_string()
-                                };
+                let lang_display = if let Some(t) = title {
+                    format!("{} - {}", language, t)
+                } else {
+                    language.to_string()
+                };
 
-                                options.push(format!("Subtitles: {} ({})", lang_display, index));
-                                option_types.push(format!("subtitle_{}", index));
-                            }
-                        }
-                    }
-                }
+                options.push(format!("Subtitles: {} ({})", lang_display, index));
+                option_types.push(format!("subtitle_{}", index));
             }
         }
 
@@ -887,10 +888,10 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         }
 
         // If we started the watcher, stop it now
-        if app.tui_started_watcher {
-            if let Err(e) = stop_watcher_processes().await {
-                eprintln!("Warning: Failed to stop watcher processes: {}", e);
-            }
+        if app.tui_started_watcher
+            && let Err(e) = stop_watcher_processes().await
+        {
+            eprintln!("Warning: Failed to stop watcher processes: {}", e);
         }
 
         Ok(())
@@ -983,7 +984,9 @@ fn handle_key_event(
 
     // Handle normal mode key events
     match key.code {
-        KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => return Ok(Some(true)), // Signal to quit
+        KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            return Ok(Some(true));
+        } // Signal to quit
         KeyCode::Tab => app.toggle_tab(),
         KeyCode::Char('t') => app.switch_to_transcripts(),
         KeyCode::Char('s') => app.switch_to_system(),
@@ -1338,47 +1341,52 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
             if app.should_refresh_system_services() {
                 app.refresh_system_services();
             }
-            if event::poll(Duration::from_secs(1))? {
-                if let Event::Key(key) = event::read()? {
-                    if let Some(should_quit) = handle_key_event(app, key)?
-                        && should_quit
-                    {
-                        return Ok(());
-                    }
-                }
+            if event::poll(Duration::from_secs(1))?
+                && let Event::Key(key) = event::read()?
+                && let Some(should_quit) = handle_key_event(app, key)?
+                && should_quit
+            {
+                return Ok(());
             }
             terminal.draw(|f| ui(f, app))?;
             update_cursor_visibility(terminal, app)?;
         } else if app.current_tab == TabState::Queue {
             // Refresh queue every second
             app.refresh_queue();
-            if event::poll(Duration::from_secs(1))? {
-                if let Event::Key(key) = event::read()? {
-                    if let Some(should_quit) = handle_key_event(app, key)?
-                        && should_quit
-                    {
-                        return Ok(());
-                    }
-                }
+            if event::poll(Duration::from_secs(1))?
+                && let Event::Key(key) = event::read()?
+                && let Some(should_quit) = handle_key_event(app, key)?
+                && should_quit
+            {
+                return Ok(());
             }
             terminal.draw(|f| ui(f, app))?;
             update_cursor_visibility(terminal, app)?;
-        } else {
-            if let Event::Key(key) = event::read()? {
-                if let Some(should_quit) = handle_key_event(app, key)?
-                    && should_quit
-                {
-                    return Ok(());
-                }
-                terminal.draw(|f| ui(f, app))?;
-                update_cursor_visibility(terminal, app)?;
+        } else if let Event::Key(key) = event::read()? {
+            if let Some(should_quit) = handle_key_event(app, key)?
+                && should_quit
+            {
+                return Ok(());
             }
+            terminal.draw(|f| ui(f, app))?;
+            update_cursor_visibility(terminal, app)?;
         }
     }
 }
 
-fn update_cursor_visibility<B: Backend>(terminal: &mut Terminal<B>, app: &App) -> Result<(), Box<dyn Error>> {
-    if app.filter_input_mode || app.search_input_mode || app.config_editing_mode || (app.current_tab == TabState::Editor && app.editor_data.as_ref().is_some_and(|data| data.text_editing_mode)) {
+fn update_cursor_visibility<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: &App,
+) -> Result<(), Box<dyn Error>> {
+    if app.filter_input_mode
+        || app.search_input_mode
+        || app.config_editing_mode
+        || (app.current_tab == TabState::Editor
+            && app
+                .editor_data
+                .as_ref()
+                .is_some_and(|data| data.text_editing_mode))
+    {
         terminal.show_cursor()?;
     } else {
         terminal.hide_cursor()?;
@@ -1482,134 +1490,152 @@ fn ui(f: &mut Frame, app: &mut App) {
         match app.current_tab {
             TabState::Transcripts => {
                 if app.filter_input_mode {
-                "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
-            } else if app.search_input_mode {
-                "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
-            } else {
-                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  r: Regenerate  f: Filter  Enter: View File  Ctrl+C: Clear  t/s/q";
+                    "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
+                } else if app.search_input_mode {
+                    "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
+                } else {
+                    let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  r: Regenerate  f: Filter  Enter: View File  Ctrl+C: Clear  t/s/q";
+                    let mut tab_controls = String::new();
+                    if !app.search_results.is_empty() {
+                        tab_controls.push_str("/ (search)");
+                    }
+                    if app.editor_data.is_some() {
+                        if !tab_controls.is_empty() {
+                            tab_controls.push('-');
+                        }
+                        tab_controls.push('e');
+                    }
+                    if !tab_controls.is_empty() {
+                        format!(
+                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                            base_controls, tab_controls
+                        )
+                    } else {
+                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
+                    }
+                }
+            }
+            TabState::System => {
+                if app.config_editing_mode {
+                    "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
+                } else {
+                    let section_info = match app.system_section {
+                        SystemSection::Services => "Services: Enter: Start/Kill",
+                        SystemSection::Config => "Config: Enter: Edit",
+                    };
+                    let base_controls =
+                        format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s/q", section_info);
+                    let mut tab_controls = String::new();
+                    if !app.search_results.is_empty() {
+                        tab_controls.push_str("/ (search)");
+                    }
+                    if app.editor_data.is_some() {
+                        if !tab_controls.is_empty() {
+                            tab_controls.push('-');
+                        }
+                        tab_controls.push('e');
+                    }
+                    if !tab_controls.is_empty() {
+                        format!(
+                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                            base_controls, tab_controls
+                        )
+                    } else {
+                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
+                    }
+                }
+            }
+            TabState::Queue => {
+                let base_controls = "↑↓/jk: Navigate  t/s/q";
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
                     tab_controls.push_str("/ (search)");
                 }
                 if app.editor_data.is_some() {
                     if !tab_controls.is_empty() {
-                        tab_controls.push_str("-");
+                        tab_controls.push('-');
                     }
                     tab_controls.push('e');
                 }
                 if !tab_controls.is_empty() {
-                    format!("{} {}-Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
+                    format!(
+                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        base_controls, tab_controls
+                    )
                 } else {
                     format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
                 }
             }
-        }
-        TabState::System => {
-            if app.config_editing_mode {
-                "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
-            } else {
-                let section_info = match app.system_section {
-                    SystemSection::Services => "Services: Enter: Start/Kill",
-                    SystemSection::Config => "Config: Enter: Edit",
+            TabState::SearchResults => {
+                if app.filter_input_mode {
+                    "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
+                } else if app.search_input_mode {
+                    "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
+                } else {
+                    let base_controls = "↑↓/jk: Navigate  Enter: View File  c: Open Editor  f: Filter  /: Search  Ctrl+C: Clear  t/s";
+                    let mut tab_controls = String::new();
+                    if app.editor_data.is_some() {
+                        tab_controls.push('e');
+                    }
+                    if !tab_controls.is_empty() {
+                        format!(
+                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                            base_controls, tab_controls
+                        )
+                    } else {
+                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
+                    }
+                }
+            }
+            TabState::Editor => {
+                let _overlay_status = if app
+                    .editor_data
+                    .as_ref()
+                    .is_some_and(|data| data.show_overlay_text)
+                {
+                    "ON"
+                } else {
+                    "OFF"
                 };
-                let base_controls =
-                    format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s/q", section_info);
+                let pending_regen = ""; // No longer using async regeneration
+                let base_controls = format!(
+                    "[/]: Adjust Frame Time{}  j/k/h/l: Navigate  Enter: Activate  c: Copy  o: Open  t/s",
+                    pending_regen
+                );
+                let mut tab_controls = String::new();
+                if !app.search_results.is_empty() {
+                    tab_controls.push_str("/ (search)");
+                }
+                if !tab_controls.is_empty() {
+                    format!(
+                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        base_controls, tab_controls
+                    )
+                } else {
+                    format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
+                }
+            }
+            TabState::FileView => {
+                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  t/s";
                 let mut tab_controls = String::new();
                 if !app.search_results.is_empty() {
                     tab_controls.push_str("/ (search)");
                 }
                 if app.editor_data.is_some() {
                     if !tab_controls.is_empty() {
-                        tab_controls.push_str("-");
+                        tab_controls.push('-');
                     }
                     tab_controls.push('e');
                 }
                 if !tab_controls.is_empty() {
-                    format!("{} {}-Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
+                    format!(
+                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        base_controls, tab_controls
+                    )
                 } else {
                     format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
                 }
             }
-        }
-        TabState::Queue => {
-            let base_controls = "↑↓/jk: Navigate  t/s/q";
-            let mut tab_controls = String::new();
-            if !app.search_results.is_empty() {
-                tab_controls.push_str("/ (search)");
-            }
-            if app.editor_data.is_some() {
-                if !tab_controls.is_empty() {
-                    tab_controls.push_str("-");
-                }
-                tab_controls.push('e');
-            }
-            if !tab_controls.is_empty() {
-                format!("{} {}-Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
-            } else {
-                format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-            }
-        }
-        TabState::SearchResults => {
-            if app.filter_input_mode {
-                "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
-            } else if app.search_input_mode {
-                "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
-            } else {
-                let base_controls = "↑↓/jk: Navigate  Enter: View File  c: Open Editor  f: Filter  /: Search  Ctrl+C: Clear  t/s";
-                let mut tab_controls = String::new();
-                if app.editor_data.is_some() {
-                    tab_controls.push('e');
-                }
-                if !tab_controls.is_empty() {
-                    format!("{} {}-Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
-                } else {
-                    format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-                }
-            }
-        }
-        TabState::Editor => {
-            let _overlay_status = if app
-                .editor_data
-                .as_ref()
-                .is_some_and(|data| data.show_overlay_text)
-            {
-                "ON"
-            } else {
-                "OFF"
-            };
-            let pending_regen = ""; // No longer using async regeneration
-            let base_controls = format!(
-                "[/]: Adjust Frame Time{}  j/k/h/l: Navigate  Enter: Activate  c: Copy  o: Open  t/s",
-                pending_regen
-            );
-            let mut tab_controls = String::new();
-            if !app.search_results.is_empty() {
-                tab_controls.push_str("/ (search)");
-            }
-            if !tab_controls.is_empty() {
-                format!("{} {}-Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
-            } else {
-                format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-            }
-        }
-        TabState::FileView => {
-            let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  t/s";
-            let mut tab_controls = String::new();
-            if !app.search_results.is_empty() {
-                tab_controls.push_str("/ (search)");
-            }
-            if app.editor_data.is_some() {
-                if !tab_controls.is_empty() {
-                    tab_controls.push_str("-");
-                }
-                tab_controls.push('e');
-            }
-            if !tab_controls.is_empty() {
-                format!("{} {}-Tab: Switch  Ctrl+Z: Quit", base_controls, tab_controls)
-            } else {
-                format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-            }
-        }
         }
     };
     let controls_block = Block::default()
@@ -1672,10 +1698,7 @@ pub fn create_tab_title_with_editor(
         Span::styled(" | ", Style::default().fg(colors.row_fg)),
         match current_tab {
             TabState::Queue => Span::styled("Queue (q)", Style::default().fg(Color::White)),
-            _ => Span::styled(
-                "Queue (q)",
-                Style::default().fg(colors.footer_border_color),
-            ),
+            _ => Span::styled("Queue (q)", Style::default().fg(colors.footer_border_color)),
         },
     ];
 

@@ -1,4 +1,4 @@
-use crate::tui::{create_tab_title_with_editor, App};
+use crate::tui::{App, create_tab_title_with_editor};
 use ratatui::{
     Frame,
     layout::{Constraint, Rect},
@@ -25,8 +25,11 @@ pub fn render_queue_tab(f: &mut Frame, area: Rect, app: &App) {
     // Add currently processing item if exists
     if let Some(ref path) = app.currently_processing {
         let age_text = format_age(app.currently_processing_age);
-        let status_cell = Cell::from(format!("PROCESSING ({})", age_text))
-            .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
+        let status_cell = Cell::from(format!("PROCESSING ({})", age_text)).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
         let path_cell = Cell::from(path.clone());
 
         let row = Row::new(vec![status_cell, path_cell]);
@@ -45,8 +48,8 @@ pub fn render_queue_tab(f: &mut Frame, area: Rect, app: &App) {
     // Add queue items
     for (i, path) in app.queue_items.iter().enumerate() {
         let position = i + 1;
-        let status_cell = Cell::from(format!("#{}", position))
-            .style(Style::default().fg(app.colors.row_fg));
+        let status_cell =
+            Cell::from(format!("#{}", position)).style(Style::default().fg(app.colors.row_fg));
         let path_cell = Cell::from(path.clone());
 
         let row = Row::new(vec![status_cell, path_cell]);
@@ -72,11 +75,8 @@ pub fn render_queue_tab(f: &mut Frame, area: Rect, app: &App) {
 
     // If no items at all, show a message
     if rows.is_empty() {
-        let empty_row = Row::new(vec![
-            Cell::from(""),
-            Cell::from("No items in queue"),
-        ])
-        .style(Style::default().fg(app.colors.row_fg));
+        let empty_row = Row::new(vec![Cell::from(""), Cell::from("No items in queue")])
+            .style(Style::default().fg(app.colors.row_fg));
         rows.push(empty_row);
     }
 
