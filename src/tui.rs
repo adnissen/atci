@@ -6,7 +6,7 @@ use crate::system_tab::{find_existing_pid_files, is_process_running, render_syst
 use crate::transcripts_tab::render_transcripts_tab;
 use crate::{config, files, search};
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers},
     execute,
     terminal::{
         EnterAlternateScreen, LeaveAlternateScreen, SetTitle, disable_raw_mode, enable_raw_mode,
@@ -902,6 +902,11 @@ fn handle_key_event(
     app: &mut App,
     key: crossterm::event::KeyEvent,
 ) -> Result<Option<bool>, Box<dyn Error>> {
+    // Filter out key release events to prevent duplicate input on Windows
+    if key.kind == KeyEventKind::Release {
+        return Ok(None);
+    }
+
     // Handle regenerate popup
     if app.show_regenerate_popup {
         match key.code {
