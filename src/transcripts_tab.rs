@@ -101,6 +101,7 @@ impl App {
         self.video_data = cache_data.files;
         self.current_page = 0;
         self.total_pages = cache_data.pages.unwrap_or(1);
+        self.total_records = cache_data.total_records.unwrap_or(0);
 
         // Reset selection to first item when sorting changes
         if !self.video_data.is_empty() {
@@ -205,6 +206,7 @@ impl App {
         self.video_data = cache_data.files;
         self.current_page = page;
         self.total_pages = cache_data.pages.unwrap_or(1);
+        self.total_records = cache_data.total_records.unwrap_or(0);
 
         Ok(())
     }

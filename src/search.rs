@@ -8,7 +8,7 @@ use crate::metadata;
 use crate::web::ApiResponse;
 use crate::{config, config::AtciConfig};
 use chrono::{DateTime, Local};
-use rayon::prelude::*;
+use futures::stream::{self, StreamExt};
 use rocket::get;
 use rocket::serde::json::Json;
 use serde::{Deserialize, Serialize};
@@ -135,7 +135,7 @@ fn parse_timestamp_range(timestamp_line: &str) -> Option<(String, String)> {
     None
 }
 
-pub fn search(
+pub async fn search(
     query: &str,
     filter: Option<&Vec<String>>,
     generate_clips: bool,
@@ -156,161 +156,173 @@ pub fn search(
         })
         .collect();
 
-    let mut results: Vec<SearchResult> = all_entries
-        .par_iter()
-        .filter_map(|entry| {
-            let file_path = entry.path();
+    let query_string = query.to_string();
+    let normalized_query = normalize_apostrophes(&query_string.to_lowercase());
 
-            if !file_path.is_file() {
-                return None;
-            }
+    let results_stream = stream::iter(all_entries)
+        .map(|entry| {
+            let video_extensions = video_extensions.clone();
+            let filter = filter.cloned();
+            let normalized_query = normalized_query.clone();
 
-            let extension = file_path.extension()?;
-            let ext_str = extension.to_str()?;
+            async move {
+                let file_path = entry.path();
 
-            if !video_extensions.contains(&ext_str.to_lowercase().as_str()) {
-                return None;
-            }
-
-            // Apply file path filter if provided
-            if let Some(filters) = filter
-                && !filters.is_empty()
-            {
-                let file_path_str = file_path.to_string_lossy().to_lowercase();
-                if !filters
-                    .iter()
-                    .any(|f| file_path_str.contains(&f.trim().to_lowercase()))
-                {
+                if !file_path.is_file() {
                     return None;
                 }
-            }
 
-            let txt_path = file_path.with_extension("txt");
+                let extension = file_path.extension()?;
+                let ext_str = extension.to_str()?;
 
-            if !txt_path.exists() {
-                return None;
-            }
+                if !video_extensions.contains(&ext_str.to_lowercase().as_str()) {
+                    return None;
+                }
 
-            let content = fs::read_to_string(&txt_path).ok()?;
-            let lines: Vec<&str> = content.lines().collect();
+                // Apply file path filter if provided
+                if let Some(ref filters) = filter
+                    && !filters.is_empty()
+                {
+                    let file_path_str = file_path.to_string_lossy().to_lowercase();
+                    if !filters
+                        .iter()
+                        .any(|f| file_path_str.contains(&f.trim().to_lowercase()))
+                    {
+                        return None;
+                    }
+                }
 
-            // Create VideoInfo for this file
-            let metadata = fs::metadata(file_path).ok()?;
-            let filename = file_path
-                .file_stem()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
+                let txt_path = file_path.with_extension("txt");
 
-            let line_count = lines.len();
-            let transcript_exists = true; // We know it exists since we're reading it
+                if !txt_path.exists() {
+                    return None;
+                }
 
-            let last_generated = fs::metadata(&txt_path)
-                .ok()
-                .and_then(|meta| meta.modified().ok())
-                .map(format_datetime);
+                let content = tokio::fs::read_to_string(&txt_path).await.ok()?;
+                let lines: Vec<String> = content.lines().map(|s| s.to_string()).collect();
 
-            let (length, model) = {
-                let metadata_fields = metadata::get_metadata_fields(file_path).unwrap_or_default();
-                (metadata_fields.length, metadata_fields.source)
-            };
-
-            let created_at = metadata
-                .created()
-                .or_else(|_| metadata.modified())
-                .map(format_datetime)
-                .unwrap_or_else(|_| "Unknown".to_string());
-
-            let video_info = VideoInfo {
-                name: file_path
-                    .file_name()
+                // Create VideoInfo for this file
+                let metadata = tokio::fs::metadata(file_path).await.ok()?;
+                let filename = file_path
+                    .file_stem()
                     .unwrap_or_default()
                     .to_string_lossy()
-                    .to_string(),
-                base_name: filename,
-                created_at,
-                line_count,
-                full_path: file_path.to_string_lossy().to_string(),
-                transcript: transcript_exists,
-                last_generated,
-                length,
-                source: model,
-            };
+                    .to_string();
 
-            let normalized_query = normalize_apostrophes(&query.to_lowercase());
+                let line_count = lines.len();
+                let transcript_exists = true; // We know it exists since we're reading it
 
-            let matches: Vec<SearchMatch> = lines
-                .iter()
-                .enumerate()
-                .filter_map(|(line_num, line)| {
-                    let normalized_line = normalize_apostrophes(&line.to_lowercase());
-                    if normalized_line.contains(&normalized_query) {
-                        // Check if the previous line contains a timestamp
-                        let timestamp = if line_num > 0 {
-                            let prev_line = lines[line_num - 1];
-                            // Check if the previous line looks like a timestamp (contains digits and colons)
-                            if prev_line.contains(':')
-                                && prev_line.chars().any(|c| c.is_ascii_digit())
-                            {
-                                Some(prev_line.to_string())
+                let last_generated = tokio::fs::metadata(&txt_path)
+                    .await
+                    .ok()
+                    .and_then(|meta| meta.modified().ok())
+                    .map(format_datetime);
+
+                let (length, model) = {
+                    let metadata_fields = metadata::get_metadata_fields(file_path).unwrap_or_default();
+                    (metadata_fields.length, metadata_fields.source)
+                };
+
+                let created_at = metadata
+                    .created()
+                    .or_else(|_| metadata.modified())
+                    .map(format_datetime)
+                    .unwrap_or_else(|_| "Unknown".to_string());
+
+                let video_info = VideoInfo {
+                    name: file_path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string(),
+                    base_name: filename,
+                    created_at,
+                    line_count,
+                    full_path: file_path.to_string_lossy().to_string(),
+                    transcript: transcript_exists,
+                    last_generated,
+                    length,
+                    source: model,
+                };
+
+                let matches: Vec<SearchMatch> = lines
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(line_num, line)| {
+                        let normalized_line = normalize_apostrophes(&line.to_lowercase());
+                        if normalized_line.contains(&normalized_query) {
+                            // Check if the previous line contains a timestamp
+                            let timestamp = if line_num > 0 {
+                                let prev_line = &lines[line_num - 1];
+                                // Check if the previous line looks like a timestamp (contains digits and colons)
+                                if prev_line.contains(':')
+                                    && prev_line.chars().any(|c| c.is_ascii_digit())
+                                {
+                                    Some(prev_line.to_string())
+                                } else {
+                                    None
+                                }
                             } else {
                                 None
-                            }
-                        } else {
-                            None
-                        };
+                            };
 
-                        // Generate clip if requested and timestamp is available
-                        let (clip_path, clip_command) = if let Some(ts) = &timestamp {
-                            if generate_clips || generate_gifs {
-                                let format = if generate_gifs { "gif" } else { "mp4" };
-                                let text_for_clip = if generate_gifs { Some(*line) } else { None };
-                                generate_clip_for_match(file_path, ts, format, text_for_clip)
+                            // Generate clip if requested and timestamp is available
+                            let (clip_path, clip_command) = if let Some(ts) = &timestamp {
+                                if generate_clips || generate_gifs {
+                                    let format = if generate_gifs { "gif" } else { "mp4" };
+                                    let text_for_clip = if generate_gifs { Some(line.as_str()) } else { None };
+                                    generate_clip_for_match(file_path, ts, format, text_for_clip)
+                                } else {
+                                    (None, None)
+                                }
                             } else {
                                 (None, None)
-                            }
+                            };
+
+                            Some(SearchMatch {
+                                line_number: line_num + 1,
+                                line_text: line.to_string(),
+                                timestamp,
+                                video_info: video_info.clone(),
+                                clip_path,
+                                clip_command,
+                            })
                         } else {
-                            (None, None)
-                        };
+                            None
+                        }
+                    })
+                    .collect();
 
-                        Some(SearchMatch {
-                            line_number: line_num + 1,
-                            line_text: line.to_string(),
-                            timestamp,
-                            video_info: video_info.clone(),
-                            clip_path,
-                            clip_command,
-                        })
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-
-            if matches.is_empty() {
-                None
-            } else {
-                Some(SearchResult {
-                    file_path: file_path.to_string_lossy().to_string(),
-                    matches,
-                })
+                if matches.is_empty() {
+                    None
+                } else {
+                    Some(SearchResult {
+                        file_path: file_path.to_string_lossy().to_string(),
+                        matches,
+                    })
+                }
             }
         })
-        .collect();
+        .buffer_unordered(50); // Process up to 50 files concurrently
+
+    let mut results: Vec<SearchResult> = results_stream
+        .filter_map(|result| async move { result })
+        .collect()
+        .await;
 
     results.sort_by(|a, b| a.file_path.cmp(&b.file_path));
 
     Ok(results)
 }
 
-pub fn get_supercut_clip_data(
+pub async fn get_supercut_clip_data(
     query: &str,
     filter: Option<&Vec<String>>,
     word_level: bool,
     randomize: bool,
 ) -> Result<Vec<SupercutClipData>, Box<dyn std::error::Error>> {
     // Get all search results without generating clips
-    let results = search(query, filter, false, false)?;
+    let results = search(query, filter, false, false).await?;
 
     if results.is_empty() {
         return Err("No search results found".into());
@@ -402,7 +414,7 @@ pub fn get_supercut_clip_data(
     Ok(clip_data)
 }
 
-pub fn search_and_supercut(
+pub async fn search_and_supercut(
     query: &str,
     filter: Option<&Vec<String>>,
     show_file: bool,
@@ -411,7 +423,7 @@ pub fn search_and_supercut(
 ) -> Result<(String, Option<serde_json::Value>), Box<dyn std::error::Error>> {
     if word_level {
         // For word-level, we need to extract word timestamps first, then create clips
-        let clip_data = get_supercut_clip_data(query, filter, true, randomize)?;
+        let clip_data = get_supercut_clip_data(query, filter, true, randomize).await?;
 
         // Generate clips from the word-level data using clip_for_supercut for forced keyframes
         let mut clip_paths: Vec<PathBuf> = Vec::new();
@@ -462,7 +474,7 @@ pub fn search_and_supercut(
     } else {
         // Original sentence-level approach
         // First, get all search results with clips generated
-        let results = search(query, filter, true, false)?;
+        let results = search(query, filter, true, false).await?;
 
         if results.is_empty() {
             return Err("No search results found".into());
@@ -588,7 +600,7 @@ pub fn supercut_from_input(
 }
 
 #[get("/api/search?<query>&<filter>")]
-pub fn web_search_transcripts(
+pub async fn web_search_transcripts(
     _auth: AuthGuard,
     query: String,
     filter: Option<String>,
@@ -600,7 +612,7 @@ pub fn web_search_transcripts(
             .collect::<Vec<String>>()
     });
 
-    match search(&query, parsed_filter.as_ref(), false, false) {
+    match search(&query, parsed_filter.as_ref(), false, false).await {
         Ok(results) => Json(ApiResponse::success(
             serde_json::to_value(results).unwrap_or_default(),
         )),

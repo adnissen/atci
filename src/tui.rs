@@ -5,6 +5,7 @@ use crate::search_tab::render_search_results_tab;
 use crate::system_tab::{find_existing_pid_files, is_process_running, render_system_tab};
 use crate::transcripts_tab::render_transcripts_tab;
 use crate::{config, files, search};
+use throbber_widgets_tui::ThrobberState;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -108,6 +109,7 @@ pub struct App {
     pub terminal_height: u16,
     pub current_page: u32,
     pub total_pages: u32,
+    pub total_records: u32,
     pub current_tab: TabState,
     pub filter_input: String,
     pub filter_input_mode: bool,
@@ -120,6 +122,10 @@ pub struct App {
     pub search_selected_index: usize,
     pub last_search_query: String,
     pub search_scroll_offset: usize,
+    pub search_in_progress: bool,
+    pub search_requested: bool,
+    pub search_thread: Option<std::thread::JoinHandle<Result<Vec<search::SearchResult>, String>>>,
+    pub throbber_state: ThrobberState,
     pub editor_data: Option<EditorData>,
     pub file_view_data: Option<FileViewData>,
     pub file_view_timestamp_mode: bool,
@@ -164,7 +170,8 @@ impl Default for App {
             terminal_height: 24,
             current_page: 0,
             total_pages: 1,
-            current_tab: TabState::Transcripts,
+            total_records: 0,
+            current_tab: TabState::SearchResults,
             filter_input: String::new(),
             filter_input_mode: false,
             search_input: String::new(),
@@ -176,6 +183,10 @@ impl Default for App {
             search_selected_index: 0,
             last_search_query: String::new(),
             search_scroll_offset: 0,
+            search_in_progress: false,
+            search_requested: false,
+            search_thread: None,
+            throbber_state: ThrobberState::default(),
             editor_data: None,
             file_view_data: None,
             file_view_timestamp_mode: false,
@@ -221,7 +232,8 @@ impl App {
             terminal_height,
             current_page: 0,
             total_pages: cache_data.pages.unwrap_or(1),
-            current_tab: TabState::Transcripts,
+            total_records: cache_data.total_records.unwrap_or(0),
+            current_tab: TabState::SearchResults,
             filter_input: String::new(),
             filter_input_mode: false,
             search_input: String::new(),
@@ -233,6 +245,10 @@ impl App {
             search_selected_index: 0,
             last_search_query: String::new(),
             search_scroll_offset: 0,
+            search_in_progress: false,
+            search_requested: false,
+            search_thread: None,
+            throbber_state: ThrobberState::default(),
             editor_data: None,
             file_view_data: None,
             file_view_timestamp_mode: false,
@@ -283,36 +299,26 @@ impl App {
 
     pub fn toggle_tab(&mut self) {
         self.current_tab = match self.current_tab {
-            TabState::Transcripts => TabState::System,
-            TabState::System => TabState::Queue,
-            TabState::Queue => {
-                if !self.search_results.is_empty() {
-                    TabState::SearchResults
-                } else if self.editor_data.is_some() {
-                    TabState::Editor
-                } else if self.file_view_data.is_some() {
-                    TabState::FileView
-                } else {
-                    TabState::Transcripts
-                }
-            }
-            TabState::SearchResults => {
-                if self.editor_data.is_some() {
-                    TabState::Editor
-                } else if self.file_view_data.is_some() {
-                    TabState::FileView
-                } else {
-                    TabState::Transcripts
-                }
-            }
-            TabState::Editor => {
+            TabState::SearchResults => TabState::Transcripts,
+            TabState::Transcripts => {
                 if self.file_view_data.is_some() {
                     TabState::FileView
+                } else if self.editor_data.is_some() {
+                    TabState::Editor
                 } else {
-                    TabState::Transcripts
+                    TabState::System
                 }
             }
-            TabState::FileView => TabState::Transcripts,
+            TabState::FileView => {
+                if self.editor_data.is_some() {
+                    TabState::Editor
+                } else {
+                    TabState::System
+                }
+            }
+            TabState::Editor => TabState::System,
+            TabState::System => TabState::Queue,
+            TabState::Queue => TabState::SearchResults,
         };
     }
 
@@ -326,6 +332,8 @@ impl App {
 
     pub fn switch_to_search_results(&mut self) {
         self.current_tab = TabState::SearchResults;
+        // Update total records count with current filter
+        self.update_total_records();
         // Populate search input with the last search query for easy editing
         if !self.last_search_query.is_empty() {
             self.search_input = self.last_search_query.clone();
@@ -503,12 +511,20 @@ impl App {
         self.filter_input_mode = !self.filter_input_mode;
     }
 
+    pub fn update_total_records(&mut self) {
+        if let Ok(count) = files::count_cache_records(self.get_filter_option().as_ref()) {
+            self.total_records = count;
+        }
+    }
+
     pub fn clear_filter(&mut self) {
         self.filter_input.clear();
         self.filter_input_mode = false;
         // Reload data without filter
         if self.current_tab == TabState::SearchResults {
-            self.perform_search();
+            self.update_total_records();
+            self.search_requested = true;
+            self.search_in_progress = true;
         } else if let Err(e) = self.reload_with_current_sort() {
             eprintln!("Failed to reload data after clearing filter: {}", e);
         }
@@ -518,7 +534,9 @@ impl App {
         self.filter_input_mode = false;
         // If we're on SearchResults tab, re-run the search with the new filter
         if self.current_tab == TabState::SearchResults {
-            self.perform_search();
+            self.update_total_records();
+            self.search_requested = true;
+            self.search_in_progress = true;
         } else {
             // For Transcripts tab, reload data with current filter
             if let Err(e) = self.reload_with_current_sort() {
@@ -532,7 +550,9 @@ impl App {
             self.filter_input.push(c);
             // Refresh data immediately as user types
             if self.current_tab == TabState::SearchResults {
-                self.perform_search();
+                self.update_total_records();
+                self.search_requested = true;
+                self.search_in_progress = true;
             } else if let Err(e) = self.reload_with_current_sort() {
                 eprintln!("Failed to reload data while typing filter: {}", e);
             }
@@ -544,7 +564,9 @@ impl App {
             self.filter_input.pop();
             // Refresh data immediately as user types
             if self.current_tab == TabState::SearchResults {
-                self.perform_search();
+                self.update_total_records();
+                self.search_requested = true;
+                self.search_in_progress = true;
             } else if let Err(e) = self.reload_with_current_sort() {
                 eprintln!("Failed to reload data while typing filter: {}", e);
             }
@@ -1020,14 +1042,11 @@ fn handle_key_event(
         }
         KeyCode::Char('/') => {
             if app.current_tab == TabState::SearchResults {
-                // If already on search results, toggle search input to highlight search box
+                // If already on search results, toggle search input
                 app.toggle_search_input();
-            } else if !app.search_results.is_empty() {
-                // If we have search results, switch to search results page
+            } else {
+                // Switch to search results tab
                 app.switch_to_search_results();
-            } else if app.current_tab == TabState::Transcripts {
-                // If on transcripts with no results, allow starting a new search
-                app.toggle_search_input();
             }
         }
         KeyCode::Char('o') => {
@@ -1362,6 +1381,28 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
             }
             terminal.draw(|f| ui(f, app))?;
             update_cursor_visibility(terminal, app)?;
+        } else if app.current_tab == TabState::SearchResults {
+            // Check if we need to start a search
+            if app.search_requested {
+                // Spawn the search thread (non-blocking)
+                app.perform_search();
+            }
+
+            // Check if search thread has completed
+            app.check_search_thread();
+
+            // Poll every 200ms to keep throbber animating and check for input
+            if event::poll(Duration::from_millis(200))?
+                && let Event::Key(key) = event::read()?
+                && let Some(should_quit) = handle_key_event(app, key)?
+                && should_quit
+            {
+                return Ok(());
+            }
+
+            // Always redraw to update throbber animation
+            terminal.draw(|f| ui(f, app))?;
+            update_cursor_visibility(terminal, app)?;
         } else if let Event::Key(key) = event::read()? {
             if let Some(should_quit) = handle_key_event(app, key)?
                 && should_quit
@@ -1403,7 +1444,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                 .constraints(
                     [
                         Constraint::Min(3),    // Content area
-                        Constraint::Length(3), // Filter area
+                        Constraint::Length(3), // Filter/Search area
                         Constraint::Length(3), // Bottom panes area
                     ]
                     .as_ref(),
@@ -1434,7 +1475,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                 ]
                 .as_ref(),
             )
-            .split(chunks[2]) // Use index 2 since we added filter area
+            .split(chunks[2]) // Use index 2 since we have filter area
     } else if app.current_tab == TabState::SearchResults {
         // For SearchResults tab, use full width for controls (no page info)
         Layout::default()
@@ -1445,9 +1486,9 @@ fn ui(f: &mut Frame, app: &mut App) {
                 ]
                 .as_ref(),
             )
-            .split(chunks[2]) // Use index 2 since we added filter area
+            .split(chunks[2]) // Use index 2 since we have filter/search area
     } else {
-        // For System tab, use full width for controls
+        // For other tabs, use full width for controls
         Layout::default()
             .direction(Direction::Horizontal)
             .constraints(
@@ -1478,8 +1519,10 @@ fn ui(f: &mut Frame, app: &mut App) {
         TabState::FileView => render_file_view_tab(f, chunks[0], app),
     }
 
-    // Render filter and search sections (on transcripts and search results tabs)
-    if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
+    // Render filter section (on transcripts tab) or filter+search sections (on search results tab)
+    if app.current_tab == TabState::Transcripts {
+        render_filter_section(f, chunks[1], app);
+    } else if app.current_tab == TabState::SearchResults {
         render_filter_and_search_sections(f, chunks[1], app);
     }
 
@@ -1491,23 +1534,21 @@ fn ui(f: &mut Frame, app: &mut App) {
             TabState::Transcripts => {
                 if app.filter_input_mode {
                     "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
-                } else if app.search_input_mode {
-                    "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
                 } else {
-                    let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  r: Regenerate  f: Filter  Enter: View File  Ctrl+C: Clear  t/s/q";
+                    let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  r: Regenerate  f: Filter  Enter: View File  Ctrl+C: Clear  t/s/q/";
                     let mut tab_controls = String::new();
-                    if !app.search_results.is_empty() {
-                        tab_controls.push_str("/ (search)");
-                    }
                     if app.editor_data.is_some() {
+                        tab_controls.push('e');
+                    }
+                    if app.file_view_data.is_some() {
                         if !tab_controls.is_empty() {
                             tab_controls.push('-');
                         }
-                        tab_controls.push('e');
+                        tab_controls.push('v');
                     }
                     if !tab_controls.is_empty() {
                         format!(
-                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                            "{}{}-Tab: Switch  Ctrl+Z: Quit",
                             base_controls, tab_controls
                         )
                     } else {
@@ -1524,20 +1565,20 @@ fn ui(f: &mut Frame, app: &mut App) {
                         SystemSection::Config => "Config: Enter: Edit",
                     };
                     let base_controls =
-                        format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s/q", section_info);
+                        format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s/q/", section_info);
                     let mut tab_controls = String::new();
-                    if !app.search_results.is_empty() {
-                        tab_controls.push_str("/ (search)");
-                    }
                     if app.editor_data.is_some() {
+                        tab_controls.push('e');
+                    }
+                    if app.file_view_data.is_some() {
                         if !tab_controls.is_empty() {
                             tab_controls.push('-');
                         }
-                        tab_controls.push('e');
+                        tab_controls.push('v');
                     }
                     if !tab_controls.is_empty() {
                         format!(
-                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                            "{}{}-Tab: Switch  Ctrl+Z: Quit",
                             base_controls, tab_controls
                         )
                     } else {
@@ -1546,20 +1587,20 @@ fn ui(f: &mut Frame, app: &mut App) {
                 }
             }
             TabState::Queue => {
-                let base_controls = "↑↓/jk: Navigate  t/s/q";
+                let base_controls = "↑↓/jk: Navigate  t/s/q/";
                 let mut tab_controls = String::new();
-                if !app.search_results.is_empty() {
-                    tab_controls.push_str("/ (search)");
-                }
                 if app.editor_data.is_some() {
+                    tab_controls.push('e');
+                }
+                if app.file_view_data.is_some() {
                     if !tab_controls.is_empty() {
                         tab_controls.push('-');
                     }
-                    tab_controls.push('e');
+                    tab_controls.push('v');
                 }
                 if !tab_controls.is_empty() {
                     format!(
-                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        "{}{}-Tab: Switch  Ctrl+Z: Quit",
                         base_controls, tab_controls
                     )
                 } else {
@@ -1599,16 +1640,16 @@ fn ui(f: &mut Frame, app: &mut App) {
                 };
                 let pending_regen = ""; // No longer using async regeneration
                 let base_controls = format!(
-                    "[/]: Adjust Frame Time{}  j/k/h/l: Navigate  Enter: Activate  c: Copy  o: Open  t/s",
+                    "[/]: Adjust Frame Time{}  j/k/h/l: Navigate  Enter: Activate  c: Copy  o: Open  t/s/q/",
                     pending_regen
                 );
                 let mut tab_controls = String::new();
-                if !app.search_results.is_empty() {
-                    tab_controls.push_str("/ (search)");
+                if app.file_view_data.is_some() {
+                    tab_controls.push('v');
                 }
                 if !tab_controls.is_empty() {
                     format!(
-                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        "{}{}-Tab: Switch  Ctrl+Z: Quit",
                         base_controls, tab_controls
                     )
                 } else {
@@ -1616,20 +1657,14 @@ fn ui(f: &mut Frame, app: &mut App) {
                 }
             }
             TabState::FileView => {
-                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  t/s";
+                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  t/s/q/";
                 let mut tab_controls = String::new();
-                if !app.search_results.is_empty() {
-                    tab_controls.push_str("/ (search)");
-                }
                 if app.editor_data.is_some() {
-                    if !tab_controls.is_empty() {
-                        tab_controls.push('-');
-                    }
                     tab_controls.push('e');
                 }
                 if !tab_controls.is_empty() {
                     format!(
-                        "{} {}-Tab: Switch  Ctrl+Z: Quit",
+                        "{}{}-Tab: Switch  Ctrl+Z: Quit",
                         base_controls, tab_controls
                     )
                 } else {
@@ -1670,7 +1705,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 pub fn create_tab_title_with_editor(
     current_tab: TabState,
     colors: &TableColors,
-    has_search_results: bool,
+    _has_search_results: bool,
     has_editor_data: bool,
     has_file_view_data: bool,
 ) -> ratatui::text::Line<'_> {
@@ -1678,6 +1713,16 @@ pub fn create_tab_title_with_editor(
     use ratatui::text::{Line, Span};
 
     let mut spans = vec![
+        match current_tab {
+            TabState::SearchResults => {
+                Span::styled("Search (/)", Style::default().fg(Color::White))
+            }
+            _ => Span::styled(
+                "Search (/)",
+                Style::default().fg(colors.footer_border_color),
+            ),
+        },
+        Span::styled(" | ", Style::default().fg(colors.row_fg)),
         match current_tab {
             TabState::Transcripts => {
                 Span::styled("Transcripts (t)", Style::default().fg(Color::White))
@@ -1687,30 +1732,15 @@ pub fn create_tab_title_with_editor(
                 Style::default().fg(colors.footer_border_color),
             ),
         },
-        Span::styled(" | ", Style::default().fg(colors.row_fg)),
-        match current_tab {
-            TabState::System => Span::styled("System (s)", Style::default().fg(Color::White)),
-            _ => Span::styled(
-                "System (s)",
-                Style::default().fg(colors.footer_border_color),
-            ),
-        },
-        Span::styled(" | ", Style::default().fg(colors.row_fg)),
-        match current_tab {
-            TabState::Queue => Span::styled("Queue (q)", Style::default().fg(Color::White)),
-            _ => Span::styled("Queue (q)", Style::default().fg(colors.footer_border_color)),
-        },
     ];
 
-    // Only show search results tab if we have results
-    if has_search_results {
+    // Only show file view tab if we have file view data
+    if has_file_view_data {
         spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
         spans.push(match current_tab {
-            TabState::SearchResults => {
-                Span::styled("Search Results (/)", Style::default().fg(Color::White))
-            }
+            TabState::FileView => Span::styled("File View (v)", Style::default().fg(Color::White)),
             _ => Span::styled(
-                "Search Results (/)",
+                "File View (v)",
                 Style::default().fg(colors.footer_border_color),
             ),
         });
@@ -1728,17 +1758,20 @@ pub fn create_tab_title_with_editor(
         });
     }
 
-    // Only show file view tab if we have file view data
-    if has_file_view_data {
-        spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
-        spans.push(match current_tab {
-            TabState::FileView => Span::styled("File View (v)", Style::default().fg(Color::White)),
-            _ => Span::styled(
-                "File View (v)",
-                Style::default().fg(colors.footer_border_color),
-            ),
-        });
-    }
+    // System and Queue tabs
+    spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
+    spans.push(match current_tab {
+        TabState::System => Span::styled("System (s)", Style::default().fg(Color::White)),
+        _ => Span::styled(
+            "System (s)",
+            Style::default().fg(colors.footer_border_color),
+        ),
+    });
+    spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
+    spans.push(match current_tab {
+        TabState::Queue => Span::styled("Queue (q)", Style::default().fg(Color::White)),
+        _ => Span::styled("Queue (q)", Style::default().fg(colors.footer_border_color)),
+    });
 
     Line::from(spans)
 }
@@ -1850,6 +1883,46 @@ async fn ensure_watcher_running() -> Result<bool, Box<dyn Error>> {
     } else {
         // Return false to indicate watcher was already running
         Ok(false)
+    }
+}
+
+fn render_filter_section(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+    // Render filter section only (for Transcripts tab)
+    let filter_text = if app.filter_input.is_empty() {
+        "Enter comma-separated filters (e.g., mp4,youtube,2024)".to_string()
+    } else {
+        app.filter_input.clone()
+    };
+
+    let filter_style = if app.filter_input_mode {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(app.colors.row_fg)
+    };
+
+    let filter_block = Block::default()
+        .title("Filters (f)")
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(if app.filter_input_mode {
+            Color::Yellow
+        } else {
+            app.colors.footer_border_color
+        }));
+
+    let filter_paragraph = Paragraph::new(filter_text.clone())
+        .block(filter_block)
+        .style(filter_style)
+        .alignment(Alignment::Left);
+
+    f.render_widget(filter_paragraph, area);
+
+    // Show cursor if in filter input mode
+    if app.filter_input_mode {
+        let cursor_x = area.x + 1 + app.filter_input.len() as u16;
+        let cursor_y = area.y + 1;
+        f.set_cursor_position((cursor_x, cursor_y));
     }
 }
 
