@@ -4,7 +4,7 @@ use crate::queue_tab::render_queue_tab;
 use crate::search_tab::render_search_results_tab;
 use crate::system_tab::{find_existing_pid_files, is_process_running, render_system_tab};
 use crate::transcripts_tab::render_transcripts_tab;
-use crate::{config, files, search};
+use crate::{config, files, search, short_url};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -900,7 +900,20 @@ impl App {
         } else {
             Some(text.as_str())
         };
-        self.clip_url = self.build_clip_url(&filename, &start_time, &end_time, text_opt);
+        let full_clip_url = self.build_clip_url(&filename, &start_time, &end_time, text_opt);
+
+        // Create a short URL for the full clip URL
+        match short_url::get_or_create(&full_clip_url) {
+            Ok(short_id) => {
+                // Build the short URL using the hostname and the short ID
+                self.clip_url = format!("{}/short/{}", self.config_data.hostname, short_id);
+            }
+            Err(e) => {
+                eprintln!("Failed to create short URL: {}", e);
+                // Fallback to the full URL if short URL creation fails
+                self.clip_url = full_clip_url;
+            }
+        }
 
         // Copy URL to clipboard
         if let Err(e) = self.copy_text_to_clipboard(&self.clip_url) {

@@ -36,6 +36,7 @@ mod queue;
 mod queue_tab;
 mod search;
 mod search_tab;
+mod short_url;
 mod system_tab;
 mod tools_manager;
 mod transcripts;
