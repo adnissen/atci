@@ -219,7 +219,8 @@ pub async fn search(
                     .map(format_datetime);
 
                 let (length, model) = {
-                    let metadata_fields = metadata::get_metadata_fields(file_path).unwrap_or_default();
+                    let metadata_fields =
+                        metadata::get_metadata_fields(file_path).unwrap_or_default();
                     (metadata_fields.length, metadata_fields.source)
                 };
 
@@ -270,7 +271,11 @@ pub async fn search(
                             let (clip_path, clip_command) = if let Some(ts) = &timestamp {
                                 if generate_clips || generate_gifs {
                                     let format = if generate_gifs { "gif" } else { "mp4" };
-                                    let text_for_clip = if generate_gifs { Some(line.as_str()) } else { None };
+                                    let text_for_clip = if generate_gifs {
+                                        Some(line.as_str())
+                                    } else {
+                                        None
+                                    };
                                     generate_clip_for_match(file_path, ts, format, text_for_clip)
                                 } else {
                                     (None, None)

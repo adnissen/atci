@@ -59,13 +59,8 @@ impl App {
             let handle = std::thread::spawn(move || {
                 let rt = tokio::runtime::Runtime::new()
                     .map_err(|e| format!("Failed to create runtime: {}", e))?;
-                rt.block_on(search::search(
-                    &search_input,
-                    filter.as_ref(),
-                    false,
-                    false,
-                ))
-                .map_err(|e| format!("Search failed: {}", e))
+                rt.block_on(search::search(&search_input, filter.as_ref(), false, false))
+                    .map_err(|e| format!("Search failed: {}", e))
             });
 
             // Store the thread handle for polling
@@ -217,7 +212,9 @@ impl App {
         Ok(())
     }
 
-    pub fn show_clip_url_popup_from_selected_match(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn show_clip_url_popup_from_selected_match(
+        &mut self,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(search_match) = self.get_selected_search_match() {
             if let Some(timestamp) = &search_match.timestamp {
                 // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
@@ -466,78 +463,4 @@ fn render_search_results_list(app: &App) -> ratatui::text::Text<'static> {
     }
 
     Text::from(lines)
-}
-
-pub fn render_clip_url_popup(f: &mut Frame, app: &App) {
-    use ratatui::layout::{Constraint, Direction, Layout};
-    use ratatui::style::{Color, Modifier, Style};
-    use ratatui::text::{Line, Span};
-    use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-
-    // Helper function to create a centered rect
-    fn centered_rect(percent_x: u16, percent_y: u16, r: ratatui::layout::Rect) -> ratatui::layout::Rect {
-        let popup_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage((100 - percent_y) / 2),
-                Constraint::Percentage(percent_y),
-                Constraint::Percentage((100 - percent_y) / 2),
-            ])
-            .split(r);
-
-        Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage((100 - percent_x) / 2),
-                Constraint::Percentage(percent_x),
-                Constraint::Percentage((100 - percent_x) / 2),
-            ])
-            .split(popup_layout[1])[1]
-    }
-
-    let area = centered_rect(80, 40, f.area());
-
-    // Create the popup block
-    let block = Block::default()
-        .title("Clip URL")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow));
-
-    // Create the content
-    let mut lines = Vec::new();
-
-    lines.push(Line::from(vec![
-        Span::styled(
-            "✓ URL copied to clipboard!",
-            Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
-        ),
-    ]));
-
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(vec![
-        Span::styled(
-            &app.clip_url,
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::UNDERLINED),
-        ),
-    ]));
-
-    lines.push(Line::from(""));
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(vec![
-        Span::styled(
-            "Press ESC to close",
-            Style::default().fg(Color::Gray),
-        ),
-    ]));
-
-    let paragraph = Paragraph::new(lines)
-        .block(block)
-        .wrap(Wrap { trim: false })
-        .alignment(ratatui::layout::Alignment::Center);
-
-    // Clear the area first to create the popup effect
-    f.render_widget(Clear, area);
-    f.render_widget(paragraph, area);
 }

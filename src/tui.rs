@@ -5,7 +5,6 @@ use crate::search_tab::render_search_results_tab;
 use crate::system_tab::{find_existing_pid_files, is_process_running, render_system_tab};
 use crate::transcripts_tab::render_transcripts_tab;
 use crate::{config, files, search};
-use throbber_widgets_tui::ThrobberState;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
@@ -25,6 +24,7 @@ use std::{
     io,
     time::{Duration, Instant},
 };
+use throbber_widgets_tui::ThrobberState;
 
 pub struct TableColors {
     pub buffer_bg: Color,
@@ -875,10 +875,7 @@ impl App {
 
         let mut url = format!(
             "{}/api/clip?filename={}&start_time={}&end_time={}",
-            self.config_data.hostname,
-            encoded_filename,
-            encoded_start,
-            encoded_end
+            self.config_data.hostname, encoded_filename, encoded_start, encoded_end
         );
 
         if let Some(t) = text {
@@ -898,7 +895,11 @@ impl App {
         end_time: String,
         text: String,
     ) {
-        let text_opt = if text.is_empty() { None } else { Some(text.as_str()) };
+        let text_opt = if text.is_empty() {
+            None
+        } else {
+            Some(text.as_str())
+        };
         self.clip_url = self.build_clip_url(&filename, &start_time, &end_time, text_opt);
 
         // Copy URL to clipboard
@@ -1040,7 +1041,10 @@ fn handle_key_event(
     // Handle clip URL popup
     if app.show_clip_url_popup {
         match key.code {
-            KeyCode::Esc => app.close_clip_url_popup(),
+            KeyCode::Esc | KeyCode::Char('q') => app.close_clip_url_popup(),
+            KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                return Ok(Some(true)); // Exit the app
+            }
             _ => {}
         }
         return Ok(None);
@@ -1825,8 +1829,82 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     // Render clip URL popup if shown (must be last to appear on top)
     if app.show_clip_url_popup {
-        crate::search_tab::render_clip_url_popup(f, app);
+        render_clip_url_popup(f, app);
     }
+}
+
+fn render_clip_url_popup(f: &mut Frame, app: &App) {
+    use ratatui::layout::{Constraint, Direction, Layout};
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::text::{Line, Span};
+    use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
+
+    // Helper function to create a centered rect
+    fn centered_rect(
+        percent_x: u16,
+        percent_y: u16,
+        r: ratatui::layout::Rect,
+    ) -> ratatui::layout::Rect {
+        let popup_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ])
+            .split(r);
+
+        Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ])
+            .split(popup_layout[1])[1]
+    }
+
+    let area = centered_rect(80, 40, f.area());
+
+    // Create the popup block
+    let block = Block::default()
+        .title("Clip URL")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(Color::Yellow));
+
+    // Create the content
+    let mut lines = Vec::new();
+
+    lines.push(Line::from(vec![Span::styled(
+        "✓ URL copied to clipboard!",
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD),
+    )]));
+
+    lines.push(Line::from(""));
+
+    lines.push(Line::from(vec![Span::styled(
+        app.clip_url.clone(),
+        Style::default().fg(Color::Cyan),
+    )]));
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(""));
+
+    lines.push(Line::from(vec![Span::styled(
+        "Press ESC or 'q' to close",
+        Style::default().fg(Color::Gray),
+    )]));
+
+    let paragraph = Paragraph::new(lines)
+        .block(block)
+        .wrap(Wrap { trim: false })
+        .alignment(ratatui::layout::Alignment::Center);
+
+    // Clear the area first to create the popup effect
+    f.render_widget(Clear, area);
+    f.render_widget(paragraph, area);
 }
 
 pub fn create_tab_title_with_editor(
