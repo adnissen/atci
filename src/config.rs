@@ -19,6 +19,10 @@ fn default_stream_chunk_size() -> u32 {
     60
 }
 
+fn default_hostname() -> String {
+    "http://localhost:4620".to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AtciConfig {
     #[serde(default)]
@@ -42,6 +46,8 @@ pub struct AtciConfig {
     pub processing_failure_command: String,
     #[serde(default = "default_stream_chunk_size")]
     pub stream_chunk_size: u32,
+    #[serde(default = "default_hostname")]
+    pub hostname: String,
 }
 
 #[derive(Serialize)]
@@ -64,6 +70,7 @@ impl Default for AtciConfig {
             processing_success_command: String::new(),
             processing_failure_command: String::new(),
             stream_chunk_size: 60,
+            hostname: "http://localhost:4620".to_string(),
         }
     }
 }
@@ -154,6 +161,7 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
                 .parse::<u32>()
                 .map_err(|_| format!("Invalid number value for stream_chunk_size: {}", value))?;
         }
+        "hostname" => cfg.hostname = value.to_string(),
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())

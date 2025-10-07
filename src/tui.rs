@@ -143,6 +143,8 @@ pub struct App {
     pub regenerate_popup_options: Vec<String>,
     pub regenerate_popup_option_types: Vec<String>,
     pub tui_started_watcher: bool,
+    pub show_clip_url_popup: bool,
+    pub clip_url: String,
 }
 
 #[derive(Clone)]
@@ -204,6 +206,8 @@ impl Default for App {
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
             tui_started_watcher: false,
+            show_clip_url_popup: false,
+            clip_url: String::new(),
         }
     }
 }
@@ -266,6 +270,8 @@ impl App {
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
             tui_started_watcher: false,
+            show_clip_url_popup: false,
+            clip_url: String::new(),
         };
 
         // Select first item if available
@@ -507,6 +513,46 @@ impl App {
         }
     }
 
+    pub fn show_clip_url_popup_from_file_view(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(file_data) = &self.file_view_data {
+            // Check if we have a range selected first
+            if let Some((start_timestamp, end_timestamp)) =
+                file_data.get_selected_range_timestamps()
+            {
+                // Parse the range timestamps
+                if let (Some(start_time), Some(end_time)) = (
+                    self.parse_timestamp(&start_timestamp),
+                    self.parse_timestamp(&end_timestamp),
+                ) {
+                    let line_text = "".to_string(); // Could be more descriptive
+                    let video_path = file_data.video_path.clone();
+
+                    // Show clip URL popup with the range timestamps
+                    self.show_clip_url_popup(video_path, start_time, end_time, line_text);
+                    Ok(())
+                } else {
+                    Err("Could not parse timestamps from selected range".into())
+                }
+            } else if let Some(timestamp_line) = file_data.get_timestamp_for_current_line() {
+                // Fallback to current line timestamp if no range selected
+                if let Some((start_time, end_time)) = self.parse_timestamp_range(&timestamp_line) {
+                    let line_text = file_data.get_text_for_current_line();
+                    let video_path = file_data.video_path.clone();
+
+                    // Show clip URL popup with the timestamp information
+                    self.show_clip_url_popup(video_path, start_time, end_time, line_text);
+                    Ok(())
+                } else {
+                    Err("Could not parse timestamp from current line".into())
+                }
+            } else {
+                Err("No timestamp found for current line or line above".into())
+            }
+        } else {
+            Err("No file view data available".into())
+        }
+    }
+
     pub fn toggle_filter_input(&mut self) {
         self.filter_input_mode = !self.filter_input_mode;
     }
@@ -601,7 +647,7 @@ impl App {
     }
 
     pub fn get_config_field_count(&self) -> usize {
-        11 // Total number of config fields
+        12 // Total number of config fields
     }
 
     pub fn get_config_field_names(&self) -> Vec<&'static str> {
@@ -617,6 +663,7 @@ impl App {
             "allow_whisper",
             "allow_subtitles",
             "stream_chunk_size",
+            "hostname",
         ]
     }
 
@@ -633,6 +680,7 @@ impl App {
             8 => self.config_data.allow_whisper.to_string(),
             9 => self.config_data.allow_subtitles.to_string(),
             10 => self.config_data.stream_chunk_size.to_string(),
+            11 => self.config_data.hostname.clone(),
             _ => String::new(),
         }
     }
@@ -813,6 +861,71 @@ impl App {
         self.regenerate_popup_option_types.clear();
     }
 
+    pub fn build_clip_url(
+        &self,
+        filename: &str,
+        start_time: &str,
+        end_time: &str,
+        text: Option<&str>,
+    ) -> String {
+        // URL encode the parameters
+        let encoded_filename = urlencoding::encode(filename);
+        let encoded_start = urlencoding::encode(start_time);
+        let encoded_end = urlencoding::encode(end_time);
+
+        let mut url = format!(
+            "{}/api/clip?filename={}&start_time={}&end_time={}",
+            self.config_data.hostname,
+            encoded_filename,
+            encoded_start,
+            encoded_end
+        );
+
+        if let Some(t) = text {
+            if !t.is_empty() {
+                let encoded_text = urlencoding::encode(t);
+                url.push_str(&format!("&text={}", encoded_text));
+            }
+        }
+
+        url
+    }
+
+    pub fn show_clip_url_popup(
+        &mut self,
+        filename: String,
+        start_time: String,
+        end_time: String,
+        text: String,
+    ) {
+        let text_opt = if text.is_empty() { None } else { Some(text.as_str()) };
+        self.clip_url = self.build_clip_url(&filename, &start_time, &end_time, text_opt);
+
+        // Copy URL to clipboard
+        if let Err(e) = self.copy_text_to_clipboard(&self.clip_url) {
+            eprintln!("Failed to copy URL to clipboard: {}", e);
+        }
+
+        self.show_clip_url_popup = true;
+    }
+
+    fn copy_text_to_clipboard(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
+        use clipboard_rs::{Clipboard, ClipboardContext};
+
+        let ctx = ClipboardContext::new()
+            .map_err(|e| format!("Failed to create clipboard context: {}", e))?;
+
+        ctx.set_text(text.to_string())
+            .map_err(|e| format!("Failed to set text in clipboard: {}", e))?;
+
+        Ok(())
+    }
+
+    pub fn close_clip_url_popup(&mut self) {
+        self.show_clip_url_popup = false;
+        self.clip_url.clear();
+    }
+
     pub fn regenerate_popup_next(&mut self) {
         if self.regenerate_popup_selected < self.regenerate_popup_options.len().saturating_sub(1) {
             self.regenerate_popup_selected += 1;
@@ -924,6 +1037,15 @@ fn handle_key_event(
     app: &mut App,
     key: crossterm::event::KeyEvent,
 ) -> Result<Option<bool>, Box<dyn Error>> {
+    // Handle clip URL popup
+    if app.show_clip_url_popup {
+        match key.code {
+            KeyCode::Esc => app.close_clip_url_popup(),
+            _ => {}
+        }
+        return Ok(None);
+    }
+
     // Handle regenerate popup
     if app.show_regenerate_popup {
         match key.code {
@@ -1095,9 +1217,9 @@ fn handle_key_event(
                 app.clear_filter();
                 app.clear_search();
             } else if app.current_tab == TabState::SearchResults {
-                // Open editor from selected search result
-                if let Err(e) = app.open_editor_from_selected_match() {
-                    eprintln!("Failed to open editor: {}", e);
+                // Show clip URL popup from selected search result
+                if let Err(e) = app.show_clip_url_popup_from_selected_match() {
+                    eprintln!("Failed to show clip URL: {}", e);
                 }
             } else if app.current_tab == TabState::Editor {
                 // Copy clip
@@ -1105,9 +1227,9 @@ fn handle_key_event(
                     eprintln!("Failed to copy clip: {}", e);
                 }
             } else if app.current_tab == TabState::FileView {
-                // Open editor from current line with timestamp
-                if let Err(e) = app.open_editor_from_file_view() {
-                    eprintln!("Failed to open editor: {}", e);
+                // Show clip URL popup from current line with timestamp
+                if let Err(e) = app.show_clip_url_popup_from_file_view() {
+                    eprintln!("Failed to show clip URL: {}", e);
                 }
             }
         }
@@ -1699,6 +1821,11 @@ fn ui(f: &mut Frame, app: &mut App) {
             .alignment(Alignment::Center);
 
         f.render_widget(page_paragraph, bottom_chunks[1]);
+    }
+
+    // Render clip URL popup if shown (must be last to appear on top)
+    if app.show_clip_url_popup {
+        crate::search_tab::render_clip_url_popup(f, app);
     }
 }
 
