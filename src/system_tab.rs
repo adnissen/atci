@@ -68,9 +68,10 @@ impl App {
             let service = &self.system_services[self.system_selected_index];
             if !service.pids.is_empty() {
                 let pid = service.pids[0]; // Kill first PID for now
+                let service_type = get_service_type_from_name(&service.name);
                 kill_process(pid)?;
                 // Delete the associated PID file
-                if let Err(e) = delete_pid_file(pid) {
+                if let Err(e) = delete_pid_file(pid, service_type) {
                     eprintln!("Warning: Failed to delete PID file for {}: {}", pid, e);
                 }
                 // Refresh services after killing
@@ -85,8 +86,12 @@ impl App {
             let service = &self.system_services[self.system_selected_index];
             match service.status {
                 ServiceStatus::Stopped => {
-                    // Start the watcher service using the same logic as in ensure_watcher_running
-                    start_watcher_process()?;
+                    let service_type = get_service_type_from_name(&service.name);
+                    match service_type {
+                        "watcher" => start_watcher_process()?,
+                        "web" => start_web_process()?,
+                        _ => return Err("Unknown service type".into()),
+                    }
                     // Refresh services after starting
                     self.refresh_system_services();
                 }
@@ -105,7 +110,7 @@ pub fn get_atci_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> 
     Ok(atci_dir)
 }
 
-pub fn find_existing_pid_files() -> Result<Vec<u32>, Box<dyn std::error::Error>> {
+pub fn find_existing_pid_files(service_type: &str) -> Result<Vec<u32>, Box<dyn std::error::Error>> {
     let atci_dir = get_atci_dir()?;
     let config_sha = config::get_config_path_sha();
     let mut pids = Vec::new();
@@ -116,7 +121,7 @@ pub fn find_existing_pid_files() -> Result<Vec<u32>, Box<dyn std::error::Error>>
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            let expected_prefix = format!("atci.{}.", config_sha);
+            let expected_prefix = format!("atci.{}.{}.", service_type, config_sha);
             if file_name_str.starts_with(&expected_prefix) && file_name_str.ends_with(".pid") {
                 let pid_str = &file_name_str[expected_prefix.len()..file_name_str.len() - 4]; // Remove prefix and ".pid" suffix
                 if let Ok(pid) = pid_str.parse::<u32>() {
@@ -162,7 +167,8 @@ pub fn is_process_running(pid: u32) -> bool {
 pub fn get_system_services() -> Vec<SystemService> {
     let mut services = Vec::new();
 
-    match find_existing_pid_files() {
+    // Check watcher service
+    match find_existing_pid_files("watcher") {
         Ok(pids) => {
             let running_pids: Vec<u32> = pids
                 .into_iter()
@@ -186,6 +192,37 @@ pub fn get_system_services() -> Vec<SystemService> {
         Err(_) => {
             services.push(SystemService {
                 name: "File Watcher".to_string(),
+                status: ServiceStatus::Stopped,
+                pids: Vec::new(),
+            });
+        }
+    }
+
+    // Check web service
+    match find_existing_pid_files("web") {
+        Ok(pids) => {
+            let running_pids: Vec<u32> = pids
+                .into_iter()
+                .filter(|&pid| is_process_running(pid))
+                .collect();
+
+            if !running_pids.is_empty() {
+                services.push(SystemService {
+                    name: "Web Server".to_string(),
+                    status: ServiceStatus::Active,
+                    pids: running_pids,
+                });
+            } else {
+                services.push(SystemService {
+                    name: "Web Server".to_string(),
+                    status: ServiceStatus::Stopped,
+                    pids: Vec::new(),
+                });
+            }
+        }
+        Err(_) => {
+            services.push(SystemService {
+                name: "Web Server".to_string(),
                 status: ServiceStatus::Stopped,
                 pids: Vec::new(),
             });
@@ -233,12 +270,20 @@ fn kill_process(pid: u32) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn delete_pid_file(pid: u32) -> Result<(), Box<dyn Error>> {
+fn get_service_type_from_name(name: &str) -> &str {
+    match name {
+        "File Watcher" => "watcher",
+        "Web Server" => "web",
+        _ => "watcher", // Default to watcher for unknown services
+    }
+}
+
+fn delete_pid_file(pid: u32, service_type: &str) -> Result<(), Box<dyn Error>> {
     let atci_dir = get_atci_dir()?;
     let config_sha = config::get_config_path_sha();
 
     // Construct the expected PID file name
-    let pid_file_name = format!("atci.{}.{}.pid", config_sha, pid);
+    let pid_file_name = format!("atci.{}.{}.{}.pid", service_type, config_sha, pid);
     let pid_file_path = atci_dir.join(pid_file_name);
 
     // Only try to delete if the file exists
@@ -278,6 +323,44 @@ fn start_watcher_process() -> Result<(), Box<dyn Error>> {
     // Use stdin(Stdio::null()) to detach from terminal
     std::process::Command::new(&current_exe)
         .arg("watch")
+        .stdin(Stdio::null())
+        .stdout(stdout_file)
+        .stderr(stderr_file)
+        .spawn()?;
+
+    Ok(())
+}
+
+fn start_web_process() -> Result<(), Box<dyn Error>> {
+    use std::fs::OpenOptions;
+    use std::process::Stdio;
+
+    // Get the current executable path
+    let current_exe = std::env::current_exe()?;
+
+    // Create log file in ~/.atci/web.log
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let log_path = home_dir.join(".atci").join("web.log");
+
+    // Ensure .atci directory exists
+    if let Some(parent) = log_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)?;
+
+    // Clone file descriptors for stdout and stderr
+    let stdout_file = log_file.try_clone()?;
+    let stderr_file = log_file;
+
+    // Spawn a new atci web process with output redirected to log
+    // Use stdin(Stdio::null()) to detach from terminal
+    std::process::Command::new(&current_exe)
+        .arg("web")
+        .arg("all")
         .stdin(Stdio::null())
         .stdout(stdout_file)
         .stderr(stderr_file)

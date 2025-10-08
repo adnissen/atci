@@ -143,8 +143,6 @@ pub struct App {
     pub regenerate_popup_options: Vec<String>,
     pub regenerate_popup_option_types: Vec<String>,
     pub tui_started_watcher: bool,
-    pub show_clip_url_popup: bool,
-    pub clip_url: String,
 }
 
 #[derive(Clone)]
@@ -206,8 +204,6 @@ impl Default for App {
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
             tui_started_watcher: false,
-            show_clip_url_popup: false,
-            clip_url: String::new(),
         }
     }
 }
@@ -270,8 +266,6 @@ impl App {
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
             tui_started_watcher: false,
-            show_clip_url_popup: false,
-            clip_url: String::new(),
         };
 
         // Select first item if available
@@ -903,24 +897,27 @@ impl App {
         let full_clip_url = self.build_clip_url(&filename, &start_time, &end_time, text_opt);
 
         // Create a short URL for the full clip URL
-        match short_url::get_or_create(&full_clip_url) {
+        let clip_url = match short_url::get_or_create(&full_clip_url) {
             Ok(short_id) => {
                 // Build the short URL using the hostname and the short ID
-                self.clip_url = format!("{}/short/{}", self.config_data.hostname, short_id);
+                format!("{}/short/{}", self.config_data.hostname, short_id)
             }
             Err(e) => {
                 eprintln!("Failed to create short URL: {}", e);
                 // Fallback to the full URL if short URL creation fails
-                self.clip_url = full_clip_url;
+                full_clip_url
             }
-        }
+        };
 
         // Copy URL to clipboard
-        if let Err(e) = self.copy_text_to_clipboard(&self.clip_url) {
+        if let Err(e) = self.copy_text_to_clipboard(&clip_url) {
             eprintln!("Failed to copy URL to clipboard: {}", e);
         }
 
-        self.show_clip_url_popup = true;
+        // Open URL in default browser
+        if let Err(e) = open::that(&clip_url) {
+            eprintln!("Failed to open URL in browser: {}", e);
+        }
     }
 
     fn copy_text_to_clipboard(&self, text: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -933,11 +930,6 @@ impl App {
             .map_err(|e| format!("Failed to set text in clipboard: {}", e))?;
 
         Ok(())
-    }
-
-    pub fn close_clip_url_popup(&mut self) {
-        self.show_clip_url_popup = false;
-        self.clip_url.clear();
     }
 
     pub fn regenerate_popup_next(&mut self) {
@@ -1051,18 +1043,6 @@ fn handle_key_event(
     app: &mut App,
     key: crossterm::event::KeyEvent,
 ) -> Result<Option<bool>, Box<dyn Error>> {
-    // Handle clip URL popup
-    if app.show_clip_url_popup {
-        match key.code {
-            KeyCode::Esc | KeyCode::Char('q') => app.close_clip_url_popup(),
-            KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                return Ok(Some(true)); // Exit the app
-            }
-            _ => {}
-        }
-        return Ok(None);
-    }
-
     // Handle regenerate popup
     if app.show_regenerate_popup {
         match key.code {
@@ -1840,83 +1820,6 @@ fn ui(f: &mut Frame, app: &mut App) {
         f.render_widget(page_paragraph, bottom_chunks[1]);
     }
 
-    // Render clip URL popup if shown (must be last to appear on top)
-    if app.show_clip_url_popup {
-        render_clip_url_popup(f, app);
-    }
-}
-
-fn render_clip_url_popup(f: &mut Frame, app: &App) {
-    use ratatui::layout::{Constraint, Direction, Layout};
-    use ratatui::style::{Color, Modifier, Style};
-    use ratatui::text::{Line, Span};
-    use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-
-    // Helper function to create a centered rect
-    fn centered_rect(
-        percent_x: u16,
-        percent_y: u16,
-        r: ratatui::layout::Rect,
-    ) -> ratatui::layout::Rect {
-        let popup_layout = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Percentage((100 - percent_y) / 2),
-                Constraint::Percentage(percent_y),
-                Constraint::Percentage((100 - percent_y) / 2),
-            ])
-            .split(r);
-
-        Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage((100 - percent_x) / 2),
-                Constraint::Percentage(percent_x),
-                Constraint::Percentage((100 - percent_x) / 2),
-            ])
-            .split(popup_layout[1])[1]
-    }
-
-    let area = centered_rect(40, 10, f.area());
-
-    // Create the popup block
-    let block = Block::default()
-        .title("Clip URL")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Yellow));
-
-    // Create the content
-    let mut lines = Vec::new();
-
-    lines.push(Line::from(vec![Span::styled(
-        "✓ URL copied to clipboard!",
-        Style::default()
-            .fg(Color::Green)
-            .add_modifier(Modifier::BOLD),
-    )]));
-
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(vec![Span::styled(
-        app.clip_url.clone(),
-        Style::default().fg(Color::Cyan),
-    )]));
-
-    lines.push(Line::from(""));
-
-    lines.push(Line::from(vec![Span::styled(
-        "Press ESC or 'q' to close",
-        Style::default().fg(Color::Gray),
-    )]));
-
-    let paragraph = Paragraph::new(lines)
-        .block(block)
-        .wrap(Wrap { trim: false })
-        .alignment(ratatui::layout::Alignment::Center);
-
-    // Clear the area first to create the popup effect
-    f.render_widget(Clear, area);
-    f.render_widget(paragraph, area);
 }
 
 pub fn create_tab_title_with_editor(
@@ -1997,7 +1900,7 @@ async fn stop_watcher_processes() -> Result<(), Box<dyn Error>> {
     use std::process::Command;
 
     // Find all watcher PIDs
-    let running_pids: Vec<u32> = match find_existing_pid_files() {
+    let running_pids: Vec<u32> = match find_existing_pid_files("watcher") {
         Ok(pids) => pids
             .into_iter()
             .filter(|&pid| is_process_running(pid))
@@ -2020,7 +1923,7 @@ async fn stop_watcher_processes() -> Result<(), Box<dyn Error>> {
         }
 
         // Remove the PID file
-        if let Ok(pid_file_path) = get_pid_file_path(pid) {
+        if let Ok(pid_file_path) = get_pid_file_path(pid, "watcher") {
             let _ = std::fs::remove_file(&pid_file_path);
         }
     }
@@ -2028,18 +1931,18 @@ async fn stop_watcher_processes() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn get_pid_file_path(pid: u32) -> Result<std::path::PathBuf, Box<dyn Error>> {
+fn get_pid_file_path(pid: u32, service_type: &str) -> Result<std::path::PathBuf, Box<dyn Error>> {
     let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
     let atci_dir = home_dir.join(".atci");
     let config_sha = crate::config::get_config_path_sha();
-    Ok(atci_dir.join(format!("atci.{}.{}.pid", config_sha, pid)))
+    Ok(atci_dir.join(format!("atci.{}.{}.{}.pid", service_type, config_sha, pid)))
 }
 
 async fn ensure_watcher_running() -> Result<bool, Box<dyn Error>> {
     use std::fs::OpenOptions;
 
     // Check if any watcher processes are currently running
-    let running_pids: Vec<u32> = match find_existing_pid_files() {
+    let running_pids: Vec<u32> = match find_existing_pid_files("watcher") {
         Ok(pids) => pids
             .into_iter()
             .filter(|&pid| is_process_running(pid))
