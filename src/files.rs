@@ -220,6 +220,47 @@ pub fn load_sorted_paginated_cache_data(
     })
 }
 
+pub fn count_cache_records(
+    filter: Option<&Vec<String>>,
+) -> Result<u32, Box<dyn std::error::Error>> {
+    let conn = db::get_connection()?;
+
+    // Build the WHERE clause for filtering
+    let (where_clause, params) = if let Some(filters) = filter {
+        if filters.is_empty() {
+            ("".to_string(), Vec::new())
+        } else {
+            let conditions: Vec<String> = filters
+                .iter()
+                .map(|_| "LOWER(full_path) LIKE LOWER(?)".to_string())
+                .collect();
+            let where_clause = format!("WHERE {}", conditions.join(" OR "));
+            let params: Vec<String> = filters.iter().map(|f| format!("%{}%", f)).collect();
+            (where_clause, params)
+        }
+    } else {
+        ("".to_string(), Vec::new())
+    };
+
+    // Count query
+    let count_query = if where_clause.is_empty() {
+        "SELECT COUNT(*) FROM video_info".to_string()
+    } else {
+        format!("SELECT COUNT(*) FROM video_info {}", where_clause)
+    };
+
+    let mut count_stmt = conn.prepare(&count_query)?;
+    let total_records: u32 = if params.is_empty() {
+        count_stmt.query_row([], |row| row.get(0))?
+    } else {
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params.iter().map(|p| p as &dyn rusqlite::ToSql).collect();
+        count_stmt.query_row(&params_refs[..], |row| row.get(0))?
+    };
+
+    Ok(total_records)
+}
+
 pub fn load_video_info_from_cache(
     filter: Option<&Vec<String>>,
 ) -> Result<Vec<VideoInfo>, Box<dyn std::error::Error>> {

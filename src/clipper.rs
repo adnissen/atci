@@ -999,13 +999,6 @@ fn calculate_font_size_for_video(horizontal_size: u32, text_length: usize) -> u3
     }
 }
 
-pub fn calculate_font_size_for_video_path(video_path: &Path, text_length: usize) -> u32 {
-    let cfg = crate::config::load_config().unwrap_or_default();
-    let ffprobe_path = Path::new(&cfg.ffprobe_path);
-    let (width, _) = get_video_dimensions(video_path, ffprobe_path).unwrap_or((1920, 1080));
-    calculate_font_size_for_video(width, text_length)
-}
-
 fn get_audio_codec_args(
     path: &Path,
     ffprobe_path: &Path,
@@ -1169,6 +1162,50 @@ pub fn web_frame(
             .map_err(|_| status::BadRequest("Error reading generated frame")),
         Err(_) => Err(status::BadRequest("Error creating frame")),
     }
+}
+
+#[get("/clip/view?<query..>")]
+pub fn web_clip_view(_auth: AuthGuard, query: ClipQuery) -> rocket_dyn_templates::Template {
+    use rocket_dyn_templates::context;
+
+    // Build the clip API URL with query parameters
+    let mut clip_url = format!(
+        "/api/clip?filename={}&start_time={}&end_time={}",
+        urlencoding::encode(&query.filename),
+        urlencoding::encode(&query.start_time),
+        urlencoding::encode(&query.end_time)
+    );
+
+    if let Some(ref text) = query.text {
+        clip_url.push_str(&format!("&text={}", urlencoding::encode(text)));
+    }
+    if let Some(ref display_text) = query.display_text {
+        clip_url.push_str(&format!(
+            "&display_text={}",
+            urlencoding::encode(display_text)
+        ));
+    }
+    if let Some(ref font_size) = query.font_size {
+        clip_url.push_str(&format!("&font_size={}", urlencoding::encode(font_size)));
+    }
+    if let Some(ref format) = query.format {
+        clip_url.push_str(&format!("&format={}", urlencoding::encode(format)));
+    }
+
+    let format = query.format.as_deref().unwrap_or("mp4");
+    let is_video = format == "mp4";
+    let is_gif = format == "gif";
+    let is_audio = format == "mp3";
+
+    rocket_dyn_templates::Template::render(
+        "clip_view",
+        context! {
+            clip_url: clip_url,
+            is_video: is_video,
+            is_gif: is_gif,
+            is_audio: is_audio,
+        },
+    )
 }
 
 #[cfg(test)]

@@ -36,6 +36,7 @@ mod queue;
 mod queue_tab;
 mod search;
 mod search_tab;
+mod short_url;
 mod system_tab;
 mod tools_manager;
 mod transcripts;
@@ -715,13 +716,16 @@ fn get_atci_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     Ok(atci_dir)
 }
 
-fn get_pid_file_path(pid: u32) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+fn get_pid_file_path(
+    pid: u32,
+    service_type: &str,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let atci_dir = get_atci_dir()?;
     let config_sha = config::get_config_path_sha();
-    Ok(atci_dir.join(format!("atci.{}.{}.pid", config_sha, pid)))
+    Ok(atci_dir.join(format!("atci.{}.{}.{}.pid", service_type, config_sha, pid)))
 }
 
-fn find_existing_pid_files() -> Result<Vec<u32>, Box<dyn std::error::Error>> {
+fn find_existing_pid_files(service_type: &str) -> Result<Vec<u32>, Box<dyn std::error::Error>> {
     let atci_dir = get_atci_dir()?;
     let config_sha = config::get_config_path_sha();
     let mut pids = Vec::new();
@@ -732,7 +736,7 @@ fn find_existing_pid_files() -> Result<Vec<u32>, Box<dyn std::error::Error>> {
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            let expected_prefix = format!("atci.{}.", config_sha);
+            let expected_prefix = format!("atci.{}.{}.", service_type, config_sha);
             if file_name_str.starts_with(&expected_prefix) && file_name_str.ends_with(".pid") {
                 let pid_str = &file_name_str[expected_prefix.len()..file_name_str.len() - 4]; // Remove prefix and ".pid" suffix
                 if let Ok(pid) = pid_str.parse::<u32>() {
@@ -775,212 +779,78 @@ fn is_process_running(pid: u32) -> bool {
     }
 }
 
-fn handle_existing_pid_files() -> Result<(), Box<dyn std::error::Error>> {
-    let existing_pids = find_existing_pid_files()?;
-
-    if existing_pids.is_empty() {
-        return Ok(());
-    }
-
-    let (running_pids, stale_pids): (Vec<&u32>, Vec<&u32>) = existing_pids
-        .iter()
-        .partition(|&&pid| is_process_running(pid));
-
-    if !running_pids.is_empty() {
-        if running_pids.len() == 1 {
-            println!(
-                "Another atci process is already running (PID: {})",
-                running_pids[0]
-            );
-        } else {
-            println!(
-                "Multiple atci processes are already running (PIDs: {:?})",
-                running_pids
-            );
-        }
-        println!();
-
-        let options = vec![
-            if running_pids.len() == 1 {
-                "Kill the existing process and continue"
-            } else {
-                "Kill all existing processes and continue"
-            },
-            "Start anyway (WARNING: may cause undefined behavior)",
-            "Quit",
-        ];
-
-        let selection = Select::new()
-            .with_prompt("What would you like to do?")
-            .items(&options)
-            .default(2)
-            .interact()?;
-
-        match selection {
-            0 => {
-                let mut all_killed = true;
-                for &pid in &running_pids {
-                    #[cfg(unix)]
-                    {
-                        use std::process::Command;
-                        let result = Command::new("kill").arg(pid.to_string()).output();
-
-                        match result {
-                            Ok(output) if output.status.success() => {
-                                println!("Successfully killed process {}", pid);
-                                if let Ok(pid_file_path) = get_pid_file_path(*pid) {
-                                    let _ = fs::remove_file(&pid_file_path);
-                                }
-                            }
-                            _ => {
-                                eprintln!("Failed to kill process {}", pid);
-                                all_killed = false;
-                            }
-                        }
-                    }
-
-                    #[cfg(windows)]
-                    {
-                        use std::process::Command;
-                        let result = Command::new("taskkill")
-                            .arg("/F")
-                            .arg("/PID")
-                            .arg(pid.to_string())
-                            .output();
-
-                        match result {
-                            Ok(output) if output.status.success() => {
-                                println!("Successfully killed process {}", pid);
-                                if let Ok(pid_file_path) = get_pid_file_path(*pid) {
-                                    let _ = fs::remove_file(&pid_file_path);
-                                }
-                            }
-                            _ => {
-                                eprintln!("Failed to kill process {}", pid);
-                                all_killed = false;
-                            }
-                        }
-                    }
-                }
-
-                if !all_killed {
-                    std::process::exit(1);
-                }
-            }
-            1 => {
-                println!(
-                    "   WARNING: Starting with existing PID files may cause undefined behavior!"
-                );
-                println!("   Multiple instances may conflict with each other.");
-                println!();
-            }
-            _ => {
-                println!("Exiting...");
-                std::process::exit(0);
-            }
-        }
-    }
-
-    if !stale_pids.is_empty() {
-        if stale_pids.len() == 1 {
-            println!(
-                "Found stale PID file (process {} is not running)",
-                stale_pids[0]
-            );
-        } else {
-            println!(
-                "Found {} stale PID files (processes not running: {:?})",
-                stale_pids.len(),
-                stale_pids
-            );
-        }
-        println!();
-
-        let options = vec![
-            if stale_pids.len() == 1 {
-                "Delete the stale PID file and continue"
-            } else {
-                "Delete all stale PID files and continue"
-            },
-            "Start anyway with our own PID file",
-            "Quit",
-        ];
-
-        let selection = Select::new()
-            .with_prompt("What would you like to do?")
-            .items(&options)
-            .default(0)
-            .interact()?;
-
-        match selection {
-            0 => {
-                for &pid in &stale_pids {
-                    if let Ok(pid_file_path) = get_pid_file_path(*pid) {
-                        let _ = fs::remove_file(&pid_file_path);
-                    }
-                }
-                println!(
-                    "Deleted stale PID file{}",
-                    if stale_pids.len() == 1 { "" } else { "s" }
-                );
-            }
-            1 => {
-                println!(
-                    "Continuing with existing PID file{} present",
-                    if stale_pids.len() == 1 { "" } else { "s" }
-                );
-            }
-            _ => {
-                println!("Exiting...");
-                std::process::exit(0);
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn create_pid_file() -> Result<(), Box<dyn std::error::Error>> {
+fn create_pid_file(service_type: &str) -> Result<(), Box<dyn std::error::Error>> {
     let current_pid = std::process::id();
-    let pid_file_path = get_pid_file_path(current_pid)?;
+    let pid_file_path = get_pid_file_path(current_pid, service_type)?;
 
     // Create empty file (PID is in filename)
     fs::File::create(&pid_file_path)?;
 
     println!(
-        "Created PID file: {} (PID: {})",
+        "Created {} PID file: {} (PID: {})",
+        service_type,
         pid_file_path.display(),
         current_pid
     );
     Ok(())
 }
 
-fn cleanup_pid_file() {
+fn cleanup_pid_file(service_type: &str) {
     let current_pid = std::process::id();
-    if let Ok(pid_file_path) = get_pid_file_path(current_pid)
+    if let Ok(pid_file_path) = get_pid_file_path(current_pid, service_type)
         && pid_file_path.exists()
         && let Err(e) = fs::remove_file(&pid_file_path)
     {
-        eprintln!("Warning: Failed to remove PID file: {}", e);
+        eprintln!("Warning: Failed to remove {} PID file: {}", service_type, e);
     }
 }
 
-fn setup_pid_file_management() -> Result<(), Box<dyn std::error::Error>> {
-    handle_existing_pid_files()?;
-    create_pid_file()?;
+fn setup_pid_file_for_service(service_type: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let existing_pids = find_existing_pid_files(service_type)?;
 
-    // Set up cleanup handler
-    ctrlc::set_handler(move || {
-        println!("\nReceived interrupt signal, cleaning up pid file");
-        cleanup_pid_file();
-        std::process::exit(0);
-    })?;
+    if !existing_pids.is_empty() {
+        let (running_pids, stale_pids): (Vec<&u32>, Vec<&u32>) = existing_pids
+            .iter()
+            .partition(|&&pid| is_process_running(pid));
+
+        // If any processes are running, exit with message
+        if !running_pids.is_empty() {
+            if running_pids.len() == 1 {
+                eprintln!(
+                    "Error: Another atci {} process is already running (PID: {})",
+                    service_type, running_pids[0]
+                );
+            } else {
+                eprintln!(
+                    "Error: Multiple atci {} processes are already running (PIDs: {:?})",
+                    service_type, running_pids
+                );
+            }
+            std::process::exit(1);
+        }
+
+        // Clean up stale PID files automatically
+        if !stale_pids.is_empty() {
+            for &pid in &stale_pids {
+                if let Ok(pid_file_path) = get_pid_file_path(*pid, service_type) {
+                    let _ = fs::remove_file(&pid_file_path);
+                    println!(
+                        "Cleaned up stale {} PID file for process {}",
+                        service_type, pid
+                    );
+                }
+            }
+        }
+    }
+
+    // Create new PID file
+    create_pid_file(service_type)?;
 
     Ok(())
 }
 
-fn check_watcher_running() -> Result<bool, Box<dyn std::error::Error>> {
-    let existing_pids = find_existing_pid_files()?;
+fn check_if_service_running(service_type: &str) -> Result<bool, Box<dyn std::error::Error>> {
+    let existing_pids = find_existing_pid_files(service_type)?;
 
     if existing_pids.is_empty() {
         return Ok(false);
@@ -992,14 +862,57 @@ fn check_watcher_running() -> Result<bool, Box<dyn std::error::Error>> {
 
     // Clean up stale PID files
     for &pid in &stale_pids {
-        if let Ok(pid_file_path) = get_pid_file_path(*pid) {
+        if let Ok(pid_file_path) = get_pid_file_path(*pid, service_type) {
             let _ = fs::remove_file(&pid_file_path);
-            println!("Cleaned up stale PID file for process {}", pid);
+            println!(
+                "Cleaned up stale {} PID file for process {}",
+                service_type, pid
+            );
         }
     }
 
     // Return true if there are running processes
     Ok(!running_pids.is_empty())
+}
+
+fn start_web_server_background() -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs::OpenOptions;
+    use std::process::Stdio;
+
+    // Get the current executable path
+    let current_exe = std::env::current_exe()?;
+
+    // Create log file in ~/.atci/web.log
+    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
+    let log_path = home_dir.join(".atci").join("web.log");
+
+    // Ensure .atci directory exists
+    if let Some(parent) = log_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)?;
+
+    // Clone file descriptors for stdout and stderr
+    let stdout_file = log_file.try_clone()?;
+    let stderr_file = log_file;
+
+    // Spawn a new atci web process with output redirected to log
+    // Use stdin(Stdio::null()) to detach from terminal
+    std::process::Command::new(&current_exe)
+        .arg("web")
+        .arg("all")
+        .stdin(Stdio::null())
+        .stdout(stdout_file)
+        .stderr(stderr_file)
+        .spawn()?;
+
+    println!("Started web server in background (logs: ~/.atci/web.log)");
+
+    Ok(())
 }
 
 fn update() -> Result<(), Box<dyn std::error::Error>> {
@@ -1488,8 +1401,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Validate and prompt for missing configuration
             validate_and_prompt_config(&mut cfg, &required_fields)?;
 
-            // Setup PID file management
-            setup_pid_file_management()?;
+            // Setup PID file for watcher (exit if running, auto-clean stale)
+            setup_pid_file_for_service("watcher")?;
+
+            // Set up cleanup handler for watcher PID file
+            ctrlc::set_handler(move || {
+                println!("\nReceived interrupt signal, cleaning up pid file");
+                cleanup_pid_file("watcher");
+                std::process::exit(0);
+            })?;
 
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(async {
@@ -1571,8 +1491,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             gif,
         }) => {
             let search_query = query.join(" ");
+            let rt = tokio::runtime::Runtime::new()?;
 
-            match search::search(&search_query, filter.as_ref(), clip, gif) {
+            match rt.block_on(search::search(&search_query, filter.as_ref(), clip, gif)) {
                 Ok(results) => {
                     if json {
                         let json_output = serde_json::to_string_pretty(&results)?;
@@ -1626,15 +1547,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 random,
             }) => {
                 let search_query = query.join(" ");
+                let rt = tokio::runtime::Runtime::new()?;
 
                 if file_only {
                     // Only generate clip data without creating supercut
-                    match search::get_supercut_clip_data(
+                    match rt.block_on(search::get_supercut_clip_data(
                         &search_query,
                         filter.as_ref(),
                         word,
                         random,
-                    ) {
+                    )) {
                         Ok(clip_data) => {
                             println!("{}", serde_json::to_string_pretty(&clip_data)?);
                         }
@@ -1644,13 +1566,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                 } else {
-                    match search::search_and_supercut(
+                    match rt.block_on(search::search_and_supercut(
                         &search_query,
                         filter.as_ref(),
                         show_file,
                         word,
                         random,
-                    ) {
+                    )) {
                         Ok((supercut_path, clip_data)) => {
                             if json {
                                 let mut output = serde_json::json!({
@@ -1799,7 +1721,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     validate_and_prompt_config(&mut cfg, &required_fields)?;
 
                     // Check if watcher is already running
-                    let watcher_already_running = check_watcher_running()?;
+                    let watcher_already_running = check_if_service_running("watcher")?;
+
+                    // Setup PID file for web server (exit if web server is already running)
+                    setup_pid_file_for_service("web")?;
+
+                    // Set up cleanup handler for both watcher and web PID files
+                    ctrlc::set_handler(move || {
+                        println!("\nReceived interrupt signal, cleaning up pid files");
+                        cleanup_pid_file("watcher");
+                        cleanup_pid_file("web");
+                        std::process::exit(0);
+                    })?;
 
                     files::get_and_save_video_info_from_disk()?;
 
@@ -1813,9 +1746,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if watcher_already_running {
                             println!("Watcher process already running, skipping watcher and queue processor startup");
                         } else {
-                            // Create PID file for this watcher process
-                            if let Err(e) = create_pid_file() {
-                                eprintln!("Error creating PID file: {}", e);
+                            // Create watcher PID file
+                            if let Err(e) = create_pid_file("watcher") {
+                                eprintln!("Error creating watcher PID file: {}", e);
                                 std::process::exit(1);
                             }
 
@@ -1849,7 +1782,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     validate_and_prompt_config(&mut cfg, &required_fields)?;
 
                     // Check if watcher is already running
-                    let watcher_already_running = check_watcher_running()?;
+                    let watcher_already_running = check_if_service_running("watcher")?;
+
+                    // Setup PID file for web server (exit if web server is already running)
+                    setup_pid_file_for_service("web")?;
+
+                    // Set up cleanup handler for both watcher and web PID files
+                    ctrlc::set_handler(move || {
+                        println!("\nReceived interrupt signal, cleaning up pid files");
+                        cleanup_pid_file("watcher");
+                        cleanup_pid_file("web");
+                        std::process::exit(0);
+                    })?;
 
                     files::get_and_save_video_info_from_disk()?;
 
@@ -1863,9 +1807,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if watcher_already_running {
                             println!("Watcher process already running, skipping watcher and queue processor startup");
                         } else {
-                            // Create PID file for this watcher process
-                            if let Err(e) = create_pid_file() {
-                                eprintln!("Error creating PID file: {}", e);
+                            // Create watcher PID file
+                            if let Err(e) = create_pid_file("watcher") {
+                                eprintln!("Error creating watcher PID file: {}", e);
                                 std::process::exit(1);
                             }
 
@@ -1911,6 +1855,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
         Some(Commands::Tui) => {
+            // Check if web server is already running
+            let web_running = check_if_service_running("web").unwrap_or(false);
+
+            if !web_running {
+                // Start web server in the background
+                if let Err(e) = start_web_server_background() {
+                    eprintln!("Warning: Failed to start web server: {}", e);
+                    eprintln!("Continuing with TUI anyway...");
+                }
+            }
+
             if let Err(e) = tui::run() {
                 eprintln!("Error running TUI: {}", e);
                 std::process::exit(1);
@@ -1919,8 +1874,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         None => {}
     }
 
-    // Clean up PID file on normal exit
-    cleanup_pid_file();
+    // Clean up PID files on normal exit (try both watcher and web)
+    cleanup_pid_file("watcher");
+    cleanup_pid_file("web");
 
     Ok(())
 }

@@ -3,6 +3,8 @@ use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, Paragraph};
+use throbber_widgets_tui::Throbber;
+use tui_big_text::BigText;
 
 use crate::tui::{App, TabState, create_tab_title_with_editor};
 
@@ -19,55 +21,50 @@ impl App {
 
     pub fn apply_search(&mut self) {
         self.search_input_mode = false;
-        self.perform_search();
+        if !self.search_input.is_empty() {
+            self.search_requested = true;
+            self.search_in_progress = true;
+            // Switch to search results tab (only if we're not already there)
+            if self.current_tab != TabState::SearchResults {
+                self.current_tab = TabState::SearchResults;
+                // Update total records count with current filter
+                self.update_total_records();
+            }
+        }
     }
 
     pub fn add_char_to_search(&mut self, c: char) {
         if self.search_input_mode {
             self.search_input.push(c);
-            // Re-run search immediately as user types, but only on SearchResults tab
-            if self.current_tab == TabState::SearchResults {
-                self.perform_search();
-            }
         }
     }
 
     pub fn remove_char_from_search(&mut self) {
         if self.search_input_mode {
             self.search_input.pop();
-            // Re-run search immediately as user deletes, but only on SearchResults tab
-            if self.current_tab == TabState::SearchResults {
-                self.perform_search();
-            }
         }
     }
 
     pub fn perform_search(&mut self) {
+        // Clear the requested flag
+        self.search_requested = false;
+
         // Perform actual search functionality
         if !self.search_input.is_empty() {
-            match search::search(
-                &self.search_input,
-                self.get_filter_option().as_ref(),
-                false,
-                false,
-            ) {
-                Ok(results) => {
-                    self.search_results = results;
-                    self.search_selected_index = 0;
-                    self.search_scroll_offset = 0;
-                    self.last_search_query = self.search_input.clone();
+            let search_input = self.search_input.clone();
+            let filter = self.get_filter_option();
 
-                    // Switch to search results tab (only if we're not already there)
-                    if self.current_tab != TabState::SearchResults {
-                        self.current_tab = TabState::SearchResults;
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Search failed: {}", e);
-                    // Keep search results empty on error
-                    self.search_results.clear();
-                }
-            }
+            // Use std::thread to completely avoid runtime nesting issues
+            // Spawn the thread without waiting - store handle for later polling
+            let handle = std::thread::spawn(move || {
+                let rt = tokio::runtime::Runtime::new()
+                    .map_err(|e| format!("Failed to create runtime: {}", e))?;
+                rt.block_on(search::search(&search_input, filter.as_ref(), false, false))
+                    .map_err(|e| format!("Search failed: {}", e))
+            });
+
+            // Store the thread handle for polling
+            self.search_thread = Some(handle);
         } else {
             // If search input is empty, clear results (but only on SearchResults tab)
             if self.current_tab == TabState::SearchResults {
@@ -75,6 +72,38 @@ impl App {
                 self.search_selected_index = 0;
                 self.search_scroll_offset = 0;
                 self.last_search_query.clear();
+            }
+            self.search_in_progress = false;
+        }
+    }
+
+    pub fn check_search_thread(&mut self) {
+        // Check if search thread is finished
+        if let Some(handle) = self.search_thread.take() {
+            if handle.is_finished() {
+                // Thread is done, get the results
+                match handle.join() {
+                    Ok(Ok(results)) => {
+                        self.search_results = results;
+                        self.search_selected_index = 0;
+                        self.search_scroll_offset = 0;
+                        self.last_search_query = self.search_input.clone();
+                        self.search_in_progress = false;
+                    }
+                    Ok(Err(e)) => {
+                        eprintln!("{}", e);
+                        self.search_results.clear();
+                        self.search_in_progress = false;
+                    }
+                    Err(e) => {
+                        eprintln!("Thread join failed: {:?}", e);
+                        self.search_results.clear();
+                        self.search_in_progress = false;
+                    }
+                }
+            } else {
+                // Thread still running, put handle back
+                self.search_thread = Some(handle);
             }
         }
     }
@@ -158,17 +187,19 @@ impl App {
         None
     }
 
-    pub fn open_editor_from_selected_match(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn show_clip_url_popup_from_selected_match(
+        &mut self,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(search_match) = self.get_selected_search_match() {
             if let Some(timestamp) = &search_match.timestamp {
                 // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
                 if let Some((start_time, end_time)) = self.parse_timestamp_range(timestamp) {
-                    // Open editor with the match information
-                    self.open_editor(
+                    // Show clip URL popup with the match information
+                    self.show_clip_url_popup(
+                        search_match.video_info.full_path.clone(),
                         start_time,
                         end_time,
                         search_match.line_text.clone(),
-                        search_match.video_info.full_path.clone(),
                     );
                 } else {
                     return Err("Could not parse timestamp from search result".into());
@@ -229,7 +260,7 @@ impl App {
     }
 }
 
-pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App) {
     let title = create_tab_title_with_editor(
         app.current_tab,
         &app.colors,
@@ -262,7 +293,7 @@ pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app
     // Search query info section
     let query_info = if app.search_results.is_empty() {
         if app.last_search_query.is_empty() {
-            "No search performed yet. Use '/' to search transcripts.".to_string()
+            format!("Use '/' to search {} transcripts", app.total_records)
         } else {
             format!("No results found for: '{}'", app.last_search_query)
         }
@@ -289,7 +320,7 @@ pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app
     f.render_widget(query_paragraph, main_chunks[0]);
 
     // Results section
-    if !app.search_results.is_empty() {
+    if !app.search_results.is_empty() && !app.search_in_progress {
         let results_content = render_search_results_list(app);
         let results_paragraph = Paragraph::new(results_content)
             .block(
@@ -305,13 +336,34 @@ pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app
 
         f.render_widget(results_paragraph, main_chunks[1]);
     } else {
-        // Show empty state
-        let empty_content = "Perform a search using '/' to see results here.";
-        let empty_paragraph = Paragraph::new(empty_content)
+        // Show big text banner
+        let big_text = BigText::builder()
+            .lines(vec!["atci".into()])
             .style(Style::new().fg(app.colors.row_fg))
-            .alignment(Alignment::Center);
+            .centered()
+            .build();
 
-        f.render_widget(empty_paragraph, main_chunks[1]);
+        f.render_widget(big_text, main_chunks[1]);
+
+        // If searching, overlay the throbber
+        if app.search_in_progress {
+            app.throbber_state.calc_next();
+
+            let throbber = Throbber::default()
+                .label("Searching...")
+                .style(Style::new().fg(app.colors.row_fg))
+                .throbber_style(Style::new().fg(ratatui::style::Color::Yellow));
+
+            // Calculate center position for throbber (below the big text)
+            let throbber_area = ratatui::layout::Rect {
+                x: main_chunks[1].x + main_chunks[1].width / 2 - 10,
+                y: main_chunks[1].y + main_chunks[1].height * 2 / 3,
+                width: 20,
+                height: 1,
+            };
+
+            f.render_stateful_widget(throbber, throbber_area, &mut app.throbber_state);
+        }
     }
 }
 
@@ -325,7 +377,7 @@ fn render_search_results_list(app: &App) -> ratatui::text::Text<'static> {
     for result in &app.search_results {
         // File header
         lines.push(Line::from(vec![Span::styled(
-            format!("📁 {}", result.file_path),
+            result.file_path.to_string(),
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
