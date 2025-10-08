@@ -25,11 +25,9 @@ pub fn get_or_create(url: &str) -> SqliteResult<String> {
 
     // First, check if this URL already has an ID
     let existing_id: Option<String> = conn
-        .query_row(
-            "SELECT id FROM short_urls WHERE url = ?1",
-            [url],
-            |row| row.get(0),
-        )
+        .query_row("SELECT id FROM short_urls WHERE url = ?1", [url], |row| {
+            row.get(0)
+        })
         .ok();
 
     if let Some(id) = existing_id {
@@ -53,11 +51,9 @@ pub fn get_url(id: &str) -> SqliteResult<Option<String>> {
     let conn = db::get_connection()?;
 
     let url: Option<String> = conn
-        .query_row(
-            "SELECT url FROM short_urls WHERE id = ?1",
-            [id],
-            |row| row.get(0),
-        )
+        .query_row("SELECT url FROM short_urls WHERE id = ?1", [id], |row| {
+            row.get(0)
+        })
         .ok();
 
     Ok(url)

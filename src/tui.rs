@@ -832,11 +832,11 @@ impl App {
             self.config_data.hostname, encoded_filename, encoded_start, encoded_end
         );
 
-        if let Some(t) = text {
-            if !t.is_empty() {
-                let encoded_text = urlencoding::encode(t);
-                url.push_str(&format!("&text={}", encoded_text));
-            }
+        if let Some(t) = text
+            && !t.is_empty()
+        {
+            let encoded_text = urlencoding::encode(t);
+            url.push_str(&format!("&text={}", encoded_text));
         }
 
         url
@@ -1779,7 +1779,6 @@ fn ui(f: &mut Frame, app: &mut App) {
 
         f.render_widget(page_paragraph, bottom_chunks[1]);
     }
-
 }
 
 pub fn create_tab_title_with_editor(

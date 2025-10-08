@@ -1165,10 +1165,7 @@ pub fn web_frame(
 }
 
 #[get("/clip/view?<query..>")]
-pub fn web_clip_view(
-    _auth: AuthGuard,
-    query: ClipQuery,
-) -> rocket_dyn_templates::Template {
+pub fn web_clip_view(_auth: AuthGuard, query: ClipQuery) -> rocket_dyn_templates::Template {
     use rocket_dyn_templates::context;
 
     // Build the clip API URL with query parameters
@@ -1183,7 +1180,10 @@ pub fn web_clip_view(
         clip_url.push_str(&format!("&text={}", urlencoding::encode(text)));
     }
     if let Some(ref display_text) = query.display_text {
-        clip_url.push_str(&format!("&display_text={}", urlencoding::encode(display_text)));
+        clip_url.push_str(&format!(
+            "&display_text={}",
+            urlencoding::encode(display_text)
+        ));
     }
     if let Some(ref font_size) = query.font_size {
         clip_url.push_str(&format!("&font_size={}", urlencoding::encode(font_size)));

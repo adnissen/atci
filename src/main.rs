@@ -716,7 +716,10 @@ fn get_atci_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     Ok(atci_dir)
 }
 
-fn get_pid_file_path(pid: u32, service_type: &str) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
+fn get_pid_file_path(
+    pid: u32,
+    service_type: &str,
+) -> Result<std::path::PathBuf, Box<dyn std::error::Error>> {
     let atci_dir = get_atci_dir()?;
     let config_sha = config::get_config_path_sha();
     Ok(atci_dir.join(format!("atci.{}.{}.{}.pid", service_type, config_sha, pid)))
@@ -831,7 +834,10 @@ fn setup_pid_file_for_service(service_type: &str) -> Result<(), Box<dyn std::err
             for &pid in &stale_pids {
                 if let Ok(pid_file_path) = get_pid_file_path(*pid, service_type) {
                     let _ = fs::remove_file(&pid_file_path);
-                    println!("Cleaned up stale {} PID file for process {}", service_type, pid);
+                    println!(
+                        "Cleaned up stale {} PID file for process {}",
+                        service_type, pid
+                    );
                 }
             }
         }
@@ -858,7 +864,10 @@ fn check_if_service_running(service_type: &str) -> Result<bool, Box<dyn std::err
     for &pid in &stale_pids {
         if let Ok(pid_file_path) = get_pid_file_path(*pid, service_type) {
             let _ = fs::remove_file(&pid_file_path);
-            println!("Cleaned up stale {} PID file for process {}", service_type, pid);
+            println!(
+                "Cleaned up stale {} PID file for process {}",
+                service_type, pid
+            );
         }
     }
 
@@ -905,7 +914,6 @@ fn start_web_server_background() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
 
 fn update() -> Result<(), Box<dyn std::error::Error>> {
     use self_update::cargo_crate_version;

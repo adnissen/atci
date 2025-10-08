@@ -328,7 +328,15 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
         .merge(("port", port))
         .merge(("log_level", log_level));
 
-    let mut all_routes = routes![index, auth_page, auth_submit, logout, app, assets, short_url_redirect];
+    let mut all_routes = routes![
+        index,
+        auth_page,
+        auth_submit,
+        logout,
+        app,
+        assets,
+        short_url_redirect
+    ];
     all_routes.extend(api_routes());
 
     rocket::custom(figment)

@@ -377,7 +377,7 @@ fn render_search_results_list(app: &App) -> ratatui::text::Text<'static> {
     for result in &app.search_results {
         // File header
         lines.push(Line::from(vec![Span::styled(
-            format!("{}", result.file_path),
+            result.file_path.to_string(),
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
