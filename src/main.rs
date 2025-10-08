@@ -1187,9 +1187,8 @@ fn check_services_status(json: bool) -> Result<(), Box<dyn std::error::Error>> {
 
     // Check web
     let web_pids = find_existing_pid_files("web")?;
-    let (web_running_pids, web_stale_pids): (Vec<&u32>, Vec<&u32>) = web_pids
-        .iter()
-        .partition(|&&pid| is_process_running(pid));
+    let (web_running_pids, web_stale_pids): (Vec<&u32>, Vec<&u32>) =
+        web_pids.iter().partition(|&&pid| is_process_running(pid));
 
     if json {
         let services_info = json!({
