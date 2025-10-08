@@ -187,31 +187,6 @@ impl App {
         None
     }
 
-    pub fn open_editor_from_selected_match(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(search_match) = self.get_selected_search_match() {
-            if let Some(timestamp) = &search_match.timestamp {
-                // Parse timestamp from line like "126: 00:05:25.920 --> 00:05:46.060"
-                if let Some((start_time, end_time)) = self.parse_timestamp_range(timestamp) {
-                    // Open editor with the match information
-                    self.open_editor(
-                        start_time,
-                        end_time,
-                        search_match.line_text.clone(),
-                        search_match.video_info.full_path.clone(),
-                    );
-                } else {
-                    return Err("Could not parse timestamp from search result".into());
-                }
-            } else {
-                return Err("Selected search result has no timestamp".into());
-            }
-        } else {
-            return Err("No search result selected".into());
-        }
-
-        Ok(())
-    }
-
     pub fn show_clip_url_popup_from_selected_match(
         &mut self,
     ) -> Result<(), Box<dyn std::error::Error>> {

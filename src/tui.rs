@@ -467,46 +467,6 @@ impl App {
         }
     }
 
-    pub fn open_editor_from_file_view(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(file_data) = &self.file_view_data {
-            // Check if we have a range selected first
-            if let Some((start_timestamp, end_timestamp)) =
-                file_data.get_selected_range_timestamps()
-            {
-                // Parse the range timestamps
-                if let (Some(start_time), Some(end_time)) = (
-                    self.parse_timestamp(&start_timestamp),
-                    self.parse_timestamp(&end_timestamp),
-                ) {
-                    let line_text = "".to_string(); // Could be more descriptive
-                    let video_path = file_data.video_path.clone();
-
-                    // Open editor with the range timestamps
-                    self.open_editor(start_time, end_time, line_text, video_path);
-                    Ok(())
-                } else {
-                    Err("Could not parse timestamps from selected range".into())
-                }
-            } else if let Some(timestamp_line) = file_data.get_timestamp_for_current_line() {
-                // Fallback to current line timestamp if no range selected
-                if let Some((start_time, end_time)) = self.parse_timestamp_range(&timestamp_line) {
-                    let line_text = file_data.get_text_for_current_line();
-                    let video_path = file_data.video_path.clone();
-
-                    // Open editor with the timestamp information
-                    self.open_editor(start_time, end_time, line_text, video_path);
-                    Ok(())
-                } else {
-                    Err("Could not parse timestamp from current line".into())
-                }
-            } else {
-                Err("No timestamp found for current line or line above".into())
-            }
-        } else {
-            Err("No file view data available".into())
-        }
-    }
-
     pub fn show_clip_url_popup_from_file_view(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(file_data) = &self.file_view_data {
             // Check if we have a range selected first
