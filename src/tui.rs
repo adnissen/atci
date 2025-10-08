@@ -874,7 +874,7 @@ impl App {
         let encoded_end = urlencoding::encode(end_time);
 
         let mut url = format!(
-            "{}/api/clip?filename={}&start_time={}&end_time={}",
+            "{}/clip/view?filename={}&start_time={}&end_time={}",
             self.config_data.hostname, encoded_filename, encoded_start, encoded_end
         );
 
@@ -1877,7 +1877,7 @@ fn render_clip_url_popup(f: &mut Frame, app: &App) {
             .split(popup_layout[1])[1]
     }
 
-    let area = centered_rect(80, 40, f.area());
+    let area = centered_rect(40, 10, f.area());
 
     // Create the popup block
     let block = Block::default()
@@ -1902,7 +1902,6 @@ fn render_clip_url_popup(f: &mut Frame, app: &App) {
         Style::default().fg(Color::Cyan),
     )]));
 
-    lines.push(Line::from(""));
     lines.push(Line::from(""));
 
     lines.push(Line::from(vec![Span::styled(

@@ -262,6 +262,7 @@ fn api_routes() -> Vec<rocket::Route> {
         files::web_get_files,
         files::web_get_sources,
         clipper::web_clip,
+        clipper::web_clip_view,
         clipper::web_frame,
         queue::web_get_queue,
         queue::web_get_queue_status,

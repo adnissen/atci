@@ -1171,6 +1171,50 @@ pub fn web_frame(
     }
 }
 
+#[get("/clip/view?<query..>")]
+pub fn web_clip_view(
+    _auth: AuthGuard,
+    query: ClipQuery,
+) -> rocket_dyn_templates::Template {
+    use rocket_dyn_templates::context;
+
+    // Build the clip API URL with query parameters
+    let mut clip_url = format!(
+        "/api/clip?filename={}&start_time={}&end_time={}",
+        urlencoding::encode(&query.filename),
+        urlencoding::encode(&query.start_time),
+        urlencoding::encode(&query.end_time)
+    );
+
+    if let Some(ref text) = query.text {
+        clip_url.push_str(&format!("&text={}", urlencoding::encode(text)));
+    }
+    if let Some(ref display_text) = query.display_text {
+        clip_url.push_str(&format!("&display_text={}", urlencoding::encode(display_text)));
+    }
+    if let Some(ref font_size) = query.font_size {
+        clip_url.push_str(&format!("&font_size={}", urlencoding::encode(font_size)));
+    }
+    if let Some(ref format) = query.format {
+        clip_url.push_str(&format!("&format={}", urlencoding::encode(format)));
+    }
+
+    let format = query.format.as_deref().unwrap_or("mp4");
+    let is_video = format == "mp4";
+    let is_gif = format == "gif";
+    let is_audio = format == "mp3";
+
+    rocket_dyn_templates::Template::render(
+        "clip_view",
+        context! {
+            clip_url: clip_url,
+            is_video: is_video,
+            is_gif: is_gif,
+            is_audio: is_audio,
+        },
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
