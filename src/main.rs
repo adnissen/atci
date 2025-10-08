@@ -184,6 +184,15 @@ enum Commands {
     },
     #[command(about = "Launch TUI interface for browsing videos and transcripts")]
     Tui,
+    #[command(about = "Check status of running services")]
+    Services {
+        #[arg(
+            long,
+            help = "Show JSON output instead of formatted",
+            default_value = "false"
+        )]
+        json: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -1167,6 +1176,64 @@ async fn download_stream(url: &str, stream_name: &str) -> Result<(), Box<dyn std
     Ok(())
 }
 
+fn check_services_status(json: bool) -> Result<(), Box<dyn std::error::Error>> {
+    use serde_json::json;
+
+    // Check watcher
+    let watcher_pids = find_existing_pid_files("watcher")?;
+    let (watcher_running_pids, watcher_stale_pids): (Vec<&u32>, Vec<&u32>) = watcher_pids
+        .iter()
+        .partition(|&&pid| is_process_running(pid));
+
+    // Check web
+    let web_pids = find_existing_pid_files("web")?;
+    let (web_running_pids, web_stale_pids): (Vec<&u32>, Vec<&u32>) =
+        web_pids.iter().partition(|&&pid| is_process_running(pid));
+
+    if json {
+        let services_info = json!({
+            "watcher": {
+                "running": !watcher_running_pids.is_empty(),
+                "pids": watcher_running_pids.iter().map(|&&pid| pid).collect::<Vec<u32>>(),
+                "stale_pids": watcher_stale_pids.iter().map(|&&pid| pid).collect::<Vec<u32>>()
+            },
+            "web": {
+                "running": !web_running_pids.is_empty(),
+                "pids": web_running_pids.iter().map(|&&pid| pid).collect::<Vec<u32>>(),
+                "stale_pids": web_stale_pids.iter().map(|&&pid| pid).collect::<Vec<u32>>()
+            }
+        });
+        println!("{}", serde_json::to_string_pretty(&services_info)?);
+    } else {
+        println!("Services Status:");
+        println!("{}", "=".repeat(50));
+
+        println!("\nWATCHER");
+        if !watcher_running_pids.is_empty() {
+            println!("   Status: Running");
+            println!("   PIDs: {:?}", watcher_running_pids);
+        } else {
+            println!("   Status: Not running");
+        }
+        if !watcher_stale_pids.is_empty() {
+            println!("   Stale PIDs: {:?}", watcher_stale_pids);
+        }
+
+        println!("\nWEB");
+        if !web_running_pids.is_empty() {
+            println!("   Status: Running");
+            println!("   PIDs: {:?}", web_running_pids);
+        } else {
+            println!("   Status: Not running");
+        }
+        if !web_stale_pids.is_empty() {
+            println!("   Stale PIDs: {:?}", web_stale_pids);
+        }
+    }
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
@@ -1868,6 +1935,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             if let Err(e) = tui::run() {
                 eprintln!("Error running TUI: {}", e);
+                std::process::exit(1);
+            }
+        }
+        Some(Commands::Services { json }) => {
+            if let Err(e) = check_services_status(json) {
+                eprintln!("Error checking services: {}", e);
                 std::process::exit(1);
             }
         }
