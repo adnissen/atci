@@ -2,7 +2,7 @@ use crate::editor_tab::{EditorData, render_editor_tab};
 use crate::file_tab::{FileViewData, render_file_view_tab};
 use crate::queue_tab::render_queue_tab;
 use crate::search_tab::render_search_results_tab;
-use crate::system_tab::{find_existing_pid_files, is_process_running, render_system_tab};
+use crate::system_tab::render_system_tab;
 use crate::transcripts_tab::render_transcripts_tab;
 use crate::{config, files, search, short_url};
 use crossterm::{
@@ -144,7 +144,6 @@ pub struct App {
     pub regenerate_popup_selected: usize,
     pub regenerate_popup_options: Vec<String>,
     pub regenerate_popup_option_types: Vec<String>,
-    pub tui_started_watcher: bool,
 }
 
 #[derive(Clone)]
@@ -173,7 +172,7 @@ impl Default for App {
             current_page: 0,
             total_pages: 1,
             total_records: 0,
-            current_tab: TabState::SearchResults,
+            current_tab: TabState::System,
             filter_input: String::new(),
             filter_input_mode: false,
             search_input: String::new(),
@@ -205,7 +204,6 @@ impl Default for App {
             regenerate_popup_selected: 0,
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
-            tui_started_watcher: false,
         }
     }
 }
@@ -235,7 +233,7 @@ impl App {
             current_page: 0,
             total_pages: cache_data.pages.unwrap_or(1),
             total_records: cache_data.total_records.unwrap_or(0),
-            current_tab: TabState::SearchResults,
+            current_tab: TabState::System,
             filter_input: String::new(),
             filter_input_mode: false,
             search_input: String::new(),
@@ -267,7 +265,6 @@ impl App {
             regenerate_popup_selected: 0,
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
-            tui_started_watcher: false,
         };
 
         // Select first item if available
@@ -954,14 +951,8 @@ impl App {
 pub fn run() -> Result<(), Box<dyn Error>> {
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(async {
-        // Ensure file watcher is running before starting TUI
-        let started_watcher = match ensure_watcher_running().await {
-            Ok(started) => started,
-            Err(e) => {
-                eprintln!("Warning: Failed to ensure watcher is running: {}", e);
-                false
-            }
-        };
+        // Note: We don't start the watcher directly here anymore.
+        // The web server (started by main.rs) will handle starting the watcher if needed.
 
         enable_raw_mode()?;
         let mut stdout = io::stdout();
@@ -975,7 +966,6 @@ pub fn run() -> Result<(), Box<dyn Error>> {
         let mut terminal = Terminal::new(backend)?;
 
         let mut app = App::new()?;
-        app.tui_started_watcher = started_watcher;
         let res = run_app(&mut terminal, &mut app);
 
         disable_raw_mode()?;
@@ -988,13 +978,6 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
         if let Err(err) = res {
             println!("{:?}", err)
-        }
-
-        // If we started the watcher, stop it now
-        if app.tui_started_watcher
-            && let Err(e) = stop_watcher_processes().await
-        {
-            eprintln!("Warning: Failed to stop watcher processes: {}", e);
         }
 
         Ok(())
@@ -1860,116 +1843,6 @@ pub fn create_tab_title_with_editor(
     });
 
     Line::from(spans)
-}
-
-async fn stop_watcher_processes() -> Result<(), Box<dyn Error>> {
-    use std::process::Command;
-
-    // Find all watcher PIDs
-    let running_pids: Vec<u32> = match find_existing_pid_files("watcher") {
-        Ok(pids) => pids
-            .into_iter()
-            .filter(|&pid| is_process_running(pid))
-            .collect(),
-        Err(_) => vec![],
-    };
-
-    // Kill all running watcher processes and remove their PID files
-    for pid in running_pids {
-        #[cfg(unix)]
-        {
-            let _ = Command::new("kill").arg(pid.to_string()).output();
-        }
-
-        #[cfg(windows)]
-        {
-            let _ = Command::new("taskkill")
-                .args(["/F", "/PID", &pid.to_string()])
-                .output();
-        }
-
-        // Remove the PID file
-        if let Ok(pid_file_path) = get_pid_file_path(pid, "watcher") {
-            let _ = std::fs::remove_file(&pid_file_path);
-        }
-    }
-
-    Ok(())
-}
-
-fn get_pid_file_path(pid: u32, service_type: &str) -> Result<std::path::PathBuf, Box<dyn Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let atci_dir = home_dir.join(".atci");
-    let config_sha = crate::config::get_config_path_sha();
-    Ok(atci_dir.join(format!("atci.{}.{}.{}.pid", service_type, config_sha, pid)))
-}
-
-async fn ensure_watcher_running() -> Result<bool, Box<dyn Error>> {
-    use std::fs::OpenOptions;
-
-    // Check if any watcher processes are currently running
-    let running_pids: Vec<u32> = match find_existing_pid_files("watcher") {
-        Ok(pids) => pids
-            .into_iter()
-            .filter(|&pid| is_process_running(pid))
-            .collect(),
-        Err(_) => vec![],
-    };
-
-    // If no watchers are running, start them
-    if running_pids.is_empty() {
-        println!("No file watcher processes detected. Starting standalone watcher...");
-
-        // Get the current executable path
-        let current_exe = std::env::current_exe()?;
-
-        // Create log file in ~/.atci/watcher.log
-        let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-        let log_path = home_dir.join(".atci").join("watcher.log");
-
-        // Ensure .atci directory exists
-        if let Some(parent) = log_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        let log_file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path)?;
-
-        // Clone file descriptors for stdout and stderr
-        let stdout_file = log_file.try_clone()?;
-        let stderr_file = log_file;
-
-        // Spawn a new atci watch process with output redirected to log
-        tokio::spawn(async move {
-            let mut cmd = tokio::process::Command::new(&current_exe);
-            cmd.arg("watch");
-            cmd.stdout(stdout_file);
-            cmd.stderr(stderr_file);
-
-            match cmd.spawn() {
-                Ok(mut child) => {
-                    // Let it run in the background - don't wait for it
-                    tokio::spawn(async move {
-                        if let Err(e) = child.wait().await {
-                            // Can't log here since we're in the background
-                            let _ = e;
-                        }
-                    });
-                }
-                Err(e) => {
-                    eprintln!("Error spawning watcher process: {}", e);
-                }
-            }
-        });
-
-        // Return true to indicate we started the watcher
-        Ok(true)
-    } else {
-        // Return false to indicate watcher was already running
-        Ok(false)
-    }
 }
 
 fn render_filter_section(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {

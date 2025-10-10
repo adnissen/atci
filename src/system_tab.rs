@@ -4,6 +4,7 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use std::{error::Error, fs, time::Duration};
+use tui_big_text::BigText;
 
 use crate::tui::{App, ServiceStatus, SystemSection, SystemService, create_tab_title_with_editor};
 
@@ -110,10 +111,16 @@ pub fn get_atci_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> 
     Ok(atci_dir)
 }
 
-pub fn find_existing_pid_files(service_type: &str) -> Result<Vec<u32>, Box<dyn std::error::Error>> {
+pub struct ServicePids {
+    pub watcher: Vec<u32>,
+    pub web: Vec<u32>,
+}
+
+pub fn find_all_pid_files() -> Result<ServicePids, Box<dyn std::error::Error>> {
     let atci_dir = get_atci_dir()?;
     let config_sha = config::get_config_path_sha();
-    let mut pids = Vec::new();
+    let mut watcher_pids = Vec::new();
+    let mut web_pids = Vec::new();
 
     if atci_dir.exists() {
         for entry in fs::read_dir(atci_dir)? {
@@ -121,17 +128,30 @@ pub fn find_existing_pid_files(service_type: &str) -> Result<Vec<u32>, Box<dyn s
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            let expected_prefix = format!("atci.{}.{}.", service_type, config_sha);
-            if file_name_str.starts_with(&expected_prefix) && file_name_str.ends_with(".pid") {
-                let pid_str = &file_name_str[expected_prefix.len()..file_name_str.len() - 4]; // Remove prefix and ".pid" suffix
+            // Check for watcher PID files
+            let watcher_prefix = format!("atci.watcher.{}.", config_sha);
+            if file_name_str.starts_with(&watcher_prefix) && file_name_str.ends_with(".pid") {
+                let pid_str = &file_name_str[watcher_prefix.len()..file_name_str.len() - 4];
                 if let Ok(pid) = pid_str.parse::<u32>() {
-                    pids.push(pid);
+                    watcher_pids.push(pid);
+                }
+            }
+
+            // Check for web PID files
+            let web_prefix = format!("atci.web.{}.", config_sha);
+            if file_name_str.starts_with(&web_prefix) && file_name_str.ends_with(".pid") {
+                let pid_str = &file_name_str[web_prefix.len()..file_name_str.len() - 4];
+                if let Ok(pid) = pid_str.parse::<u32>() {
+                    web_pids.push(pid);
                 }
             }
         }
     }
 
-    Ok(pids)
+    Ok(ServicePids {
+        watcher: watcher_pids,
+        web: web_pids,
+    })
 }
 
 pub fn is_process_running(pid: u32) -> bool {
@@ -167,19 +187,21 @@ pub fn is_process_running(pid: u32) -> bool {
 pub fn get_system_services() -> Vec<SystemService> {
     let mut services = Vec::new();
 
-    // Check watcher service
-    match find_existing_pid_files("watcher") {
-        Ok(pids) => {
-            let running_pids: Vec<u32> = pids
+    // Get all PID files in a single scan
+    match find_all_pid_files() {
+        Ok(service_pids) => {
+            // Check watcher service
+            let running_watcher_pids: Vec<u32> = service_pids
+                .watcher
                 .into_iter()
                 .filter(|&pid| is_process_running(pid))
                 .collect();
 
-            if !running_pids.is_empty() {
+            if !running_watcher_pids.is_empty() {
                 services.push(SystemService {
                     name: "File Watcher".to_string(),
                     status: ServiceStatus::Active,
-                    pids: running_pids,
+                    pids: running_watcher_pids,
                 });
             } else {
                 services.push(SystemService {
@@ -188,39 +210,35 @@ pub fn get_system_services() -> Vec<SystemService> {
                     pids: Vec::new(),
                 });
             }
+
+            // Check web service
+            let running_web_pids: Vec<u32> = service_pids
+                .web
+                .into_iter()
+                .filter(|&pid| is_process_running(pid))
+                .collect();
+
+            if !running_web_pids.is_empty() {
+                services.push(SystemService {
+                    name: "Web Server".to_string(),
+                    status: ServiceStatus::Active,
+                    pids: running_web_pids,
+                });
+            } else {
+                services.push(SystemService {
+                    name: "Web Server".to_string(),
+                    status: ServiceStatus::Stopped,
+                    pids: Vec::new(),
+                });
+            }
         }
         Err(_) => {
+            // If we can't read PID files, show both services as stopped
             services.push(SystemService {
                 name: "File Watcher".to_string(),
                 status: ServiceStatus::Stopped,
                 pids: Vec::new(),
             });
-        }
-    }
-
-    // Check web service
-    match find_existing_pid_files("web") {
-        Ok(pids) => {
-            let running_pids: Vec<u32> = pids
-                .into_iter()
-                .filter(|&pid| is_process_running(pid))
-                .collect();
-
-            if !running_pids.is_empty() {
-                services.push(SystemService {
-                    name: "Web Server".to_string(),
-                    status: ServiceStatus::Active,
-                    pids: running_pids,
-                });
-            } else {
-                services.push(SystemService {
-                    name: "Web Server".to_string(),
-                    status: ServiceStatus::Stopped,
-                    pids: Vec::new(),
-                });
-            }
-        }
-        Err(_) => {
             services.push(SystemService {
                 name: "Web Server".to_string(),
                 status: ServiceStatus::Stopped,
@@ -399,6 +417,18 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
 
     f.render_widget(main_block, area);
 
+    // Split the services row horizontally: services on left, bigtext on right
+    let services_row = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage(50), // Services box (left half)
+                Constraint::Percentage(50), // BigText (right half)
+            ]
+            .as_ref(),
+        )
+        .split(main_chunks[0]);
+
     // Services section inside the main block
     let services_content = render_services_list(app);
     let services_title = if app.system_section == SystemSection::Services {
@@ -421,7 +451,28 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
         .style(Style::new().fg(app.colors.row_fg))
         .alignment(Alignment::Left);
 
-    f.render_widget(services_paragraph, main_chunks[0]);
+    f.render_widget(services_paragraph, services_row[0]);
+
+    // BigText "atci" on the right side
+    let big_text = BigText::builder()
+        .lines(vec!["atci".into()])
+        .style(Style::new().fg(app.colors.row_fg))
+        .centered()
+        .build();
+
+    f.render_widget(big_text, services_row[1]);
+
+    // Split the config row horizontally: config on left, empty on right
+    let config_row = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage(50), // Config box (left half)
+                Constraint::Percentage(50), // Empty space (right half)
+            ]
+            .as_ref(),
+        )
+        .split(main_chunks[1]);
 
     // Config editing section
     let config_content = render_config_section(app);
@@ -443,9 +494,10 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
                 .border_style(Style::new().fg(config_border_color)),
         )
         .style(Style::new().fg(app.colors.row_fg))
-        .alignment(Alignment::Left);
+        .alignment(Alignment::Left)
+        .wrap(ratatui::widgets::Wrap { trim: true });
 
-    f.render_widget(config_paragraph, main_chunks[1]);
+    f.render_widget(config_paragraph, config_row[0]);
 }
 
 fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
@@ -569,14 +621,8 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
             Style::default().fg(Color::Gray)
         };
 
-        // Truncate long values for display
-        let display_value = if field_value.len() > 60 {
-            format!("{}...", &field_value[..57])
-        } else {
-            field_value
-        };
-
-        spans.push(Span::styled(display_value, value_style));
+        // Show full value without truncation (wrapping is handled by the Paragraph widget)
+        spans.push(Span::styled(field_value, value_style));
 
         // Show editing indicator
         if app.config_editing_mode && is_selected {
