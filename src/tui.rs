@@ -1424,12 +1424,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
         //     }
         // }
 
-        // Refresh system services every second
+        // Refresh system services and queue every 200ms
         if app.current_tab == TabState::System {
             if app.should_refresh_system_services() {
                 app.refresh_system_services();
             }
-            if event::poll(Duration::from_secs(1))?
+            app.refresh_queue();
+            if event::poll(Duration::from_millis(200))?
                 && let Event::Key(key) = event::read()?
                 && let Some(should_quit) = handle_key_event(app, key)?
                 && should_quit

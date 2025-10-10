@@ -61,7 +61,7 @@ impl App {
     }
 
     pub fn should_refresh_system_services(&self) -> bool {
-        self.last_system_refresh.elapsed() >= Duration::from_secs(1)
+        self.last_system_refresh.elapsed() >= Duration::from_millis(200)
     }
 
     pub fn kill_selected_service(&mut self) -> Result<(), Box<dyn Error>> {
@@ -462,19 +462,19 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
 
     f.render_widget(big_text, services_row[1]);
 
-    // Split the config row horizontally: config on left, empty on right
+    // Split the config row horizontally: config on left, queue on right
     let config_row = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(
             [
                 Constraint::Percentage(50), // Config box (left half)
-                Constraint::Percentage(50), // Empty space (right half)
+                Constraint::Percentage(50), // Queue box (right half)
             ]
             .as_ref(),
         )
         .split(main_chunks[1]);
 
-    // Config editing section
+    // Config editing section on the left
     let config_content = render_config_section(app);
     let config_title = if app.system_section == SystemSection::Config {
         "Configuration (↑↓/jk: Navigate, Enter: Edit, Auto-save, Shift+R: Reload) [ACTIVE]"
@@ -498,6 +498,10 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
         .wrap(ratatui::widgets::Wrap { trim: true });
 
     f.render_widget(config_paragraph, config_row[0]);
+
+    // Queue section on the right
+    let queue_table = render_queue_section(app, config_row[1]);
+    f.render_widget(queue_table, config_row[1]);
 }
 
 fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
@@ -643,4 +647,84 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
     }
 
     Text::from(lines)
+}
+
+fn render_queue_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui::widgets::Table<'a> {
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::widgets::{Block, Borders, Cell, Row, Table};
+
+    let mut rows = Vec::new();
+
+    // Add currently processing item if exists
+    if let Some(ref path) = app.currently_processing {
+        let age_text = format_age(app.currently_processing_age);
+        let status_cell = Cell::from(format!("PROCESSING ({})", age_text)).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
+        let path_cell = Cell::from(path.clone());
+        rows.push(Row::new(vec![status_cell, path_cell]).style(Style::default().fg(app.colors.row_fg)));
+    }
+
+    // Add queue items
+    for (i, path) in app.queue_items.iter().enumerate() {
+        let position = i + 1;
+        let status_cell =
+            Cell::from(format!("#{}", position)).style(Style::default().fg(app.colors.row_fg));
+        let path_cell = Cell::from(path.clone());
+        rows.push(Row::new(vec![status_cell, path_cell]).style(Style::default().fg(app.colors.row_fg)));
+    }
+
+    // If no items at all, show a message
+    if rows.is_empty() {
+        let empty_row = Row::new(vec![Cell::from(""), Cell::from("No items in queue")])
+            .style(Style::default().fg(app.colors.row_fg));
+        rows.push(empty_row);
+    }
+
+    let widths = [Constraint::Length(20), Constraint::Min(30)];
+
+    let block = Block::default()
+        .title("Queue")
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(app.colors.footer_border_color));
+
+    Table::new(rows, widths)
+        .block(block)
+        .header(
+            Row::new(vec![
+                Cell::from("Status").style(
+                    Style::default()
+                        .fg(app.colors.header_fg)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Cell::from("Path").style(
+                    Style::default()
+                        .fg(app.colors.header_fg)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])
+            .style(
+                Style::default()
+                    .bg(app.colors.header_bg)
+                    .fg(app.colors.header_fg),
+            )
+            .height(1),
+        )
+        .column_spacing(1)
+}
+
+fn format_age(seconds: u64) -> String {
+    if seconds < 60 {
+        format!("{}s", seconds)
+    } else if seconds < 3600 {
+        let minutes = seconds / 60;
+        let secs = seconds % 60;
+        format!("{}m {}s", minutes, secs)
+    } else {
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+        format!("{}h {}m", hours, minutes)
+    }
 }
