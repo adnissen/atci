@@ -26,6 +26,7 @@ pub struct VideoInfo {
     pub last_generated: Option<String>,
     pub length: Option<String>,
     pub source: Option<String>,
+    pub watch_directory: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -51,7 +52,7 @@ pub fn get_video_extensions() -> Vec<&'static str> {
 pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
     let conn = db::get_connection()?;
 
-    let mut stmt = conn.prepare("SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source FROM video_info ORDER BY created_at DESC")?;
+    let mut stmt = conn.prepare("SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source, watch_directory FROM video_info ORDER BY created_at DESC")?;
     let video_iter = stmt.query_map([], |row| {
         Ok(VideoInfo {
             name: row.get(0)?,
@@ -63,6 +64,7 @@ pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
             last_generated: row.get(6)?,
             length: row.get(7)?,
             source: row.get(8)?,
+            watch_directory: row.get(9)?,
         })
     })?;
 
@@ -140,7 +142,7 @@ pub fn load_sorted_paginated_cache_data(
 
     // Build the SQL query with filtering, sorting and pagination
     let query = format!(
-        "SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source
+        "SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source, watch_directory
          FROM video_info
          {}
          ORDER BY {} {}
@@ -162,6 +164,7 @@ pub fn load_sorted_paginated_cache_data(
             last_generated: row.get(6)?,
             length: row.get(7)?,
             source: row.get(8)?,
+            watch_directory: row.get(9)?,
         })
     };
 
@@ -381,6 +384,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
                 last_generated,
                 length,
                 source,
+                watch_directory: Some(watch_directory.clone()),
             })
         })
         .collect();
@@ -394,7 +398,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
 
     // Insert new data
     {
-        let mut stmt = tx.prepare("INSERT INTO video_info (name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)")?;
+        let mut stmt = tx.prepare("INSERT INTO video_info (name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source, watch_directory) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)")?;
 
         for video in &video_infos {
             stmt.execute((
@@ -407,6 +411,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
                 &video.last_generated,
                 &video.length,
                 &video.source,
+                &video.watch_directory,
             ))?;
         }
     }

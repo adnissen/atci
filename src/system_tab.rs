@@ -453,6 +453,18 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
 
     f.render_widget(services_paragraph, services_row[0]);
 
+    // Split the right side vertically: BigText on top, text below
+    let right_side_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Min(5),    // BigText area
+                Constraint::Length(1), // Text below
+            ]
+            .as_ref(),
+        )
+        .split(services_row[1]);
+
     // BigText "atci" on the right side
     let big_text = BigText::builder()
         .lines(vec!["atci".into()])
@@ -460,19 +472,38 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
         .centered()
         .build();
 
-    f.render_widget(big_text, services_row[1]);
+    f.render_widget(big_text, right_side_chunks[0]);
 
-    // Split the config row horizontally: config on left, queue on right
+    // Text below BigText
+    let below_text = Paragraph::new("(Andrew's transcript and clipping interface)")
+        .style(Style::new().fg(app.colors.row_fg))
+        .alignment(Alignment::Center);
+
+    f.render_widget(below_text, right_side_chunks[1]);
+
+    // Split the config row horizontally: config on left, queue+stats on right
     let config_row = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(
             [
                 Constraint::Percentage(50), // Config box (left half)
-                Constraint::Percentage(50), // Queue box (right half)
+                Constraint::Percentage(50), // Queue+Stats (right half)
             ]
             .as_ref(),
         )
         .split(main_chunks[1]);
+
+    // Split the right side vertically: queue on top, stats on bottom
+    let right_column = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage(50), // Queue box (top half)
+                Constraint::Percentage(50), // Stats box (bottom half)
+            ]
+            .as_ref(),
+        )
+        .split(config_row[1]);
 
     // Config editing section on the left
     let config_content = render_config_section(app);
@@ -499,9 +530,13 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
 
     f.render_widget(config_paragraph, config_row[0]);
 
-    // Queue section on the right
-    let queue_table = render_queue_section(app, config_row[1]);
-    f.render_widget(queue_table, config_row[1]);
+    // Queue section on the top right
+    let queue_table = render_queue_section(app, right_column[0]);
+    f.render_widget(queue_table, right_column[0]);
+
+    // Stats section on the bottom right
+    let stats_table = render_stats_section(app, right_column[1]);
+    f.render_widget(stats_table, right_column[1]);
 }
 
 fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
@@ -713,6 +748,114 @@ fn render_queue_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui:
             .height(1),
         )
         .column_spacing(1)
+}
+
+fn render_stats_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui::widgets::Table<'a> {
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::widgets::{Block, Borders, Cell, Row, Table};
+
+    let mut rows = Vec::new();
+
+    // Use total_records which is the accurate count of all transcripts (without filters)
+    let total_transcripts = app.total_records as usize;
+
+    // Add total transcripts row with a divider style
+    let total_row = Row::new(vec![
+        Cell::from("Total Transcripts").style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from(total_transcripts.to_string()).style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]);
+    rows.push(total_row);
+
+    // Add a separator row
+    let separator_row = Row::new(vec![
+        Cell::from("─".repeat(30)),
+        Cell::from("─".repeat(10)),
+    ])
+    .style(Style::default().fg(app.colors.footer_border_color));
+    rows.push(separator_row);
+
+    // Query database for video counts per watch directory
+    match get_directory_stats() {
+        Ok(dir_counts) => {
+            if dir_counts.is_empty() {
+                let empty_row = Row::new(vec![
+                    Cell::from("No watch directories configured"),
+                    Cell::from(""),
+                ])
+                .style(Style::default().fg(Color::Gray));
+                rows.push(empty_row);
+            } else {
+                for (dir, count) in dir_counts {
+                    // Truncate directory path if too long, show last part
+                    let display_dir = if dir.len() > 35 {
+                        format!("...{}", &dir[dir.len() - 32..])
+                    } else {
+                        dir
+                    };
+
+                    let dir_row = Row::new(vec![
+                        Cell::from(display_dir).style(Style::default().fg(app.colors.row_fg)),
+                        Cell::from(count.to_string()).style(Style::default().fg(Color::Green)),
+                    ]);
+                    rows.push(dir_row);
+                }
+            }
+        }
+        Err(e) => {
+            let error_row = Row::new(vec![
+                Cell::from(format!("Error: {}", e)),
+                Cell::from(""),
+            ])
+            .style(Style::default().fg(Color::Red));
+            rows.push(error_row);
+        }
+    }
+
+    let widths = [Constraint::Min(25), Constraint::Length(10)];
+
+    let block = Block::default()
+        .title("Stats")
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(app.colors.footer_border_color));
+
+    Table::new(rows, widths)
+        .block(block)
+        .column_spacing(1)
+}
+
+fn get_directory_stats() -> Result<Vec<(String, usize)>, Box<dyn std::error::Error>> {
+    use crate::db;
+
+    let conn = db::get_connection()?;
+    let mut stmt = conn.prepare(
+        "SELECT watch_directory, COUNT(*) as count
+         FROM video_info
+         WHERE watch_directory IS NOT NULL
+         GROUP BY watch_directory
+         ORDER BY watch_directory"
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)? as usize,
+        ))
+    })?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row?);
+    }
+
+    Ok(results)
 }
 
 fn format_age(seconds: u64) -> String {

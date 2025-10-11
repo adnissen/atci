@@ -244,6 +244,7 @@ pub async fn search(
                     last_generated,
                     length,
                     source: model,
+                    watch_directory: None,
                 };
 
                 let matches: Vec<SearchMatch> = lines
