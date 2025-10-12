@@ -4,6 +4,7 @@ use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders, Paragraph};
 use std::{error::Error, fs, time::Duration};
+use tui_big_text::BigText;
 
 use crate::tui::{App, ServiceStatus, SystemSection, SystemService, create_tab_title_with_editor};
 
@@ -60,7 +61,7 @@ impl App {
     }
 
     pub fn should_refresh_system_services(&self) -> bool {
-        self.last_system_refresh.elapsed() >= Duration::from_secs(1)
+        self.last_system_refresh.elapsed() >= Duration::from_millis(200)
     }
 
     pub fn kill_selected_service(&mut self) -> Result<(), Box<dyn Error>> {
@@ -110,10 +111,16 @@ pub fn get_atci_dir() -> Result<std::path::PathBuf, Box<dyn std::error::Error>> 
     Ok(atci_dir)
 }
 
-pub fn find_existing_pid_files(service_type: &str) -> Result<Vec<u32>, Box<dyn std::error::Error>> {
+pub struct ServicePids {
+    pub watcher: Vec<u32>,
+    pub web: Vec<u32>,
+}
+
+pub fn find_all_pid_files() -> Result<ServicePids, Box<dyn std::error::Error>> {
     let atci_dir = get_atci_dir()?;
     let config_sha = config::get_config_path_sha();
-    let mut pids = Vec::new();
+    let mut watcher_pids = Vec::new();
+    let mut web_pids = Vec::new();
 
     if atci_dir.exists() {
         for entry in fs::read_dir(atci_dir)? {
@@ -121,17 +128,30 @@ pub fn find_existing_pid_files(service_type: &str) -> Result<Vec<u32>, Box<dyn s
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            let expected_prefix = format!("atci.{}.{}.", service_type, config_sha);
-            if file_name_str.starts_with(&expected_prefix) && file_name_str.ends_with(".pid") {
-                let pid_str = &file_name_str[expected_prefix.len()..file_name_str.len() - 4]; // Remove prefix and ".pid" suffix
+            // Check for watcher PID files
+            let watcher_prefix = format!("atci.watcher.{}.", config_sha);
+            if file_name_str.starts_with(&watcher_prefix) && file_name_str.ends_with(".pid") {
+                let pid_str = &file_name_str[watcher_prefix.len()..file_name_str.len() - 4];
                 if let Ok(pid) = pid_str.parse::<u32>() {
-                    pids.push(pid);
+                    watcher_pids.push(pid);
+                }
+            }
+
+            // Check for web PID files
+            let web_prefix = format!("atci.web.{}.", config_sha);
+            if file_name_str.starts_with(&web_prefix) && file_name_str.ends_with(".pid") {
+                let pid_str = &file_name_str[web_prefix.len()..file_name_str.len() - 4];
+                if let Ok(pid) = pid_str.parse::<u32>() {
+                    web_pids.push(pid);
                 }
             }
         }
     }
 
-    Ok(pids)
+    Ok(ServicePids {
+        watcher: watcher_pids,
+        web: web_pids,
+    })
 }
 
 pub fn is_process_running(pid: u32) -> bool {
@@ -167,19 +187,21 @@ pub fn is_process_running(pid: u32) -> bool {
 pub fn get_system_services() -> Vec<SystemService> {
     let mut services = Vec::new();
 
-    // Check watcher service
-    match find_existing_pid_files("watcher") {
-        Ok(pids) => {
-            let running_pids: Vec<u32> = pids
+    // Get all PID files in a single scan
+    match find_all_pid_files() {
+        Ok(service_pids) => {
+            // Check watcher service
+            let running_watcher_pids: Vec<u32> = service_pids
+                .watcher
                 .into_iter()
                 .filter(|&pid| is_process_running(pid))
                 .collect();
 
-            if !running_pids.is_empty() {
+            if !running_watcher_pids.is_empty() {
                 services.push(SystemService {
                     name: "File Watcher".to_string(),
                     status: ServiceStatus::Active,
-                    pids: running_pids,
+                    pids: running_watcher_pids,
                 });
             } else {
                 services.push(SystemService {
@@ -188,39 +210,35 @@ pub fn get_system_services() -> Vec<SystemService> {
                     pids: Vec::new(),
                 });
             }
+
+            // Check web service
+            let running_web_pids: Vec<u32> = service_pids
+                .web
+                .into_iter()
+                .filter(|&pid| is_process_running(pid))
+                .collect();
+
+            if !running_web_pids.is_empty() {
+                services.push(SystemService {
+                    name: "Web Server".to_string(),
+                    status: ServiceStatus::Active,
+                    pids: running_web_pids,
+                });
+            } else {
+                services.push(SystemService {
+                    name: "Web Server".to_string(),
+                    status: ServiceStatus::Stopped,
+                    pids: Vec::new(),
+                });
+            }
         }
         Err(_) => {
+            // If we can't read PID files, show both services as stopped
             services.push(SystemService {
                 name: "File Watcher".to_string(),
                 status: ServiceStatus::Stopped,
                 pids: Vec::new(),
             });
-        }
-    }
-
-    // Check web service
-    match find_existing_pid_files("web") {
-        Ok(pids) => {
-            let running_pids: Vec<u32> = pids
-                .into_iter()
-                .filter(|&pid| is_process_running(pid))
-                .collect();
-
-            if !running_pids.is_empty() {
-                services.push(SystemService {
-                    name: "Web Server".to_string(),
-                    status: ServiceStatus::Active,
-                    pids: running_pids,
-                });
-            } else {
-                services.push(SystemService {
-                    name: "Web Server".to_string(),
-                    status: ServiceStatus::Stopped,
-                    pids: Vec::new(),
-                });
-            }
-        }
-        Err(_) => {
             services.push(SystemService {
                 name: "Web Server".to_string(),
                 status: ServiceStatus::Stopped,
@@ -399,6 +417,18 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
 
     f.render_widget(main_block, area);
 
+    // Split the services row horizontally: services on left, bigtext on right
+    let services_row = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage(50), // Services box (left half)
+                Constraint::Percentage(50), // BigText (right half)
+            ]
+            .as_ref(),
+        )
+        .split(main_chunks[0]);
+
     // Services section inside the main block
     let services_content = render_services_list(app);
     let services_title = if app.system_section == SystemSection::Services {
@@ -421,9 +451,61 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
         .style(Style::new().fg(app.colors.row_fg))
         .alignment(Alignment::Left);
 
-    f.render_widget(services_paragraph, main_chunks[0]);
+    f.render_widget(services_paragraph, services_row[0]);
 
-    // Config editing section
+    // Split the right side vertically: BigText on top, text below
+    let right_side_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Min(5),    // BigText area
+                Constraint::Length(1), // Text below
+            ]
+            .as_ref(),
+        )
+        .split(services_row[1]);
+
+    // BigText "atci" on the right side
+    let big_text = BigText::builder()
+        .lines(vec!["atci".into()])
+        .style(Style::new().fg(app.colors.row_fg))
+        .centered()
+        .build();
+
+    f.render_widget(big_text, right_side_chunks[0]);
+
+    // Text below BigText
+    let below_text = Paragraph::new("(Andrew's transcript and clipping interface)")
+        .style(Style::new().fg(app.colors.row_fg))
+        .alignment(Alignment::Center);
+
+    f.render_widget(below_text, right_side_chunks[1]);
+
+    // Split the config row horizontally: config on left, queue+stats on right
+    let config_row = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage(50), // Config box (left half)
+                Constraint::Percentage(50), // Queue+Stats (right half)
+            ]
+            .as_ref(),
+        )
+        .split(main_chunks[1]);
+
+    // Split the right side vertically: queue on top, stats on bottom
+    let right_column = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage(50), // Queue box (top half)
+                Constraint::Percentage(50), // Stats box (bottom half)
+            ]
+            .as_ref(),
+        )
+        .split(config_row[1]);
+
+    // Config editing section on the left
     let config_content = render_config_section(app);
     let config_title = if app.system_section == SystemSection::Config {
         "Configuration (↑↓/jk: Navigate, Enter: Edit, Auto-save, Shift+R: Reload) [ACTIVE]"
@@ -443,9 +525,18 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
                 .border_style(Style::new().fg(config_border_color)),
         )
         .style(Style::new().fg(app.colors.row_fg))
-        .alignment(Alignment::Left);
+        .alignment(Alignment::Left)
+        .wrap(ratatui::widgets::Wrap { trim: true });
 
-    f.render_widget(config_paragraph, main_chunks[1]);
+    f.render_widget(config_paragraph, config_row[0]);
+
+    // Queue section on the top right
+    let queue_table = render_queue_section(app, right_column[0]);
+    f.render_widget(queue_table, right_column[0]);
+
+    // Stats section on the bottom right
+    let stats_table = render_stats_section(app, right_column[1]);
+    f.render_widget(stats_table, right_column[1]);
 }
 
 fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
@@ -569,14 +660,8 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
             Style::default().fg(Color::Gray)
         };
 
-        // Truncate long values for display
-        let display_value = if field_value.len() > 60 {
-            format!("{}...", &field_value[..57])
-        } else {
-            field_value
-        };
-
-        spans.push(Span::styled(display_value, value_style));
+        // Show full value without truncation (wrapping is handled by the Paragraph widget)
+        spans.push(Span::styled(field_value, value_style));
 
         // Show editing indicator
         if app.config_editing_mode && is_selected {
@@ -597,4 +682,192 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
     }
 
     Text::from(lines)
+}
+
+fn render_queue_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui::widgets::Table<'a> {
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::widgets::{Block, Borders, Cell, Row, Table};
+
+    let mut rows = Vec::new();
+
+    // Add currently processing item if exists
+    if let Some(ref path) = app.currently_processing {
+        let age_text = format_age(app.currently_processing_age);
+        let status_cell = Cell::from(format!("PROCESSING ({})", age_text)).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
+        let path_cell = Cell::from(path.clone());
+        rows.push(Row::new(vec![status_cell, path_cell]).style(Style::default().fg(app.colors.row_fg)));
+    }
+
+    // Add queue items
+    for (i, path) in app.queue_items.iter().enumerate() {
+        let position = i + 1;
+        let status_cell =
+            Cell::from(format!("#{}", position)).style(Style::default().fg(app.colors.row_fg));
+        let path_cell = Cell::from(path.clone());
+        rows.push(Row::new(vec![status_cell, path_cell]).style(Style::default().fg(app.colors.row_fg)));
+    }
+
+    // If no items at all, show a message
+    if rows.is_empty() {
+        let empty_row = Row::new(vec![Cell::from(""), Cell::from("No items in queue")])
+            .style(Style::default().fg(app.colors.row_fg));
+        rows.push(empty_row);
+    }
+
+    let widths = [Constraint::Length(20), Constraint::Min(30)];
+
+    let block = Block::default()
+        .title("Queue")
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(app.colors.footer_border_color));
+
+    Table::new(rows, widths)
+        .block(block)
+        .header(
+            Row::new(vec![
+                Cell::from("Status").style(
+                    Style::default()
+                        .fg(app.colors.header_fg)
+                        .add_modifier(Modifier::BOLD),
+                ),
+                Cell::from("Path").style(
+                    Style::default()
+                        .fg(app.colors.header_fg)
+                        .add_modifier(Modifier::BOLD),
+                ),
+            ])
+            .style(
+                Style::default()
+                    .bg(app.colors.header_bg)
+                    .fg(app.colors.header_fg),
+            )
+            .height(1),
+        )
+        .column_spacing(1)
+}
+
+fn render_stats_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui::widgets::Table<'a> {
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::widgets::{Block, Borders, Cell, Row, Table};
+
+    let mut rows = Vec::new();
+
+    // Use total_records which is the accurate count of all transcripts (without filters)
+    let total_transcripts = app.total_records as usize;
+
+    // Add total transcripts row with a divider style
+    let total_row = Row::new(vec![
+        Cell::from("Total Transcripts").style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Cell::from(total_transcripts.to_string()).style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ]);
+    rows.push(total_row);
+
+    // Add a separator row
+    let separator_row = Row::new(vec![
+        Cell::from("─".repeat(30)),
+        Cell::from("─".repeat(10)),
+    ])
+    .style(Style::default().fg(app.colors.footer_border_color));
+    rows.push(separator_row);
+
+    // Query database for video counts per watch directory
+    match get_directory_stats() {
+        Ok(dir_counts) => {
+            if dir_counts.is_empty() {
+                let empty_row = Row::new(vec![
+                    Cell::from("No watch directories configured"),
+                    Cell::from(""),
+                ])
+                .style(Style::default().fg(Color::Gray));
+                rows.push(empty_row);
+            } else {
+                for (dir, count) in dir_counts {
+                    // Truncate directory path if too long, show last part
+                    let display_dir = if dir.len() > 35 {
+                        format!("...{}", &dir[dir.len() - 32..])
+                    } else {
+                        dir
+                    };
+
+                    let dir_row = Row::new(vec![
+                        Cell::from(display_dir).style(Style::default().fg(app.colors.row_fg)),
+                        Cell::from(count.to_string()).style(Style::default().fg(Color::Green)),
+                    ]);
+                    rows.push(dir_row);
+                }
+            }
+        }
+        Err(e) => {
+            let error_row = Row::new(vec![
+                Cell::from(format!("Error: {}", e)),
+                Cell::from(""),
+            ])
+            .style(Style::default().fg(Color::Red));
+            rows.push(error_row);
+        }
+    }
+
+    let widths = [Constraint::Min(25), Constraint::Length(10)];
+
+    let block = Block::default()
+        .title("Stats")
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(app.colors.footer_border_color));
+
+    Table::new(rows, widths)
+        .block(block)
+        .column_spacing(1)
+}
+
+fn get_directory_stats() -> Result<Vec<(String, usize)>, Box<dyn std::error::Error>> {
+    use crate::db;
+
+    let conn = db::get_connection()?;
+    let mut stmt = conn.prepare(
+        "SELECT watch_directory, COUNT(*) as count
+         FROM video_info
+         WHERE watch_directory IS NOT NULL
+         GROUP BY watch_directory
+         ORDER BY watch_directory"
+    )?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, i64>(1)? as usize,
+        ))
+    })?;
+
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row?);
+    }
+
+    Ok(results)
+}
+
+fn format_age(seconds: u64) -> String {
+    if seconds < 60 {
+        format!("{}s", seconds)
+    } else if seconds < 3600 {
+        let minutes = seconds / 60;
+        let secs = seconds % 60;
+        format!("{}m {}s", minutes, secs)
+    } else {
+        let hours = seconds / 3600;
+        let minutes = (seconds % 3600) / 60;
+        format!("{}h {}m", hours, minutes)
+    }
 }
