@@ -4,7 +4,7 @@ use crate::queue_tab::render_queue_tab;
 use crate::search_tab::render_search_results_tab;
 use crate::system_tab::render_system_tab;
 use crate::transcripts_tab::render_transcripts_tab;
-use crate::{config, files, search, short_url};
+use crate::{config, db, files, search, short_url};
 use crossterm::{
     event::{
         self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, KeyModifiers,
@@ -1414,7 +1414,8 @@ fn handle_key_event(
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), Box<dyn Error>> {
-    terminal.draw(|f| ui(f, app))?;
+    let conn = db::get_connection().expect("couldn't get db connection");
+    terminal.draw(|f| ui(f, app, &conn))?;
     update_cursor_visibility(terminal, app)?;
     loop {
         // Check if we should refresh data (for transcripts tab)
@@ -1437,7 +1438,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
             {
                 return Ok(());
             }
-            terminal.draw(|f| ui(f, app))?;
+            terminal.draw(|f| ui(f, app, &conn))?;
             update_cursor_visibility(terminal, app)?;
         } else if app.current_tab == TabState::Queue {
             // Refresh queue every second
@@ -1449,7 +1450,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
             {
                 return Ok(());
             }
-            terminal.draw(|f| ui(f, app))?;
+            terminal.draw(|f| ui(f, app, &conn))?;
             update_cursor_visibility(terminal, app)?;
         } else if app.current_tab == TabState::SearchResults {
             // Check if we need to start a search
@@ -1471,7 +1472,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
             }
 
             // Always redraw to update throbber animation
-            terminal.draw(|f| ui(f, app))?;
+            terminal.draw(|f| ui(f, app, &conn))?;
             update_cursor_visibility(terminal, app)?;
         } else if let Event::Key(key) = event::read()? {
             if let Some(should_quit) = handle_key_event(app, key)?
@@ -1479,7 +1480,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
             {
                 return Ok(());
             }
-            terminal.draw(|f| ui(f, app))?;
+            terminal.draw(|f| ui(f, app, &conn))?;
             update_cursor_visibility(terminal, app)?;
         }
     }
@@ -1491,7 +1492,6 @@ fn update_cursor_visibility<B: Backend>(
 ) -> Result<(), Box<dyn Error>> {
     if app.filter_input_mode
         || app.search_input_mode
-        || app.config_editing_mode
         || (app.current_tab == TabState::Editor
             && app
                 .editor_data
@@ -1505,7 +1505,7 @@ fn update_cursor_visibility<B: Backend>(
     Ok(())
 }
 
-fn ui(f: &mut Frame, app: &mut App) {
+fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
     let chunks =
         if app.current_tab == TabState::Transcripts || app.current_tab == TabState::SearchResults {
             Layout::default()
@@ -1582,7 +1582,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         TabState::Transcripts => {
             render_transcripts_tab(f, chunks[0], app, header_style, selected_row_style)
         }
-        TabState::System => render_system_tab(f, chunks[0], app),
+        TabState::System => render_system_tab(f, chunks[0], app, conn),
         TabState::Queue => render_queue_tab(f, chunks[0], app),
         TabState::SearchResults => render_search_results_tab(f, chunks[0], app),
         TabState::Editor => render_editor_tab(f, chunks[0], app),
