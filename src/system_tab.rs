@@ -387,7 +387,12 @@ fn start_web_process() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
+pub fn render_system_tab(
+    f: &mut Frame,
+    area: ratatui::layout::Rect,
+    app: &App,
+    conn: &rusqlite::Connection,
+) {
     let title = create_tab_title_with_editor(
         app.current_tab,
         &app.colors,
@@ -535,7 +540,7 @@ pub fn render_system_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &App) 
     f.render_widget(queue_table, right_column[0]);
 
     // Stats section on the bottom right
-    let stats_table = render_stats_section(app, right_column[1]);
+    let stats_table = render_stats_section(app, right_column[1], conn);
     f.render_widget(stats_table, right_column[1]);
 }
 
@@ -665,10 +670,7 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
 
         // Show editing indicator
         if app.config_editing_mode && is_selected {
-            spans.push(Span::styled(
-                " [EDITING]",
-                Style::default().fg(Color::Green),
-            ));
+            spans.push(Span::styled("█", Style::default().fg(Color::Green)));
         }
 
         lines.push(Line::from(spans));
@@ -684,7 +686,10 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
     Text::from(lines)
 }
 
-fn render_queue_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui::widgets::Table<'a> {
+fn render_queue_section<'a>(
+    app: &App,
+    _area: ratatui::layout::Rect,
+) -> ratatui::widgets::Table<'a> {
     use ratatui::style::{Color, Modifier, Style};
     use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
@@ -699,7 +704,9 @@ fn render_queue_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui:
                 .add_modifier(Modifier::BOLD),
         );
         let path_cell = Cell::from(path.clone());
-        rows.push(Row::new(vec![status_cell, path_cell]).style(Style::default().fg(app.colors.row_fg)));
+        rows.push(
+            Row::new(vec![status_cell, path_cell]).style(Style::default().fg(app.colors.row_fg)),
+        );
     }
 
     // Add queue items
@@ -708,7 +715,9 @@ fn render_queue_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui:
         let status_cell =
             Cell::from(format!("#{}", position)).style(Style::default().fg(app.colors.row_fg));
         let path_cell = Cell::from(path.clone());
-        rows.push(Row::new(vec![status_cell, path_cell]).style(Style::default().fg(app.colors.row_fg)));
+        rows.push(
+            Row::new(vec![status_cell, path_cell]).style(Style::default().fg(app.colors.row_fg)),
+        );
     }
 
     // If no items at all, show a message
@@ -750,14 +759,27 @@ fn render_queue_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui:
         .column_spacing(1)
 }
 
-fn render_stats_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui::widgets::Table<'a> {
+fn render_stats_section<'a>(
+    app: &App,
+    _area: ratatui::layout::Rect,
+    conn: &rusqlite::Connection,
+) -> ratatui::widgets::Table<'a> {
     use ratatui::style::{Color, Modifier, Style};
     use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
     let mut rows = Vec::new();
 
-    // Use total_records which is the accurate count of all transcripts (without filters)
-    let total_transcripts = app.total_records as usize;
+    let mut stmt = conn
+        .prepare(
+            "SELECT COUNT(*) as count
+         FROM video_info",
+        )
+        .expect("couldn't prepare statement to get total transcripts");
+
+    let tt_res = stmt
+        .query_row([], |row| Ok(row.get::<_, i64>(0)?))
+        .expect("couldn't get total transcripts");
+    let total_transcripts = tt_res as usize;
 
     // Add total transcripts row with a divider style
     let total_row = Row::new(vec![
@@ -775,15 +797,12 @@ fn render_stats_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui:
     rows.push(total_row);
 
     // Add a separator row
-    let separator_row = Row::new(vec![
-        Cell::from("─".repeat(30)),
-        Cell::from("─".repeat(10)),
-    ])
-    .style(Style::default().fg(app.colors.footer_border_color));
+    let separator_row = Row::new(vec![Cell::from("─".repeat(30)), Cell::from("─".repeat(10))])
+        .style(Style::default().fg(app.colors.footer_border_color));
     rows.push(separator_row);
 
     // Query database for video counts per watch directory
-    match get_directory_stats() {
+    match get_directory_stats(conn) {
         Ok(dir_counts) => {
             if dir_counts.is_empty() {
                 let empty_row = Row::new(vec![
@@ -810,11 +829,8 @@ fn render_stats_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui:
             }
         }
         Err(e) => {
-            let error_row = Row::new(vec![
-                Cell::from(format!("Error: {}", e)),
-                Cell::from(""),
-            ])
-            .style(Style::default().fg(Color::Red));
+            let error_row = Row::new(vec![Cell::from(format!("Error: {}", e)), Cell::from("")])
+                .style(Style::default().fg(Color::Red));
             rows.push(error_row);
         }
     }
@@ -826,28 +842,22 @@ fn render_stats_section<'a>(app: &App, _area: ratatui::layout::Rect) -> ratatui:
         .borders(Borders::ALL)
         .border_style(Style::new().fg(app.colors.footer_border_color));
 
-    Table::new(rows, widths)
-        .block(block)
-        .column_spacing(1)
+    Table::new(rows, widths).block(block).column_spacing(1)
 }
 
-fn get_directory_stats() -> Result<Vec<(String, usize)>, Box<dyn std::error::Error>> {
-    use crate::db;
-
-    let conn = db::get_connection()?;
+fn get_directory_stats(
+    conn: &rusqlite::Connection,
+) -> Result<Vec<(String, usize)>, Box<dyn std::error::Error>> {
     let mut stmt = conn.prepare(
         "SELECT watch_directory, COUNT(*) as count
          FROM video_info
          WHERE watch_directory IS NOT NULL
          GROUP BY watch_directory
-         ORDER BY watch_directory"
+         ORDER BY watch_directory",
     )?;
 
     let rows = stmt.query_map([], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, i64>(1)? as usize,
-        ))
+        Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize))
     })?;
 
     let mut results = Vec::new();
