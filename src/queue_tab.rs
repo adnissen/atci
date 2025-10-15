@@ -1,4 +1,4 @@
-use crate::tui::{App, create_tab_title_with_editor};
+use crate::tui::App;
 use ratatui::{
     Frame,
     layout::{Constraint, Rect},
@@ -7,16 +7,7 @@ use ratatui::{
 };
 
 pub fn render_queue_tab(f: &mut Frame, area: Rect, app: &App) {
-    let tab_title = create_tab_title_with_editor(
-        app.current_tab,
-        &app.colors,
-        !app.search_results.is_empty(),
-        app.editor_data.is_some(),
-        app.file_view_data.is_some(),
-    );
-
     let block = Block::default()
-        .title(tab_title)
         .borders(Borders::ALL)
         .border_style(Style::default().fg(app.colors.footer_border_color));
 

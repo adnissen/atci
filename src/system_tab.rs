@@ -6,44 +6,46 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use std::{error::Error, fs, time::Duration};
 use tui_big_text::BigText;
 
-use crate::tui::{App, ServiceStatus, SystemSection, SystemService, create_tab_title_with_editor};
+use crate::tui::{App, ServiceStatus, SystemSection, SystemService};
 
 impl App {
     pub fn system_next(&mut self) {
         match self.system_section {
-            SystemSection::Services => {
-                if !self.system_services.is_empty()
-                    && self.system_selected_index < self.system_services.len() - 1
+            SystemSection::Config => {
+                self.config_next_field();
+            }
+            SystemSection::WatchDirectories => {
+                if self.watch_directories_selected_index
+                    < self.config_data.watch_directories.len().saturating_sub(1)
                 {
-                    self.system_selected_index += 1;
+                    self.watch_directories_selected_index += 1;
                 } else {
-                    // Move to config section
+                    // At the bottom of watch directories, switch to config section
                     self.system_section = SystemSection::Config;
                     self.config_selected_field = 0;
                 }
-            }
-            SystemSection::Config => {
-                self.config_next_field();
             }
         }
     }
 
     pub fn system_previous(&mut self) {
         match self.system_section {
-            SystemSection::Services => {
-                if self.system_selected_index > 0 {
-                    self.system_selected_index -= 1;
-                }
-            }
             SystemSection::Config => {
                 if self.config_selected_field > 0 {
                     self.config_previous_field();
                 } else {
-                    // Move back to services section
-                    self.system_section = SystemSection::Services;
-                    if !self.system_services.is_empty() {
-                        self.system_selected_index = self.system_services.len() - 1;
+                    // At the top of config, switch to watch directories section
+                    self.system_section = SystemSection::WatchDirectories;
+                    // Set to last item in watch directories
+                    if !self.config_data.watch_directories.is_empty() {
+                        self.watch_directories_selected_index =
+                            self.config_data.watch_directories.len() - 1;
                     }
+                }
+            }
+            SystemSection::WatchDirectories => {
+                if self.watch_directories_selected_index > 0 {
+                    self.watch_directories_selected_index -= 1;
                 }
             }
         }
@@ -51,12 +53,6 @@ impl App {
 
     pub fn refresh_system_services(&mut self) {
         self.system_services = get_system_services();
-        // Ensure selection is within bounds
-        if self.system_selected_index >= self.system_services.len()
-            && !self.system_services.is_empty()
-        {
-            self.system_selected_index = self.system_services.len() - 1;
-        }
         self.last_system_refresh = std::time::Instant::now();
     }
 
@@ -64,43 +60,9 @@ impl App {
         self.last_system_refresh.elapsed() >= Duration::from_millis(200)
     }
 
-    pub fn kill_selected_service(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.system_selected_index < self.system_services.len() {
-            let service = &self.system_services[self.system_selected_index];
-            if !service.pids.is_empty() {
-                let pid = service.pids[0]; // Kill first PID for now
-                let service_type = get_service_type_from_name(&service.name);
-                kill_process(pid)?;
-                // Delete the associated PID file
-                if let Err(e) = delete_pid_file(pid, service_type) {
-                    eprintln!("Warning: Failed to delete PID file for {}: {}", pid, e);
-                }
-                // Refresh services after killing
-                self.refresh_system_services();
-            }
-        }
-        Ok(())
-    }
-
-    pub fn start_selected_service(&mut self) -> Result<(), Box<dyn Error>> {
-        if self.system_selected_index < self.system_services.len() {
-            let service = &self.system_services[self.system_selected_index];
-            match service.status {
-                ServiceStatus::Stopped => {
-                    let service_type = get_service_type_from_name(&service.name);
-                    match service_type {
-                        "watcher" => start_watcher_process()?,
-                        "web" => start_web_process()?,
-                        _ => return Err("Unknown service type".into()),
-                    }
-                    // Refresh services after starting
-                    self.refresh_system_services();
-                }
-                ServiceStatus::Active => {
-                    // Service is already running, nothing to do
-                }
-            }
-        }
+    pub fn open_web_server_in_browser(&self) -> Result<(), Box<dyn Error>> {
+        // Open the configured hostname in the default browser
+        open::that(&self.config_data.hostname)?;
         Ok(())
     }
 }
@@ -250,157 +212,12 @@ pub fn get_system_services() -> Vec<SystemService> {
     services
 }
 
-fn kill_process(pid: u32) -> Result<(), Box<dyn Error>> {
-    #[cfg(unix)]
-    {
-        use std::process::Command;
-        let output = Command::new("kill").arg(pid.to_string()).output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to kill process {}: {}",
-                pid,
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        use std::process::Command;
-        let output = Command::new("taskkill")
-            .arg("/F")
-            .arg("/PID")
-            .arg(pid.to_string())
-            .output()?;
-
-        if !output.status.success() {
-            return Err(format!(
-                "Failed to kill process {}: {}",
-                pid,
-                String::from_utf8_lossy(&output.stderr)
-            )
-            .into());
-        }
-    }
-
-    Ok(())
-}
-
-fn get_service_type_from_name(name: &str) -> &str {
-    match name {
-        "File Watcher" => "watcher",
-        "Web Server" => "web",
-        _ => "watcher", // Default to watcher for unknown services
-    }
-}
-
-fn delete_pid_file(pid: u32, service_type: &str) -> Result<(), Box<dyn Error>> {
-    let atci_dir = get_atci_dir()?;
-    let config_sha = config::get_config_path_sha();
-
-    // Construct the expected PID file name
-    let pid_file_name = format!("atci.{}.{}.{}.pid", service_type, config_sha, pid);
-    let pid_file_path = atci_dir.join(pid_file_name);
-
-    // Only try to delete if the file exists
-    if pid_file_path.exists() {
-        fs::remove_file(pid_file_path)?;
-    }
-
-    Ok(())
-}
-
-fn start_watcher_process() -> Result<(), Box<dyn Error>> {
-    use std::fs::OpenOptions;
-    use std::process::Stdio;
-
-    // Get the current executable path
-    let current_exe = std::env::current_exe()?;
-
-    // Create log file in ~/.atci/watcher.log
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let log_path = home_dir.join(".atci").join("watcher.log");
-
-    // Ensure .atci directory exists
-    if let Some(parent) = log_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let log_file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)?;
-
-    // Clone file descriptors for stdout and stderr
-    let stdout_file = log_file.try_clone()?;
-    let stderr_file = log_file;
-
-    // Spawn a new atci watch process with output redirected to log
-    // Use stdin(Stdio::null()) to detach from terminal
-    std::process::Command::new(&current_exe)
-        .arg("watch")
-        .stdin(Stdio::null())
-        .stdout(stdout_file)
-        .stderr(stderr_file)
-        .spawn()?;
-
-    Ok(())
-}
-
-fn start_web_process() -> Result<(), Box<dyn Error>> {
-    use std::fs::OpenOptions;
-    use std::process::Stdio;
-
-    // Get the current executable path
-    let current_exe = std::env::current_exe()?;
-
-    // Create log file in ~/.atci/web.log
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let log_path = home_dir.join(".atci").join("web.log");
-
-    // Ensure .atci directory exists
-    if let Some(parent) = log_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let log_file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)?;
-
-    // Clone file descriptors for stdout and stderr
-    let stdout_file = log_file.try_clone()?;
-    let stderr_file = log_file;
-
-    // Spawn a new atci web process with output redirected to log
-    // Use stdin(Stdio::null()) to detach from terminal
-    std::process::Command::new(&current_exe)
-        .arg("web")
-        .arg("all")
-        .stdin(Stdio::null())
-        .stdout(stdout_file)
-        .stderr(stderr_file)
-        .spawn()?;
-
-    Ok(())
-}
-
 pub fn render_system_tab(
     f: &mut Frame,
     area: ratatui::layout::Rect,
-    app: &App,
+    app: &mut App,
     conn: &rusqlite::Connection,
 ) {
-    let title = create_tab_title_with_editor(
-        app.current_tab,
-        &app.colors,
-        !app.search_results.is_empty(),
-        app.editor_data.is_some(),
-        app.file_view_data.is_some(),
-    );
-
     // Split the main content area into sections
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -414,9 +231,8 @@ pub fn render_system_tab(
         )
         .split(area);
 
-    // Create main block with tab title
+    // Create main block
     let main_block = Block::default()
-        .title(title)
         .borders(Borders::ALL)
         .border_style(Style::new().fg(app.colors.footer_border_color));
 
@@ -436,22 +252,12 @@ pub fn render_system_tab(
 
     // Services section inside the main block
     let services_content = render_services_list(app);
-    let services_title = if app.system_section == SystemSection::Services {
-        "Services (↑↓/jk: Navigate, Enter: Start/Kill) [ACTIVE]"
-    } else {
-        "Services (↑↓/jk: Navigate, Enter: Start/Kill)"
-    };
-    let services_border_color = if app.system_section == SystemSection::Services {
-        ratatui::style::Color::Yellow
-    } else {
-        app.colors.footer_border_color
-    };
     let services_paragraph = Paragraph::new(services_content)
         .block(
             Block::default()
-                .title(services_title)
+                .title("Services")
                 .borders(Borders::ALL)
-                .border_style(Style::new().fg(services_border_color)),
+                .border_style(Style::new().fg(app.colors.footer_border_color)),
         )
         .style(Style::new().fg(app.colors.row_fg))
         .alignment(Alignment::Left);
@@ -498,6 +304,18 @@ pub fn render_system_tab(
         )
         .split(main_chunks[1]);
 
+    // Split the left column vertically: watch directories on top, config on bottom
+    let left_column = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage(50), // Watch directories (top half)
+                Constraint::Percentage(50), // Config (bottom half)
+            ]
+            .as_ref(),
+        )
+        .split(config_row[0]);
+
     // Split the right side vertically: queue on top, stats on bottom
     let right_column = Layout::default()
         .direction(Direction::Vertical)
@@ -510,30 +328,35 @@ pub fn render_system_tab(
         )
         .split(config_row[1]);
 
-    // Config editing section on the left
+    // Watch directories section on top left
+    let watch_dirs_table = render_watch_directories_section(app, left_column[0]);
+    f.render_widget(watch_dirs_table, left_column[0]);
+
+    // Config editing section on the bottom left with custom scrolling
     let config_content = render_config_section(app);
     let config_title = if app.system_section == SystemSection::Config {
-        "Configuration (↑↓/jk: Navigate, Enter: Edit, Auto-save, Shift+R: Reload) [ACTIVE]"
+        "Configuration (Enter: Edit, Auto-save, Shift+R: Reload) [ACTIVE]"
     } else {
-        "Configuration (↑↓/jk: Navigate, Enter: Edit, Auto-save, Shift+R: Reload)"
+        "Configuration (Enter: Edit, Auto-save, Shift+R: Reload)"
     };
     let config_border_color = if app.system_section == SystemSection::Config {
         ratatui::style::Color::Yellow
     } else {
         app.colors.footer_border_color
     };
-    let config_paragraph = Paragraph::new(config_content)
-        .block(
-            Block::default()
-                .title(config_title)
-                .borders(Borders::ALL)
-                .border_style(Style::new().fg(config_border_color)),
-        )
-        .style(Style::new().fg(app.colors.row_fg))
-        .alignment(Alignment::Left)
-        .wrap(ratatui::widgets::Wrap { trim: true });
 
-    f.render_widget(config_paragraph, config_row[0]);
+    // Render the config block border
+    let config_block = Block::default()
+        .title(config_title)
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(config_border_color));
+
+    let config_paragraph = Paragraph::new(config_content)
+        .block(config_block)
+        .style(Style::new().fg(app.colors.row_fg))
+        .alignment(Alignment::Left);
+
+    f.render_widget(config_paragraph, left_column[1]);
 
     // Queue section on the top right
     let queue_table = render_queue_section(app, right_column[0]);
@@ -544,26 +367,71 @@ pub fn render_system_tab(
     f.render_widget(stats_table, right_column[1]);
 }
 
+fn render_watch_directories_section<'a>(
+    app: &App,
+    _area: ratatui::layout::Rect,
+) -> ratatui::widgets::Table<'a> {
+    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::widgets::{Block, Borders, Cell, Row, Table};
+
+    let mut rows = Vec::new();
+
+    // Add watch directories
+    for (i, dir) in app.config_data.watch_directories.iter().enumerate() {
+        let is_selected = i == app.watch_directories_selected_index
+            && app.system_section == SystemSection::WatchDirectories;
+
+        let dir_cell = if is_selected {
+            Cell::from(format!("► {}", dir)).style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )
+        } else {
+            Cell::from(format!("  {}", dir)).style(Style::default().fg(app.colors.row_fg))
+        };
+
+        rows.push(Row::new(vec![dir_cell]).style(Style::default().fg(app.colors.row_fg)));
+    }
+
+    // If no directories, show a message
+    if rows.is_empty() {
+        let empty_row = Row::new(vec![Cell::from("  No watch directories configured")])
+            .style(Style::default().fg(Color::Gray));
+        rows.push(empty_row);
+    }
+
+    let widths = [Constraint::Min(30)];
+
+    let watch_dirs_title = if app.system_section == SystemSection::WatchDirectories {
+        "Watch Directories (↑↓/jk: Navigate, d: Delete) [ACTIVE]"
+    } else {
+        "Watch Directories (↑↓/jk: Navigate, d: Delete)"
+    };
+    let watch_dirs_border_color = if app.system_section == SystemSection::WatchDirectories {
+        Color::Yellow
+    } else {
+        app.colors.footer_border_color
+    };
+
+    let block = Block::default()
+        .title(watch_dirs_title)
+        .borders(Borders::ALL)
+        .border_style(Style::new().fg(watch_dirs_border_color));
+
+    Table::new(rows, widths).block(block).column_spacing(1)
+}
+
 fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
     use ratatui::style::{Color, Style};
     use ratatui::text::{Line, Span, Text};
 
     let mut lines = Vec::new();
 
-    for (index, service) in app.system_services.iter().enumerate() {
-        let is_selected =
-            index == app.system_selected_index && app.system_section == SystemSection::Services;
-
+    for service in app.system_services.iter() {
         let mut spans = Vec::new();
 
-        // Add selection indicator
-        if is_selected {
-            spans.push(Span::styled("► ", Style::default().fg(Color::Yellow)));
-        } else {
-            spans.push(Span::raw("  "));
-        }
-
-        // Service name
+        // Service name (no selection indicator)
         spans.push(Span::raw(format!("{}: ", service.name)));
 
         // Status and PIDs
@@ -580,30 +448,28 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
                     spans.push(Span::raw(" (PID: "));
                     spans.push(Span::styled(pid_list, Style::default().fg(Color::Cyan)));
                     spans.push(Span::raw(")"));
+                }
 
-                    // Show kill option if selected
-                    if is_selected {
-                        spans.push(Span::raw(" "));
-                        spans.push(Span::styled(
-                            "← [KILL]",
-                            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-                        ));
-                    }
+                // Show hostname for Web Server
+                if service.name == "Web Server" {
+                    lines.push(Line::from(spans));
+                    let mut hostname_spans = Vec::new();
+                    hostname_spans.push(Span::raw("  ")); // Indent
+                    hostname_spans.push(Span::styled(
+                        app.config_data.hostname.clone(),
+                        Style::default().fg(Color::Cyan),
+                    ));
+                    hostname_spans.push(Span::raw(" "));
+                    hostname_spans.push(Span::styled(
+                        "← [OPEN (o)]",
+                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                    ));
+                    lines.push(Line::from(hostname_spans));
+                    continue; // Skip the normal line push at the end
                 }
             }
             ServiceStatus::Stopped => {
                 spans.push(Span::styled("stopped", Style::default().fg(Color::Red)));
-
-                // Show start option if selected
-                if is_selected {
-                    spans.push(Span::raw(" "));
-                    spans.push(Span::styled(
-                        "← [START]",
-                        Style::default()
-                            .fg(Color::Green)
-                            .add_modifier(Modifier::BOLD),
-                    ));
-                }
             }
         }
 
@@ -618,6 +484,10 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
     }
 
     Text::from(lines)
+}
+
+fn is_boolean_field(field_name: &str) -> bool {
+    matches!(field_name, "allow_whisper" | "allow_subtitles")
 }
 
 fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
@@ -646,14 +516,23 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
             Style::default().fg(Color::Cyan),
         ));
 
+        // Check if this is a boolean field
+        let is_bool = is_boolean_field(field_name);
+        let is_password = *field_name == "password";
+
         // Field value
-        let field_value = if app.config_editing_mode && is_selected {
+        let mut field_value = if app.config_editing_mode && is_selected && !is_bool {
             app.config_input_buffer.clone()
         } else {
             app.get_config_field_value(index)
         };
 
-        let value_style = if app.config_editing_mode && is_selected {
+        // Mask password field when not editing
+        if is_password && !(app.config_editing_mode && is_selected) && !field_value.is_empty() {
+            field_value = "******".to_string();
+        }
+
+        let value_style = if app.config_editing_mode && is_selected && !is_bool {
             Style::default()
                 .fg(Color::Green)
                 .add_modifier(Modifier::BOLD)
@@ -665,12 +544,23 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
             Style::default().fg(Color::Gray)
         };
 
-        // Show full value without truncation (wrapping is handled by the Paragraph widget)
-        spans.push(Span::styled(field_value, value_style));
+        // For boolean fields, show checkbox instead of true/false
+        if is_bool {
+            let (checkbox, label) = if field_value == "true" {
+                ("☑", " [true]")
+            } else {
+                ("☐", " [false]")
+            };
+            spans.push(Span::styled(checkbox, value_style));
+            spans.push(Span::styled(label, value_style));
+        } else {
+            // Show full value without truncation (wrapping is handled by the Paragraph widget)
+            spans.push(Span::styled(field_value, value_style));
 
-        // Show editing indicator
-        if app.config_editing_mode && is_selected {
-            spans.push(Span::styled("█", Style::default().fg(Color::Green)));
+            // Show editing indicator
+            if app.config_editing_mode && is_selected {
+                spans.push(Span::styled("█", Style::default().fg(Color::Green)));
+            }
         }
 
         lines.push(Line::from(spans));

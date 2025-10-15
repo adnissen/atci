@@ -10,7 +10,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::clipper;
-use crate::tui::{App, TabState, create_tab_title_with_editor};
+use crate::tui::App;
 
 pub struct EditorData {
     pub start_time: String,
@@ -46,12 +46,6 @@ pub enum EditorSelection {
 }
 
 impl App {
-    pub fn switch_to_editor(&mut self) {
-        if self.editor_data.is_some() {
-            self.current_tab = TabState::Editor;
-        }
-    }
-
     // pub fn toggle_editor_overlay(&mut self) {
     //     if let Some(ref mut editor_data) = self.editor_data {
     //         editor_data.show_overlay_text = !editor_data.show_overlay_text;
@@ -482,15 +476,6 @@ impl App {
 }
 
 pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App) {
-    // Use the same tab title system as other tabs
-    let title = create_tab_title_with_editor(
-        app.current_tab,
-        &app.colors,
-        !app.search_results.is_empty(),
-        app.editor_data.is_some(),
-        app.file_view_data.is_some(),
-    );
-
     // Split the main content area into sections
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -504,9 +489,8 @@ pub fn render_editor_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut A
         )
         .split(area);
 
-    // Create main block with tab title
+    // Create main block
     let main_block = Block::default()
-        .title(title)
         .borders(Borders::ALL)
         .border_style(Style::new().fg(app.colors.footer_border_color));
 

@@ -19,7 +19,8 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    widgets::{Block, Borders, Paragraph, TableState},
+    widgets::{Block, Borders, Paragraph, TableState, BorderType, Clear},
+    prelude::{Stylize},
 };
 use std::{
     error::Error,
@@ -97,8 +98,8 @@ pub enum TabState {
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum SystemSection {
-    Services,
     Config,
+    WatchDirectories,
 }
 
 pub struct App {
@@ -117,7 +118,6 @@ pub struct App {
     pub filter_input_mode: bool,
     pub search_input: String,
     pub search_input_mode: bool,
-    pub system_selected_index: usize,
     pub system_services: Vec<SystemService>,
     pub last_system_refresh: Instant,
     pub search_results: Vec<search::SearchResult>,
@@ -144,6 +144,9 @@ pub struct App {
     pub regenerate_popup_selected: usize,
     pub regenerate_popup_options: Vec<String>,
     pub regenerate_popup_option_types: Vec<String>,
+    pub watch_directories_selected_index: usize,
+    pub show_directory_picker: bool,
+    pub directory_picker: Option<ratatui_explorer::FileExplorer>,
 }
 
 #[derive(Clone)]
@@ -153,7 +156,7 @@ pub struct SystemService {
     pub pids: Vec<u32>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ServiceStatus {
     Active,
     Stopped,
@@ -177,7 +180,6 @@ impl Default for App {
             filter_input_mode: false,
             search_input: String::new(),
             search_input_mode: false,
-            system_selected_index: 0,
             system_services: Vec::new(),
             last_system_refresh: Instant::now(),
             search_results: Vec::new(),
@@ -195,7 +197,7 @@ impl Default for App {
             config_selected_field: 0,
             config_editing_mode: false,
             config_input_buffer: String::new(),
-            system_section: SystemSection::Services,
+            system_section: SystemSection::Config,
             queue_selected_index: 0,
             queue_items: Vec::new(),
             currently_processing: None,
@@ -204,6 +206,9 @@ impl Default for App {
             regenerate_popup_selected: 0,
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
+            watch_directories_selected_index: 0,
+            show_directory_picker: false,
+            directory_picker: None,
         }
     }
 }
@@ -238,7 +243,6 @@ impl App {
             filter_input_mode: false,
             search_input: String::new(),
             search_input_mode: false,
-            system_selected_index: 0,
             system_services: Vec::new(),
             last_system_refresh: Instant::now(),
             search_results: Vec::new(),
@@ -256,7 +260,7 @@ impl App {
             config_selected_field: 0,
             config_editing_mode: false,
             config_input_buffer: String::new(),
-            system_section: SystemSection::Services,
+            system_section: SystemSection::Config,
             queue_selected_index: 0,
             queue_items: Vec::new(),
             currently_processing: None,
@@ -265,6 +269,9 @@ impl App {
             regenerate_popup_selected: 0,
             regenerate_popup_options: Vec::new(),
             regenerate_popup_option_types: Vec::new(),
+            watch_directories_selected_index: 0,
+            show_directory_picker: false,
+            directory_picker: None,
         };
 
         // Select first item if available
@@ -296,52 +303,6 @@ impl App {
     //     self._last_refresh.elapsed() >= Duration::from_secs(60)
     // }
 
-    pub fn toggle_tab(&mut self) {
-        self.current_tab = match self.current_tab {
-            TabState::SearchResults => TabState::Transcripts,
-            TabState::Transcripts => {
-                if self.file_view_data.is_some() {
-                    TabState::FileView
-                } else if self.editor_data.is_some() {
-                    TabState::Editor
-                } else {
-                    TabState::System
-                }
-            }
-            TabState::FileView => {
-                if self.editor_data.is_some() {
-                    TabState::Editor
-                } else {
-                    TabState::System
-                }
-            }
-            TabState::Editor => TabState::System,
-            TabState::System => TabState::Queue,
-            TabState::Queue => TabState::SearchResults,
-        };
-    }
-
-    pub fn switch_to_transcripts(&mut self) {
-        self.current_tab = TabState::Transcripts;
-    }
-
-    pub fn switch_to_system(&mut self) {
-        self.current_tab = TabState::System;
-    }
-
-    pub fn switch_to_search_results(&mut self) {
-        self.current_tab = TabState::SearchResults;
-        // Update total records count with current filter
-        self.update_total_records();
-        // Populate search input with the last search query for easy editing
-        if !self.last_search_query.is_empty() {
-            self.search_input = self.last_search_query.clone();
-        }
-    }
-
-    pub fn switch_to_file_view(&mut self) {
-        self.current_tab = TabState::FileView;
-    }
 
     pub fn open_file_view(&mut self, video_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let file_view_data = FileViewData::new(video_path.to_string())?;
@@ -600,7 +561,7 @@ impl App {
     }
 
     pub fn get_config_field_count(&self) -> usize {
-        12 // Total number of config fields
+        11 // Total number of config fields (excluding watch_directories)
     }
 
     pub fn get_config_field_names(&self) -> Vec<&'static str> {
@@ -612,7 +573,6 @@ impl App {
             "password",
             "processing_success_command",
             "processing_failure_command",
-            "watch_directories",
             "allow_whisper",
             "allow_subtitles",
             "stream_chunk_size",
@@ -629,13 +589,41 @@ impl App {
             4 => self.config_data.password.clone().unwrap_or_default(),
             5 => self.config_data.processing_success_command.clone(),
             6 => self.config_data.processing_failure_command.clone(),
-            7 => self.config_data.watch_directories.join(", "),
-            8 => self.config_data.allow_whisper.to_string(),
-            9 => self.config_data.allow_subtitles.to_string(),
-            10 => self.config_data.stream_chunk_size.to_string(),
-            11 => self.config_data.hostname.clone(),
+            7 => self.config_data.allow_whisper.to_string(),
+            8 => self.config_data.allow_subtitles.to_string(),
+            9 => self.config_data.stream_chunk_size.to_string(),
+            10 => self.config_data.hostname.clone(),
             _ => String::new(),
         }
+    }
+
+    pub fn is_selected_field_boolean(&self) -> bool {
+        let field_names = self.get_config_field_names();
+        if self.config_selected_field < field_names.len() {
+            let field_name = field_names[self.config_selected_field];
+            matches!(field_name, "allow_whisper" | "allow_subtitles")
+        } else {
+            false
+        }
+    }
+
+    pub fn toggle_boolean_field(&mut self) -> Result<(), String> {
+        let field_names = self.get_config_field_names();
+        if self.config_selected_field < field_names.len() {
+            let field_name = field_names[self.config_selected_field];
+            match field_name {
+                "allow_whisper" => {
+                    self.config_data.allow_whisper = !self.config_data.allow_whisper;
+                    self.save_config()?;
+                }
+                "allow_subtitles" => {
+                    self.config_data.allow_subtitles = !self.config_data.allow_subtitles;
+                    self.save_config()?;
+                }
+                _ => return Err(format!("Field {} is not a boolean field", field_name)),
+            }
+        }
+        Ok(())
     }
 
     pub fn start_config_editing(&mut self) {
@@ -696,11 +684,6 @@ impl App {
             self.currently_processing = path;
             self.currently_processing_age = age;
         }
-    }
-
-    pub fn switch_to_queue(&mut self) {
-        self.current_tab = TabState::Queue;
-        self.refresh_queue();
     }
 
     pub fn queue_next(&mut self) {
@@ -903,6 +886,41 @@ impl App {
         }
     }
 
+    pub fn open_directory_picker(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        // Start from home directory or current directory
+        let start_path = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
+        let mut explorer = ratatui_explorer::FileExplorer::with_theme(
+            ratatui_explorer::Theme::default()
+                .add_default_title()
+                .with_style(Style::default().bg(self.colors.buffer_bg))
+        )?;
+        explorer.set_cwd(&start_path)?;
+        self.directory_picker = Some(explorer);
+        self.show_directory_picker = true;
+        Ok(())
+    }
+
+    pub fn close_directory_picker(&mut self) {
+        self.show_directory_picker = false;
+        self.directory_picker = None;
+    }
+
+    pub fn select_directory_from_picker(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if let Some(explorer) = &self.directory_picker {
+            let current = explorer.current();
+            let path = current.path();
+            let path_str = path.to_string_lossy().to_string();
+
+            // Add the directory if it's not already in the list
+            if !self.config_data.watch_directories.contains(&path_str) {
+                self.config_data.watch_directories.push(path_str);
+                self.save_config()?;
+            }
+        }
+        self.close_directory_picker();
+        Ok(())
+    }
+
     pub fn execute_regenerate_selection(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         if self.regenerate_popup_selected >= self.regenerate_popup_option_types.len() {
             return Err("Invalid selection".into());
@@ -993,6 +1011,36 @@ fn handle_key_event(
         return Ok(None);
     }
 
+    // Handle directory picker modal
+    if app.show_directory_picker {
+        match key.code {
+            KeyCode::Esc => app.close_directory_picker(),
+            KeyCode::Char('n') => {
+                // 'n' key selects the directory and adds it to config
+                if let Err(e) = app.select_directory_from_picker() {
+                    eprintln!("Failed to select directory: {}", e);
+                    app.close_directory_picker();
+                }
+            }
+            KeyCode::Enter => {
+                // Enter navigates into the selected directory
+                if let Some(explorer) = &mut app.directory_picker {
+                    let event = Event::Key(key);
+                    let _ = explorer.handle(&event);
+                }
+            }
+            _ => {
+                // Pass other keys to the file explorer
+                // Convert KeyEvent to Event for the file explorer
+                if let Some(explorer) = &mut app.directory_picker {
+                    let event = Event::Key(key);
+                    let _ = explorer.handle(&event);
+                }
+            }
+        }
+        return Ok(None);
+    }
+
     // Handle regenerate popup
     if app.show_regenerate_popup {
         match key.code {
@@ -1078,28 +1126,12 @@ fn handle_key_event(
         KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             return Ok(Some(true));
         } // Signal to quit
-        KeyCode::Tab => app.toggle_tab(),
-        KeyCode::Char('t') => app.switch_to_transcripts(),
-        KeyCode::Char('s') => app.switch_to_system(),
-        KeyCode::Char('q') => app.switch_to_queue(),
         KeyCode::Char('r') => {
             if app.current_tab == TabState::Transcripts {
                 // Show regenerate popup
                 if let Err(e) = app.show_regenerate_popup() {
                     eprintln!("Failed to show regenerate popup: {}", e);
                 }
-            }
-        }
-        KeyCode::Char('e') => {
-            // Only switch to editor if we have editor data
-            if app.editor_data.is_some() {
-                app.switch_to_editor();
-            }
-        }
-        KeyCode::Char('v') => {
-            if app.file_view_data.is_some() {
-                // Switch to file view if we have file view data
-                app.switch_to_file_view();
             }
         }
         KeyCode::Char('f') => {
@@ -1109,13 +1141,15 @@ fn handle_key_event(
                 app.toggle_filter_input();
             }
         }
-        KeyCode::Char('/') => {
-            if app.current_tab == TabState::SearchResults {
-                // If already on search results, toggle search input
-                app.toggle_search_input();
-            } else {
-                // Switch to search results tab
-                app.switch_to_search_results();
+        KeyCode::Char('n') => {
+            if app.current_tab == TabState::System
+                && app.system_section == SystemSection::WatchDirectories
+                && !app.config_editing_mode
+            {
+                // Open directory picker
+                if let Err(e) = app.open_directory_picker() {
+                    eprintln!("Failed to open directory picker: {}", e);
+                }
             }
         }
         KeyCode::Char('o') => {
@@ -1123,6 +1157,11 @@ fn handle_key_event(
                 // Open clip
                 if let Err(e) = app.open_clip() {
                     eprintln!("Failed to open clip: {}", e);
+                }
+            } else if app.current_tab == TabState::System && !app.config_editing_mode {
+                // Open web server in browser (unless editing config)
+                if let Err(e) = app.open_web_server_in_browser() {
+                    eprintln!("Failed to open web server: {}", e);
                 }
             }
         }
@@ -1256,6 +1295,32 @@ fn handle_key_event(
                 }
             }
         }
+        KeyCode::Char('d') => {
+            if app.current_tab == TabState::System
+                && app.system_section == SystemSection::WatchDirectories
+                && !app.config_editing_mode
+            {
+                // Remove selected watch directory
+                if !app.config_data.watch_directories.is_empty()
+                    && app.watch_directories_selected_index
+                        < app.config_data.watch_directories.len()
+                {
+                    app.config_data
+                        .watch_directories
+                        .remove(app.watch_directories_selected_index);
+                    // Adjust selected index if needed
+                    if app.watch_directories_selected_index >= app.config_data.watch_directories.len()
+                        && app.watch_directories_selected_index > 0
+                    {
+                        app.watch_directories_selected_index -= 1;
+                    }
+                    // Save config after removing
+                    if let Err(e) = app.save_config() {
+                        eprintln!("Failed to save config after removing watch directory: {}", e);
+                    }
+                }
+            }
+        }
         KeyCode::Left | KeyCode::Char('h') | KeyCode::Char('H') => {
             if app.current_tab == TabState::Transcripts {
                 if key.code == KeyCode::Char('H') || key.modifiers.contains(KeyModifiers::SHIFT) {
@@ -1320,27 +1385,14 @@ fn handle_key_event(
         }
         KeyCode::Enter => {
             if app.current_tab == TabState::System {
-                match app.system_section {
-                    SystemSection::Services => {
-                        // Check if the selected service is active or stopped
-                        if app.system_selected_index < app.system_services.len() {
-                            let service = &app.system_services[app.system_selected_index];
-                            match service.status {
-                                ServiceStatus::Active => {
-                                    if let Err(e) = app.kill_selected_service() {
-                                        eprintln!("Failed to kill process: {}", e);
-                                    }
-                                }
-                                ServiceStatus::Stopped => {
-                                    if let Err(e) = app.start_selected_service() {
-                                        eprintln!("Failed to start service: {}", e);
-                                    }
-                                }
-                            }
+                // Only handle config editing, services are not selectable
+                if app.system_section == SystemSection::Config {
+                    // For boolean fields, toggle the value instead of entering edit mode
+                    if app.is_selected_field_boolean() {
+                        if let Err(e) = app.toggle_boolean_field() {
+                            eprintln!("Failed to toggle boolean field: {}", e);
                         }
-                    }
-                    SystemSection::Config => {
-                        // Config editing mode
+                    } else {
                         app.start_config_editing();
                     }
                 }
@@ -1425,7 +1477,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<(), 
         //     }
         // }
 
-        // Refresh system services and queue every 200ms
         if app.current_tab == TabState::System {
             if app.should_refresh_system_services() {
                 app.refresh_system_services();
@@ -1597,7 +1648,9 @@ fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
     }
 
     // Controls section
-    let controls_text = if app.show_regenerate_popup {
+    let controls_text = if app.show_directory_picker {
+        "↑↓/jk: Navigate  Enter: Open Directory  n: Select Directory  h/l: Parent/Child  Esc: Cancel".to_string()
+    } else if app.show_regenerate_popup {
         "↑↓/jk: Navigate  Enter: Select  Esc: Cancel".to_string()
     } else {
         match app.current_tab {
@@ -1605,77 +1658,18 @@ fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
                 if app.filter_input_mode {
                     "Enter: Apply  Esc: Cancel  Ctrl+C: Clear  Type to filter...".to_string()
                 } else {
-                    let base_controls = "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  r: Regenerate  f: Filter  Enter: View File  Ctrl+C: Clear  t/s/q/";
-                    let mut tab_controls = String::new();
-                    if app.editor_data.is_some() {
-                        tab_controls.push('e');
-                    }
-                    if app.file_view_data.is_some() {
-                        if !tab_controls.is_empty() {
-                            tab_controls.push('-');
-                        }
-                        tab_controls.push('v');
-                    }
-                    if !tab_controls.is_empty() {
-                        format!(
-                            "{}{}-Tab: Switch  Ctrl+Z: Quit",
-                            base_controls, tab_controls
-                        )
-                    } else {
-                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-                    }
+                    "↑↓/jk: Navigate  ←→/hl: Page  1-6: Sort  r: Regenerate  f: Filter  Enter: View File  Ctrl+C: Clear  Ctrl+Z: Quit".to_string()
                 }
             }
             TabState::System => {
                 if app.config_editing_mode {
                     "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
                 } else {
-                    let section_info = match app.system_section {
-                        SystemSection::Services => "Services: Enter: Start/Kill",
-                        SystemSection::Config => "Config: Enter: Edit",
-                    };
-                    let base_controls =
-                        format!("↑↓/jk: Navigate  {}  Shift+R: Reload  t/s/q/", section_info);
-                    let mut tab_controls = String::new();
-                    if app.editor_data.is_some() {
-                        tab_controls.push('e');
-                    }
-                    if app.file_view_data.is_some() {
-                        if !tab_controls.is_empty() {
-                            tab_controls.push('-');
-                        }
-                        tab_controls.push('v');
-                    }
-                    if !tab_controls.is_empty() {
-                        format!(
-                            "{}{}-Tab: Switch  Ctrl+Z: Quit",
-                            base_controls, tab_controls
-                        )
-                    } else {
-                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-                    }
+                    "↑↓/jk: Navigate (wraps between sections)  Enter: Edit  n: New Watch Dir  d: Delete Watch Dir  o: Open in Browser  Shift+R: Reload  Ctrl+Z: Quit".to_string()
                 }
             }
             TabState::Queue => {
-                let base_controls = "↑↓/jk: Navigate  t/s/q/";
-                let mut tab_controls = String::new();
-                if app.editor_data.is_some() {
-                    tab_controls.push('e');
-                }
-                if app.file_view_data.is_some() {
-                    if !tab_controls.is_empty() {
-                        tab_controls.push('-');
-                    }
-                    tab_controls.push('v');
-                }
-                if !tab_controls.is_empty() {
-                    format!(
-                        "{}{}-Tab: Switch  Ctrl+Z: Quit",
-                        base_controls, tab_controls
-                    )
-                } else {
-                    format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-                }
+                "↑↓/jk: Navigate  Ctrl+Z: Quit".to_string()
             }
             TabState::SearchResults => {
                 if app.filter_input_mode {
@@ -1683,63 +1677,14 @@ fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
                 } else if app.search_input_mode {
                     "Enter: Search  Esc: Cancel  Ctrl+C: Clear  Type to search...".to_string()
                 } else {
-                    let base_controls = "↑↓/jk: Navigate  Enter: View File  c: Open Editor  f: Filter  /: Search  Ctrl+C: Clear  t/s";
-                    let mut tab_controls = String::new();
-                    if app.editor_data.is_some() {
-                        tab_controls.push('e');
-                    }
-                    if !tab_controls.is_empty() {
-                        format!(
-                            "{} {}-Tab: Switch  Ctrl+Z: Quit",
-                            base_controls, tab_controls
-                        )
-                    } else {
-                        format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-                    }
+                    "↑↓/jk: Navigate  Enter: View File  c: Open Editor  f: Filter  Ctrl+C: Clear  Ctrl+Z: Quit".to_string()
                 }
             }
             TabState::Editor => {
-                let _overlay_status = if app
-                    .editor_data
-                    .as_ref()
-                    .is_some_and(|data| data.show_overlay_text)
-                {
-                    "ON"
-                } else {
-                    "OFF"
-                };
-                let pending_regen = ""; // No longer using async regeneration
-                let base_controls = format!(
-                    "[/]: Adjust Frame Time{}  j/k/h/l: Navigate  Enter: Activate  c: Copy  o: Open  t/s/q/",
-                    pending_regen
-                );
-                let mut tab_controls = String::new();
-                if app.file_view_data.is_some() {
-                    tab_controls.push('v');
-                }
-                if !tab_controls.is_empty() {
-                    format!(
-                        "{}{}-Tab: Switch  Ctrl+Z: Quit",
-                        base_controls, tab_controls
-                    )
-                } else {
-                    format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-                }
+                "[/]: Adjust Frame Time  j/k/h/l: Navigate  Enter: Activate  c: Copy  o: Open  Ctrl+Z: Quit".to_string()
             }
             TabState::FileView => {
-                let base_controls = "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  t/s/q/";
-                let mut tab_controls = String::new();
-                if app.editor_data.is_some() {
-                    tab_controls.push('e');
-                }
-                if !tab_controls.is_empty() {
-                    format!(
-                        "{}{}-Tab: Switch  Ctrl+Z: Quit",
-                        base_controls, tab_controls
-                    )
-                } else {
-                    format!("{}-Tab: Switch  Ctrl+Z: Quit", base_controls)
-                }
+                "↑↓/jk: Navigate  ←→/hl: Page Up/Down  c: Open Editor  Ctrl+Z: Quit".to_string()
             }
         }
     };
@@ -1770,80 +1715,46 @@ fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
 
         f.render_widget(page_paragraph, bottom_chunks[1]);
     }
-}
 
-pub fn create_tab_title_with_editor(
-    current_tab: TabState,
-    colors: &TableColors,
-    _has_search_results: bool,
-    has_editor_data: bool,
-    has_file_view_data: bool,
-) -> ratatui::text::Line<'_> {
-    use ratatui::style::Color;
-    use ratatui::text::{Line, Span};
+    // Render directory picker modal on top if shown
+    if app.show_directory_picker {
+        if let Some(explorer) = &app.directory_picker {
+            // Create a centered modal area
+            let area = f.area();
+            let popup_width = area.width.saturating_sub(10).min(100);
+            let popup_height = area.height.saturating_sub(6).min(30);
+            let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+            let popup_y = (area.height.saturating_sub(popup_height)) / 2;
 
-    let mut spans = vec![
-        match current_tab {
-            TabState::SearchResults => {
-                Span::styled("Search (/)", Style::default().fg(Color::White))
-            }
-            _ => Span::styled(
-                "Search (/)",
-                Style::default().fg(colors.footer_border_color),
-            ),
-        },
-        Span::styled(" | ", Style::default().fg(colors.row_fg)),
-        match current_tab {
-            TabState::Transcripts => {
-                Span::styled("Transcripts (t)", Style::default().fg(Color::White))
-            }
-            _ => Span::styled(
-                "Transcripts (t)",
-                Style::default().fg(colors.footer_border_color),
-            ),
-        },
-    ];
+            let popup_area = ratatui::layout::Rect {
+                x: popup_x,
+                y: popup_y,
+                width: popup_width,
+                height: popup_height,
+            };
 
-    // Only show file view tab if we have file view data
-    if has_file_view_data {
-        spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
-        spans.push(match current_tab {
-            TabState::FileView => Span::styled("File View (v)", Style::default().fg(Color::White)),
-            _ => Span::styled(
-                "File View (v)",
-                Style::default().fg(colors.footer_border_color),
-            ),
-        });
+            // Render a clear background over the popup area to visually dim underlying UI
+            let clear_block = Clear::default();
+            f.render_widget(clear_block, popup_area);
+
+            // Render a solid background block
+            let block = Block::default()
+                .title("Select Directory (Enter: Navigate, n: Select, Esc: Cancel)")
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Yellow))
+                .style(Style::default().bg(app.colors.buffer_bg));
+            f.render_widget(block, popup_area);
+
+            // Render the file explorer inside
+            let inner_area = ratatui::layout::Rect {
+                x: popup_area.x + 1,
+                y: popup_area.y + 1,
+                width: popup_area.width.saturating_sub(2),
+                height: popup_area.height.saturating_sub(2),
+            };
+            f.render_widget_ref(explorer.widget(), inner_area);
+        }
     }
-
-    // Only show editor tab if we have editor data
-    if has_editor_data {
-        spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
-        spans.push(match current_tab {
-            TabState::Editor => Span::styled("Editor (e)", Style::default().fg(Color::White)),
-            _ => Span::styled(
-                "Editor (e)",
-                Style::default().fg(colors.footer_border_color),
-            ),
-        });
-    }
-
-    // System and Queue tabs
-    spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
-    spans.push(match current_tab {
-        TabState::System => Span::styled("System (s)", Style::default().fg(Color::White)),
-        _ => Span::styled(
-            "System (s)",
-            Style::default().fg(colors.footer_border_color),
-        ),
-    });
-    spans.push(Span::styled(" | ", Style::default().fg(colors.row_fg)));
-    spans.push(match current_tab {
-        TabState::Queue => Span::styled("Queue (q)", Style::default().fg(Color::White)),
-        _ => Span::styled("Queue (q)", Style::default().fg(colors.footer_border_color)),
-    });
-
-    Line::from(spans)
 }
 
 fn render_filter_section(f: &mut Frame, area: ratatui::layout::Rect, app: &App) {
