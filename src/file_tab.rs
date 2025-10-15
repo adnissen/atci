@@ -1,5 +1,5 @@
 use crate::transcripts;
-use crate::tui::{App, create_tab_title_with_editor};
+use crate::tui::App;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -925,14 +925,6 @@ impl FileViewData {
 }
 
 pub fn render_file_view_tab(f: &mut Frame, area: Rect, app: &mut App) {
-    let title = create_tab_title_with_editor(
-        app.current_tab,
-        &app.colors,
-        !app.search_results.is_empty(),
-        app.editor_data.is_some(),
-        app.file_view_data.is_some(),
-    );
-
     if let Some(file_data) = &mut app.file_view_data {
         // Split the main content area into sections
         let main_chunks = Layout::default()
@@ -947,9 +939,8 @@ pub fn render_file_view_tab(f: &mut Frame, area: Rect, app: &mut App) {
             )
             .split(area);
 
-        // Create main block with tab title
+        // Create main block
         let main_block = Block::default()
-            .title(title)
             .borders(Borders::ALL)
             .border_style(Style::new().fg(app.colors.footer_border_color));
 
@@ -1059,7 +1050,6 @@ pub fn render_file_view_tab(f: &mut Frame, area: Rect, app: &mut App) {
     } else {
         // Show empty state when no file view data
         let empty_block = Block::default()
-            .title(title)
             .borders(Borders::ALL)
             .border_style(Style::new().fg(app.colors.footer_border_color));
 

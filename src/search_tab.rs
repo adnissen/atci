@@ -6,13 +6,9 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use throbber_widgets_tui::Throbber;
 use tui_big_text::BigText;
 
-use crate::tui::{App, TabState, create_tab_title_with_editor};
+use crate::tui::{App, TabState};
 
 impl App {
-    pub fn toggle_search_input(&mut self) {
-        self.search_input_mode = !self.search_input_mode;
-    }
-
     pub fn clear_search(&mut self) {
         self.search_input.clear();
         self.search_input_mode = false;
@@ -261,14 +257,6 @@ impl App {
 }
 
 pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app: &mut App) {
-    let title = create_tab_title_with_editor(
-        app.current_tab,
-        &app.colors,
-        !app.search_results.is_empty(),
-        app.editor_data.is_some(),
-        app.file_view_data.is_some(),
-    );
-
     // Split the main content area into sections
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -282,9 +270,8 @@ pub fn render_search_results_tab(f: &mut Frame, area: ratatui::layout::Rect, app
         )
         .split(area);
 
-    // Create main block with tab title
+    // Create main block
     let main_block = Block::default()
-        .title(title)
         .borders(Borders::ALL)
         .border_style(Style::new().fg(app.colors.footer_border_color));
 

@@ -5,7 +5,7 @@ use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::widgets::{Block, Borders, Cell, List, ListItem, Row, Table};
 use std::error::Error;
 
-use crate::tui::{App, SortOrder, create_tab_title_with_editor};
+use crate::tui::{App, SortOrder};
 
 impl App {
     pub fn next(&mut self) {
@@ -326,13 +326,6 @@ pub fn render_transcripts_tab(
     header_style: Style,
     selected_row_style: Style,
 ) {
-    let title = create_tab_title_with_editor(
-        app.current_tab,
-        &app.colors,
-        !app.search_results.is_empty(),
-        app.editor_data.is_some(),
-        app.file_view_data.is_some(),
-    );
     let headers = [
         "Filename",
         "Created At",
@@ -434,7 +427,6 @@ pub fn render_transcripts_tab(
     .row_highlight_style(selected_row_style)
     .block(
         Block::default()
-            .title(title)
             .borders(Borders::ALL)
             .border_style(Style::new().fg(app.colors.footer_border_color)),
     );

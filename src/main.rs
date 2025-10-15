@@ -884,7 +884,7 @@ fn check_if_service_running(service_type: &str) -> Result<bool, Box<dyn std::err
     Ok(!running_pids.is_empty())
 }
 
-fn start_web_server_background() -> Result<(), Box<dyn std::error::Error>> {
+fn start_web_server_as_child() -> Result<std::process::Child, Box<dyn std::error::Error>> {
     use std::fs::OpenOptions;
     use std::process::Stdio;
 
@@ -909,9 +909,8 @@ fn start_web_server_background() -> Result<(), Box<dyn std::error::Error>> {
     let stdout_file = log_file.try_clone()?;
     let stderr_file = log_file;
 
-    // Spawn a new atci web process with output redirected to log
-    // Use stdin(Stdio::null()) to detach from terminal
-    std::process::Command::new(&current_exe)
+    // Spawn a new atci web process as a child process
+    let child = std::process::Command::new(&current_exe)
         .arg("web")
         .arg("all")
         .stdin(Stdio::null())
@@ -919,9 +918,12 @@ fn start_web_server_background() -> Result<(), Box<dyn std::error::Error>> {
         .stderr(stderr_file)
         .spawn()?;
 
-    println!("Started web server in background (logs: ~/.atci/web.log)");
+    println!(
+        "Started web server as child process (PID: {}, logs: ~/.atci/web.log)",
+        child.id()
+    );
 
-    Ok(())
+    Ok(child)
 }
 
 fn update() -> Result<(), Box<dyn std::error::Error>> {
@@ -1925,17 +1927,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Check if web server is already running
             let web_running = check_if_service_running("web").unwrap_or(false);
 
+            let mut web_child = None;
             if !web_running {
-                // Start web server in the background
-                if let Err(e) = start_web_server_background() {
-                    eprintln!("Warning: Failed to start web server: {}", e);
-                    eprintln!("Continuing with TUI anyway...");
+                // Start web server as a child process
+                match start_web_server_as_child() {
+                    Ok(child) => {
+                        web_child = Some(child);
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: Failed to start web server: {}", e);
+                        eprintln!("Continuing with TUI anyway...");
+                    }
                 }
             }
 
             if let Err(e) = tui::run() {
                 eprintln!("Error running TUI: {}", e);
                 std::process::exit(1);
+            }
+
+            // Clean up child process when TUI exits
+            if let Some(mut child) = web_child {
+                let _ = child.kill();
             }
         }
         Some(Commands::Services { json }) => {
