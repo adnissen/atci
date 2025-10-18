@@ -52,7 +52,7 @@ pub fn get_video_extensions() -> Vec<&'static str> {
 pub fn load_cache_data() -> Result<CacheData, Box<dyn std::error::Error>> {
     let conn = db::get_connection()?;
 
-    let mut stmt = conn.prepare("SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source, watch_directory FROM video_info ORDER BY created_at DESC")?;
+    let mut stmt = conn.prepare("SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, duration, source, watch_directory FROM video_info ORDER BY created_at DESC")?;
     let video_iter = stmt.query_map([], |row| {
         Ok(VideoInfo {
             name: row.get(0)?,
@@ -142,7 +142,7 @@ pub fn load_sorted_paginated_cache_data(
 
     // Build the SQL query with filtering, sorting and pagination
     let query = format!(
-        "SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source, watch_directory
+        "SELECT name, base_name, created_at, line_count, full_path, transcript, last_generated, duration, source, watch_directory
          FROM video_info
          {}
          ORDER BY {} {}
@@ -223,6 +223,7 @@ pub fn load_sorted_paginated_cache_data(
     })
 }
 
+#[allow(dead_code)]
 pub fn count_cache_records(
     filter: Option<&Vec<String>>,
 ) -> Result<u32, Box<dyn std::error::Error>> {
@@ -282,6 +283,153 @@ pub fn load_video_info_from_cache(
     }
 
     Ok(video_infos)
+}
+
+#[allow(dead_code)]
+pub fn regenerate_watch_directory(watch_directory: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let mut builder = GlobSetBuilder::new();
+    let video_extensions = get_video_extensions();
+
+    for ext in &video_extensions {
+        let pattern = format!("**/*.{}", ext);
+        builder.add(Glob::new(&pattern)?);
+    }
+
+    let globset = builder.build()?;
+
+    // Collect all entries for this specific watch directory
+    let all_entries: Vec<_> = WalkDir::new(watch_directory)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .map(|entry| (entry, watch_directory.to_string()))
+        .collect();
+
+    // First pass: delete all transcript files for videos in this directory
+    // We need to check for video files with any case variant of the extensions
+    for (entry, _) in &all_entries {
+        let file_path = entry.path();
+
+        if !file_path.is_file() {
+            continue;
+        }
+
+        // Check if this is a video file by checking the extension (case-insensitive)
+        let is_video = if let Some(ext) = file_path.extension() {
+            let ext_lower = ext.to_string_lossy().to_lowercase();
+            video_extensions.contains(&ext_lower.as_str())
+        } else {
+            false
+        };
+
+        if !is_video {
+            continue;
+        }
+
+        let filename = file_path
+            .file_stem()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
+
+        // Skip files with .partX.ext format (e.g., video.part1.mp4)
+        if filename.contains(".part") {
+            continue;
+        }
+
+        // Delete the transcript file if it exists
+        let txt_path = file_path.with_extension("txt");
+        if txt_path.exists() {
+            if let Err(e) = fs::remove_file(&txt_path) {
+                eprintln!("Warning: Failed to delete transcript {}: {}", txt_path.display(), e);
+            }
+        }
+    }
+
+    // Second pass: collect video info (transcripts will now all be false)
+    let video_infos: Vec<VideoInfo> = all_entries
+        .par_iter()
+        .filter_map(|(entry, watch_directory)| {
+            let file_path = entry.path();
+
+            if !file_path.is_file() {
+                return None;
+            }
+
+            let relative_path = file_path
+                .strip_prefix(watch_directory)
+                .unwrap_or(file_path)
+                .to_string_lossy()
+                .to_string();
+
+            if !globset.is_match(&relative_path) {
+                return None;
+            }
+
+            let metadata = fs::metadata(file_path).ok()?;
+            let filename = file_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            // Skip files with .partX.ext format (e.g., video.part1.mp4)
+            if filename.contains(".part") {
+                return None;
+            }
+
+            let created_at = metadata
+                .created()
+                .or_else(|_| metadata.modified())
+                .map(format_datetime)
+                .unwrap_or_else(|_| "Unknown".to_string());
+
+            Some(VideoInfo {
+                name: relative_path,
+                base_name: filename,
+                created_at,
+                line_count: 0,
+                full_path: file_path.to_string_lossy().to_string(),
+                transcript: false,
+                last_generated: None,
+                length: None,
+                source: None,
+                watch_directory: Some(watch_directory.clone()),
+            })
+        })
+        .collect();
+
+    // Save to database in a transaction
+    let conn = db::get_connection()?;
+    let tx = conn.unchecked_transaction()?;
+
+    // Delete existing entries for this watch directory
+    tx.execute(
+        "DELETE FROM video_info WHERE watch_directory = ?1",
+        [watch_directory],
+    )?;
+
+    // Insert new data for this watch directory
+    {
+        let mut stmt = tx.prepare("INSERT INTO video_info (name, base_name, created_at, line_count, full_path, transcript, last_generated, duration, source, watch_directory) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)")?;
+
+        for video in &video_infos {
+            stmt.execute((
+                &video.name,
+                &video.base_name,
+                &video.created_at,
+                &video.line_count,
+                &video.full_path,
+                &video.transcript,
+                &video.last_generated,
+                &video.length,
+                &video.source,
+                &video.watch_directory,
+            ))?;
+        }
+    }
+
+    tx.commit()?;
+    Ok(())
 }
 
 pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Error>> {
@@ -398,7 +546,7 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
 
     // Insert new data
     {
-        let mut stmt = tx.prepare("INSERT INTO video_info (name, base_name, created_at, line_count, full_path, transcript, last_generated, length, source, watch_directory) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)")?;
+        let mut stmt = tx.prepare("INSERT INTO video_info (name, base_name, created_at, line_count, full_path, transcript, last_generated, duration, source, watch_directory) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)")?;
 
         for video in &video_infos {
             stmt.execute((

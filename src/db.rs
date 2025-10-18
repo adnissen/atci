@@ -12,7 +12,7 @@ pub fn get_db_path() -> std::path::PathBuf {
 }
 
 fn init_database(conn: &Connection) -> SqliteResult<()> {
-    const SCHEMA_VERSION: &str = "20251010-1";
+    const SCHEMA_VERSION: &str = "20251016-1";
 
     // Create schema_version table if it doesn't exist
     conn.execute(
@@ -65,7 +65,7 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
                 full_path TEXT NOT NULL UNIQUE,
                 transcript BOOLEAN NOT NULL,
                 last_generated TEXT,
-                length TEXT,
+                duration TEXT,
                 source TEXT,
                 watch_directory TEXT
             )",

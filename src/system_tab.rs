@@ -335,9 +335,9 @@ pub fn render_system_tab(
     // Config editing section on the bottom left with custom scrolling
     let config_content = render_config_section(app);
     let config_title = if app.system_section == SystemSection::Config {
-        "Configuration (Enter: Edit, Auto-save, Shift+R: Reload) [ACTIVE]"
+        "Configuration (Enter: Edit, Shift+R: Reload From Disk) [ACTIVE]"
     } else {
-        "Configuration (Enter: Edit, Auto-save, Shift+R: Reload)"
+        "Configuration (Enter: Edit, Shift+R: Reload From Disk)"
     };
     let config_border_color = if app.system_section == SystemSection::Config {
         ratatui::style::Color::Yellow
@@ -365,6 +365,7 @@ pub fn render_system_tab(
     // Stats section on the bottom right
     let stats_table = render_stats_section(app, right_column[1], conn);
     f.render_widget(stats_table, right_column[1]);
+
 }
 
 fn render_watch_directories_section<'a>(
@@ -404,9 +405,9 @@ fn render_watch_directories_section<'a>(
     let widths = [Constraint::Min(30)];
 
     let watch_dirs_title = if app.system_section == SystemSection::WatchDirectories {
-        "Watch Directories (↑↓/jk: Navigate, d: Delete) [ACTIVE]"
+        "Watch Directories (↑↓/jk: Navigate, n: Add, d: Delete, r: Regenerate) [ACTIVE]"
     } else {
-        "Watch Directories (↑↓/jk: Navigate, d: Delete)"
+        "Watch Directories (↑↓/jk: Navigate, n: Add, d: Delete, r: Regenerate)"
     };
     let watch_dirs_border_color = if app.system_section == SystemSection::WatchDirectories {
         Color::Yellow
@@ -660,16 +661,32 @@ fn render_stats_section<'a>(
     let mut rows = Vec::new();
 
     let mut stmt = conn
-        .prepare(
-            "SELECT COUNT(*) as count
-         FROM video_info",
-        )
+        .prepare("SELECT COUNT(*) as count FROM video_info")
         .expect("couldn't prepare statement to get total transcripts");
 
-    let tt_res = stmt
-        .query_row([], |row| Ok(row.get::<_, i64>(0)?))
+    let total_transcripts = stmt
+        .query_row([], |row| Ok(row.get::<_, i64>(0)? as usize))
         .expect("couldn't get total transcripts");
-    let total_transcripts = tt_res as usize;
+
+    // Get all durations and sum them
+    let mut duration_stmt = conn
+        .prepare("SELECT duration FROM video_info WHERE duration IS NOT NULL")
+        .expect("couldn't prepare statement to get durations");
+
+    let durations = duration_stmt
+        .query_map([], |row| row.get::<_, String>(0))
+        .expect("couldn't query durations");
+
+    let mut total_seconds = 0u64;
+    for duration_result in durations {
+        if let Ok(duration_str) = duration_result {
+            if let Some(seconds) = parse_duration_to_seconds(&duration_str) {
+                total_seconds += seconds;
+            }
+        }
+    }
+
+    let total_runtime = format_seconds_to_duration(total_seconds);
 
     // Add total transcripts row with a divider style
     let total_row = Row::new(vec![
@@ -683,12 +700,21 @@ fn render_stats_section<'a>(
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD),
         ),
+        Cell::from(total_runtime).style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        ),
     ]);
     rows.push(total_row);
 
     // Add a separator row
-    let separator_row = Row::new(vec![Cell::from("─".repeat(30)), Cell::from("─".repeat(10))])
-        .style(Style::default().fg(app.colors.footer_border_color));
+    let separator_row = Row::new(vec![
+        Cell::from("─".repeat(30)),
+        Cell::from("─".repeat(10)),
+        Cell::from("─".repeat(10)),
+    ])
+    .style(Style::default().fg(app.colors.footer_border_color));
     rows.push(separator_row);
 
     // Query database for video counts per watch directory
@@ -698,11 +724,12 @@ fn render_stats_section<'a>(
                 let empty_row = Row::new(vec![
                     Cell::from("No watch directories configured"),
                     Cell::from(""),
+                    Cell::from(""),
                 ])
                 .style(Style::default().fg(Color::Gray));
                 rows.push(empty_row);
             } else {
-                for (dir, count) in dir_counts {
+                for (dir, count, duration) in dir_counts {
                     // Truncate directory path if too long, show last part
                     let display_dir = if dir.len() > 35 {
                         format!("...{}", &dir[dir.len() - 32..])
@@ -713,19 +740,24 @@ fn render_stats_section<'a>(
                     let dir_row = Row::new(vec![
                         Cell::from(display_dir).style(Style::default().fg(app.colors.row_fg)),
                         Cell::from(count.to_string()).style(Style::default().fg(Color::Green)),
+                        Cell::from(duration).style(Style::default().fg(Color::Green)),
                     ]);
                     rows.push(dir_row);
                 }
             }
         }
         Err(e) => {
-            let error_row = Row::new(vec![Cell::from(format!("Error: {}", e)), Cell::from("")])
-                .style(Style::default().fg(Color::Red));
+            let error_row = Row::new(vec![
+                Cell::from(format!("Error: {}", e)),
+                Cell::from(""),
+                Cell::from(""),
+            ])
+            .style(Style::default().fg(Color::Red));
             rows.push(error_row);
         }
     }
 
-    let widths = [Constraint::Min(25), Constraint::Length(10)];
+    let widths = [Constraint::Min(25), Constraint::Length(10), Constraint::Length(10)];
 
     let block = Block::default()
         .title("Stats")
@@ -737,7 +769,7 @@ fn render_stats_section<'a>(
 
 fn get_directory_stats(
     conn: &rusqlite::Connection,
-) -> Result<Vec<(String, usize)>, Box<dyn std::error::Error>> {
+) -> Result<Vec<(String, usize, String)>, Box<dyn std::error::Error>> {
     let mut stmt = conn.prepare(
         "SELECT watch_directory, COUNT(*) as count
          FROM video_info
@@ -752,7 +784,24 @@ fn get_directory_stats(
 
     let mut results = Vec::new();
     for row in rows {
-        results.push(row?);
+        let (dir, count) = row?;
+
+        // Get all durations for this directory
+        let mut duration_stmt = conn.prepare(
+            "SELECT duration FROM video_info WHERE watch_directory = ? AND duration IS NOT NULL",
+        )?;
+        let durations = duration_stmt.query_map([&dir], |row| row.get::<_, String>(0))?;
+
+        let mut total_seconds = 0u64;
+        for duration_result in durations {
+            if let Ok(duration_str) = duration_result {
+                if let Some(seconds) = parse_duration_to_seconds(&duration_str) {
+                    total_seconds += seconds;
+                }
+            }
+        }
+
+        results.push((dir, count, format_seconds_to_duration(total_seconds)));
     }
 
     Ok(results)
@@ -770,4 +819,24 @@ fn format_age(seconds: u64) -> String {
         let minutes = (seconds % 3600) / 60;
         format!("{}h {}m", hours, minutes)
     }
+}
+
+fn parse_duration_to_seconds(duration_str: &str) -> Option<u64> {
+    let parts: Vec<&str> = duration_str.split(':').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+
+    let hours = parts[0].parse::<u64>().ok()?;
+    let minutes = parts[1].parse::<u64>().ok()?;
+    let seconds = parts[2].parse::<u64>().ok()?;
+
+    Some(hours * 3600 + minutes * 60 + seconds)
+}
+
+fn format_seconds_to_duration(total_seconds: u64) -> String {
+    let hours = total_seconds / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
 }
