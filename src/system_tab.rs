@@ -453,19 +453,20 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
                 // Show hostname for Web Server
                 if service.name == "Web Server" {
                     lines.push(Line::from(spans));
-                    let mut hostname_spans = Vec::new();
-                    hostname_spans.push(Span::raw("  ")); // Indent
-                    hostname_spans.push(Span::styled(
-                        app.config_data.hostname.clone(),
-                        Style::default().fg(Color::Cyan),
-                    ));
-                    hostname_spans.push(Span::raw(" "));
-                    hostname_spans.push(Span::styled(
-                        "← [OPEN (o)]",
-                        Style::default()
-                            .fg(Color::Green)
-                            .add_modifier(Modifier::BOLD),
-                    ));
+                    let hostname_spans = vec![
+                        Span::raw("  "), // Indent
+                        Span::styled(
+                            app.config_data.hostname.clone(),
+                            Style::default().fg(Color::Cyan),
+                        ),
+                        Span::raw(" "),
+                        Span::styled(
+                            "← [OPEN (o)]",
+                            Style::default()
+                                .fg(Color::Green)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                    ];
                     lines.push(Line::from(hostname_spans));
                     continue; // Skip the normal line push at the end
                 }
@@ -772,9 +773,11 @@ fn render_stats_section<'a>(
     Table::new(rows, widths).block(block).column_spacing(1)
 }
 
+type DirectoryStat = (String, usize, String);
+
 fn get_directory_stats(
     conn: &rusqlite::Connection,
-) -> Result<Vec<(String, usize, String)>, Box<dyn std::error::Error>> {
+) -> Result<Vec<DirectoryStat>, Box<dyn std::error::Error>> {
     let mut stmt = conn.prepare(
         "SELECT watch_directory, COUNT(*) as count
          FROM video_info
