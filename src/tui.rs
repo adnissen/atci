@@ -160,7 +160,6 @@ impl App {
         Ok(app)
     }
 
-
     pub fn config_next_field(&mut self) {
         let total_fields = self.get_config_field_count();
         if self.config_selected_field < total_fields - 1 {
@@ -300,14 +299,13 @@ impl App {
         }
     }
 
-
     pub fn open_directory_picker(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         // Start from home directory or current directory
         let start_path = dirs::home_dir().unwrap_or_else(|| std::path::PathBuf::from("."));
         let mut explorer = ratatui_explorer::FileExplorer::with_theme(
             ratatui_explorer::Theme::default()
                 .add_default_title()
-                .with_style(Style::default().bg(self.colors.buffer_bg))
+                .with_style(Style::default().bg(self.colors.buffer_bg)),
         )?;
         explorer.set_cwd(&start_path)?;
         self.directory_picker = Some(explorer);
@@ -335,7 +333,6 @@ impl App {
         self.close_directory_picker();
         Ok(())
     }
-
 }
 
 pub fn run() -> Result<(), Box<dyn Error>> {
@@ -413,7 +410,6 @@ fn handle_key_event(
         return Ok(None);
     }
 
-
     // Handle config editing mode
     if app.current_tab == TabState::System && app.config_editing_mode {
         match key.code {
@@ -432,7 +428,7 @@ fn handle_key_event(
 
     // Handle normal mode key events
     match key.code {
-        KeyCode::Char('z') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             return Ok(Some(true));
         } // Signal to quit
         KeyCode::Char('n') => {
@@ -478,14 +474,18 @@ fn handle_key_event(
                         .watch_directories
                         .remove(app.watch_directories_selected_index);
                     // Adjust selected index if needed
-                    if app.watch_directories_selected_index >= app.config_data.watch_directories.len()
+                    if app.watch_directories_selected_index
+                        >= app.config_data.watch_directories.len()
                         && app.watch_directories_selected_index > 0
                     {
                         app.watch_directories_selected_index -= 1;
                     }
                     // Save config after removing
                     if let Err(e) = app.save_config() {
-                        eprintln!("Failed to save config after removing watch directory: {}", e);
+                        eprintln!(
+                            "Failed to save config after removing watch directory: {}",
+                            e
+                        );
                     }
                 }
             }
@@ -594,12 +594,10 @@ fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
     // Controls section
     let controls_text = if app.show_directory_picker {
         "↑↓/jk: Navigate  Enter: Open Directory  n: Select Directory  h/l: Parent/Child  Esc: Cancel".to_string()
+    } else if app.config_editing_mode {
+        "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
     } else {
-        if app.config_editing_mode {
-            "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
-        } else {
-            "↑↓/jk: Navigate  Enter: Edit  o: Open Browser App  n: Add Directory  d: Remove Directory  Ctrl+Z: Quit".to_string()
-        }
+        "↑↓/jk: Navigate  Enter: Edit  o: Open Browser App  n: Add Directory  d: Remove Directory  Ctrl+C: Quit".to_string()
     };
     let controls_block = Block::default()
         .title("Controls")
@@ -613,45 +611,43 @@ fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
 
     f.render_widget(controls_paragraph, bottom_chunks[0]);
 
-
     // Render directory picker modal on top if shown
-    if app.show_directory_picker {
-        if let Some(explorer) = &app.directory_picker {
-            // Create a centered modal area
-            let area = f.area();
-            let popup_width = area.width.saturating_sub(10).min(100);
-            let popup_height = area.height.saturating_sub(6).min(30);
-            let popup_x = (area.width.saturating_sub(popup_width)) / 2;
-            let popup_y = (area.height.saturating_sub(popup_height)) / 2;
+    if app.show_directory_picker
+        && let Some(explorer) = &app.directory_picker
+    {
+        // Create a centered modal area
+        let area = f.area();
+        let popup_width = area.width.saturating_sub(10).min(100);
+        let popup_height = area.height.saturating_sub(6).min(30);
+        let popup_x = (area.width.saturating_sub(popup_width)) / 2;
+        let popup_y = (area.height.saturating_sub(popup_height)) / 2;
 
-            let popup_area = ratatui::layout::Rect {
-                x: popup_x,
-                y: popup_y,
-                width: popup_width,
-                height: popup_height,
-            };
+        let popup_area = ratatui::layout::Rect {
+            x: popup_x,
+            y: popup_y,
+            width: popup_width,
+            height: popup_height,
+        };
 
-            // Render a clear background over the popup area to visually dim underlying UI
-            let clear_block = Clear::default();
-            f.render_widget(clear_block, popup_area);
+        // Render a clear background over the popup area to visually dim underlying UI
+        let clear_block = Clear;
+        f.render_widget(clear_block, popup_area);
 
-            // Render a solid background block
-            let block = Block::default()
-                .title("Select Directory (Enter: Navigate, n: Select, Esc: Cancel)")
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(Color::Yellow))
-                .style(Style::default().bg(app.colors.buffer_bg));
-            f.render_widget(block, popup_area);
+        // Render a solid background block
+        let block = Block::default()
+            .title("Select Directory (Enter: Navigate, n: Select, Esc: Cancel)")
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Yellow))
+            .style(Style::default().bg(app.colors.buffer_bg));
+        f.render_widget(block, popup_area);
 
-            // Render the file explorer inside
-            let inner_area = ratatui::layout::Rect {
-                x: popup_area.x + 1,
-                y: popup_area.y + 1,
-                width: popup_area.width.saturating_sub(2),
-                height: popup_area.height.saturating_sub(2),
-            };
-            f.render_widget_ref(explorer.widget(), inner_area);
-        }
+        // Render the file explorer inside
+        let inner_area = ratatui::layout::Rect {
+            x: popup_area.x + 1,
+            y: popup_area.y + 1,
+            width: popup_area.width.saturating_sub(2),
+            height: popup_area.height.saturating_sub(2),
+        };
+        f.render_widget_ref(explorer.widget(), inner_area);
     }
 }
-

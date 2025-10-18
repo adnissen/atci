@@ -338,10 +338,14 @@ pub fn regenerate_watch_directory(watch_directory: &str) -> Result<(), Box<dyn s
 
         // Delete the transcript file if it exists
         let txt_path = file_path.with_extension("txt");
-        if txt_path.exists() {
-            if let Err(e) = fs::remove_file(&txt_path) {
-                eprintln!("Warning: Failed to delete transcript {}: {}", txt_path.display(), e);
-            }
+        if txt_path.exists()
+            && let Err(e) = fs::remove_file(&txt_path)
+        {
+            eprintln!(
+                "Warning: Failed to delete transcript {}: {}",
+                txt_path.display(),
+                e
+            );
         }
     }
 

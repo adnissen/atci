@@ -365,7 +365,6 @@ pub fn render_system_tab(
     // Stats section on the bottom right
     let stats_table = render_stats_section(app, right_column[1], conn);
     f.render_widget(stats_table, right_column[1]);
-
 }
 
 fn render_watch_directories_section<'a>(
@@ -463,7 +462,9 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
                     hostname_spans.push(Span::raw(" "));
                     hostname_spans.push(Span::styled(
                         "← [OPEN (o)]",
-                        Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                        Style::default()
+                            .fg(Color::Green)
+                            .add_modifier(Modifier::BOLD),
                     ));
                     lines.push(Line::from(hostname_spans));
                     continue; // Skip the normal line push at the end
@@ -679,10 +680,10 @@ fn render_stats_section<'a>(
 
     let mut total_seconds = 0u64;
     for duration_result in durations {
-        if let Ok(duration_str) = duration_result {
-            if let Some(seconds) = parse_duration_to_seconds(&duration_str) {
-                total_seconds += seconds;
-            }
+        if let Ok(duration_str) = duration_result
+            && let Some(seconds) = parse_duration_to_seconds(&duration_str)
+        {
+            total_seconds += seconds;
         }
     }
 
@@ -757,7 +758,11 @@ fn render_stats_section<'a>(
         }
     }
 
-    let widths = [Constraint::Min(25), Constraint::Length(10), Constraint::Length(10)];
+    let widths = [
+        Constraint::Min(25),
+        Constraint::Length(10),
+        Constraint::Length(10),
+    ];
 
     let block = Block::default()
         .title("Stats")
@@ -794,10 +799,10 @@ fn get_directory_stats(
 
         let mut total_seconds = 0u64;
         for duration_result in durations {
-            if let Ok(duration_str) = duration_result {
-                if let Some(seconds) = parse_duration_to_seconds(&duration_str) {
-                    total_seconds += seconds;
-                }
+            if let Ok(duration_str) = duration_result
+                && let Some(seconds) = parse_duration_to_seconds(&duration_str)
+            {
+                total_seconds += seconds;
             }
         }
 
