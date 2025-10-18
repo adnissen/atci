@@ -8,7 +8,10 @@ The web interface is centered around searching and clipping, especially allowing
 <img width="250" height="784" alt="Screenshot 2025-09-07 at 2 36 25 PM" src="https://github.com/user-attachments/assets/9e8819d4-3a7e-41f2-8964-524fafe01e36" />
 <img width="250" height="784" alt="Screenshot 2025-09-07 at 2 36 11 PM" src="https://github.com/user-attachments/assets/15cd0b9a-f253-4db9-8039-6796815e45c4" />
 
-When you run `atci` without any arguments, you'll be presented with a command line dashboard which allows you to easily open the web interface, monitor the status of the services, modify the configuration, and view simple stats. Both the file watcher and web interface are launched automatically if they aren't already running. 
+When you run `atci` without any arguments, you'll be presented with a command line dashboard which allows you to easily open the web interface, monitor the status of the services, modify the configuration, and view simple stats:
+<img width="1156" height="769" alt="Screenshot 2025-10-18 at 12 17 11 PM" src="https://github.com/user-attachments/assets/1da0e898-4fd6-44b5-8b7e-8515a24eb87d" />
+
+Both the file watcher and web interface are launched automatically if they aren't already running. 
 
 The different parts of the application can be run separately however. For instance:
 
