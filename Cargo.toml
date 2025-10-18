@@ -1,6 +1,6 @@
 [package]
 name = "atci"
-version = "25.10.2"
+version = "25.10.3"
 edition = "2024"
 
 [dependencies]

@@ -438,15 +438,7 @@ pub fn regenerate_watch_directory(watch_directory: &str) -> Result<(), Box<dyn s
 
 pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Error>> {
     let cfg = config::load_config_or_default();
-    let mut builder = GlobSetBuilder::new();
     let video_extensions = get_video_extensions();
-
-    for ext in &video_extensions {
-        let pattern = format!("**/*.{}", ext);
-        builder.add(Glob::new(&pattern)?);
-    }
-
-    let globset = builder.build()?;
 
     let all_entries: Vec<_> = cfg
         .watch_directories
@@ -469,15 +461,23 @@ pub fn get_and_save_video_info_from_disk() -> Result<(), Box<dyn std::error::Err
                 return None;
             }
 
+            // Check if this is a video file by checking the extension (case-insensitive)
+            let is_video = if let Some(ext) = file_path.extension() {
+                let ext_lower = ext.to_string_lossy().to_lowercase();
+                video_extensions.contains(&ext_lower.as_str())
+            } else {
+                false
+            };
+
+            if !is_video {
+                return None;
+            }
+
             let relative_path = file_path
                 .strip_prefix(watch_directory)
                 .unwrap_or(file_path)
                 .to_string_lossy()
                 .to_string();
-
-            if !globset.is_match(&relative_path) {
-                return None;
-            }
 
             let metadata = fs::metadata(file_path).ok()?;
             let filename = file_path

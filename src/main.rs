@@ -1940,6 +1940,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
 
+            // Update video info cache if watch directories are configured
+            let cfg = config::load_config_or_default();
+            if !cfg.watch_directories.is_empty()
+                && let Err(e) = files::get_and_save_video_info_from_disk()
+            {
+                eprintln!("Warning: Failed to update video info cache: {}", e);
+            }
+
             if let Err(e) = tui::run() {
                 eprintln!("Error running TUI: {}", e);
                 std::process::exit(1);
