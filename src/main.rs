@@ -27,20 +27,15 @@ mod auth;
 mod clipper;
 mod config;
 mod db;
-mod editor_tab;
-mod file_tab;
 mod files;
 mod metadata;
 mod model_manager;
 mod queue;
-mod queue_tab;
 mod search;
-mod search_tab;
 mod short_url;
 mod system_tab;
 mod tools_manager;
 mod transcripts;
-mod transcripts_tab;
 mod tui;
 mod video_parts;
 mod video_processor;
@@ -51,7 +46,7 @@ mod web;
 pub struct Asset;
 
 #[derive(Parser, Debug)]
-#[command(version, about, long_about = None, arg_required_else_help = true)]
+#[command(version, about, long_about = None)]
 struct Args {
     #[command(subcommand)]
     command: Option<Commands>,
@@ -182,8 +177,6 @@ enum Commands {
         #[arg(help = "URL to the m3u8 stream")]
         url: String,
     },
-    #[command(about = "Launch TUI interface for browsing videos and transcripts")]
-    Tui,
     #[command(about = "Check status of running services")]
     Services {
         #[arg(
@@ -1923,7 +1916,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             });
         }
-        Some(Commands::Tui) => {
+        Some(Commands::Services { json }) => {
+            if let Err(e) = check_services_status(json) {
+                eprintln!("Error checking services: {}", e);
+                std::process::exit(1);
+            }
+        }
+        None => {
             // Check if web server is already running
             let web_running = check_if_service_running("web").unwrap_or(false);
 
@@ -1951,13 +1950,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let _ = child.kill();
             }
         }
-        Some(Commands::Services { json }) => {
-            if let Err(e) = check_services_status(json) {
-                eprintln!("Error checking services: {}", e);
-                std::process::exit(1);
-            }
-        }
-        None => {}
     }
 
     // Clean up PID files on normal exit (try both watcher and web)

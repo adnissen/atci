@@ -6,6 +6,7 @@ use rand::Rng;
 use rusqlite::Result as SqliteResult;
 
 /// Generates a random 5-character alphanumeric ID
+#[allow(dead_code)]
 fn generate_id() -> String {
     const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     let mut rng = rand::thread_rng();
@@ -20,6 +21,7 @@ fn generate_id() -> String {
 
 /// Gets an existing short URL or creates a new one
 /// If the generated ID already exists, it will be overwritten with the new URL
+#[allow(dead_code)]
 pub fn get_or_create(url: &str) -> SqliteResult<String> {
     let conn = db::get_connection()?;
 
