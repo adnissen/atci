@@ -720,7 +720,7 @@ fn render_stats_section<'a>(
     rows.push(separator_row);
 
     // Query database for video counts per watch directory
-    match get_directory_stats(conn) {
+    match get_directory_stats(conn, &app.config_data.watch_directories) {
         Ok(dir_counts) => {
             if dir_counts.is_empty() {
                 let empty_row = Row::new(vec![
@@ -777,7 +777,11 @@ type DirectoryStat = (String, usize, String);
 
 fn get_directory_stats(
     conn: &rusqlite::Connection,
+    configured_watch_dirs: &[String],
 ) -> Result<Vec<DirectoryStat>, Box<dyn std::error::Error>> {
+    use std::collections::HashMap;
+
+    // First, query the database for actual stats
     let mut stmt = conn.prepare(
         "SELECT watch_directory, COUNT(*) as count
          FROM video_info
@@ -790,7 +794,8 @@ fn get_directory_stats(
         Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize))
     })?;
 
-    let mut results = Vec::new();
+    let mut stats_map: HashMap<String, (usize, u64)> = HashMap::new();
+
     for row in rows {
         let (dir, count) = row?;
 
@@ -809,7 +814,18 @@ fn get_directory_stats(
             }
         }
 
-        results.push((dir, count, format_seconds_to_duration(total_seconds)));
+        stats_map.insert(dir, (count, total_seconds));
+    }
+
+    // Now iterate through all configured watch directories
+    let mut results = Vec::new();
+    for dir in configured_watch_dirs {
+        let (count, total_seconds) = stats_map.get(dir).copied().unwrap_or((0, 0));
+        results.push((
+            dir.clone(),
+            count,
+            format_seconds_to_duration(total_seconds),
+        ));
     }
 
     Ok(results)
