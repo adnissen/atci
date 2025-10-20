@@ -340,7 +340,7 @@ pub fn render_system_tab(
         "Configuration (Enter: Edit, Shift+R: Reload From Disk)"
     };
     let config_border_color = if app.system_section == SystemSection::Config {
-        ratatui::style::Color::Yellow
+        app.colors.selection
     } else {
         app.colors.footer_border_color
     };
@@ -371,7 +371,7 @@ fn render_watch_directories_section<'a>(
     app: &App,
     _area: ratatui::layout::Rect,
 ) -> ratatui::widgets::Table<'a> {
-    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::style::{Modifier, Style};
     use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
     let mut rows = Vec::new();
@@ -384,7 +384,7 @@ fn render_watch_directories_section<'a>(
         let dir_cell = if is_selected {
             Cell::from(format!("► {}", dir)).style(
                 Style::default()
-                    .fg(Color::Yellow)
+                    .fg(app.colors.selection)
                     .add_modifier(Modifier::BOLD),
             )
         } else {
@@ -397,7 +397,7 @@ fn render_watch_directories_section<'a>(
     // If no directories, show a message
     if rows.is_empty() {
         let empty_row = Row::new(vec![Cell::from("  No watch directories configured")])
-            .style(Style::default().fg(Color::Gray));
+            .style(Style::default().fg(app.colors.disabled));
         rows.push(empty_row);
     }
 
@@ -409,7 +409,7 @@ fn render_watch_directories_section<'a>(
         "Watch Directories (↑↓/jk: Navigate, n: Add, d: Delete, r: Regenerate)"
     };
     let watch_dirs_border_color = if app.system_section == SystemSection::WatchDirectories {
-        Color::Yellow
+        app.colors.selection
     } else {
         app.colors.footer_border_color
     };
@@ -423,7 +423,7 @@ fn render_watch_directories_section<'a>(
 }
 
 fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
-    use ratatui::style::{Color, Style};
+    use ratatui::style::Style;
     use ratatui::text::{Line, Span, Text};
 
     let mut lines = Vec::new();
@@ -437,7 +437,7 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
         // Status and PIDs
         match service.status {
             ServiceStatus::Active => {
-                spans.push(Span::styled("active", Style::default().fg(Color::Green)));
+                spans.push(Span::styled("active", Style::default().fg(app.colors.success)));
                 if !service.pids.is_empty() {
                     let pid_list = service
                         .pids
@@ -446,7 +446,7 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
                         .collect::<Vec<_>>()
                         .join(", ");
                     spans.push(Span::raw(" (PID: "));
-                    spans.push(Span::styled(pid_list, Style::default().fg(Color::Cyan)));
+                    spans.push(Span::styled(pid_list, Style::default().fg(app.colors.info)));
                     spans.push(Span::raw(")"));
                 }
 
@@ -457,13 +457,13 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
                         Span::raw("  "), // Indent
                         Span::styled(
                             app.config_data.hostname.clone(),
-                            Style::default().fg(Color::Cyan),
+                            Style::default().fg(app.colors.info),
                         ),
                         Span::raw(" "),
                         Span::styled(
                             "← [OPEN (o)]",
                             Style::default()
-                                .fg(Color::Green)
+                                .fg(app.colors.success)
                                 .add_modifier(Modifier::BOLD),
                         ),
                     ];
@@ -472,7 +472,7 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
                 }
             }
             ServiceStatus::Stopped => {
-                spans.push(Span::styled("stopped", Style::default().fg(Color::Red)));
+                spans.push(Span::styled("stopped", Style::default().fg(app.colors.error)));
             }
         }
 
@@ -482,7 +482,7 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
     if lines.is_empty() {
         lines.push(Line::from(vec![Span::styled(
             "No services found",
-            Style::default().fg(Color::Gray),
+            Style::default().fg(app.colors.disabled),
         )]));
     }
 
@@ -494,7 +494,8 @@ fn is_boolean_field(field_name: &str) -> bool {
 }
 
 fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
-    use ratatui::style::{Color, Style};
+    use crate::tui::parse_hex_color;
+    use ratatui::style::Style;
     use ratatui::text::{Line, Span, Text};
 
     let mut lines = Vec::new();
@@ -507,7 +508,7 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
 
         // Add selection indicator
         if is_selected {
-            spans.push(Span::styled("► ", Style::default().fg(Color::Yellow)));
+            spans.push(Span::styled("► ", Style::default().fg(app.colors.selection)));
         } else {
             spans.push(Span::raw("  "));
         }
@@ -516,11 +517,12 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
         let field_display_name = field_name.replace("_", " ");
         spans.push(Span::styled(
             format!("{}: ", field_display_name),
-            Style::default().fg(Color::Cyan),
+            Style::default().fg(app.colors.info),
         ));
 
-        // Check if this is a boolean field
+        // Check if this is a boolean or color field
         let is_bool = is_boolean_field(field_name);
+        let is_color = field_name.starts_with("color_");
         let is_password = *field_name == "password";
 
         // Field value
@@ -537,14 +539,21 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
 
         let value_style = if app.config_editing_mode && is_selected && !is_bool {
             Style::default()
-                .fg(Color::Green)
+                .fg(app.colors.success)
                 .add_modifier(Modifier::BOLD)
         } else if is_selected {
             Style::default()
-                .fg(Color::White)
+                .fg(app.colors.text_highlight)
                 .add_modifier(Modifier::BOLD)
+        } else if is_color && !app.config_editing_mode {
+            // For color fields that are not being edited, render in the color itself
+            if let Some(color) = parse_hex_color(&field_value) {
+                Style::default().fg(color)
+            } else {
+                Style::default().fg(app.colors.disabled)
+            }
         } else {
-            Style::default().fg(Color::Gray)
+            Style::default().fg(app.colors.disabled)
         };
 
         // For boolean fields, show checkbox instead of true/false
@@ -562,7 +571,7 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
 
             // Show editing indicator
             if app.config_editing_mode && is_selected {
-                spans.push(Span::styled("█", Style::default().fg(Color::Green)));
+                spans.push(Span::styled("█", Style::default().fg(app.colors.success)));
             }
         }
 
@@ -572,7 +581,7 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
     if lines.is_empty() {
         lines.push(Line::from(vec![Span::styled(
             "No config fields found",
-            Style::default().fg(Color::Gray),
+            Style::default().fg(app.colors.disabled),
         )]));
     }
 
@@ -583,7 +592,7 @@ fn render_queue_section<'a>(
     app: &App,
     _area: ratatui::layout::Rect,
 ) -> ratatui::widgets::Table<'a> {
-    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::style::{Modifier, Style};
     use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
     let mut rows = Vec::new();
@@ -593,7 +602,7 @@ fn render_queue_section<'a>(
         let age_text = format_age(app.currently_processing_age);
         let status_cell = Cell::from(format!("PROCESSING ({})", age_text)).style(
             Style::default()
-                .fg(Color::Yellow)
+                .fg(app.colors.selection)
                 .add_modifier(Modifier::BOLD),
         );
         let path_cell = Cell::from(path.clone());
@@ -657,7 +666,7 @@ fn render_stats_section<'a>(
     _area: ratatui::layout::Rect,
     conn: &rusqlite::Connection,
 ) -> ratatui::widgets::Table<'a> {
-    use ratatui::style::{Color, Modifier, Style};
+    use ratatui::style::{Modifier, Style};
     use ratatui::widgets::{Block, Borders, Cell, Row, Table};
 
     let mut rows = Vec::new();
@@ -694,17 +703,17 @@ fn render_stats_section<'a>(
     let total_row = Row::new(vec![
         Cell::from("Total Transcripts").style(
             Style::default()
-                .fg(Color::Cyan)
+                .fg(app.colors.info)
                 .add_modifier(Modifier::BOLD),
         ),
         Cell::from(total_transcripts.to_string()).style(
             Style::default()
-                .fg(Color::Cyan)
+                .fg(app.colors.info)
                 .add_modifier(Modifier::BOLD),
         ),
         Cell::from(total_runtime).style(
             Style::default()
-                .fg(Color::Cyan)
+                .fg(app.colors.info)
                 .add_modifier(Modifier::BOLD),
         ),
     ]);
@@ -728,7 +737,7 @@ fn render_stats_section<'a>(
                     Cell::from(""),
                     Cell::from(""),
                 ])
-                .style(Style::default().fg(Color::Gray));
+                .style(Style::default().fg(app.colors.disabled));
                 rows.push(empty_row);
             } else {
                 for (dir, count, duration) in dir_counts {
@@ -741,8 +750,8 @@ fn render_stats_section<'a>(
 
                     let dir_row = Row::new(vec![
                         Cell::from(display_dir).style(Style::default().fg(app.colors.row_fg)),
-                        Cell::from(count.to_string()).style(Style::default().fg(Color::Green)),
-                        Cell::from(duration).style(Style::default().fg(Color::Green)),
+                        Cell::from(count.to_string()).style(Style::default().fg(app.colors.success)),
+                        Cell::from(duration).style(Style::default().fg(app.colors.success)),
                     ]);
                     rows.push(dir_row);
                 }
@@ -754,7 +763,7 @@ fn render_stats_section<'a>(
                 Cell::from(""),
                 Cell::from(""),
             ])
-            .style(Style::default().fg(Color::Red));
+            .style(Style::default().fg(app.colors.error));
             rows.push(error_row);
         }
     }

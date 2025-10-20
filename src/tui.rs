@@ -33,43 +33,53 @@ pub struct TableColors {
     pub header_fg: Color,
     pub row_fg: Color,
     pub footer_border_color: Color,
+    pub selection: Color,
+    pub success: Color,
+    pub disabled: Color,
+    pub info: Color,
+    pub error: Color,
+    pub text_highlight: Color,
 }
 
 impl TableColors {
-    const fn new(color: &tailwind::Palette) -> Self {
+    fn from_config(cfg: &config::AtciConfig) -> Self {
         Self {
-            buffer_bg: tailwind::SLATE.c950,
-            header_bg: color.c900,
-            header_fg: tailwind::SLATE.c200,
-            row_fg: tailwind::SLATE.c200,
-            footer_border_color: color.c400,
+            buffer_bg: parse_hex_color(&cfg.color_buffer_bg).expect("Invalid hex color in config: color_buffer_bg"),
+            header_bg: parse_hex_color(&cfg.color_header_bg).expect("Invalid hex color in config: color_header_bg"),
+            header_fg: parse_hex_color(&cfg.color_text_primary).expect("Invalid hex color in config: color_text_primary"),
+            row_fg: parse_hex_color(&cfg.color_text_primary).expect("Invalid hex color in config: color_text_primary"),
+            footer_border_color: parse_hex_color(&cfg.color_border_primary).expect("Invalid hex color in config: color_border_primary"),
+            selection: parse_hex_color(&cfg.color_selection).expect("Invalid hex color in config: color_selection"),
+            success: parse_hex_color(&cfg.color_success).expect("Invalid hex color in config: color_success"),
+            disabled: parse_hex_color(&cfg.color_disabled).expect("Invalid hex color in config: color_disabled"),
+            info: parse_hex_color(&cfg.color_info).expect("Invalid hex color in config: color_info"),
+            error: parse_hex_color(&cfg.color_error).expect("Invalid hex color in config: color_error"),
+            text_highlight: parse_hex_color(&cfg.color_text_highlight).expect("Invalid hex color in config: color_text_highlight"),
         }
     }
 }
 
-mod tailwind {
-    use ratatui::style::Color;
+/// Parse a hex color string (#RRGGBB or #RGB) into a ratatui Color
+pub fn parse_hex_color(hex: &str) -> Option<Color> {
+    let hex = hex.trim().strip_prefix('#')?;
 
-    pub struct Palette {
-        pub c200: Color,
-        pub c400: Color,
-        pub c900: Color,
-        pub c950: Color,
-    }
-
-    pub const SLATE: Palette = Palette {
-        c200: Color::Rgb(226, 232, 240),
-        c400: Color::Rgb(148, 163, 184),
-        c900: Color::Rgb(15, 23, 42),
-        c950: Color::Rgb(2, 6, 23),
+    let (r, g, b) = if hex.len() == 6 {
+        // #RRGGBB format
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        (r, g, b)
+    } else if hex.len() == 3 {
+        // #RGB format - expand to RRGGBB
+        let r = u8::from_str_radix(&hex[0..1], 16).ok()?;
+        let g = u8::from_str_radix(&hex[1..2], 16).ok()?;
+        let b = u8::from_str_radix(&hex[2..3], 16).ok()?;
+        (r * 17, g * 17, b * 17) // 0xF -> 0xFF
+    } else {
+        return None;
     };
 
-    pub const BLUE: Palette = Palette {
-        c200: Color::Rgb(191, 219, 254),
-        c400: Color::Rgb(96, 165, 250),
-        c900: Color::Rgb(30, 58, 138),
-        c950: Color::Rgb(23, 37, 84),
-    };
+    Some(Color::Rgb(r, g, b))
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -148,12 +158,13 @@ pub enum ServiceStatus {
 
 impl Default for App {
     fn default() -> App {
+        let config_data = config::load_config_or_default();
         App {
-            colors: TableColors::new(&tailwind::BLUE),
+            colors: TableColors::from_config(&config_data),
             current_tab: TabState::System,
             system_services: Vec::new(),
             last_system_refresh: Instant::now(),
-            config_data: config::load_config_or_default(),
+            config_data,
             config_selected_field: 0,
             config_editing_mode: false,
             config_input_buffer: String::new(),
@@ -178,12 +189,13 @@ impl Default for App {
 impl App {
     // Create app for the main TUI (after setup is complete)
     fn new_after_setup() -> Result<App, Box<dyn Error>> {
+        let config_data = config::load_config_or_default();
         let mut app = App {
-            colors: TableColors::new(&tailwind::BLUE),
+            colors: TableColors::from_config(&config_data),
             current_tab: TabState::System,
             system_services: Vec::new(),
             last_system_refresh: Instant::now(),
-            config_data: config::load_config_or_default(),
+            config_data,
             config_selected_field: 0,
             config_editing_mode: false,
             config_input_buffer: String::new(),
@@ -214,12 +226,13 @@ impl App {
 
     // Create app for the setup wizard only
     fn new_for_wizard() -> Result<App, Box<dyn Error>> {
+        let config_data = config::load_config_or_default();
         let mut app = App {
-            colors: TableColors::new(&tailwind::BLUE),
+            colors: TableColors::from_config(&config_data),
             current_tab: TabState::System,
             system_services: Vec::new(),
             last_system_refresh: Instant::now(),
-            config_data: config::load_config_or_default(),
+            config_data,
             config_selected_field: 0,
             config_editing_mode: false,
             config_input_buffer: String::new(),
@@ -259,7 +272,7 @@ impl App {
     }
 
     pub fn get_config_field_count(&self) -> usize {
-        11 // Total number of config fields (excluding watch_directories)
+        21 // Total number of config fields (excluding watch_directories)
     }
 
     pub fn get_config_field_names(&self) -> Vec<&'static str> {
@@ -275,6 +288,16 @@ impl App {
             "allow_subtitles",
             "stream_chunk_size",
             "hostname",
+            "color_buffer_bg",
+            "color_header_bg",
+            "color_text_primary",
+            "color_border_primary",
+            "color_selection",
+            "color_success",
+            "color_disabled",
+            "color_info",
+            "color_error",
+            "color_text_highlight",
         ]
     }
 
@@ -291,6 +314,16 @@ impl App {
             8 => self.config_data.allow_subtitles.to_string(),
             9 => self.config_data.stream_chunk_size.to_string(),
             10 => self.config_data.hostname.clone(),
+            11 => self.config_data.color_buffer_bg.clone(),
+            12 => self.config_data.color_header_bg.clone(),
+            13 => self.config_data.color_text_primary.clone(),
+            14 => self.config_data.color_border_primary.clone(),
+            15 => self.config_data.color_selection.clone(),
+            16 => self.config_data.color_success.clone(),
+            17 => self.config_data.color_disabled.clone(),
+            18 => self.config_data.color_info.clone(),
+            19 => self.config_data.color_error.clone(),
+            20 => self.config_data.color_text_highlight.clone(),
             _ => String::new(),
         }
     }
@@ -357,6 +390,8 @@ impl App {
 
     pub fn reload_config(&mut self) {
         self.config_data = config::load_config_or_default();
+        // Reload colors from the updated config
+        self.colors = TableColors::from_config(&self.config_data);
     }
 
     pub fn add_char_to_config(&mut self, c: char) {
@@ -1535,7 +1570,7 @@ fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
         let block = Block::default()
             .title("Select Directory (Enter: Navigate, n: Select, Esc: Cancel)")
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::Yellow))
+            .border_style(Style::default().fg(app.colors.selection))
             .style(Style::default().bg(app.colors.buffer_bg));
         f.render_widget(block, popup_area);
 
@@ -1623,7 +1658,7 @@ fn render_setup_wizard_modal(f: &mut Frame, app: &App) {
 }
 
 fn render_wizard_welcome(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    use ratatui::style::{Color, Modifier};
+    use ratatui::style::Modifier;
     use ratatui::text::{Line, Span};
 
     let lines = vec![
@@ -1647,7 +1682,7 @@ fn render_wizard_welcome(f: &mut Frame, app: &App, area: ratatui::layout::Rect) 
         Line::from(""),
         Line::from(Span::styled(
             "Press Enter to begin",
-            Style::default().fg(Color::Green),
+            Style::default().fg(app.colors.success),
         )),
     ];
 
@@ -1659,7 +1694,7 @@ fn render_wizard_welcome(f: &mut Frame, app: &App, area: ratatui::layout::Rect) 
 }
 
 fn render_wizard_tool_selection(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    use ratatui::style::{Color, Modifier};
+    use ratatui::style::Modifier;
     use ratatui::text::{Line, Span};
 
     let tool_name = match app.setup_wizard_screen {
@@ -1684,13 +1719,13 @@ fn render_wizard_tool_selection(f: &mut Frame, app: &App, area: ratatui::layout:
         )));
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled(&app.setup_wizard_input_buffer, Style::default().fg(Color::Green)),
-            Span::styled("█", Style::default().fg(Color::Green)),
+            Span::styled(&app.setup_wizard_input_buffer, Style::default().fg(app.colors.success)),
+            Span::styled("█", Style::default().fg(app.colors.success)),
         ]));
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Press Enter to confirm, Esc to cancel",
-            Style::default().fg(Color::Gray),
+            Style::default().fg(app.colors.disabled),
         )));
     } else {
         // Show options
@@ -1698,11 +1733,11 @@ fn render_wizard_tool_selection(f: &mut Frame, app: &App, area: ratatui::layout:
             let is_selected = i == app.setup_wizard_selected_index;
             let line = if is_selected {
                 Line::from(vec![
-                    Span::styled("► ", Style::default().fg(Color::Yellow)),
+                    Span::styled("► ", Style::default().fg(app.colors.selection)),
                     Span::styled(
                         &option.display_text,
                         Style::default()
-                            .fg(Color::Yellow)
+                            .fg(app.colors.selection)
                             .add_modifier(Modifier::BOLD),
                     ),
                 ])
@@ -1724,7 +1759,7 @@ fn render_wizard_tool_selection(f: &mut Frame, app: &App, area: ratatui::layout:
 }
 
 fn render_wizard_model_selection(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    use ratatui::style::{Color, Modifier};
+    use ratatui::style::Modifier;
     use ratatui::text::{Line, Span};
 
     let mut lines = vec![
@@ -1742,13 +1777,13 @@ fn render_wizard_model_selection(f: &mut Frame, app: &App, area: ratatui::layout
         )));
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled(&app.setup_wizard_input_buffer, Style::default().fg(Color::Green)),
-            Span::styled("█", Style::default().fg(Color::Green)),
+            Span::styled(&app.setup_wizard_input_buffer, Style::default().fg(app.colors.success)),
+            Span::styled("█", Style::default().fg(app.colors.success)),
         ]));
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Press Enter to confirm, Esc to cancel",
-            Style::default().fg(Color::Gray),
+            Style::default().fg(app.colors.disabled),
         )));
     } else {
         // Show options
@@ -1756,11 +1791,11 @@ fn render_wizard_model_selection(f: &mut Frame, app: &App, area: ratatui::layout
             let is_selected = i == app.setup_wizard_selected_index;
             let line = if is_selected {
                 Line::from(vec![
-                    Span::styled("► ", Style::default().fg(Color::Yellow)),
+                    Span::styled("► ", Style::default().fg(app.colors.selection)),
                     Span::styled(
                         &option.display_text,
                         Style::default()
-                            .fg(Color::Yellow)
+                            .fg(app.colors.selection)
                             .add_modifier(Modifier::BOLD),
                     ),
                 ])
@@ -1782,7 +1817,7 @@ fn render_wizard_model_selection(f: &mut Frame, app: &App, area: ratatui::layout
 }
 
 fn render_wizard_watch_directories(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    use ratatui::style::{Color, Modifier};
+    use ratatui::style::Modifier;
     use ratatui::text::{Line, Span};
 
     // Split area: top for added directories, bottom for explorer
@@ -1805,7 +1840,7 @@ fn render_wizard_watch_directories(f: &mut Frame, app: &App, area: ratatui::layo
     if app.setup_wizard_watch_dirs.is_empty() {
         lines.push(Line::from(Span::styled(
             "  No directories added yet",
-            Style::default().fg(Color::Gray),
+            Style::default().fg(app.colors.disabled),
         )));
     } else {
         for dir in &app.setup_wizard_watch_dirs {
@@ -1817,16 +1852,16 @@ fn render_wizard_watch_directories(f: &mut Frame, app: &App, area: ratatui::layo
     if app.setup_wizard_watch_dirs.is_empty() {
         lines.push(Line::from(Span::styled(
             "Press 'n' to add current directory",
-            Style::default().fg(Color::Green),
+            Style::default().fg(app.colors.success),
         )));
         lines.push(Line::from(Span::styled(
             "Press 'c' to create ~/atci_videos and continue",
-            Style::default().fg(Color::Green),
+            Style::default().fg(app.colors.success),
         )));
     } else {
         lines.push(Line::from(Span::styled(
             "Press 'n' to add current directory, 'c' to continue",
-            Style::default().fg(Color::Green),
+            Style::default().fg(app.colors.success),
         )));
     }
 
@@ -1858,7 +1893,6 @@ fn render_wizard_watch_directories(f: &mut Frame, app: &App, area: ratatui::layo
 }
 
 fn render_wizard_password(f: &mut Frame, app: &App, area: ratatui::layout::Rect) {
-    use ratatui::style::Color;
     use ratatui::text::{Line, Span};
 
     let lines = vec![
@@ -1867,7 +1901,7 @@ fn render_wizard_password(f: &mut Frame, app: &App, area: ratatui::layout::Rect)
         Line::from(""),
         Line::from(Span::styled(
             "(This is optional - press Esc to skip)",
-            Style::default().fg(Color::Gray),
+            Style::default().fg(app.colors.disabled),
         )),
         Line::from(""),
         Line::from(""),
@@ -1875,15 +1909,15 @@ fn render_wizard_password(f: &mut Frame, app: &App, area: ratatui::layout::Rect)
             Span::styled("Password: ", Style::default().fg(app.colors.footer_border_color)),
             Span::styled(
                 "*".repeat(app.setup_wizard_input_buffer.len()),
-                Style::default().fg(Color::Green),
+                Style::default().fg(app.colors.success),
             ),
-            Span::styled("█", Style::default().fg(Color::Green)),
+            Span::styled("█", Style::default().fg(app.colors.success)),
         ]),
         Line::from(""),
         Line::from(""),
         Line::from(Span::styled(
             "Press Enter to save, Esc to skip",
-            Style::default().fg(Color::Green),
+            Style::default().fg(app.colors.success),
         )),
     ];
 
