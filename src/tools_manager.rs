@@ -130,7 +130,7 @@ fn detect_platform() -> String {
     }
 }
 
-fn get_downloaded_path(tool: &str) -> String {
+pub fn get_downloaded_path(tool: &str) -> String {
     let binaries_dir = binaries_directory(tool);
     let extension = if cfg!(target_os = "windows") {
         ".exe"

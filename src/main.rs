@@ -877,48 +877,6 @@ fn check_if_service_running(service_type: &str) -> Result<bool, Box<dyn std::err
     Ok(!running_pids.is_empty())
 }
 
-fn start_web_server_as_child() -> Result<std::process::Child, Box<dyn std::error::Error>> {
-    use std::fs::OpenOptions;
-    use std::process::Stdio;
-
-    // Get the current executable path
-    let current_exe = std::env::current_exe()?;
-
-    // Create log file in ~/.atci/web.log
-    let home_dir = dirs::home_dir().ok_or("Could not find home directory")?;
-    let log_path = home_dir.join(".atci").join("web.log");
-
-    // Ensure .atci directory exists
-    if let Some(parent) = log_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    let log_file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&log_path)?;
-
-    // Clone file descriptors for stdout and stderr
-    let stdout_file = log_file.try_clone()?;
-    let stderr_file = log_file;
-
-    // Spawn a new atci web process as a child process
-    let child = std::process::Command::new(&current_exe)
-        .arg("web")
-        .arg("all")
-        .stdin(Stdio::null())
-        .stdout(stdout_file)
-        .stderr(stderr_file)
-        .spawn()?;
-
-    println!(
-        "Started web server as child process (PID: {}, logs: ~/.atci/web.log)",
-        child.id()
-    );
-
-    Ok(child)
-}
-
 fn update() -> Result<(), Box<dyn std::error::Error>> {
     use self_update::cargo_crate_version;
 
@@ -1923,29 +1881,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         None => {
-            // Check if web server is already running
-            let web_running = check_if_service_running("web").unwrap_or(false);
+            // Check if setup is needed
+            let cfg = config::load_config_or_default();
+            let needs_setup = cfg.ffmpeg_path.is_empty()
+                || cfg.ffprobe_path.is_empty()
+                || cfg.whispercli_path.is_empty()
+                || cfg.model_name.is_empty()
+                || cfg.watch_directories.is_empty();
 
             let mut web_child = None;
-            if !web_running {
-                // Start web server as a child process
-                match start_web_server_as_child() {
-                    Ok(child) => {
-                        web_child = Some(child);
-                    }
-                    Err(e) => {
-                        eprintln!("Warning: Failed to start web server: {}", e);
-                        eprintln!("Continuing with TUI anyway...");
+
+            // Only start web server if setup is not needed
+            if !needs_setup {
+                // Check if web server is already running
+                let web_running = check_if_service_running("web").unwrap_or(false);
+
+                if !web_running {
+                    // Start web server as a child process
+                    match tui::start_web_server_as_child() {
+                        Ok(child) => {
+                            web_child = Some(child);
+                        }
+                        Err(e) => {
+                            eprintln!("Warning: Failed to start web server: {}", e);
+                            eprintln!("Continuing with TUI anyway...");
+                        }
                     }
                 }
-            }
 
-            // Update video info cache if watch directories are configured
-            let cfg = config::load_config_or_default();
-            if !cfg.watch_directories.is_empty()
-                && let Err(e) = files::get_and_save_video_info_from_disk()
-            {
-                eprintln!("Warning: Failed to update video info cache: {}", e);
+                // Update video info cache if watch directories are configured
+                if !cfg.watch_directories.is_empty()
+                    && let Err(e) = files::get_and_save_video_info_from_disk()
+                {
+                    eprintln!("Warning: Failed to update video info cache: {}", e);
+                }
             }
 
             if let Err(e) = tui::run() {

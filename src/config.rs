@@ -23,6 +23,47 @@ fn default_hostname() -> String {
     "http://localhost:4620".to_string()
 }
 
+// Color defaults
+fn default_color_buffer_bg() -> String {
+    "#020617".to_string()
+}
+
+fn default_color_header_bg() -> String {
+    "#1e3a8a".to_string()
+}
+
+fn default_color_text_primary() -> String {
+    "#e2e8f0".to_string()
+}
+
+fn default_color_border_primary() -> String {
+    "#60a5fa".to_string()
+}
+
+fn default_color_selection() -> String {
+    "#ffff00".to_string()
+}
+
+fn default_color_success() -> String {
+    "#00ff00".to_string()
+}
+
+fn default_color_disabled() -> String {
+    "#808080".to_string()
+}
+
+fn default_color_info() -> String {
+    "#00ffff".to_string()
+}
+
+fn default_color_error() -> String {
+    "#ff0000".to_string()
+}
+
+fn default_color_text_highlight() -> String {
+    "#ffffff".to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AtciConfig {
     #[serde(default)]
@@ -48,6 +89,27 @@ pub struct AtciConfig {
     pub stream_chunk_size: u32,
     #[serde(default = "default_hostname")]
     pub hostname: String,
+    // Color configuration
+    #[serde(default = "default_color_buffer_bg")]
+    pub color_buffer_bg: String,
+    #[serde(default = "default_color_header_bg")]
+    pub color_header_bg: String,
+    #[serde(default = "default_color_text_primary")]
+    pub color_text_primary: String,
+    #[serde(default = "default_color_border_primary")]
+    pub color_border_primary: String,
+    #[serde(default = "default_color_selection")]
+    pub color_selection: String,
+    #[serde(default = "default_color_success")]
+    pub color_success: String,
+    #[serde(default = "default_color_disabled")]
+    pub color_disabled: String,
+    #[serde(default = "default_color_info")]
+    pub color_info: String,
+    #[serde(default = "default_color_error")]
+    pub color_error: String,
+    #[serde(default = "default_color_text_highlight")]
+    pub color_text_highlight: String,
 }
 
 #[derive(Serialize)]
@@ -71,6 +133,16 @@ impl Default for AtciConfig {
             processing_failure_command: String::new(),
             stream_chunk_size: 60,
             hostname: "http://localhost:4620".to_string(),
+            color_buffer_bg: default_color_buffer_bg(),
+            color_header_bg: default_color_header_bg(),
+            color_text_primary: default_color_text_primary(),
+            color_border_primary: default_color_border_primary(),
+            color_selection: default_color_selection(),
+            color_success: default_color_success(),
+            color_disabled: default_color_disabled(),
+            color_info: default_color_info(),
+            color_error: default_color_error(),
+            color_text_highlight: default_color_text_highlight(),
         }
     }
 }
@@ -162,9 +234,41 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
                 .map_err(|_| format!("Invalid number value for stream_chunk_size: {}", value))?;
         }
         "hostname" => cfg.hostname = value.to_string(),
+        "color_buffer_bg" => cfg.color_buffer_bg = validate_hex_color(value)?,
+        "color_header_bg" => cfg.color_header_bg = validate_hex_color(value)?,
+        "color_text_primary" => cfg.color_text_primary = validate_hex_color(value)?,
+        "color_border_primary" => cfg.color_border_primary = validate_hex_color(value)?,
+        "color_selection" => cfg.color_selection = validate_hex_color(value)?,
+        "color_success" => cfg.color_success = validate_hex_color(value)?,
+        "color_disabled" => cfg.color_disabled = validate_hex_color(value)?,
+        "color_info" => cfg.color_info = validate_hex_color(value)?,
+        "color_error" => cfg.color_error = validate_hex_color(value)?,
+        "color_text_highlight" => cfg.color_text_highlight = validate_hex_color(value)?,
         _ => return Err(format!("Unknown field: {}", field)),
     }
     Ok(())
+}
+
+fn validate_hex_color(hex: &str) -> Result<String, String> {
+    let hex = hex.trim();
+    if !hex.starts_with('#') || (hex.len() != 7 && hex.len() != 4) {
+        return Err(format!(
+            "Invalid hex color format: {}. Expected #RRGGBB or #RGB",
+            hex
+        ));
+    }
+
+    // Validate hex characters
+    for c in hex.chars().skip(1) {
+        if !c.is_ascii_hexdigit() {
+            return Err(format!(
+                "Invalid hex color: {} contains non-hex character",
+                hex
+            ));
+        }
+    }
+
+    Ok(hex.to_string())
 }
 
 #[post("/api/config", data = "<config>")]
