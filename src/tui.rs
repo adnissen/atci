@@ -135,6 +135,7 @@ pub struct App {
     pub last_system_refresh: Instant,
     pub config_data: config::AtciConfig,
     pub config_selected_field: usize,
+    pub config_scroll_offset: usize,
     pub config_editing_mode: bool,
     pub config_input_buffer: String,
     pub system_section: SystemSection,
@@ -176,6 +177,7 @@ impl Default for App {
             last_system_refresh: Instant::now(),
             config_data,
             config_selected_field: 0,
+            config_scroll_offset: 0,
             config_editing_mode: false,
             config_input_buffer: String::new(),
             system_section: SystemSection::Config,
@@ -207,6 +209,7 @@ impl App {
             last_system_refresh: Instant::now(),
             config_data,
             config_selected_field: 0,
+            config_scroll_offset: 0,
             config_editing_mode: false,
             config_input_buffer: String::new(),
             system_section: SystemSection::Config,
@@ -244,6 +247,7 @@ impl App {
             last_system_refresh: Instant::now(),
             config_data,
             config_selected_field: 0,
+            config_scroll_offset: 0,
             config_editing_mode: false,
             config_input_buffer: String::new(),
             system_section: SystemSection::Config,
@@ -278,6 +282,23 @@ impl App {
     pub fn config_previous_field(&mut self) {
         if self.config_selected_field > 0 {
             self.config_selected_field -= 1;
+        }
+    }
+
+    pub fn adjust_config_scroll(&mut self, visible_height: usize) {
+        // Ensure the selected field is visible by adjusting scroll offset
+        if visible_height == 0 {
+            return;
+        }
+
+        // If selected field is below the visible area, scroll down
+        if self.config_selected_field >= self.config_scroll_offset + visible_height {
+            self.config_scroll_offset = self.config_selected_field - visible_height + 1;
+        }
+
+        // If selected field is above the visible area, scroll up
+        if self.config_selected_field < self.config_scroll_offset {
+            self.config_scroll_offset = self.config_selected_field;
         }
     }
 
