@@ -3,7 +3,9 @@ use crate::{config, model_manager, tools_manager};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
     execute,
-    terminal::{EnterAlternateScreen, LeaveAlternateScreen, SetTitle, disable_raw_mode, enable_raw_mode},
+    terminal::{
+        EnterAlternateScreen, LeaveAlternateScreen, SetTitle, disable_raw_mode, enable_raw_mode,
+    },
 };
 use ratatui::{
     Frame, Terminal,
@@ -12,10 +14,7 @@ use ratatui::{
     style::{Modifier, Style},
     widgets::{Block, Borders, Paragraph},
 };
-use std::{
-    env, error::Error, fs, io,
-    path::PathBuf
-};
+use std::{env, error::Error, fs, io, path::PathBuf};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum SetupWizardScreen {
@@ -527,7 +526,7 @@ fn run_wizard_loop<B: Backend>(
 ) -> Result<bool, Box<dyn Error>> {
     loop {
         // ideally we would never call terminal.clear(), as it means the screen flashes on input since the entire terminal has to redraw.
-        // but for the setup wizard, we jump in and out of raw_mode (i.e. the ratatui app), 
+        // but for the setup wizard, we jump in and out of raw_mode (i.e. the ratatui app),
         // and when we come _back_ into the tui, it gets half rendered and is generally broken visually, because ratatui assumes the space is clear.
         // until I move the download stuff into the ratatui application, we will have to deal with a little screen flicker
         let _ = terminal.clear();
@@ -536,8 +535,7 @@ fn run_wizard_loop<B: Backend>(
             render_setup_wizard_modal(f, wizard);
         })?;
 
-        if let Event::Key(key) = event::read()?
-        {
+        if let Event::Key(key) = event::read()? {
             if let Some(should_quit) = handle_setup_wizard_input(wizard, key)?
                 && should_quit
             {
@@ -921,7 +919,9 @@ fn render_setup_wizard_modal(f: &mut Frame, wizard: &SetupWizard) {
             render_wizard_tool_selection(f, wizard, inner_area)
         }
         SetupWizardScreen::Model => render_wizard_model_selection(f, wizard, inner_area),
-        SetupWizardScreen::WatchDirectories => render_wizard_watch_directories(f, wizard, inner_area),
+        SetupWizardScreen::WatchDirectories => {
+            render_wizard_watch_directories(f, wizard, inner_area)
+        }
         SetupWizardScreen::Password => render_wizard_password(f, wizard, inner_area),
     }
 
@@ -1036,7 +1036,10 @@ fn render_wizard_tool_selection(f: &mut Frame, wizard: &SetupWizard, area: ratat
             } else {
                 Line::from(vec![
                     Span::raw("  "),
-                    Span::styled(&option.display_text, Style::default().fg(wizard.colors.row_fg)),
+                    Span::styled(
+                        &option.display_text,
+                        Style::default().fg(wizard.colors.row_fg),
+                    ),
                 ])
             };
             lines.push(line);
@@ -1096,7 +1099,10 @@ fn render_wizard_model_selection(f: &mut Frame, wizard: &SetupWizard, area: rata
             } else {
                 Line::from(vec![
                     Span::raw("  "),
-                    Span::styled(&option.display_text, Style::default().fg(wizard.colors.row_fg)),
+                    Span::styled(
+                        &option.display_text,
+                        Style::default().fg(wizard.colors.row_fg),
+                    ),
                 ])
             };
             lines.push(line);
@@ -1110,7 +1116,11 @@ fn render_wizard_model_selection(f: &mut Frame, wizard: &SetupWizard, area: rata
     f.render_widget(paragraph, area);
 }
 
-fn render_wizard_watch_directories(f: &mut Frame, wizard: &SetupWizard, area: ratatui::layout::Rect) {
+fn render_wizard_watch_directories(
+    f: &mut Frame,
+    wizard: &SetupWizard,
+    area: ratatui::layout::Rect,
+) {
     use ratatui::text::{Line, Span};
 
     // Split area: top for added directories, bottom for explorer
