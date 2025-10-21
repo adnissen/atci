@@ -333,6 +333,12 @@ pub fn render_system_tab(
     f.render_widget(watch_dirs_table, left_column[0]);
 
     // Config editing section on the bottom left with custom scrolling
+    // Calculate visible height (area height - 2 for borders)
+    let config_visible_height = left_column[1].height.saturating_sub(2) as usize;
+
+    // Adjust scroll to keep selected field visible
+    app.adjust_config_scroll(config_visible_height);
+
     let config_content = render_config_section(app);
     let config_title = if app.system_section == SystemSection::Config {
         "Configuration (Enter: Edit, Shift+R: Reload From Disk) [ACTIVE]"
@@ -504,7 +510,7 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
     use ratatui::style::Style;
     use ratatui::text::{Line, Span, Text};
 
-    let mut lines = Vec::new();
+    let mut all_lines = Vec::new();
     let field_names = app.get_config_field_names();
 
     for (index, field_name) in field_names.iter().enumerate() {
@@ -584,17 +590,23 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
             }
         }
 
-        lines.push(Line::from(spans));
+        all_lines.push(Line::from(spans));
     }
 
-    if lines.is_empty() {
-        lines.push(Line::from(vec![Span::styled(
+    if all_lines.is_empty() {
+        all_lines.push(Line::from(vec![Span::styled(
             "No config fields found",
             Style::default().fg(app.colors.disabled),
         )]));
     }
 
-    Text::from(lines)
+    // Apply scrolling: skip lines before scroll offset
+    let visible_lines: Vec<Line> = all_lines
+        .into_iter()
+        .skip(app.config_scroll_offset)
+        .collect();
+
+    Text::from(visible_lines)
 }
 
 fn render_queue_section<'a>(
