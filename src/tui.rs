@@ -379,6 +379,8 @@ impl App {
             config::set_config_field(&mut self.config_data, field_name, &self.config_input_buffer)?;
             // Automatically save config after editing
             self.save_config()?;
+            // Automatically reload config from disk to ensure consistency
+            self.reload_config();
         }
         self.stop_config_editing();
         Ok(())
@@ -1529,7 +1531,7 @@ fn ui(f: &mut Frame, app: &mut App, conn: &rusqlite::Connection) {
     } else if app.config_editing_mode {
         "Enter: Save & Exit  Esc: Cancel  Type to edit...".to_string()
     } else {
-        "↑↓/jk: Navigate  Enter: Edit  o: Open Browser App  n: Add Directory  d: Remove Directory  Ctrl+C: Quit".to_string()
+        "↑↓/jk: Navigate  Enter: Edit  o: Open Browser App  Ctrl+C: Quit".to_string()
     };
     let controls_block = Block::default()
         .title("Controls")

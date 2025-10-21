@@ -384,7 +384,7 @@ fn render_watch_directories_section<'a>(
         let dir_cell = if is_selected {
             Cell::from(format!("► {}", dir)).style(
                 Style::default()
-                    .fg(app.colors.selection)
+                    .fg(app.colors.text_highlight)
                     .add_modifier(Modifier::BOLD),
             )
         } else {
@@ -550,10 +550,10 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
             if let Some(color) = parse_hex_color(&field_value) {
                 Style::default().fg(color)
             } else {
-                Style::default().fg(app.colors.disabled)
+                Style::default().fg(app.colors.row_fg)
             }
         } else {
-            Style::default().fg(app.colors.disabled)
+            Style::default().fg(app.colors.row_fg)
         };
 
         // For boolean fields, show checkbox instead of true/false
