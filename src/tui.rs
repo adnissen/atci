@@ -9,7 +9,6 @@ use crossterm::{
         EnterAlternateScreen, LeaveAlternateScreen, SetTitle, disable_raw_mode, enable_raw_mode,
     },
 };
-use dirs;
 use ratatui::{
     Frame, Terminal,
     backend::{Backend, CrosstermBackend},
@@ -44,17 +43,28 @@ pub struct TableColors {
 impl TableColors {
     fn from_config(cfg: &config::AtciConfig) -> Self {
         Self {
-            buffer_bg: parse_hex_color(&cfg.color_buffer_bg).expect("Invalid hex color in config: color_buffer_bg"),
-            header_bg: parse_hex_color(&cfg.color_header_bg).expect("Invalid hex color in config: color_header_bg"),
-            header_fg: parse_hex_color(&cfg.color_text_primary).expect("Invalid hex color in config: color_text_primary"),
-            row_fg: parse_hex_color(&cfg.color_text_primary).expect("Invalid hex color in config: color_text_primary"),
-            footer_border_color: parse_hex_color(&cfg.color_border_primary).expect("Invalid hex color in config: color_border_primary"),
-            selection: parse_hex_color(&cfg.color_selection).expect("Invalid hex color in config: color_selection"),
-            success: parse_hex_color(&cfg.color_success).expect("Invalid hex color in config: color_success"),
-            disabled: parse_hex_color(&cfg.color_disabled).expect("Invalid hex color in config: color_disabled"),
-            info: parse_hex_color(&cfg.color_info).expect("Invalid hex color in config: color_info"),
-            error: parse_hex_color(&cfg.color_error).expect("Invalid hex color in config: color_error"),
-            text_highlight: parse_hex_color(&cfg.color_text_highlight).expect("Invalid hex color in config: color_text_highlight"),
+            buffer_bg: parse_hex_color(&cfg.color_buffer_bg)
+                .expect("Invalid hex color in config: color_buffer_bg"),
+            header_bg: parse_hex_color(&cfg.color_header_bg)
+                .expect("Invalid hex color in config: color_header_bg"),
+            header_fg: parse_hex_color(&cfg.color_text_primary)
+                .expect("Invalid hex color in config: color_text_primary"),
+            row_fg: parse_hex_color(&cfg.color_text_primary)
+                .expect("Invalid hex color in config: color_text_primary"),
+            footer_border_color: parse_hex_color(&cfg.color_border_primary)
+                .expect("Invalid hex color in config: color_border_primary"),
+            selection: parse_hex_color(&cfg.color_selection)
+                .expect("Invalid hex color in config: color_selection"),
+            success: parse_hex_color(&cfg.color_success)
+                .expect("Invalid hex color in config: color_success"),
+            disabled: parse_hex_color(&cfg.color_disabled)
+                .expect("Invalid hex color in config: color_disabled"),
+            info: parse_hex_color(&cfg.color_info)
+                .expect("Invalid hex color in config: color_info"),
+            error: parse_hex_color(&cfg.color_error)
+                .expect("Invalid hex color in config: color_error"),
+            text_highlight: parse_hex_color(&cfg.color_text_highlight)
+                .expect("Invalid hex color in config: color_text_highlight"),
         }
     }
 }
@@ -491,19 +501,22 @@ impl App {
             // Add downloaded version if available
             if tool_info.downloaded {
                 self.setup_wizard_options.push(ToolOption {
-                    display_text: format!("Use downloaded {} ({})", tool, tool_info.downloaded_path),
+                    display_text: format!(
+                        "Use downloaded {} ({})",
+                        tool, tool_info.downloaded_path
+                    ),
                     action: ToolAction::UseDownloaded(tool_info.downloaded_path.clone()),
                 });
             }
 
             // Add system version if available
-            if tool_info.system_available {
-                if let Some(system_path) = &tool_info.system_path {
-                    self.setup_wizard_options.push(ToolOption {
-                        display_text: format!("Use system {} ({})", tool, system_path),
-                        action: ToolAction::UseSystem(system_path.clone()),
-                    });
-                }
+            if tool_info.system_available
+                && let Some(system_path) = &tool_info.system_path
+            {
+                self.setup_wizard_options.push(ToolOption {
+                    display_text: format!("Use system {} ({})", tool, system_path),
+                    action: ToolAction::UseSystem(system_path.clone()),
+                });
             }
 
             // Always offer download option
@@ -531,7 +544,11 @@ impl App {
 
         // Add downloaded models first
         for model in models.iter().filter(|m| m.downloaded) {
-            let status = if model.configured { " (currently configured)" } else { "" };
+            let status = if model.configured {
+                " (currently configured)"
+            } else {
+                ""
+            };
             self.setup_wizard_options.push(ToolOption {
                 display_text: format!("Use downloaded {} ({}){}", model.name, model.path, status),
                 action: ToolAction::UseDownloaded(model.name.clone()),
@@ -598,8 +615,12 @@ impl App {
             }
             ToolAction::Download => {
                 // Get the model name from the selected option
-                if let Some(option) = self.setup_wizard_options.get(self.setup_wizard_selected_index) {
-                    if let Some(model_name) = option.display_text.strip_prefix("Download and use ") {
+                if let Some(option) = self
+                    .setup_wizard_options
+                    .get(self.setup_wizard_selected_index)
+                {
+                    if let Some(model_name) = option.display_text.strip_prefix("Download and use ")
+                    {
                         // Exit TUI temporarily for download
                         if let Err(e) = download_model_with_tui_pause(model_name) {
                             return Err(format!("Failed to download model {}: {}", model_name, e));
@@ -648,7 +669,14 @@ impl App {
     fn get_wizard_step_info(&self) -> (usize, usize) {
         use SetupWizardScreen::*;
 
-        let all_screens = [FFmpeg, FFprobe, WhisperCli, Model, WatchDirectories, Password];
+        let all_screens = [
+            FFmpeg,
+            FFprobe,
+            WhisperCli,
+            Model,
+            WatchDirectories,
+            Password,
+        ];
         let visible_screens: Vec<_> = all_screens
             .iter()
             .filter(|s| !self.should_skip_wizard_screen(s))
@@ -982,27 +1010,30 @@ fn run_setup_wizard() -> Result<bool, Box<dyn Error>> {
     Ok(should_continue)
 }
 
-fn run_wizard_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> Result<bool, Box<dyn Error>> {
+fn run_wizard_app<B: Backend>(
+    terminal: &mut Terminal<B>,
+    app: &mut App,
+) -> Result<bool, Box<dyn Error>> {
     loop {
         terminal.draw(|f| {
             // Render the setup wizard (full screen)
             render_setup_wizard_modal(f, app);
         })?;
 
-        if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                if let Some(should_quit) = handle_setup_wizard_input(app, key)? {
-                    if should_quit {
-                        // User pressed Ctrl+C or Esc to quit - don't continue to main TUI
-                        return Ok(false);
-                    }
-                }
+        if event::poll(Duration::from_millis(100))?
+            && let Event::Key(key) = event::read()?
+        {
+            if let Some(should_quit) = handle_setup_wizard_input(app, key)?
+                && should_quit
+            {
+                // User pressed Ctrl+C or Esc to quit - don't continue to main TUI
+                return Ok(false);
+            }
 
-                // Check if wizard is complete (completed successfully)
-                if !app.show_setup_wizard {
-                    // Wizard completed successfully - continue to main TUI
-                    return Ok(true);
-                }
+            // Check if wizard is complete (completed successfully)
+            if !app.show_setup_wizard {
+                // Wizard completed successfully - continue to main TUI
+                return Ok(true);
             }
         }
     }
@@ -1204,7 +1235,11 @@ fn handle_setup_wizard_input(
                             WhisperCli => "whispercli_path",
                             _ => "",
                         };
-                        match config::set_config_field(&mut app.config_data, field, &app.setup_wizard_input_buffer) {
+                        match config::set_config_field(
+                            &mut app.config_data,
+                            field,
+                            &app.setup_wizard_input_buffer,
+                        ) {
                             Ok(()) => {
                                 if let Err(e) = app.save_config() {
                                     eprintln!("Failed to save config: {}", e);
@@ -1236,12 +1271,17 @@ fn handle_setup_wizard_input(
                         }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
-                        if app.setup_wizard_selected_index < app.setup_wizard_options.len().saturating_sub(1) {
+                        if app.setup_wizard_selected_index
+                            < app.setup_wizard_options.len().saturating_sub(1)
+                        {
                             app.setup_wizard_selected_index += 1;
                         }
                     }
                     KeyCode::Enter => {
-                        if let Some(option) = app.setup_wizard_options.get(app.setup_wizard_selected_index) {
+                        if let Some(option) = app
+                            .setup_wizard_options
+                            .get(app.setup_wizard_selected_index)
+                        {
                             let field = match app.setup_wizard_screen {
                                 FFmpeg => "ffmpeg_path",
                                 FFprobe => "ffprobe_path",
@@ -1282,7 +1322,11 @@ fn handle_setup_wizard_input(
                     }
                     KeyCode::Enter => {
                         // Apply custom model path
-                        match config::set_config_field(&mut app.config_data, "model_name", &app.setup_wizard_input_buffer) {
+                        match config::set_config_field(
+                            &mut app.config_data,
+                            "model_name",
+                            &app.setup_wizard_input_buffer,
+                        ) {
                             Ok(()) => {
                                 if let Err(e) = app.save_config() {
                                     eprintln!("Failed to save config: {}", e);
@@ -1314,12 +1358,17 @@ fn handle_setup_wizard_input(
                         }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
-                        if app.setup_wizard_selected_index < app.setup_wizard_options.len().saturating_sub(1) {
+                        if app.setup_wizard_selected_index
+                            < app.setup_wizard_options.len().saturating_sub(1)
+                        {
                             app.setup_wizard_selected_index += 1;
                         }
                     }
                     KeyCode::Enter => {
-                        if let Some(option) = app.setup_wizard_options.get(app.setup_wizard_selected_index) {
+                        if let Some(option) = app
+                            .setup_wizard_options
+                            .get(app.setup_wizard_selected_index)
+                        {
                             let action = option.action.clone();
                             match app.apply_model_selection(&action) {
                                 Ok(()) => {
@@ -1426,7 +1475,11 @@ fn handle_setup_wizard_input(
                 KeyCode::Enter => {
                     // Save password and complete wizard
                     if !app.setup_wizard_input_buffer.is_empty() {
-                        match config::set_config_field(&mut app.config_data, "password", &app.setup_wizard_input_buffer) {
+                        match config::set_config_field(
+                            &mut app.config_data,
+                            "password",
+                            &app.setup_wizard_input_buffer,
+                        ) {
                             Ok(()) => {
                                 if let Err(e) = app.save_config() {
                                     eprintln!("Failed to save config: {}", e);
@@ -1604,7 +1657,10 @@ fn render_setup_wizard_modal(f: &mut Frame, app: &App) {
 
     let (current_step, total_steps) = app.get_wizard_step_info();
     let title = if current_step > 0 {
-        format!("Setup Wizard - {} ({}/{})", screen_title, current_step, total_steps)
+        format!(
+            "Setup Wizard - {} ({}/{})",
+            screen_title, current_step, total_steps
+        )
     } else {
         "Setup Wizard - Welcome".to_string()
     };
@@ -1721,7 +1777,10 @@ fn render_wizard_tool_selection(f: &mut Frame, app: &App, area: ratatui::layout:
         )));
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled(&app.setup_wizard_input_buffer, Style::default().fg(app.colors.success)),
+            Span::styled(
+                &app.setup_wizard_input_buffer,
+                Style::default().fg(app.colors.success),
+            ),
             Span::styled("█", Style::default().fg(app.colors.success)),
         ]));
         lines.push(Line::from(""));
@@ -1779,7 +1838,10 @@ fn render_wizard_model_selection(f: &mut Frame, app: &App, area: ratatui::layout
         )));
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled(&app.setup_wizard_input_buffer, Style::default().fg(app.colors.success)),
+            Span::styled(
+                &app.setup_wizard_input_buffer,
+                Style::default().fg(app.colors.success),
+            ),
             Span::styled("█", Style::default().fg(app.colors.success)),
         ]));
         lines.push(Line::from(""));
@@ -1908,7 +1970,10 @@ fn render_wizard_password(f: &mut Frame, app: &App, area: ratatui::layout::Rect)
         Line::from(""),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Password: ", Style::default().fg(app.colors.footer_border_color)),
+            Span::styled(
+                "Password: ",
+                Style::default().fg(app.colors.footer_border_color),
+            ),
             Span::styled(
                 "*".repeat(app.setup_wizard_input_buffer.len()),
                 Style::default().fg(app.colors.success),

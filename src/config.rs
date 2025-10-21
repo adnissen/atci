@@ -252,13 +252,19 @@ pub fn set_config_field(cfg: &mut AtciConfig, field: &str, value: &str) -> Resul
 fn validate_hex_color(hex: &str) -> Result<String, String> {
     let hex = hex.trim();
     if !hex.starts_with('#') || (hex.len() != 7 && hex.len() != 4) {
-        return Err(format!("Invalid hex color format: {}. Expected #RRGGBB or #RGB", hex));
+        return Err(format!(
+            "Invalid hex color format: {}. Expected #RRGGBB or #RGB",
+            hex
+        ));
     }
 
     // Validate hex characters
     for c in hex.chars().skip(1) {
         if !c.is_ascii_hexdigit() {
-            return Err(format!("Invalid hex color: {} contains non-hex character", hex));
+            return Err(format!(
+                "Invalid hex color: {} contains non-hex character",
+                hex
+            ));
         }
     }
 

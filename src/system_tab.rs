@@ -437,7 +437,10 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
         // Status and PIDs
         match service.status {
             ServiceStatus::Active => {
-                spans.push(Span::styled("active", Style::default().fg(app.colors.success)));
+                spans.push(Span::styled(
+                    "active",
+                    Style::default().fg(app.colors.success),
+                ));
                 if !service.pids.is_empty() {
                     let pid_list = service
                         .pids
@@ -472,7 +475,10 @@ fn render_services_list(app: &App) -> ratatui::text::Text<'static> {
                 }
             }
             ServiceStatus::Stopped => {
-                spans.push(Span::styled("stopped", Style::default().fg(app.colors.error)));
+                spans.push(Span::styled(
+                    "stopped",
+                    Style::default().fg(app.colors.error),
+                ));
             }
         }
 
@@ -508,7 +514,10 @@ fn render_config_section(app: &App) -> ratatui::text::Text<'static> {
 
         // Add selection indicator
         if is_selected {
-            spans.push(Span::styled("► ", Style::default().fg(app.colors.selection)));
+            spans.push(Span::styled(
+                "► ",
+                Style::default().fg(app.colors.selection),
+            ));
         } else {
             spans.push(Span::raw("  "));
         }
@@ -750,7 +759,8 @@ fn render_stats_section<'a>(
 
                     let dir_row = Row::new(vec![
                         Cell::from(display_dir).style(Style::default().fg(app.colors.row_fg)),
-                        Cell::from(count.to_string()).style(Style::default().fg(app.colors.success)),
+                        Cell::from(count.to_string())
+                            .style(Style::default().fg(app.colors.success)),
                         Cell::from(duration).style(Style::default().fg(app.colors.success)),
                     ]);
                     rows.push(dir_row);
