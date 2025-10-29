@@ -107,6 +107,8 @@ enum Commands {
     },
     #[command(about = "Watch directories for new videos and process them automatically")]
     Watch,
+    #[command(about = "Find all videos without transcripts and process them once")]
+    Process,
     #[command(about = "Display current configuration settings")]
     Config {
         #[command(subcommand)]
@@ -1447,6 +1449,63 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Keep the main thread alive while the background tasks run
                 loop {
                     tokio::time::sleep(Duration::from_secs(60)).await;
+                }
+            });
+        }
+        Some(Commands::Process) => {
+            let mut cfg: AtciConfig = config::load_config()?;
+
+            // Define required fields for process command (same as watch)
+            let mut required_fields = HashSet::new();
+            required_fields.insert("ffmpeg_path".to_string());
+            required_fields.insert("ffprobe_path".to_string());
+            required_fields.insert("whispercli_path".to_string());
+            required_fields.insert("model_name".to_string());
+            required_fields.insert("watch_directories".to_string());
+
+            // Validate and prompt for missing configuration
+            validate_and_prompt_config(&mut cfg, &required_fields)?;
+
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(async {
+                println!("[PROCESS] Scanning for videos without transcripts...");
+
+                // Scan for videos and add them to queue
+                match queue::scan_for_videos_without_transcripts() {
+                    Ok(files) => {
+                        if files.is_empty() {
+                            println!("[PROCESS] No videos without transcripts found");
+                            return;
+                        }
+
+                        println!(
+                            "[PROCESS] Found {} video(s) without transcripts",
+                            files.len()
+                        );
+
+                        // Add all files to queue
+                        for file in &files {
+                            if let Err(e) = queue::add_to_queue(file, None, None) {
+                                eprintln!("[PROCESS] Error adding to queue: {}", e);
+                            } else {
+                                println!("[PROCESS] Added to queue: {}", file);
+                            }
+                        }
+
+                        println!("[PROCESS] Starting processing...");
+
+                        // Process all items in the queue
+                        if let Err(e) = queue::process_all_queue_items().await {
+                            eprintln!("[PROCESS] Error processing queue: {}", e);
+                            std::process::exit(1);
+                        }
+
+                        println!("[PROCESS] All videos processed successfully");
+                    }
+                    Err(e) => {
+                        eprintln!("[PROCESS] Error scanning for videos: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             });
         }

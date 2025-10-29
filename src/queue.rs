@@ -463,67 +463,157 @@ pub fn cancel_queue() -> Result<String, Box<dyn std::error::Error>> {
     }
 }
 
+/// Processes all items in the queue until it's empty
+/// Shows progress output for each item
+pub async fn process_all_queue_items() -> Result<(), Box<dyn std::error::Error>> {
+    loop {
+        let conn = db::get_connection()?;
+
+        // Check if there's anything currently processing
+        let has_current_processing: bool = conn
+            .query_row("SELECT COUNT(*) > 0 FROM currently_processing", [], |row| {
+                row.get(0)
+            })
+            .unwrap_or(false);
+
+        if !has_current_processing {
+            // Get the first item from queue with all its data
+            let queue_item: Option<(String, Option<String>, Option<i64>)> = conn
+                .query_row(
+                    "SELECT path, model, subtitle_stream_index FROM queue ORDER BY position LIMIT 1",
+                    [],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, Option<String>>(1)?,
+                            row.get::<_, Option<i64>>(2)?,
+                        ))
+                    },
+                )
+                .ok();
+
+            if let Some((path, model, subtitle_stream_index)) = queue_item {
+                // Get queue length for progress reporting
+                let queue_length: i64 = conn
+                    .query_row("SELECT COUNT(*) FROM queue", [], |row| row.get(0))
+                    .unwrap_or(0);
+
+                println!("[PROCESS] Processing item 1 of {} in queue", queue_length);
+                println!("[PROCESS] Current file: {}", path);
+
+                // Add to currently_processing table with current timestamp
+                let now = chrono::Utc::now().to_rfc3339();
+                conn.execute(
+                    "INSERT INTO currently_processing (starting_time, path, model, subtitle_stream_index) VALUES (?1, ?2, ?3, ?4)",
+                    (now, &path, model, subtitle_stream_index),
+                )?;
+
+                // Remove from queue
+                remove_first_line_from_queue(Some(&conn))?;
+            } else {
+                // Queue is empty, we're done
+                println!("[PROCESS] Queue is empty, processing complete");
+                break;
+            }
+        }
+
+        // Process the current item
+        match process_queue_iteration().await {
+            Ok(processed) => {
+                if processed {
+                    println!("[PROCESS] Successfully processed item");
+                }
+            }
+            Err(e) => {
+                eprintln!("[PROCESS] Error processing queue item: {}", e);
+            }
+        }
+
+        // Clear the currently_processing table after each iteration
+        if let Ok(conn) = db::get_connection() {
+            let _ = conn.execute("DELETE FROM currently_processing", []);
+        }
+
+        // Small delay between iterations
+        sleep(Duration::from_millis(100)).await;
+    }
+
+    Ok(())
+}
+
+/// Scans watch directories for video files without transcripts
+/// Returns a list of file paths that need processing
+pub fn scan_for_videos_without_transcripts() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    let cfg: AtciConfig = config::load_config()?;
+    let video_extensions = crate::files::get_video_extensions();
+
+    if cfg.watch_directories.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    // Scan watch directories for files that need transcripts
+    let files_to_add: Vec<_> = cfg
+        .watch_directories
+        .iter()
+        .flat_map(|wd| {
+            let mut files: Vec<_> = WalkDir::new(wd)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter_map(|entry| {
+                    let file_path = entry.path();
+
+                    // skip directories
+                    if !file_path.is_file() {
+                        return None;
+                    }
+
+                    if let Some(extension) = file_path.extension() {
+                        let ext_str = extension.to_string_lossy().to_lowercase();
+
+                        // we're only interested in video files
+                        if !video_extensions.contains(&ext_str.as_str()) {
+                            return None;
+                        }
+
+                        // we want to make sure the file isn't in the process of currently being copied over to our watch directory
+                        // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
+                        if let Ok(metadata) = fs::metadata(file_path)
+                            && let Ok(modified) = metadata.modified()
+                        {
+                            let now = std::time::SystemTime::now();
+                            if let Ok(duration) = now.duration_since(modified)
+                                && duration.as_secs() >= 3
+                            {
+                                let txt_path = file_path.with_extension("txt");
+
+                                if !txt_path.exists() {
+                                    return Some(file_path.to_string_lossy().to_string());
+                                }
+                            }
+                        }
+                    }
+                    None
+                })
+                .collect::<Vec<_>>();
+            files.sort();
+            files
+        })
+        .collect();
+
+    Ok(files_to_add)
+}
+
 pub async fn watch_for_missing_metadata() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async move {
         eprintln!("[WATCHER] Metadata watcher started");
         loop {
-            let cfg: AtciConfig = config::load_config().expect("Failed to load config");
-
-            let video_extensions = crate::files::get_video_extensions();
-
-            if cfg.watch_directories.is_empty() {
-                eprintln!("No watch directories configured");
-                return;
-            }
-
-            // Scan watch directories and add files to queue
-            let files_to_add: Vec<_> = cfg
-                .watch_directories
-                .iter()
-                .flat_map(|wd| {
-                    let mut files: Vec<_> = WalkDir::new(wd)
-                        .into_iter()
-                        .filter_map(|e| e.ok())
-                        .filter_map(|entry| {
-                            let file_path = entry.path();
-
-                            // skip directories
-                            if !file_path.is_file() {
-                                return None;
-                            }
-
-                            if let Some(extension) = file_path.extension() {
-                                let ext_str = extension.to_string_lossy().to_lowercase();
-
-                                // we're only interested in video files
-                                if !video_extensions.contains(&ext_str.as_str()) {
-                                    return None;
-                                }
-
-                                // we want to make sure the file isn't in the process of currently being copied over to our watch directory
-                                // since there isn't any way to actually tell for sure via an api call, a useful proxy for this is that the file hasn't been modified in the last 3 seconds
-                                if let Ok(metadata) = fs::metadata(file_path)
-                                    && let Ok(modified) = metadata.modified()
-                                {
-                                    let now = std::time::SystemTime::now();
-                                    if let Ok(duration) = now.duration_since(modified)
-                                        && duration.as_secs() >= 3
-                                    {
-                                        let txt_path = file_path.with_extension("txt");
-
-                                        if !txt_path.exists() {
-                                            return Some(file_path.to_string_lossy().to_string());
-                                        }
-                                    }
-                                }
-                            }
-                            None
-                        })
-                        .collect::<Vec<_>>();
-                    files.sort();
-                    files
-                })
-                .collect();
+            let files_to_add = match scan_for_videos_without_transcripts() {
+                Ok(files) => files,
+                Err(e) => {
+                    eprintln!("[WATCHER] Error scanning for videos: {}", e);
+                    Vec::new()
+                }
+            };
 
             for file_to_add in files_to_add {
                 if let Err(e) = add_to_queue(&file_to_add, None, None) {
