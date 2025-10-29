@@ -636,6 +636,24 @@ fn handle_key_event(
                 }
             }
         }
+        KeyCode::Char('r') => {
+            if app.current_tab == TabState::System
+                && app.system_section == SystemSection::WatchDirectories
+                && !app.config_editing_mode
+            {
+                // Regenerate selected watch directory
+                if !app.config_data.watch_directories.is_empty()
+                    && app.watch_directories_selected_index
+                        < app.config_data.watch_directories.len()
+                {
+                    let watch_dir =
+                        &app.config_data.watch_directories[app.watch_directories_selected_index];
+                    if let Err(e) = files::regenerate_watch_directory(watch_dir) {
+                        eprintln!("Failed to regenerate watch directory: {}", e);
+                    }
+                }
+            }
+        }
         KeyCode::Enter => {
             if app.current_tab == TabState::System {
                 // Only handle config editing, services are not selectable
