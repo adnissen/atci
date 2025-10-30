@@ -286,9 +286,12 @@ pub fn render_system_tab(
     f.render_widget(big_text, right_side_chunks[0]);
 
     // Text below BigText
-    let below_text = Paragraph::new("(Andrew's transcript and clipping interface)")
-        .style(Style::new().fg(app.colors.row_fg))
-        .alignment(Alignment::Center);
+    let below_text = Paragraph::new(format!(
+        "(Andrew's transcript and clipping interface) v{}",
+        env!("CARGO_PKG_VERSION")
+    ))
+    .style(Style::new().fg(app.colors.row_fg))
+    .alignment(Alignment::Center);
 
     f.render_widget(below_text, right_side_chunks[1]);
 

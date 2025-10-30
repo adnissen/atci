@@ -728,8 +728,8 @@ pub async fn cancellable_create_transcript_single(
                     "Failed to extract specified subtitle stream, trying whisper transcription"
                 );
             }
-        } else {
-            // Auto-detect subtitle streams
+        } else if model.is_none() {
+            // Only auto-detect subtitle streams if no whisper model was explicitly specified
             let streams = get_subtitle_streams(video_path, Path::new(&cfg.ffprobe_path))
                 .await
                 .unwrap_or_else(|e| {
