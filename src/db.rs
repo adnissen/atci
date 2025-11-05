@@ -37,7 +37,6 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
         conn.execute("DROP TABLE IF EXISTS currently_processing", [])?;
         conn.execute("DROP TABLE IF EXISTS video_parts", [])?;
         conn.execute("DROP TABLE IF EXISTS cancel_requests", [])?;
-        conn.execute("DROP TABLE IF EXISTS short_urls", [])?;
         conn.execute("DROP TABLE IF EXISTS schema_version", [])?;
 
         // Recreate schema_version table
@@ -113,15 +112,6 @@ fn init_database(conn: &Connection) -> SqliteResult<()> {
         conn.execute(
             "CREATE TABLE cancel_requests (
                 created_at TEXT NOT NULL
-            )",
-            [],
-        )?;
-
-        // Create short_urls table
-        conn.execute(
-            "CREATE TABLE short_urls (
-                id TEXT PRIMARY KEY,
-                url TEXT NOT NULL
             )",
             [],
         )?;

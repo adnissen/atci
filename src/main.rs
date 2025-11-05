@@ -33,7 +33,6 @@ mod model_manager;
 mod queue;
 mod search;
 mod setup_wizard;
-mod short_url;
 mod system_tab;
 mod tools_manager;
 mod transcripts;

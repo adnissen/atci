@@ -2,7 +2,7 @@
 // Copyright (C) 2025 Andrew Nissen
 
 use crate::{
-    Asset, auth::AuthGuard, clipper, config, files, model_manager, queue, search, short_url,
+    Asset, auth::AuthGuard, clipper, config, files, model_manager, queue, search,
     tools_manager, transcripts,
 };
 use rocket::form::{Form, FromForm};
@@ -243,14 +243,6 @@ fn logout(cookies: &CookieJar<'_>) -> Redirect {
     Redirect::to("/auth")
 }
 
-#[get("/short/<id>")]
-fn short_url_redirect(id: &str) -> Result<Redirect, NotFound<String>> {
-    match short_url::get_url(id) {
-        Ok(Some(url)) => Ok(Redirect::to(url)),
-        Ok(None) => Err(NotFound(format!("Short URL '{}' not found", id))),
-        Err(e) => Err(NotFound(format!("Error retrieving short URL: {}", e))),
-    }
-}
 
 fn api_routes() -> Vec<rocket::Route> {
     routes![
@@ -334,8 +326,7 @@ pub async fn launch_server(host: &str, port: u16) -> Result<(), rocket::Error> {
         auth_submit,
         logout,
         app,
-        assets,
-        short_url_redirect
+        assets
     ];
     all_routes.extend(api_routes());
 
