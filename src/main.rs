@@ -27,6 +27,7 @@ mod auth;
 mod clipper;
 mod config;
 mod db;
+mod dev;
 mod files;
 mod metadata;
 mod model_manager;
@@ -185,6 +186,11 @@ enum Commands {
             default_value = "false"
         )]
         json: bool,
+    },
+    #[command(about = "Developer utilities")]
+    Dev {
+        #[command(subcommand)]
+        dev_command: Option<DevCommands>,
     },
 }
 
@@ -424,6 +430,19 @@ enum TranscriptsCommands {
         video_path: String,
         #[arg(help = "New path for the video file")]
         new_path: String,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+#[command(arg_required_else_help = true)]
+enum DevCommands {
+    #[command(about = "Download test content to a directory for development")]
+    DownloadTestContent {
+        #[arg(
+            long,
+            help = "Directory to download test content to (defaults to ~/atci_dev)"
+        )]
+        dir: Option<String>,
     },
 }
 
@@ -1880,6 +1899,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 std::process::exit(1);
             }
         }
+        Some(Commands::Dev { dev_command }) => match dev_command {
+            Some(DevCommands::DownloadTestContent { dir }) => {
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                rt.block_on(async {
+                    if let Err(e) =
+                        dev::download_test_content(dir.map(std::path::PathBuf::from)).await
+                    {
+                        eprintln!("Error downloading test content: {}", e);
+                        std::process::exit(1);
+                    }
+                });
+            }
+            None => {}
+        },
         None => {
             // Check if setup is needed
             let cfg = config::load_config_or_default();
