@@ -2,7 +2,7 @@
 
 use indicatif::{ProgressBar, ProgressStyle};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub async fn download_test_content(dir: Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
     // Determine the target directory
@@ -72,7 +72,7 @@ pub async fn download_test_content(dir: Option<PathBuf>) -> Result<(), Box<dyn s
 fn download_video(
     url: &str,
     filename: &str,
-    target_dir: &PathBuf,
+    target_dir: &Path,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     println!("Downloading: {} from {}", filename, url);
 
